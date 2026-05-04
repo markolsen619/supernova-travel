@@ -1,7 +1,7 @@
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
-import { UserProfile } from '@/types';
+import { UserProfile, Trip } from '@/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePublicTrips } from '@/hooks/useTripList';
 
@@ -31,7 +31,7 @@ async function fetchUserSuggestions(): Promise<UserProfile[]> {
 }
 
 export function useExplore(): {
-  trips: import('@/types').Trip[];
+  trips: Trip[];
   tripsLoading: boolean;
   suggestions: UserProfile[];
   suggestionsLoading: boolean;
@@ -41,7 +41,7 @@ export function useExplore(): {
   const { data: trips = [], isLoading: tripsLoading } = usePublicTrips(20);
 
   const { data: rawSuggestions = [], isLoading: suggestionsLoading } = useQuery({
-    queryKey: ['userSuggestions'],
+    queryKey: ['userSuggestions', currentUid ?? 'anon'],
     queryFn: fetchUserSuggestions,
     staleTime: 10 * 60 * 1000,
   });

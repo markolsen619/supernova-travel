@@ -53,7 +53,7 @@ async function searchTrips(q: string): Promise<Trip[]> {
   return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Trip));
 }
 
-export function useSearch(query: string): {
+export function useSearch(searchText: string): {
   users: UserProfile[];
   trips: Trip[];
   isSearching: boolean;
@@ -62,10 +62,10 @@ export function useSearch(query: string): {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedQuery(query.trim());
+      setDebouncedQuery(searchText.trim());
     }, 350);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [searchText]);
 
   const enabled = debouncedQuery.length >= 2;
 
