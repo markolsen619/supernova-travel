@@ -10,7 +10,7 @@ type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps {
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
   variant?: Variant;
   size?: Size;
   loading?: boolean;

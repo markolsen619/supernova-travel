@@ -47,6 +47,14 @@
       "expo-web-browser",
       "expo-font",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#a78bfa",
+          "sounds": []
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#0a0a1a",
@@ -60,7 +68,8 @@
           "photosPermission": "Supernova needs photo library access to share your travel memories.",
           "cameraPermission": "Supernova needs camera access to capture travel photos and clips."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

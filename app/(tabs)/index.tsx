@@ -1,65 +1,116 @@
-import { View, Text, StyleSheet, Dimensions, FlatList, StatusBar } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  ActivityIndicator,
+  TouchableOpacity,
+} from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import { FeedCard } from '@/components/feed/FeedCard';
+import { useFeed } from '@/hooks/useFeed';
+import { Post } from '@/types';
+import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
-const { height } = Dimensions.get('window');
-
-// Placeholder feed item — replaced in Phase 2 with real PostCard + Firestore data
-function FeedCard({ item }: { item: { id: string; destination: string; user: string } }) {
-  return (
-    <View style={styles.card}>
-      <LinearGradient
-        colors={['#1a0a3a', '#0a0a1a']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.glow} />
-
-      <View style={styles.cardContent}>
-        <View style={styles.cardBottom}>
-          <Text style={styles.destination}>✦ {item.destination}</Text>
-          <Text style={styles.username}>@{item.user}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-const PLACEHOLDER_DATA = [
-  { id: '1', destination: 'Santorini, Greece', user: 'explorer_jane' },
-  { id: '2', destination: 'Kyoto, Japan', user: 'wanderlust_dev' },
-  { id: '3', destination: 'Patagonia, Argentina', user: 'mountain_mark' },
-];
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+type FeedTab = 'forYou' | 'following';
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState<FeedTab>('forYou');
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed(tab);
+
+  const posts: Post[] = data?.pages.flatMap((p) => p.posts) ?? [];
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 80,
+  });
+
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: Array<{ index: number | null; isViewable: boolean }> }) => {
+      const first = viewableItems.find((v) => v.isViewable);
+      if (first) setActiveIndex(first.index ?? 0);
+    },
+    []
+  );
+
+  function handleEndReached() {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }
 
   return (
     <View style={styles.container}>
       {/* Tab toggle */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}>
-        <Text style={styles.headerTitle}>For You</Text>
-        <Text style={[styles.headerTitle, styles.headerInactive]}>Following</Text>
-      </View>
+      <LinearGradient
+        colors={['rgba(0,0,0,0.6)', 'transparent']}
+        style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity onPress={() => setTab('forYou')}>
+          <Text style={[styles.headerTab, tab === 'forYou' && styles.headerTabActive]}>
+            For You
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setTab('following')}>
+          <Text style={[styles.headerTab, tab === 'following' && styles.headerTabActive]}>
+            Following
+          </Text>
+        </TouchableOpacity>
+      </LinearGradient>
 
-      <FlatList
-        data={PLACEHOLDER_DATA}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <FeedCard item={item} />}
-        pagingEnabled
-        showsVerticalScrollIndicator={false}
-        snapToInterval={height}
-        decelerationRate="fast"
-        style={styles.list}
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={DarkColors.brand.purple} />
+        </View>
+      ) : posts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>✈️</Text>
+          <Text style={styles.emptyTitle}>Nothing here yet</Text>
+          <Text style={styles.emptySubtitle}>
+            {tab === 'following' ? 'Follow travelers to see their posts here' : 'Be the first to share a travel moment'}
+          </Text>
+        </View>
+      ) : (
+        <FlashList
+          data={posts}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <FeedCard post={item} isActive={index === activeIndex} />
+          )}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          decelerationRate="fast"
+          viewabilityConfig={viewabilityConfig.current}
+          onViewableItemsChanged={onViewableItemsChanged}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator color={DarkColors.brand.purple} />
+              </View>
+            ) : null
+          }
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background.primary },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
   header: {
     position: 'absolute',
     top: 0,
@@ -69,45 +120,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing['6'],
-    paddingBottom: Spacing['3'],
+    paddingBottom: Spacing['4'],
   },
-  headerTitle: {
+  headerTab: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
-    color: Colors.white,
+    color: 'rgba(255,255,255,0.5)',
   },
-  headerInactive: {
-    color: Colors.text.tertiary,
+  headerTabActive: {
+    color: '#fff',
+    borderBottomWidth: 2,
+    borderBottomColor: '#fff',
+    paddingBottom: 2,
   },
-  list: { flex: 1 },
-  card: {
-    width: '100%',
-    height,
-    overflow: 'hidden',
-  },
-  glow: {
-    position: 'absolute',
-    top: '20%',
-    left: '10%',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: 'rgba(120,80,255,0.12)',
-  },
-  cardContent: {
+  loadingContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
-    padding: Spacing['6'],
-    paddingBottom: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardBottom: { gap: Spacing['2'] },
-  destination: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
-    color: Colors.white,
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing['3'],
+    paddingHorizontal: Spacing['8'],
   },
-  username: {
+  emptyIcon: {
+    fontSize: 48,
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+  },
+  emptySubtitle: {
+    color: 'rgba(255,255,255,0.6)',
     fontSize: FontSize.base,
-    color: Colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  footerLoader: {
+    padding: Spacing['5'],
+    alignItems: 'center',
   },
 });

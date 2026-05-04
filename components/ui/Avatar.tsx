@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/colors';
 import { FontWeight } from '@/constants/typography';
@@ -35,11 +35,17 @@ export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
     ? name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
     : '?';
 
+  const circleStyle: ImageStyle = {
+    width: px,
+    height: px,
+    borderRadius: px / 2,
+  };
+
   if (uri) {
     return (
       <Image
         source={{ uri }}
-        style={[{ width: px, height: px, borderRadius: px / 2 }, styles.image, style]}
+        style={[circleStyle, styles.image, style as ImageStyle]}
       />
     );
   }
@@ -47,7 +53,7 @@ export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
   return (
     <LinearGradient
       colors={Colors.gradient.purplePink}
-      style={[{ width: px, height: px, borderRadius: px / 2 }, styles.gradient, style]}
+      style={[circleStyle, styles.gradient, style]}
     >
       <Text style={[styles.initials, { fontSize: fontSizes[size] }]}>{initials}</Text>
     </LinearGradient>
@@ -62,7 +68,7 @@ const styles = StyleSheet.create({
   gradient: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
+  } as ViewStyle,
   initials: {
     color: Colors.white,
     fontWeight: FontWeight.bold,
