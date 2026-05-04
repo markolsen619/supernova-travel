@@ -86,6 +86,7 @@ export function AiGeneratingAnimation({ status }: AiGeneratingAnimationProps) {
   const statusOpacity = useSharedValue(0);
 
   useEffect(() => {
+    statusOpacity.value = 0;
     statusOpacity.value = withTiming(1, { duration: 400 });
   }, [status]);
 

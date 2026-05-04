@@ -64,6 +64,34 @@ service cloud.firestore {
         || request.auth.uid in resource.data.collaborators
       );
       allow delete: if isAuthed() && isOwner(resource.data.authorUid);
+
+      // Trip days subcollection
+      match /days/{dayId} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        function canReadTrip() {
+          return parentTrip().data.visibility == 'public'
+            || isOwner(parentTrip().data.authorUid)
+            || (parentTrip().data.visibility == 'followers' && isAuthed())
+            || request.auth.uid in parentTrip().data.collaborators;
+        }
+        function canWriteTrip() {
+          return isAuthed() && (
+            isOwner(parentTrip().data.authorUid)
+            || request.auth.uid in parentTrip().data.collaborators
+          );
+        }
+
+        allow read: if canReadTrip();
+        allow create, update, delete: if canWriteTrip();
+
+        // Day activities subcollection
+        match /activities/{activityId} {
+          allow read: if canReadTrip();
+          allow create, update, delete: if canWriteTrip();
+        }
+      }
     }
 
     // Follows

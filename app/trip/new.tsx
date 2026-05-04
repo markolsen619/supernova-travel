@@ -713,6 +713,7 @@ export default function NewTripScreen() {
 
   // Step 3
   const [title, setTitle] = useState('');
+  const [titleAutoFilled, setTitleAutoFilled] = useState(true);
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<TripVisibility>('public');
   const [tagsInput, setTagsInput] = useState('');
@@ -746,10 +747,14 @@ export default function NewTripScreen() {
     return true;
   };
 
+  const handleSetTitle = useCallback((v: string) => {
+    setTitleAutoFilled(false);
+    setTitle(v);
+  }, []);
+
   const handleNext = () => {
     if (!canAdvance()) return;
-    // Auto-fill title when entering step 3
-    if (step === 1 && !title) {
+    if (step === 1 && titleAutoFilled) {
       setTitle(`Trip to ${destination.trim()}`);
     }
     goToStep(step + 1, true);
@@ -825,7 +830,7 @@ export default function NewTripScreen() {
             description={description}
             visibility={visibility}
             tagsInput={tagsInput}
-            setTitle={setTitle}
+            setTitle={handleSetTitle}
             setDescription={setDescription}
             setVisibility={setVisibility}
             setTagsInput={setTagsInput}

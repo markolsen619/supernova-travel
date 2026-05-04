@@ -421,6 +421,7 @@ export default function TripDetailScreen() {
           {/* Edit button — owner only */}
           {isOwner && (
             <TouchableOpacity
+              onPress={() => router.push({ pathname: '/trip/edit', params: { id } })}
               style={[styles.headerEditBtn, { top: insets.top + Spacing['2'] }]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
