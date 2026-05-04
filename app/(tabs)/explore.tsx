@@ -1,66 +1,216 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
+import { useExplore } from '@/hooks/useExplore';
+import { TrendingCard } from '@/components/explore/TrendingCard';
+import { UserSuggestion } from '@/components/explore/UserSuggestion';
+import { TripGrid } from '@/components/explore/TripGrid';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing, BorderRadius } from '@/constants/spacing';
+import { Spacing } from '@/constants/spacing';
+import { Trip } from '@/types';
 
-const DESTINATIONS = [
-  { id: '1', name: 'Santorini', country: 'Greece', emoji: '🇬🇷' },
-  { id: '2', name: 'Kyoto', country: 'Japan', emoji: '🇯🇵' },
-  { id: '3', name: 'Patagonia', country: 'Argentina', emoji: '🇦🇷' },
-  { id: '4', name: 'Bali', country: 'Indonesia', emoji: '🇮🇩' },
-  { id: '5', name: 'Amalfi Coast', country: 'Italy', emoji: '🇮🇹' },
-  { id: '6', name: 'Maldives', country: 'Maldives', emoji: '🇲🇻' },
-];
+// Map ISO country codes to flag emojis.  Falls back to 🌍 for unknowns.
+function countryCodeToEmoji(code: string | null): string {
+  if (!code || code.length !== 2) return '🌍';
+  const offset = 0x1f1e6 - 0x41;
+  return (
+    String.fromCodePoint(code.toUpperCase().charCodeAt(0) + offset) +
+    String.fromCodePoint(code.toUpperCase().charCodeAt(1) + offset)
+  );
+}
+
+interface TrendingDestination {
+  name: string;
+  country: string;
+  emoji: string;
+  tripCount: number;
+}
+
+function deriveTrending(trips: Trip[]): TrendingDestination[] {
+  const counts = new Map<string, { count: number; countryCode: string | null }>();
+
+  for (const trip of trips) {
+    const key = trip.destination.name;
+    if (!key) continue;
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(key, { count: 1, countryCode: trip.destination.countryCode });
+    }
+  }
+
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 6)
+    .map(([name, { count, countryCode }]) => ({
+      name,
+      country: countryCode ?? '',
+      emoji: countryCodeToEmoji(countryCode),
+      tripCount: count,
+    }));
+}
 
 export default function ExploreScreen() {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const { trips, tripsLoading, suggestions, suggestionsLoading } = useExplore();
+
+  const trending = useMemo(() => deriveTrending(trips), [trips]);
+
+  const handleTripPress = (tripId: string) => {
+    router.push(`/trip/${tripId}`);
+  };
+
+  const handleTrendingPress = (destinationName: string) => {
+    router.push(`/search?q=${encodeURIComponent(destinationName)}`);
+  };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <LinearGradient colors={['#0a0a1a', '#0d0d1f']} style={StyleSheet.absoluteFill} />
-
-      <Text style={styles.title}>Explore</Text>
-      <Text style={styles.subtitle}>Discover your next destination</Text>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.sectionTitle}>Trending Destinations</Text>
-        <View style={styles.grid}>
-          {DESTINATIONS.map((dest) => (
-            <View key={dest.id} style={styles.destCard}>
-              <LinearGradient colors={Colors.gradient.card} style={StyleSheet.absoluteFill} />
-              <View style={styles.destCardBorder} />
-              <Text style={styles.destEmoji}>{dest.emoji}</Text>
-              <Text style={styles.destName}>{dest.name}</Text>
-              <Text style={styles.destCountry}>{dest.country}</Text>
-            </View>
-          ))}
+    <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + Spacing['4'] },
+        ]}
+      >
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text.primary }]}>
+            Explore
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
+            Discover your next destination
+          </Text>
         </View>
+
+        {/* ── Trending Destinations ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
+            Trending Destinations
+          </Text>
+
+          {tripsLoading ? (
+            <ActivityIndicator
+              color={colors.brand.purple}
+              style={styles.loader}
+            />
+          ) : trending.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.trendingScroll}
+            >
+              {trending.map((dest) => (
+                <TrendingCard
+                  key={dest.name}
+                  name={dest.name}
+                  country={dest.country}
+                  emoji={dest.emoji}
+                  tripCount={dest.tripCount}
+                  onPress={() => handleTrendingPress(dest.name)}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
+        </View>
+
+        {/* ── Latest Trips ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
+            Latest Trips
+          </Text>
+
+          {tripsLoading ? (
+            <ActivityIndicator
+              color={colors.brand.purple}
+              style={styles.loader}
+            />
+          ) : (
+            <TripGrid trips={trips} onTripPress={handleTripPress} />
+          )}
+        </View>
+
+        {/* ── People to Follow ── */}
+        {(suggestionsLoading || suggestions.length > 0) && (
+          <View style={[styles.section, styles.peopleSection]}>
+            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
+              People to Follow
+            </Text>
+
+            {suggestionsLoading ? (
+              <ActivityIndicator
+                color={colors.brand.purple}
+                style={styles.loader}
+              />
+            ) : (
+              suggestions.map((user) => (
+                <UserSuggestion key={user.uid} user={user} />
+              ))
+            )}
+          </View>
+        )}
+
+        {/* Bottom spacing for tab bar */}
+        <View style={styles.bottomPad} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background.primary },
-  title: { fontSize: FontSize['2xl'], fontWeight: FontWeight.black, color: Colors.white, paddingHorizontal: Spacing['6'], paddingTop: Spacing['4'] },
-  subtitle: { fontSize: FontSize.sm, color: Colors.text.secondary, paddingHorizontal: Spacing['6'], marginBottom: Spacing['4'] },
-  scroll: { paddingHorizontal: Spacing['6'], paddingBottom: 100 },
-  sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold, color: Colors.text.secondary, marginBottom: Spacing['4'], letterSpacing: 1, textTransform: 'uppercase' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing['3'] },
-  destCard: {
-    width: '47%',
-    aspectRatio: 1,
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.2)',
+  container: {
+    flex: 1,
   },
-  destCardBorder: { position: 'absolute', inset: 0, borderRadius: BorderRadius.xl },
-  destEmoji: { fontSize: 36, marginBottom: Spacing['2'] },
-  destName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.white },
-  destCountry: { fontSize: FontSize.xs, color: Colors.text.tertiary },
+  scrollContent: {
+    paddingBottom: Spacing['6'],
+  },
+  header: {
+    paddingHorizontal: Spacing['6'],
+    marginBottom: Spacing['6'],
+  },
+  title: {
+    fontSize: FontSize['2xl'],
+    fontWeight: FontWeight.black,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: FontSize.sm,
+  },
+  section: {
+    marginBottom: Spacing['6'],
+  },
+  sectionTitle: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: Spacing['3'],
+    paddingHorizontal: Spacing['6'],
+  },
+  trendingScroll: {
+    paddingHorizontal: Spacing['6'],
+    gap: Spacing['3'],
+    flexDirection: 'row',
+  },
+  peopleSection: {
+    paddingHorizontal: Spacing['6'],
+  },
+  loader: {
+    marginVertical: Spacing['6'],
+  },
+  bottomPad: {
+    height: 100,
+  },
 });
