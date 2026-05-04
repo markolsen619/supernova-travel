@@ -48,75 +48,73 @@ export function ActivityItem({
   const emoji = TYPE_EMOJI[activity.type];
   const subtitle = activity.address ?? activity.notes ?? '';
 
-  const inner = (
-    <View style={[styles.row, { backgroundColor: colors.background.card }]}>
-      {/* Left border accent */}
-      <View style={[styles.accentBorder, { backgroundColor: accentColor }]} />
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.75 : 1}
+      disabled={!onPress}
+      style={styles.container}
+    >
+      <View style={[styles.row, { backgroundColor: colors.background.card }]}>
+        {/* Left border accent */}
+        <View style={[styles.accentBorder, { backgroundColor: accentColor }]} />
 
-      {/* Time column */}
-      <View style={styles.timeCol}>
-        {activity.startTime ? (
-          <Text style={[styles.timeText, { color: colors.text.secondary }]}>
-            {activity.startTime}
-          </Text>
-        ) : (
-          <View style={[styles.typeDot, { backgroundColor: accentColor }]} />
-        )}
-      </View>
+        {/* Time column */}
+        <View style={styles.timeCol}>
+          {activity.startTime ? (
+            <Text style={[styles.timeText, { color: colors.text.secondary }]}>
+              {activity.startTime}
+            </Text>
+          ) : (
+            <View style={[styles.typeDot, { backgroundColor: accentColor }]} />
+          )}
+        </View>
 
-      {/* Icon pill */}
-      <View
-        style={[
-          styles.iconPill,
-          { backgroundColor: `${accentColor}26` }, // ~15% opacity
-        ]}
-      >
-        <Text style={styles.iconEmoji}>{emoji}</Text>
-      </View>
-
-      {/* Content */}
-      <View style={styles.contentCol}>
-        <Text
-          style={[styles.title, { color: colors.text.primary }]}
-          numberOfLines={1}
+        {/* Icon pill */}
+        <View
+          style={[
+            styles.iconPill,
+            { backgroundColor: `${accentColor}26` }, // ~15% opacity
+          ]}
         >
-          {activity.title}
-        </Text>
-        {subtitle ? (
+          <Text style={styles.iconEmoji}>{emoji}</Text>
+        </View>
+
+        {/* Content */}
+        <View style={styles.contentCol}>
           <Text
-            style={[styles.subtitle, { color: colors.text.tertiary }]}
+            style={[styles.title, { color: colors.text.primary }]}
             numberOfLines={1}
           >
-            {subtitle}
+            {activity.title}
           </Text>
+          {subtitle ? (
+            <Text
+              style={[styles.subtitle, { color: colors.text.tertiary }]}
+              numberOfLines={1}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* Edit button */}
+        {showEdit && onEdit ? (
+          <TouchableOpacity
+            onPress={onEdit}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.editBtn}
+          >
+            <Text style={[styles.editIcon, { color: colors.text.tertiary }]}>✏️</Text>
+          </TouchableOpacity>
         ) : null}
       </View>
-
-      {/* Edit button */}
-      {showEdit && onEdit ? (
-        <TouchableOpacity
-          onPress={onEdit}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={styles.editBtn}
-        >
-          <Text style={[styles.editIcon, { color: colors.text.tertiary }]}>✏️</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
+    </TouchableOpacity>
   );
-
-  if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
-        {inner}
-      </TouchableOpacity>
-    );
-  }
-
-  return inner;
 }
 
 const styles = StyleSheet.create({
+  container: {},
   row: {
     flexDirection: 'row',
     alignItems: 'center',

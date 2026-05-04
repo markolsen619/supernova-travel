@@ -12,7 +12,6 @@ import { Timestamp } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing, Shadow } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Trip, TripStatus } from '@/types';
 
@@ -41,81 +40,87 @@ function formatDateRange(
 
 export function TripCard({ trip, onPress, style }: TripCardProps) {
   const { colors } = useTheme();
-  const statusCfg = STATUS_CONFIG[trip.status];
+  const statusCfg = STATUS_CONFIG[trip.status] ?? STATUS_CONFIG.planning;
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.85}
-      style={[styles.wrapper, Shadow.md, style]}
-    >
-      {/* ── Cover image area ── */}
-      <View style={styles.imageContainer}>
-        {trip.coverImageUrl ? (
-          <Image
-            source={{ uri: trip.coverImageUrl }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        ) : (
+    <View style={[styles.shadowWrapper, style]}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={styles.wrapper}
+      >
+        {/* ── Cover image area ── */}
+        <View style={styles.imageContainer}>
+          {trip.coverImageUrl ? (
+            <Image
+              source={{ uri: trip.coverImageUrl }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
+          ) : (
+            <LinearGradient
+              colors={colors.gradient.card}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
+
+          {/* Bottom-up dark fade for text readability */}
           <LinearGradient
-            colors={colors.gradient.card}
+            colors={['transparent', 'rgba(0,0,0,0.6)']}
             style={StyleSheet.absoluteFill}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
           />
-        )}
 
-        {/* Bottom-up dark fade for text readability */}
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.6)']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        />
-
-        {/* Status badge — top-right */}
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: statusCfg.bg },
-          ]}
-        >
-          <Text style={[styles.statusText, { color: statusCfg.text }]}>
-            {statusCfg.label}
-          </Text>
+          {/* Status badge — top-right */}
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: statusCfg.bg },
+            ]}
+          >
+            <Text style={[styles.statusText, { color: statusCfg.text }]}>
+              {statusCfg.label}
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {/* ── Content area ── */}
-      <GlassCard style={styles.content} bordered={false}>
-        {/* Destination */}
-        <Text
-          style={[styles.destination, { color: colors.text.primary }]}
-          numberOfLines={1}
-        >
-          {trip.destination.name}
-        </Text>
-
-        {/* Date range */}
-        {dateRange ? (
-          <Text style={[styles.dateRange, { color: colors.text.secondary }]}>
-            {dateRange}
+        {/* ── Content area ── */}
+        <View style={[styles.contentArea, { backgroundColor: colors.background.card }]}>
+          {/* Destination */}
+          <Text
+            style={[styles.destination, { color: colors.text.primary }]}
+            numberOfLines={1}
+          >
+            {trip.destination.name}
           </Text>
-        ) : null}
 
-        {/* Author row */}
-        <View style={styles.authorRow}>
-          <Avatar size="xs" />
-          <Text style={[styles.authorText, { color: colors.text.tertiary }]}>
-            by traveler
-          </Text>
+          {/* Date range */}
+          {dateRange ? (
+            <Text style={[styles.dateRange, { color: colors.text.secondary }]}>
+              {dateRange}
+            </Text>
+          ) : null}
+
+          {/* Author row */}
+          <View style={styles.authorRow}>
+            <Avatar size="xs" />
+            <Text style={[styles.authorText, { color: colors.text.tertiary }]}>
+              by traveler
+            </Text>
+          </View>
         </View>
-      </GlassCard>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  shadowWrapper: {
+    borderRadius: BorderRadius.xl,
+    ...Shadow.md,
+  },
   wrapper: {
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
@@ -137,10 +142,8 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semiBold,
     letterSpacing: 0.3,
   },
-  content: {
+  contentArea: {
     padding: Spacing['3'],
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
   },
   destination: {
     fontSize: FontSize.base,

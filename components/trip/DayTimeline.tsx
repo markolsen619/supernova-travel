@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -37,6 +37,10 @@ export function DayTimeline({
   editable = false,
 }: DayTimelineProps) {
   const { colors } = useTheme();
+  const handleEditActivity = useCallback(
+    (activity: TripActivity) => onEditActivity?.(activity),
+    [onEditActivity],
+  );
   const sorted = [...day.activities].sort((a, b) => a.order - b.order);
   const hasActivities = sorted.length > 0;
   const hasNotes = Boolean(day.notes);
@@ -82,7 +86,7 @@ export function DayTimeline({
             <View key={activity.id}>
               <ActivityItem
                 activity={activity}
-                onEdit={onEditActivity ? () => onEditActivity(activity) : undefined}
+                onEdit={onEditActivity ? () => handleEditActivity(activity) : undefined}
                 showEdit={editable}
               />
               {/* Connector line between items */}
