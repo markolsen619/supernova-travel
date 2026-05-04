@@ -40,6 +40,7 @@ export function useCreateTrip() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    await queryClient.invalidateQueries({ queryKey: ['trip', docRef.id] });
     return docRef.id;
   }
 
