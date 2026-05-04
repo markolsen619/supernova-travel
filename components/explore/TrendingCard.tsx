@@ -32,7 +32,7 @@ export function TrendingCard({
   const { colors } = useTheme();
 
   return (
-    <View style={styles.shadowWrapper}>
+    <View style={[styles.shadowWrapper, { shadowColor: colors.brand.purple }]}>
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.85}
@@ -69,7 +69,6 @@ const styles = StyleSheet.create({
   shadowWrapper: {
     width: CARD_WIDTH,
     aspectRatio: 1,
-    shadowColor: '#a78bfa',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,

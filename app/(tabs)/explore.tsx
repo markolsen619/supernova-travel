@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -68,13 +68,13 @@ export default function ExploreScreen() {
 
   const trending = useMemo(() => deriveTrending(trips), [trips]);
 
-  const handleTripPress = (tripId: string) => {
+  const handleTripPress = useCallback((tripId: string) => {
     router.push(`/trip/${tripId}`);
-  };
+  }, [router]);
 
-  const handleTrendingPress = (destinationName: string) => {
-    router.push(`/search?q=${encodeURIComponent(destinationName)}`);
-  };
+  const handleTrendingPress = useCallback((name: string) => {
+    router.push({ pathname: '/(tabs)/search', params: { q: name } });
+  }, [router]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
