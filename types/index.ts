@@ -130,3 +130,14 @@ export interface CreateTripInput {
   coverImageUrl: string | null;
   isAiGenerated: boolean;
 }
+
+export interface UpdateTripInput {
+  title?: string;
+  description?: string;
+  coverImageUrl?: string | null;
+  visibility?: TripVisibility;
+  tags?: string[];
+  startDate?: Date | null;
+  endDate?: Date | null;
+  status?: TripStatus;
+}

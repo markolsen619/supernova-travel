@@ -4,16 +4,12 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  getDocs,
-  query,
-  orderBy,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
-import { db } from '@/services/firebase';
-import { auth } from '@/services/firebase';
-import { Trip, TripDay, TripActivity, CreateTripInput } from '@/types';
+import { db, auth } from '@/services/firebase';
+import { TripDay, TripActivity, CreateTripInput, UpdateTripInput } from '@/types';
 
 export function useCreateTrip() {
   const queryClient = useQueryClient();
@@ -40,14 +36,20 @@ export function useCreateTrip() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    await queryClient.invalidateQueries({ queryKey: ['trip', docRef.id] });
+    await queryClient.invalidateQueries({ queryKey: ['trips', uid] });
+    if (data.visibility === 'public') {
+      await queryClient.invalidateQueries({ queryKey: ['publicTrips'] });
+    }
     return docRef.id;
   }
 
-  async function updateTrip(tripId: string, data: Partial<Trip>): Promise<void> {
+  async function updateTrip(tripId: string, data: UpdateTripInput): Promise<void> {
     const tripRef = doc(db, 'trips', tripId);
+    const { startDate, endDate, ...rest } = data;
     await updateDoc(tripRef, {
-      ...data,
+      ...rest,
+      ...(startDate !== undefined && { startDate: startDate ? Timestamp.fromDate(startDate) : null }),
+      ...(endDate !== undefined && { endDate: endDate ? Timestamp.fromDate(endDate) : null }),
       updatedAt: serverTimestamp(),
     });
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
@@ -72,16 +74,10 @@ export function useCreateTrip() {
   async function addActivity(
     tripId: string,
     dayId: string,
-    activity: Omit<TripActivity, 'id' | 'order'>
+    activity: Omit<TripActivity, 'id' | 'order'>,
+    order: number = Date.now()
   ): Promise<string> {
     const activitiesRef = collection(db, 'trips', tripId, 'days', dayId, 'activities');
-
-    // Auto-set order = existing activity count
-    const existingSnap = await getDocs(
-      query(activitiesRef, orderBy('order'))
-    );
-    const order = existingSnap.size;
-
     const docRef = await addDoc(activitiesRef, { ...activity, order });
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
     return docRef.id;
