@@ -57,16 +57,12 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
     onClose();
   }, [onClose]);
 
-  const handleClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
   return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={handleClose}
+      onRequestClose={onClose}
     >
       <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
         <LinearGradient
@@ -92,7 +88,7 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
                 Edit Profile
               </Text>
               <TouchableOpacity
-                onPress={handleClose}
+                onPress={onClose}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessibilityRole="button"
                 accessibilityLabel="Close"

@@ -255,7 +255,7 @@ export default function UserProfileScreen() {
                 {
                   backgroundColor:
                     activeProfileTab === tab
-                      ? 'rgba(167,139,250,0.2)'
+                      ? colors.brand.purple + '33'
                       : colors.background.card,
                   borderColor:
                     activeProfileTab === tab
