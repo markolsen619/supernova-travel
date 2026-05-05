@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { auth, db } from '@/services/firebase';
+import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useTheme } from '@/hooks/useTheme';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -67,6 +68,7 @@ function AppStack() {
         <Stack.Screen name="user/[uid]" />
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
         <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="(wallet)" />
       </Stack>
     </>
   );
@@ -84,6 +86,7 @@ export default function RootLayout() {
           setTier(snap.data().tier ?? 'free');
         }
         registerPushToken(firebaseUser.uid);
+        configureRevenueCat(firebaseUser.uid);
         router.replace('/(tabs)');
       } else {
         router.replace('/(auth)/welcome');
