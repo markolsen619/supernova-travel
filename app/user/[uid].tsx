@@ -54,13 +54,13 @@ export default function UserProfileScreen() {
     (id: string) => {
       router.push(`/trip/${id}`);
     },
-    [],
+    [router],
   );
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
+      <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
         <LinearGradient
           colors={colors.gradient.dark}
           style={StyleSheet.absoluteFill}
@@ -73,7 +73,7 @@ export default function UserProfileScreen() {
   // ── Not found state ───────────────────────────────────────────────────────
   if (!profile) {
     return (
-      <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
+      <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
         <LinearGradient
           colors={colors.gradient.dark}
           style={StyleSheet.absoluteFill}
@@ -224,6 +224,9 @@ export default function UserProfileScreen() {
 // ── Static styles ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
+  },
+  rootCentered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
