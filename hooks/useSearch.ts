@@ -1,89 +1,55 @@
-import { useState, useEffect } from 'react';
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-} from 'firebase/firestore';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { db } from '@/services/firebase';
+import { algoliasearch } from 'algoliasearch';
+import { Hit } from '@algolia/client-search';
 import { UserProfile, Trip } from '@/types';
 
-async function searchUsers(q: string): Promise<UserProfile[]> {
-  const end = q + '';
-  const snap = await getDocs(
-    query(
-      collection(db, 'users'),
-      where('displayName', '>=', q),
-      where('displayName', '<=', end),
-      limit(15)
-    )
-  );
-  return snap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      uid: doc.id,
-      displayName: data.displayName ?? '',
-      username: data.username ?? data.displayName?.toLowerCase().replace(/\s+/g, '') ?? '',
-      avatarUrl: data.avatarUrl ?? null,
-      bio: data.bio ?? '',
-      location: data.location ?? '',
-      followersCount: data.followersCount ?? 0,
-      followingCount: data.followingCount ?? 0,
-      tripsCount: data.tripsCount ?? 0,
-      tier: data.tier ?? 'free',
-      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-    } as UserProfile;
-  });
-}
-
-async function searchTrips(q: string): Promise<Trip[]> {
-  const end = q + '';
-  const snap = await getDocs(
-    query(
-      collection(db, 'trips'),
-      where('title', '>=', q),
-      where('title', '<=', end),
-      where('visibility', '==', 'public'),
-      limit(15)
-    )
-  );
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Trip));
-}
+const client = algoliasearch(
+  process.env.EXPO_PUBLIC_ALGOLIA_APP_ID ?? '',
+  process.env.EXPO_PUBLIC_ALGOLIA_SEARCH_KEY ?? '',
+);
 
 export function useSearch(searchText: string): {
   users: UserProfile[];
   trips: Trip[];
   isSearching: boolean;
 } {
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [debouncedText, setDebouncedText] = useState(searchText);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchText.trim());
-    }, 350);
+    if (searchText.trim().length < 2) {
+      setDebouncedText('');
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedText(searchText.trim()), 350);
     return () => clearTimeout(timer);
   }, [searchText]);
 
-  const enabled = debouncedQuery.length >= 2;
-
-  const { data: users = [], isFetching: usersSearching } = useQuery({
-    queryKey: ['searchUsers', debouncedQuery],
-    queryFn: () => searchUsers(debouncedQuery),
-    enabled,
-    staleTime: 0,
+  const { data, isFetching } = useQuery({
+    queryKey: ['search', debouncedText],
+    enabled: debouncedText.length >= 2,
+    staleTime: 1000 * 60 * 2,
+    queryFn: async () => {
+      const [usersResult, tripsResult] = await Promise.all([
+        client.searchSingleIndex<UserProfile>({
+          indexName: 'users',
+          searchParams: { query: debouncedText, hitsPerPage: 20 },
+        }),
+        client.searchSingleIndex<Trip>({
+          indexName: 'trips',
+          searchParams: { query: debouncedText, hitsPerPage: 20 },
+        }),
+      ]);
+      return {
+        users: usersResult.hits.map((h: Hit<UserProfile>) => ({ ...h, uid: h.objectID })),
+        trips: tripsResult.hits.map((h: Hit<Trip>) => ({ ...h, id: h.objectID })),
+      };
+    },
   });
 
-  const { data: trips = [], isFetching: tripsSearching } = useQuery({
-    queryKey: ['searchTrips', debouncedQuery],
-    queryFn: () => searchTrips(debouncedQuery),
-    enabled,
-    staleTime: 0,
-  });
-
-  const isSearching = enabled && (usersSearching || tripsSearching);
-
-  return { users, trips, isSearching };
+  return {
+    users: data?.users ?? [],
+    trips: data?.trips ?? [],
+    isSearching: isFetching,
+  };
 }
