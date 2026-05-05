@@ -89,24 +89,24 @@ export default function SearchScreen() {
       return;
     }
 
+    let cancelled = false;
     setPlacesLoading(true);
     setPlacesError(false);
 
     const timer = setTimeout(async () => {
       try {
         const results = await fetchPlaces(query.trim());
-        setPlaces(results);
+        if (!cancelled) setPlaces(results);
       } catch {
-        setPlacesError(true);
-        setPlaces([]);
+        if (!cancelled) { setPlacesError(true); setPlaces([]); }
       } finally {
-        setPlacesLoading(false);
+        if (!cancelled) setPlacesLoading(false);
       }
     }, 350);
 
     return () => {
+      cancelled = true;
       clearTimeout(timer);
-      setPlacesLoading(false);
     };
   }, [query, activeTab]);
 

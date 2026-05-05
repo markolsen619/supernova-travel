@@ -11,14 +11,15 @@ interface TripResultProps {
   onPress: () => void;
 }
 
-const STATUS_CONFIG: Record<TripStatus, { label: string; bg: string; text: string }> = {
-  planning: { label: 'Planning', bg: 'rgba(251,191,36,0.2)', text: '#fbbf24' },
-  active: { label: 'Active', bg: 'rgba(52,211,153,0.2)', text: '#34d399' },
-  completed: { label: 'Completed', bg: 'rgba(96,165,250,0.2)', text: '#60a5fa' },
-};
-
 export function TripResult({ trip, onPress }: TripResultProps) {
   const { colors } = useTheme();
+
+  const STATUS_CONFIG: Record<TripStatus, { label: string; bg: string; text: string }> = {
+    planning:  { label: 'Planning',  bg: colors.accent.amber + '33', text: colors.accent.amber },
+    active:    { label: 'Active',    bg: colors.accent.teal + '33',  text: colors.accent.teal },
+    completed: { label: 'Completed', bg: colors.brand.blue + '33',   text: colors.brand.blue },
+  };
+
   const statusCfg = STATUS_CONFIG[trip.status] ?? STATUS_CONFIG.planning;
 
   return (
@@ -28,7 +29,7 @@ export function TripResult({ trip, onPress }: TripResultProps) {
       style={[styles.row, { borderBottomColor: colors.background.cardBorder }]}
     >
       {/* Thumbnail */}
-      <View style={styles.thumbnail}>
+      <View style={[styles.thumbnail, { backgroundColor: colors.brand.purple + '26' }]}>
         {trip.coverImageUrl ? (
           <Image
             source={{ uri: trip.coverImageUrl }}
@@ -84,7 +85,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     overflow: 'hidden',
     flexShrink: 0,
-    backgroundColor: 'rgba(167,139,250,0.15)',
   },
   center: {
     flex: 1,
