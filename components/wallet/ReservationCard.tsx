@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSize.base,
-    fontWeight: FontWeight.semiBold,
+    fontWeight: FontWeight.bold,
   },
   confirmationCode: {
     fontSize: FontSize.sm,
