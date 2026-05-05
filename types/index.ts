@@ -141,3 +141,61 @@ export interface UpdateTripInput {
   endDate?: Date | null;
   status?: TripStatus;
 }
+
+// ── Wallet ──────────────────────────────────────────────────────────────────
+
+export type BoardingPassStatus = 'upcoming' | 'checked_in' | 'boarded' | 'completed' | 'cancelled';
+export type BarcodeFormat = 'aztec' | 'qr' | 'pdf417' | 'code128';
+
+export interface BoardingPass {
+  id: string;
+  ownerUid: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;           // IATA airport code, e.g. "JFK"
+  originCity: string;
+  destination: string;      // IATA airport code, e.g. "LHR"
+  destinationCity: string;
+  departureTime: string;    // ISO 8601
+  arrivalTime?: string;     // ISO 8601
+  seat?: string;
+  boardingGroup?: string;
+  gate?: string;
+  barcode?: string;         // raw barcode string
+  barcodeFormat?: BarcodeFormat;
+  status: BoardingPassStatus;
+  createdAt: string;        // ISO 8601
+}
+
+export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity';
+
+export interface Reservation {
+  id: string;
+  ownerUid: string;
+  type: ReservationType;
+  title: string;            // e.g. "The Ritz-Carlton, Tokyo"
+  confirmationCode: string;
+  checkIn?: string;         // ISO 8601 date
+  checkOut?: string;        // ISO 8601 date
+  address?: string;
+  notes?: string;
+  attachmentUrls?: string[];
+  createdAt: string;
+}
+
+export type LoyaltyUnit = 'miles' | 'points' | 'nights' | 'segments';
+export type LoyaltyTier = 'standard' | 'silver' | 'gold' | 'platinum' | 'diamond';
+
+export interface LoyaltyProgram {
+  id: string;
+  ownerUid: string;
+  programType: 'airline' | 'hotel' | 'car_rental' | 'credit_card' | 'other';
+  programName: string;      // e.g. "Delta SkyMiles"
+  memberNumber?: string;
+  balance: number;
+  unit: LoyaltyUnit;
+  tier?: LoyaltyTier;
+  expiryDate?: string;      // ISO 8601 date
+  isManual: boolean;        // true = user entered manually, false = scanned/synced
+  createdAt: string;
+}

@@ -111,5 +111,23 @@ service cloud.firestore {
       allow create: if isAuthed();
       allow read, update, delete: if false;
     }
+
+    // Boarding passes
+    match /boarding_passes/{passId} {
+      allow read, update, delete: if isAuthed() && isOwner(resource.data.ownerUid);
+      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid;
+    }
+
+    // Reservations
+    match /reservations/{reservationId} {
+      allow read, update, delete: if isAuthed() && isOwner(resource.data.ownerUid);
+      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid;
+    }
+
+    // Loyalty programs
+    match /loyalty_programs/{programId} {
+      allow read, update, delete: if isAuthed() && isOwner(resource.data.ownerUid);
+      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid;
+    }
   }
 }
