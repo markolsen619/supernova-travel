@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { LoyaltyProgram } from '@/types';
 import { PointsBalance } from './PointsBalance';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing, BorderRadius } from '@/constants/spacing';
+import { Spacing, BorderRadius, Shadow } from '@/constants/spacing';
 
 interface LoyaltyCardProps {
   program: LoyaltyProgram;
@@ -71,10 +71,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing['4'],
     marginBottom: Spacing['3'],
     borderRadius: BorderRadius.xl,
-    shadowColor: '#a78bfa',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
+    ...Shadow.lg,
     elevation: 6,
   },
   card: {
