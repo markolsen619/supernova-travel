@@ -8,7 +8,7 @@ interface BarcodeDisplayProps {
 
 export function BarcodeDisplay({ barcode, size = 180 }: BarcodeDisplayProps) {
   return (
-    <View style={[styles.container, { backgroundColor: 'white', padding: 12, borderRadius: 8 }]}>
+    <View style={styles.container}>
       <QRCode value={barcode} size={size} />
     </View>
   );
@@ -19,5 +19,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
+    // QR codes require white background for scanner contrast — intentionally not theme-derived
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 8,
   },
 });

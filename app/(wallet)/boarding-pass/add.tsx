@@ -248,7 +248,7 @@ export default function AddBoardingPassScreen() {
           disabled={addPass.isPending}
           activeOpacity={0.8}
         >
-          <Text style={styles.submitButtonText}>
+          <Text style={[styles.submitButtonText, { color: '#ffffff' }]}>
             {addPass.isPending ? 'Saving...' : 'Add Boarding Pass'}
           </Text>
         </TouchableOpacity>
@@ -314,6 +314,5 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.bold,
-    color: '#ffffff',
   },
 });

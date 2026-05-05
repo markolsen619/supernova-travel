@@ -160,18 +160,19 @@ export default function ReservationDetailScreen() {
             value={reservation.confirmationCode}
             valueStyle={{ color: colors.brand.purple, fontWeight: FontWeight.bold }}
             colors={colors}
+            borderColor={colors.background.cardBorder}
           />
           {reservation.checkIn ? (
-            <DetailRow label="Check-In" value={formatDate(reservation.checkIn)} colors={colors} />
+            <DetailRow label="Check-In" value={formatDate(reservation.checkIn)} colors={colors} borderColor={colors.background.cardBorder} />
           ) : null}
           {reservation.checkOut ? (
-            <DetailRow label="Check-Out" value={formatDate(reservation.checkOut)} colors={colors} />
+            <DetailRow label="Check-Out" value={formatDate(reservation.checkOut)} colors={colors} borderColor={colors.background.cardBorder} />
           ) : null}
           {reservation.address ? (
-            <DetailRow label="Address" value={reservation.address} colors={colors} />
+            <DetailRow label="Address" value={reservation.address} colors={colors} borderColor={colors.background.cardBorder} />
           ) : null}
           {reservation.notes ? (
-            <DetailRow label="Notes" value={reservation.notes} colors={colors} />
+            <DetailRow label="Notes" value={reservation.notes} colors={colors} borderColor={colors.background.cardBorder} />
           ) : null}
         </View>
 
@@ -195,11 +196,12 @@ interface DetailRowProps {
   value: string;
   valueStyle?: object;
   colors: { text: { primary: string; secondary: string; tertiary: string } };
+  borderColor: string;
 }
 
-function DetailRow({ label, value, valueStyle, colors }: DetailRowProps) {
+function DetailRow({ label, value, valueStyle, colors, borderColor }: DetailRowProps) {
   return (
-    <View style={styles.detailRow}>
+    <View style={[styles.detailRow, { borderBottomColor: borderColor }]}>
       <Text style={[styles.detailLabel, { color: colors.text.tertiary }]}>{label}</Text>
       <Text style={[styles.detailValue, { color: colors.text.primary }, valueStyle]}>
         {value}
@@ -274,7 +276,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingVertical: Spacing['4'],
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
     gap: Spacing['3'],
   },
   detailLabel: {
