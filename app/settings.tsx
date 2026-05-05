@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,10 @@ export default function SettingsScreen() {
 
   const capitalizedTier = tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : 'Free';
 
+  const handleClose = useCallback(() => router.back(), []);
+  const handleUpgrade = useCallback(() => router.push('/paywall'), []);
+  const handleSignOut = useCallback(() => auth.signOut(), []);
+
   return (
     <LinearGradient
       colors={colors.gradient.dark}
@@ -42,7 +46,7 @@ export default function SettingsScreen() {
           <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
             Settings
           </Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <Text style={[styles.closeText, { color: colors.text.secondary }]}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -73,7 +77,7 @@ export default function SettingsScreen() {
                       <Text
                         style={[
                           styles.segmentText,
-                          { color: isActive ? '#ffffff' : colors.text.tertiary },
+                          { color: isActive ? colors.text.inverse : colors.text.tertiary },
                         ]}
                       >
                         {option.label}
@@ -109,7 +113,7 @@ export default function SettingsScreen() {
                   {capitalizedTier}
                 </Text>
                 {tier === 'free' && (
-                  <TouchableOpacity onPress={() => router.push('/paywall')}>
+                  <TouchableOpacity onPress={handleUpgrade}>
                     <Text style={[styles.upgradeText, { color: colors.brand.purple }]}>
                       {' '}Upgrade →
                     </Text>
@@ -148,7 +152,7 @@ export default function SettingsScreen() {
               variant="danger"
               size="lg"
               fullWidth
-              onPress={() => auth.signOut()}
+              onPress={handleSignOut}
             />
           </View>
         </ScrollView>
