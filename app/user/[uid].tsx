@@ -5,7 +5,7 @@
  * Navigated to via router.push('/user/<uid>') — not part of the tab bar.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -24,9 +24,15 @@ import { useFollow } from '@/hooks/useFollow';
 import { useTripList } from '@/hooks/useTripList';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { TripGrid } from '@/components/explore/TripGrid';
+import { PostsGrid } from '@/components/profile/PostsGrid';
+import { TripsGrid } from '@/components/profile/TripsGrid';
+import { SavedGrid } from '@/components/profile/SavedGrid';
+import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing } from '@/constants/spacing';
+import { Spacing, BorderRadius } from '@/constants/spacing';
+
+type ProfileTab = 'Posts' | 'Trips' | 'Saved';
+const PROFILE_TABS: ProfileTab[] = ['Posts', 'Trips', 'Saved'];
 
 export default function UserProfileScreen() {
   const { uid } = useLocalSearchParams<{ uid: string }>();
@@ -36,6 +42,9 @@ export default function UserProfileScreen() {
   const { profile, isLoading, isFollowing, isOwnProfile } = usePublicProfile(uid ?? null);
   const { follow, unfollow } = useFollow(uid ?? '');
   const { data: trips = [] } = useTripList(uid ?? null);
+
+  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>('Trips');
+  const [editVisible, setEditVisible] = useState(false);
 
   // Filter trips based on ownership — own profile sees all, others see public only
   const publicTrips = isOwnProfile
@@ -50,8 +59,16 @@ export default function UserProfileScreen() {
     unfollow.mutate();
   }, [unfollow]);
 
-  const handleEditProfile = useCallback(() => {
-    router.push('/settings');
+  const handleEditProfileOpen = useCallback(() => {
+    setEditVisible(true);
+  }, []);
+
+  const handleEditProfileClose = useCallback(() => {
+    setEditVisible(false);
+  }, []);
+
+  const handleWalletPress = useCallback(() => {
+    router.push('/(wallet)/boarding-passes');
   }, []);
 
   const handleTripPress = useCallback(
@@ -66,7 +83,7 @@ export default function UserProfileScreen() {
     return (
       <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
         <LinearGradient
-          colors={colors.gradient.dark}
+          colors={colors.gradient.dark as [string, string]}
           style={StyleSheet.absoluteFill}
         />
         <ActivityIndicator color={colors.brand.purple} size="large" />
@@ -79,7 +96,7 @@ export default function UserProfileScreen() {
     return (
       <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
         <LinearGradient
-          colors={colors.gradient.dark}
+          colors={colors.gradient.dark as [string, string]}
           style={StyleSheet.absoluteFill}
         />
         <Text style={{ color: colors.text.secondary, fontSize: FontSize.md }}>
@@ -93,7 +110,7 @@ export default function UserProfileScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
       <LinearGradient
-        colors={colors.gradient.dark}
+        colors={colors.gradient.dark as [string, string]}
         style={StyleSheet.absoluteFill}
       />
 
@@ -187,15 +204,29 @@ export default function UserProfileScreen() {
           </View>
         </View>
 
-        {/* Follow / Edit button */}
+        {/* Follow / Edit / Wallet buttons */}
         <View style={styles.actionRow}>
           {isOwnProfile ? (
-            <Button
-              label="Edit Profile"
-              variant="secondary"
-              size="md"
-              onPress={handleEditProfile}
-            />
+            <View
+              style={{
+                flexDirection: 'row',
+                gap: Spacing['3'],
+                justifyContent: 'center',
+              }}
+            >
+              <Button
+                label="Edit Profile"
+                variant="secondary"
+                size="md"
+                onPress={handleEditProfileOpen}
+              />
+              <Button
+                label="🧳 Wallet"
+                variant="secondary"
+                size="md"
+                onPress={handleWalletPress}
+              />
+            </View>
           ) : isFollowing ? (
             <Button
               label="Following"
@@ -213,14 +244,53 @@ export default function UserProfileScreen() {
           )}
         </View>
 
-        {/* Trips section */}
-        <View style={styles.tripsSection}>
-          <Text style={[styles.sectionHeader, { color: colors.text.primary }]}>
-            Trips
-          </Text>
-          <TripGrid trips={publicTrips} onTripPress={handleTripPress} />
+        {/* Profile tab switcher */}
+        <View style={styles.tabRow}>
+          {PROFILE_TABS.map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveProfileTab(tab)}
+              style={[
+                styles.tabPill,
+                {
+                  backgroundColor:
+                    activeProfileTab === tab
+                      ? 'rgba(167,139,250,0.2)'
+                      : colors.background.card,
+                  borderColor:
+                    activeProfileTab === tab
+                      ? colors.brand.purple
+                      : colors.background.cardBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabPillText,
+                  {
+                    color:
+                      activeProfileTab === tab
+                        ? colors.brand.purple
+                        : colors.text.tertiary,
+                  },
+                ]}
+              >
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+
+        {/* Tab content */}
+        {activeProfileTab === 'Posts' && <PostsGrid uid={uid ?? ''} />}
+        {activeProfileTab === 'Trips' && (
+          <TripsGrid trips={publicTrips} onTripPress={handleTripPress} />
+        )}
+        {activeProfileTab === 'Saved' && <SavedGrid uid={uid ?? ''} />}
       </ScrollView>
+
+      {/* Edit profile modal */}
+      <EditProfileSheet visible={editVisible} onClose={handleEditProfileClose} />
     </View>
   );
 }
@@ -293,13 +363,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing['4'],
   },
-  tripsSection: {
+  tabRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing['2'],
     marginTop: Spacing['6'],
+    marginBottom: Spacing['4'],
     paddingHorizontal: Spacing['6'],
   },
-  sectionHeader: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    marginBottom: Spacing['3'],
+  tabPill: {
+    paddingHorizontal: Spacing['4'],
+    paddingVertical: Spacing['2'],
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  tabPillText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
   },
 });
