@@ -50,11 +50,15 @@ export default function UserProfileScreen() {
     unfollow.mutate();
   }, [unfollow]);
 
+  const handleEditProfile = useCallback(() => {
+    router.push('/settings');
+  }, []);
+
   const handleTripPress = useCallback(
     (id: string) => {
       router.push(`/trip/${id}`);
     },
-    [router],
+    [],
   );
 
   // ── Loading state ─────────────────────────────────────────────────────────
@@ -160,7 +164,7 @@ export default function UserProfileScreen() {
             </Text>
           </View>
 
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: colors.background.cardBorder }]} />
 
           <View style={styles.statItem}>
             <Text style={[styles.statNumber, { color: colors.text.primary }]}>
@@ -171,7 +175,7 @@ export default function UserProfileScreen() {
             </Text>
           </View>
 
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: colors.background.cardBorder }]} />
 
           <View style={styles.statItem}>
             <Text style={[styles.statNumber, { color: colors.text.primary }]}>
@@ -190,7 +194,7 @@ export default function UserProfileScreen() {
               label="Edit Profile"
               variant="secondary"
               size="md"
-              onPress={() => router.push('/settings')}
+              onPress={handleEditProfile}
             />
           ) : isFollowing ? (
             <Button
@@ -284,7 +288,6 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 32,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   actionRow: {
     alignItems: 'center',
