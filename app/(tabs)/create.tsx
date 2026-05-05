@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/hooks/useTheme';
@@ -58,7 +59,7 @@ export default function CreateScreen() {
 
       <View style={styles.options}>
         {options.map((opt) => (
-          <TouchableOpacity key={opt.title} style={[styles.optionCard, { borderColor: colors.background.cardBorder }]} onPress={opt.onPress} activeOpacity={0.8}>
+          <TouchableOpacity key={opt.title} style={[styles.optionCard, { borderColor: colors.background.cardBorder }]} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); opt.onPress(); }} activeOpacity={0.8}>
             <LinearGradient colors={colors.gradient.card} style={StyleSheet.absoluteFill} />
             <View style={styles.optionCardBorder} />
             <View style={styles.optionRow}>

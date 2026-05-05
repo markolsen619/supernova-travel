@@ -6,14 +6,79 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { BoardingPassCard } from '@/components/wallet/BoardingPassCard';
 import { BarcodeDisplay } from '@/components/wallet/BarcodeDisplay';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import type { BoardingPass } from '@/types';
+
+const CARD_HEIGHT = 200;
+
+function FlippableCard({ pass }: { pass: BoardingPass }) {
+  const { colors } = useTheme();
+  const flipValue = useSharedValue(0);
+
+  const handleFlip = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    flipValue.value = withSpring(flipValue.value === 0 ? 1 : 0, {
+      damping: 15,
+      stiffness: 100,
+    });
+  };
+
+  const frontAnimStyle = useAnimatedStyle(() => {
+    const rotateY = interpolate(flipValue.value, [0, 1], [0, 180]);
+    return {
+      transform: [{ perspective: 1000 }, { rotateY: `${rotateY}deg` }],
+      backfaceVisibility: 'hidden',
+    };
+  });
+
+  const backAnimStyle = useAnimatedStyle(() => {
+    const rotateY = interpolate(flipValue.value, [0, 1], [180, 360]);
+    return {
+      transform: [{ perspective: 1000 }, { rotateY: `${rotateY}deg` }],
+      backfaceVisibility: 'hidden',
+    };
+  });
+
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={handleFlip}
+      style={[styles.flipContainer, { height: CARD_HEIGHT }]}
+    >
+      {/* Front — boarding pass card */}
+      <Animated.View style={[StyleSheet.absoluteFill, frontAnimStyle]}>
+        <BoardingPassCard pass={pass} onPress={() => {}} />
+      </Animated.View>
+
+      {/* Back — barcode */}
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          styles.backFace,
+          { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+          backAnimStyle,
+        ]}
+      >
+        <BarcodeDisplay barcode={pass.barcode!} />
+        <Text style={[styles.flipHint, { color: colors.text.tertiary }]}>Tap to flip back</Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
 
 export default function BoardingPassDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -92,18 +157,14 @@ export default function BoardingPassDetailScreen() {
         contentContainerStyle={{ paddingTop: Spacing['4'], paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Pass card */}
-        <BoardingPassCard pass={pass} onPress={() => {}} />
-
-        {/* Barcode */}
+        {/* Pass card — flippable when barcode exists */}
         {pass.barcode ? (
-          <View style={[styles.barcodeSection, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}>
-            <Text style={[styles.barcodeSectionTitle, { color: colors.text.secondary }]}>
-              Scan at Gate
-            </Text>
-            <BarcodeDisplay barcode={pass.barcode} />
+          <View style={styles.flipWrapper}>
+            <FlippableCard pass={pass} />
           </View>
-        ) : null}
+        ) : (
+          <BoardingPassCard pass={pass} onPress={() => {}} />
+        )}
 
         {/* Delete button */}
         <TouchableOpacity
@@ -148,20 +209,25 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  barcodeSection: {
+  flipWrapper: {
     marginHorizontal: Spacing['4'],
     marginBottom: Spacing['4'],
+    height: CARD_HEIGHT,
+  },
+  flipContainer: {
+    width: '100%',
+  },
+  backFace: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    padding: Spacing['5'],
     alignItems: 'center',
-    gap: Spacing['4'],
+    justifyContent: 'center',
+    gap: Spacing['3'],
+    padding: Spacing['4'],
   },
-  barcodeSectionTitle: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semiBold,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+  flipHint: {
+    fontSize: FontSize.xs,
+    letterSpacing: 0.5,
   },
   deleteButton: {
     marginHorizontal: Spacing['4'],

@@ -30,6 +30,7 @@ import { SavedGrid } from '@/components/profile/SavedGrid';
 import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import * as Haptics from 'expo-haptics';
 
 type ProfileTab = 'Posts' | 'Trips' | 'Saved';
 const PROFILE_TABS: ProfileTab[] = ['Posts', 'Trips', 'Saved'];
@@ -52,6 +53,7 @@ export default function UserProfileScreen() {
     : trips.filter((t) => t.visibility === 'public');
 
   const handleFollow = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     follow.mutate();
   }, [follow]);
 

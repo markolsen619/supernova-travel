@@ -1,23 +1,44 @@
+import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Colors } from '@/constants/colors';
 import { FontSize } from '@/constants/typography';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 
 function TabIcon({ focused, icon, label }: { focused: boolean; icon: string; label: string }) {
+  const scale = useSharedValue(focused ? 1.12 : 1);
+
+  useEffect(() => {
+    scale.value = withSpring(focused ? 1.12 : 1, { damping: 12, stiffness: 180 });
+  }, [focused]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <View style={[styles.tabItem, focused && styles.tabItemFocused]}>
+    <Animated.View style={[styles.tabItem, focused && styles.tabItemFocused, animStyle]}>
       <Text style={[styles.tabIcon, focused && styles.tabIconFocused]}>{icon}</Text>
       <Text style={[styles.tabLabel, focused && styles.tabLabelFocused]}>{label}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
 function CreateIcon({ focused }: { focused: boolean }) {
+  const scale = useSharedValue(focused ? 1.08 : 1);
+
+  useEffect(() => {
+    scale.value = withSpring(focused ? 1.08 : 1, { damping: 12, stiffness: 180 });
+  }, [focused]);
+
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
   return (
-    <View style={styles.createButton}>
+    <Animated.View style={[styles.createButton, animStyle]}>
       <Text style={styles.createIcon}>+</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -34,6 +55,11 @@ export default function TabLayout() {
             <View style={[StyleSheet.absoluteFill, styles.tabBarAndroid]} />
           ),
         tabBarShowLabel: false,
+      }}
+      screenListeners={{
+        tabPress: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        },
       }}
     >
       <Tabs.Screen
