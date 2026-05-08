@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/hooks/useTheme';
 import { LoyaltyProgram } from '@/types';
+import { LOYALTY_ICONS } from '@/constants/icons';
 import { PointsBalance } from './PointsBalance';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius, Shadow } from '@/constants/spacing';
@@ -11,16 +12,9 @@ interface LoyaltyCardProps {
   onPress: () => void;
 }
 
-const PROGRAM_TYPE_ICONS: Record<LoyaltyProgram['programType'], string> = {
-  airline: '✈️',
-  hotel: '🏨',
-  car_rental: '🚗',
-  credit_card: '💳',
-  other: '⭐',
-};
-
 export function LoyaltyCard({ program, onPress }: LoyaltyCardProps) {
   const { colors } = useTheme();
+  const { Icon, color } = LOYALTY_ICONS[program.programType];
 
   return (
     <TouchableOpacity
@@ -38,7 +32,9 @@ export function LoyaltyCard({ program, onPress }: LoyaltyCardProps) {
         <View style={styles.content}>
           {/* Left side */}
           <View style={styles.left}>
-            <Text style={styles.typeIcon}>{PROGRAM_TYPE_ICONS[program.programType]}</Text>
+            <View style={styles.loyaltyIconWrapper}>
+              <Icon size={28} color={color} weight="duotone" />
+            </View>
             <View style={styles.nameBlock}>
               <Text
                 style={[styles.programName, { color: colors.text.primary }]}
@@ -90,8 +86,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: Spacing['3'],
   },
-  typeIcon: {
-    fontSize: 28,
+  loyaltyIconWrapper: {
     marginRight: Spacing['3'],
   },
   nameBlock: {
