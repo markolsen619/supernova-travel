@@ -6,10 +6,13 @@ import {
   StyleSheet,
   ViewStyle,
 } from 'react-native';
+import { PencilSimple } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { ActivityType, TripActivity } from '@/types';
+import { ACTIVITY_ICONS } from '@/constants/icons';
+import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 
 interface ActivityItemProps {
   activity: TripActivity;
@@ -18,25 +21,6 @@ interface ActivityItemProps {
   showEdit?: boolean;
 }
 
-const TYPE_EMOJI: Record<ActivityType, string> = {
-  flight: '✈️',
-  hotel: '🏨',
-  restaurant: '🍽️',
-  activity: '🎯',
-  transport: '🚌',
-  free: '⬜',
-};
-
-// Left-border accent and icon pill colors per activity type
-const TYPE_ACCENT: Record<ActivityType, string> = {
-  flight: '#60a5fa',      // blue
-  hotel: '#a78bfa',       // purple
-  restaurant: '#f472b6',  // pink
-  activity: '#34d399',    // teal
-  transport: '#fbbf24',   // amber
-  free: '#6b7280',        // gray
-};
-
 export function ActivityItem({
   activity,
   onPress,
@@ -44,8 +28,7 @@ export function ActivityItem({
   showEdit = false,
 }: ActivityItemProps) {
   const { colors } = useTheme();
-  const accentColor = TYPE_ACCENT[activity.type];
-  const emoji = TYPE_EMOJI[activity.type];
+  const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
   const subtitle = activity.address ?? activity.notes ?? '';
 
   return (
@@ -70,14 +53,9 @@ export function ActivityItem({
           )}
         </View>
 
-        {/* Icon pill */}
-        <View
-          style={[
-            styles.iconPill,
-            { backgroundColor: `${accentColor}26` }, // ~15% opacity
-          ]}
-        >
-          <Text style={styles.iconEmoji}>{emoji}</Text>
+        {/* Icon bubble */}
+        <View style={styles.iconWrapper}>
+          <TypeIconBubble Icon={Icon} color={accentColor} bubbleSize={36} iconSize={20} />
         </View>
 
         {/* Content */}
@@ -105,7 +83,7 @@ export function ActivityItem({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.editBtn}
           >
-            <Text style={[styles.editIcon, { color: colors.text.tertiary }]}>✏️</Text>
+            <PencilSimple size={14} color={colors.text.tertiary} weight="regular" />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -141,16 +119,8 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: BorderRadius.full,
   },
-  iconPill: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconWrapper: {
     marginRight: Spacing['2'],
-  },
-  iconEmoji: {
-    fontSize: 18,
   },
   contentCol: {
     flex: 1,
@@ -169,8 +139,5 @@ const styles = StyleSheet.create({
   editBtn: {
     paddingHorizontal: Spacing['3'],
     paddingVertical: Spacing['2'],
-  },
-  editIcon: {
-    fontSize: 14,
   },
 });
