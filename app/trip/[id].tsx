@@ -18,6 +18,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Timestamp } from 'firebase/firestore';
+import { ACTIVITY_ICONS, VISIBILITY_ICONS } from '@/constants/icons';
+import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -51,19 +53,8 @@ const STATUS_COLOR: Record<string, string> = {
   completed: '#60a5fa',
 };
 
-const VISIBILITY_ICON: Record<string, string> = {
-  public: '🌍',
-  followers: '👥',
-  private: '🔒',
-};
-
-const TYPE_OPTIONS: { type: ActivityType; emoji: string }[] = [
-  { type: 'flight', emoji: '✈️' },
-  { type: 'hotel', emoji: '🏨' },
-  { type: 'restaurant', emoji: '🍽️' },
-  { type: 'activity', emoji: '🎯' },
-  { type: 'transport', emoji: '🚌' },
-  { type: 'free', emoji: '⬜' },
+const ACTIVITY_TYPE_OPTIONS: ActivityType[] = [
+  'flight', 'hotel', 'restaurant', 'activity', 'transport', 'free',
 ];
 
 // ─── Add Activity Sheet ──────────────────────────────────────────────────────
@@ -168,27 +159,30 @@ function AddActivitySheet({ visible, onClose, onSubmit }: AddActivitySheetProps)
 
           {/* Type selector */}
           <View style={styles.typeRow}>
-            {TYPE_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.type}
-                onPress={() => setType(opt.type)}
-                style={[
-                  styles.typeBtn,
-                  {
-                    backgroundColor:
-                      type === opt.type
-                        ? colors.brand.purple + '33'
-                        : colors.background.card,
-                    borderColor:
-                      type === opt.type
-                        ? colors.brand.purple
-                        : colors.background.cardBorder,
-                  },
-                ]}
-              >
-                <Text style={styles.typeBtnEmoji}>{opt.emoji}</Text>
-              </TouchableOpacity>
-            ))}
+            {ACTIVITY_TYPE_OPTIONS.map((actType) => {
+              const { Icon, color } = ACTIVITY_ICONS[actType];
+              return (
+                <TouchableOpacity
+                  key={actType}
+                  onPress={() => setType(actType)}
+                  style={[
+                    styles.typeBtn,
+                    {
+                      backgroundColor:
+                        type === actType
+                          ? colors.brand.purple + '33'
+                          : colors.background.card,
+                      borderColor:
+                        type === actType
+                          ? colors.brand.purple
+                          : colors.background.cardBorder,
+                    },
+                  ]}
+                >
+                  <TypeIconBubble Icon={Icon} color={color} bubbleSize={28} iconSize={16} />
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* Title */}
@@ -479,9 +473,10 @@ export default function TripDetailScreen() {
 
           {/* Visibility */}
           <View style={[styles.metaChip, { backgroundColor: colors.background.card }]}>
-            <Text style={[styles.metaChipText, { color: colors.text.primary }]}>
-              {VISIBILITY_ICON[trip.visibility] ?? '🌍'}
-            </Text>
+            {(() => {
+              const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[trip.visibility] ?? VISIBILITY_ICONS.public;
+              return <VIcon size={14} color={vColor} weight="duotone" />;
+            })()}
           </View>
         </ScrollView>
 
@@ -819,9 +814,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing['2'],
     alignItems: 'center',
-  },
-  typeBtnEmoji: {
-    fontSize: 20,
   },
   sheetInput: {
     borderWidth: 1,

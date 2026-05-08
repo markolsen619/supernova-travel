@@ -16,9 +16,12 @@ import {
   Bag,
   Star,
   CreditCard,
+  Globe,
+  Users,
+  LockSimple,
 } from 'phosphor-react-native';
 import type { Icon } from 'phosphor-react-native';
-import type { ActivityType, ReservationType, LoyaltyProgram } from '@/types';
+import type { ActivityType, ReservationType, LoyaltyProgram, TripVisibility } from '@/types';
 
 export type PhosphorIcon = Icon;
 
@@ -62,6 +65,12 @@ export const PAYWALL_FEATURE_ICONS: Array<{
   { Icon: Bag,         color: '#34d399', label: 'Travel Wallet',       description: 'Boarding passes, reservations, loyalty programs'    },
   { Icon: Star,        color: '#a78bfa', label: 'Priority Support',    description: 'Fast-track responses from the Supernova team'       },
 ];
+
+export const VISIBILITY_ICONS: Record<TripVisibility, IconEntry> = {
+  public:    { Icon: Globe,      color: '#34d399' },
+  followers: { Icon: Users,      color: '#60a5fa' },
+  private:   { Icon: LockSimple, color: '#f472b6' },
+};
 
 // create tab has no icon (gradient circle + text "+")
 export const TAB_ICONS: Record<string, PhosphorIcon> = {

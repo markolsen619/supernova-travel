@@ -24,16 +24,13 @@ import {
   CalendarBlank,
   MapPin,
   AirplaneTilt,
-  Globe,
-  Users,
-  LockSimple,
 } from 'phosphor-react-native';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { TripVisibility } from '@/types';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import type { PhosphorIcon } from '@/constants/icons';
+import { VISIBILITY_ICONS } from '@/constants/icons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const TOTAL_STEPS = 4;
@@ -202,12 +199,6 @@ function diffDays(start: Date | null, end: Date | null): number | null {
   const ms = end.getTime() - start.getTime();
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
-
-const VISIBILITY_ICONS: Record<TripVisibility, { Icon: PhosphorIcon; color: string }> = {
-  public:    { Icon: Globe,      color: '#34d399' },
-  followers: { Icon: Users,      color: '#60a5fa' },
-  private:   { Icon: LockSimple, color: '#f472b6' },
-};
 
 function visibilityLabel(v: TripVisibility): string {
   if (v === 'public') return 'Public';

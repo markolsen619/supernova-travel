@@ -4,13 +4,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ViewStyle,
 } from 'react-native';
 import { PencilSimple } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { ActivityType, TripActivity } from '@/types';
+import { TripActivity } from '@/types';
 import { ACTIVITY_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 
