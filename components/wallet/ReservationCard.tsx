@@ -1,21 +1,15 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Reservation, ReservationType } from '@/types';
+import { Reservation } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing, BorderRadius } from '@/constants/spacing';
+import { Spacing } from '@/constants/spacing';
+import { RESERVATION_ICONS } from '@/constants/icons';
+import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 
 interface ReservationCardProps {
   reservation: Reservation;
   onPress: () => void;
 }
-
-const TYPE_ICONS: Record<ReservationType, string> = {
-  hotel: '🏨',
-  airbnb: '🏡',
-  rental_car: '🚗',
-  restaurant: '🍽️',
-  activity: '🎯',
-};
 
 function formatDate(isoDate: string): string {
   try {
@@ -28,6 +22,7 @@ function formatDate(isoDate: string): string {
 
 export function ReservationCard({ reservation, onPress }: ReservationCardProps) {
   const { colors } = useTheme();
+  const { Icon, color } = RESERVATION_ICONS[reservation.type];
 
   return (
     <TouchableOpacity
@@ -42,9 +37,7 @@ export function ReservationCard({ reservation, onPress }: ReservationCardProps) 
       ]}
     >
       {/* Icon */}
-      <View style={[styles.iconContainer, { backgroundColor: colors.background.cardBorder }]}>
-        <Text style={styles.icon}>{TYPE_ICONS[reservation.type]}</Text>
-      </View>
+      <TypeIconBubble Icon={Icon} color={color} bubbleSize={44} iconSize={24} />
 
       {/* Main content */}
       <View style={styles.content}>
@@ -79,16 +72,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing['4'],
     borderBottomWidth: 1,
     gap: Spacing['3'],
-  },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  icon: {
-    fontSize: FontSize.xl,
   },
   content: {
     flex: 1,
