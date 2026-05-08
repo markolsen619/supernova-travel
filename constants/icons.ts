@@ -17,7 +17,7 @@ import {
   Star,
   CreditCard,
 } from 'phosphor-react-native';
-import type { Icon, IconProps } from 'phosphor-react-native';
+import type { Icon } from 'phosphor-react-native';
 import type { ActivityType, ReservationType, LoyaltyProgram } from '@/types';
 
 export type PhosphorIcon = Icon;
