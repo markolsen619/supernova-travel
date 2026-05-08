@@ -20,11 +20,20 @@ import Animated, {
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
+import {
+  CalendarBlank,
+  MapPin,
+  AirplaneTilt,
+  Globe,
+  Users,
+  LockSimple,
+} from 'phosphor-react-native';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { TripVisibility } from '@/types';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import type { PhosphorIcon } from '@/constants/icons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const TOTAL_STEPS = 4;
@@ -194,11 +203,11 @@ function diffDays(start: Date | null, end: Date | null): number | null {
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
 
-function visibilityIcon(v: TripVisibility): string {
-  if (v === 'public') return '🌐';
-  if (v === 'followers') return '👥';
-  return '🔒';
-}
+const VISIBILITY_ICONS: Record<TripVisibility, { Icon: PhosphorIcon; color: string }> = {
+  public:    { Icon: Globe,      color: '#34d399' },
+  followers: { Icon: Users,      color: '#60a5fa' },
+  private:   { Icon: LockSimple, color: '#f472b6' },
+};
 
 function visibilityLabel(v: TripVisibility): string {
   if (v === 'public') return 'Public';
@@ -280,7 +289,7 @@ function Step2Dates({ startDate, endDate, setStartDate, setEndDate }: Step2Props
           <Text style={[step.dateText, !startDate && step.datePlaceholder]}>
             {formatDate(startDate)}
           </Text>
-          <Text style={step.dateIcon}>📅</Text>
+          <CalendarBlank size={20} color={DarkColors.text.tertiary} weight="regular" />
         </TouchableOpacity>
       </View>
 
@@ -290,7 +299,7 @@ function Step2Dates({ startDate, endDate, setStartDate, setEndDate }: Step2Props
           <Text style={[step.dateText, !endDate && step.datePlaceholder]}>
             {formatDate(endDate)}
           </Text>
-          <Text style={step.dateIcon}>📅</Text>
+          <CalendarBlank size={20} color={DarkColors.text.tertiary} weight="regular" />
         </TouchableOpacity>
       </View>
 
@@ -387,7 +396,10 @@ function Step3Details({ title, description, visibility, tagsInput, setTitle, set
               style={[step.visibilityBtn, visibility === v && step.visibilityBtnActive]}
               activeOpacity={0.7}
             >
-              <Text style={step.visibilityIcon}>{visibilityIcon(v)}</Text>
+              {(() => {
+                const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[v];
+                return <VIcon size={18} color={visibility === v ? vColor : DarkColors.text.tertiary} weight={visibility === v ? 'duotone' : 'regular'} />;
+              })()}
               <Text style={[step.visibilityLabel, visibility === v && step.visibilityLabelActive]}>
                 {visibilityLabel(v)}
               </Text>
@@ -441,7 +453,7 @@ function Step4Review({ destination, countryCode, startDate, endDate, title, visi
           style={review.cardGradient}
         >
           <View style={review.row}>
-            <Text style={review.rowIcon}>📍</Text>
+            <MapPin size={20} color="#34d399" weight="duotone" />
             <View style={review.rowContent}>
               <Text style={review.rowLabel}>Destination</Text>
               <Text style={review.rowValue}>
@@ -453,7 +465,7 @@ function Step4Review({ destination, countryCode, startDate, endDate, title, visi
           <View style={review.divider} />
 
           <View style={review.row}>
-            <Text style={review.rowIcon}>📅</Text>
+            <CalendarBlank size={20} color="#60a5fa" weight="duotone" />
             <View style={review.rowContent}>
               <Text style={review.rowLabel}>Dates</Text>
               <Text style={review.rowValue}>
@@ -470,7 +482,7 @@ function Step4Review({ destination, countryCode, startDate, endDate, title, visi
           <View style={review.divider} />
 
           <View style={review.row}>
-            <Text style={review.rowIcon}>✈️</Text>
+            <AirplaneTilt size={20} color="#a78bfa" weight="duotone" />
             <View style={review.rowContent}>
               <Text style={review.rowLabel}>Title</Text>
               <Text style={review.rowValue}>{title}</Text>
@@ -480,7 +492,10 @@ function Step4Review({ destination, countryCode, startDate, endDate, title, visi
           <View style={review.divider} />
 
           <View style={review.row}>
-            <Text style={review.rowIcon}>{visibilityIcon(visibility)}</Text>
+            {(() => {
+              const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[visibility];
+              return <VIcon size={20} color={vColor} weight="duotone" />;
+            })()}
             <View style={review.rowContent}>
               <Text style={review.rowLabel}>Visibility</Text>
               <Text style={review.rowValue}>{visibilityLabel(visibility)}</Text>
@@ -582,9 +597,6 @@ const step = StyleSheet.create({
   datePlaceholder: {
     color: DarkColors.text.tertiary,
   },
-  dateIcon: {
-    fontSize: 18,
-  },
   durationBadge: {
     alignSelf: 'flex-start',
     borderRadius: BorderRadius.full,
@@ -623,7 +635,6 @@ const step = StyleSheet.create({
     borderColor: DarkColors.brand.purple,
     backgroundColor: 'rgba(167,139,250,0.15)',
   },
-  visibilityIcon: { fontSize: 20 },
   visibilityLabel: {
     fontSize: FontSize.xs,
     color: DarkColors.text.secondary,
@@ -644,7 +655,6 @@ const review = StyleSheet.create({
   },
   cardGradient: { padding: Spacing['5'] },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing['3'] },
-  rowIcon: { fontSize: 20, marginTop: 2 },
   rowContent: { flex: 1 },
   rowLabel: {
     fontSize: FontSize.xs,
