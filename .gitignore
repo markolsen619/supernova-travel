@@ -11,6 +11,7 @@ web-build/
 *.key
 *.mobileprovision
 *.orig.*
+# Brainstorm session files
 .superpowers/
 .DS_Store
 ios/
