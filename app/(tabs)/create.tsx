@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CalendarPlus, Sparkles, Camera, VideoCamera } from 'phosphor-react-native';
+import { CalendarPlus, Sparkle, Camera, VideoCamera } from 'phosphor-react-native';
 import type { PhosphorIcon } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -33,7 +33,7 @@ export default function CreateScreen() {
       onPress: () => router.push('/trip/new'),
     },
     {
-      Icon: Sparkles,
+      Icon: Sparkle,
       iconColor: '#a78bfa',
       title: 'AI Generate Trip',
       description: tier === 'free' ? '1 free trip per week with Gemini AI' : 'Unlimited AI trips with Gemini AI',
