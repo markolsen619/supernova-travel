@@ -3,48 +3,16 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
-
-const FEATURES = [
-  {
-    icon: '✈️',
-    label: 'Unlimited AI Trips',
-    description: 'Generate trips with Gemini AI as often as you like',
-  },
-  {
-    icon: '🎬',
-    label: '30-Second Clips',
-    description: 'Upload up to 30-second travel video clips',
-  },
-  {
-    icon: '🗺️',
-    label: 'Collaborative Trips',
-    description: 'Invite friends to co-edit your itineraries',
-  },
-  {
-    icon: '🔔',
-    label: 'Flight Alerts',
-    description: 'Real-time gate change and delay notifications',
-  },
-  {
-    icon: '🧳',
-    label: 'Travel Wallet',
-    description: 'Boarding passes, reservations, loyalty programs',
-  },
-  {
-    icon: '⭐',
-    label: 'Priority Support',
-    description: 'Fast-track responses from the Supernova team',
-  },
-];
+import { PAYWALL_FEATURE_ICONS } from '@/constants/icons';
 
 export function PaywallFeatureList() {
   const { colors } = useTheme();
 
   return (
     <View>
-      {FEATURES.map((feature) => (
+      {PAYWALL_FEATURE_ICONS.map((feature) => (
         <View key={feature.label} style={styles.row}>
-          <Text style={styles.icon}>{feature.icon}</Text>
+          <feature.Icon size={24} color={feature.color} weight="duotone" />
           <View style={styles.textContainer}>
             <Text style={[styles.label, { color: colors.text.primary }]}>
               {feature.label}
@@ -65,9 +33,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing['3'],
     paddingVertical: Spacing['3'],
-  },
-  icon: {
-    fontSize: FontSize.xl,
   },
   textContainer: {
     flex: 1,
