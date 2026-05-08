@@ -135,8 +135,8 @@ UI primitives in `components/ui/`:
 Wallet components in `components/wallet/`:
 - `BoardingPassCard` — always-dark physical boarding pass card (`#1a1035 → #0f0a2a` gradient)
 - `BarcodeDisplay` — QR code via `react-native-qrcode-svg` on white background (scanner constraint)
-- `ReservationCard` — list row with type emoji, title, confirmation code, check-in date
-- `LoyaltyCard` — full-width card with `PointsBalance` and program type emoji
+- `ReservationCard` — list row with `TypeIconBubble` (44×24), title, confirmation code, check-in date
+- `LoyaltyCard` — full-width card with `PointsBalance` and inline Phosphor type icon
 - `PointsBalance` — formatted balance with `Intl.NumberFormat`, tier badge
 
 Profile components in `components/profile/`:
@@ -148,6 +148,40 @@ Search/Explore components in `components/search/` and `components/explore/`.
 Paywall component: `components/paywall/PaywallFeatureList`.
 
 **Platform handling**: iOS tab bar and translucent surfaces use `BlurView`; Android uses solid `rgba(10,10,26,0.95)`. Follow this pattern for any frosted-glass UI.
+
+## UI/UX Design Philosophy
+
+Supernova Travel must look and feel like a premium, consumer-grade travel app — not a prototype. Every screen should feel polished, intentional, and visually cohesive. Apply these principles to all new UI work:
+
+**Visual identity**
+- Dark-first: deep navy/purple backgrounds (`#0a0a1a` range), not flat black
+- Brand gradient: purple `#a78bfa` → pink `#f472b6` on primary actions and hero elements
+- Phosphor Duotone icons everywhere — no emoji, no Material icons, no SF Symbols strings
+- Per-type semantic colors: blue flights, purple hotels, pink restaurants, teal activities, amber transport
+
+**Motion & interaction**
+- Spring physics for all enter/exit animations — `tension: 65, friction: 11` is the house curve
+- Haptic feedback on every meaningful tap (`Light` for navigation, `Medium` for create/follow actions)
+- Skeleton loaders instead of spinners for list content
+- Smooth shared-element transitions between list and detail views where possible
+
+**Layout & typography**
+- Generous padding — minimum `Spacing['4']` (16px) horizontal margins on content
+- Cards use `GlassCard` (BlurView frosted glass) or the dark card background, never plain white
+- Section headers are small-caps or heavy weight, never plain regular text
+- Avoid walls of text — use whitespace, dividers, and visual hierarchy
+
+**Component quality bar**
+- No placeholder UI ("coming soon", grey boxes, lorem ipsum) shipped to any screen
+- Every empty state has an icon, a title, and a short description
+- Error states are friendly and actionable — never raw error strings
+- Interactive elements have visible pressed states (`activeOpacity`, scale transforms, or color shifts)
+
+**Current design stack**
+- Icons: `phosphor-react-native` Duotone weight exclusively
+- Blur: `expo-blur` `BlurView` on iOS; solid fallback on Android
+- Gradients: `expo-linear-gradient` `LinearGradient`
+- Animations: `react-native-reanimated` for complex; `Animated` API for simple spring/fade
 
 ## Architecture Rules
 
