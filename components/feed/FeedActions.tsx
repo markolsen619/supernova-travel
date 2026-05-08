@@ -14,6 +14,14 @@ import {
   deleteDoc,
   getDoc,
 } from 'firebase/firestore';
+import {
+  Heart,
+  ChatCircle,
+  Export,
+  SpeakerSimpleX,
+  SpeakerSimpleHigh,
+  MapPin,
+} from 'phosphor-react-native';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Avatar } from '@/components/ui/Avatar';
@@ -76,24 +84,29 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-          <Text style={[styles.actionIcon, liked && styles.likedIcon]}>
-            {liked ? '❤️' : '🤍'}
-          </Text>
+          <Heart
+            size={28}
+            color={liked ? '#f472b6' : 'rgba(255,255,255,0.9)'}
+            weight={liked ? 'fill' : 'regular'}
+          />
           <Text style={styles.actionCount}>{formatCount(localLikes)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onCommentPress}>
-          <Text style={styles.actionIcon}>💬</Text>
+          <ChatCircle size={28} color="rgba(255,255,255,0.9)" weight="duotone" />
           <Text style={styles.actionCount}>{formatCount(post.commentsCount)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-          <Text style={styles.actionIcon}>↗️</Text>
+          <Export size={28} color="rgba(255,255,255,0.9)" weight="regular" />
           <Text style={styles.actionCount}>Share</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onToggleMute}>
-          <Text style={styles.actionIcon}>{isMuted ? '🔇' : '🔊'}</Text>
+          {isMuted
+            ? <SpeakerSimpleX size={28} color="rgba(255,255,255,0.9)" weight="regular" />
+            : <SpeakerSimpleHigh size={28} color="rgba(255,255,255,0.9)" weight="duotone" />
+          }
         </TouchableOpacity>
       </View>
 
@@ -109,7 +122,7 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
         )}
         {!!post.placeName && (
           <View style={styles.placeRow}>
-            <Text style={styles.placePin}>📍</Text>
+            <MapPin size={14} color="rgba(255,255,255,0.8)" weight="duotone" />
             <Text style={styles.placeName}>{post.placeName}</Text>
           </View>
         )}
@@ -129,12 +142,6 @@ const styles = StyleSheet.create({
   actionBtn: {
     alignItems: 'center',
     gap: 2,
-  },
-  actionIcon: {
-    fontSize: 28,
-  },
-  likedIcon: {
-    fontSize: 28,
   },
   actionCount: {
     color: '#fff',
@@ -172,9 +179,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-  },
-  placePin: {
-    fontSize: FontSize.xs,
   },
   placeName: {
     color: 'rgba(255,255,255,0.8)',
