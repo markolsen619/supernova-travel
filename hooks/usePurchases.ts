@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 import { useAuthStore } from '@/stores/useAuthStore';
+
+type PurchasesPackage = import('react-native-purchases').PurchasesPackage;
 
 export function usePurchases() {
   const setTier = useAuthStore((s) => s.setTier);
@@ -11,6 +12,7 @@ export function usePurchases() {
     setIsLoading(true);
     setError(null);
     try {
+      const { default: Purchases } = await import('react-native-purchases');
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       const isActive = !!customerInfo.entitlements.active['pro'];
       if (isActive) setTier('pro');
@@ -30,7 +32,8 @@ export function usePurchases() {
     setIsLoading(true);
     setError(null);
     try {
-      const customerInfo: CustomerInfo = await Purchases.restorePurchases();
+      const { default: Purchases } = await import('react-native-purchases');
+      const customerInfo = await Purchases.restorePurchases();
       const isActive = !!customerInfo.entitlements.active['pro'];
       if (isActive) setTier('pro');
     } catch {

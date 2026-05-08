@@ -4,10 +4,9 @@ import { algoliasearch } from 'algoliasearch';
 import { Hit } from '@algolia/client-search';
 import { UserProfile, Trip } from '@/types';
 
-const client = algoliasearch(
-  process.env.EXPO_PUBLIC_ALGOLIA_APP_ID ?? '',
-  process.env.EXPO_PUBLIC_ALGOLIA_SEARCH_KEY ?? '',
-);
+const APP_ID = process.env.EXPO_PUBLIC_ALGOLIA_APP_ID ?? '';
+const SEARCH_KEY = process.env.EXPO_PUBLIC_ALGOLIA_SEARCH_KEY ?? '';
+const client = APP_ID && SEARCH_KEY ? algoliasearch(APP_ID, SEARCH_KEY) : null;
 
 export function useSearch(searchText: string): {
   users: UserProfile[];
@@ -30,6 +29,7 @@ export function useSearch(searchText: string): {
     enabled: debouncedText.length >= 2,
     staleTime: 1000 * 60 * 2,
     queryFn: async () => {
+      if (!client) return { users: [], trips: [] };
       const [usersResult, tripsResult] = await Promise.all([
         client.searchSingleIndex<UserProfile>({
           indexName: 'users',

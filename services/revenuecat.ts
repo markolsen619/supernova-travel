@@ -1,4 +1,3 @@
-import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Platform } from 'react-native';
 
 const API_KEY = Platform.select({
@@ -7,8 +6,13 @@ const API_KEY = Platform.select({
   default: '',
 }) ?? '';
 
-export function configureRevenueCat(uid: string): void {
+export async function configureRevenueCat(uid: string): Promise<void> {
   if (!API_KEY) return;
-  Purchases.setLogLevel(LOG_LEVEL.WARN);
-  Purchases.configure({ apiKey: API_KEY, appUserID: uid });
+  try {
+    const { default: Purchases, LOG_LEVEL } = await import('react-native-purchases');
+    Purchases.setLogLevel(LOG_LEVEL.WARN);
+    Purchases.configure({ apiKey: API_KEY, appUserID: uid });
+  } catch {
+    // Native module unavailable in Expo Go
+  }
 }
