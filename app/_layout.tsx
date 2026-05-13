@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
+import * as SplashScreen from 'expo-splash-screen';
 import { Platform } from 'react-native';
 import { auth, db } from '@/services/firebase';
 import { configureRevenueCat } from '@/services/revenuecat';
@@ -12,6 +13,9 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useTheme } from '@/hooks/useTheme';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
+import { SplashOverlay } from '@/components/SplashOverlay';
+
+SplashScreen.preventAutoHideAsync();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -75,7 +79,9 @@ function AppStack() {
 }
 
 export default function RootLayout() {
-  const { setUser, setTier, setInitialized } = useAuthStore();
+  const { setUser, setTier, setInitialized, isInitialized } = useAuthStore();
+
+  useEffect(() => { SplashScreen.hideAsync(); }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -100,6 +106,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
         <AppStack />
+        <SplashOverlay visible={!isInitialized} />
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

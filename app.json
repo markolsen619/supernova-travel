@@ -4,12 +4,12 @@
     "slug": "supernova-travel",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/SupernovaStar.png",
     "scheme": "supernova",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/images/SupernovaLogo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0a0a1a"
     },
@@ -25,7 +25,7 @@
     "android": {
       "package": "com.supernovatravel.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/images/SupernovaStar.png",
         "backgroundColor": "#0a0a1a"
       },
       "edgeToEdgeEnabled": true,
@@ -58,7 +58,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0a0a1a",
-          "image": "./assets/splash-icon.png",
+          "image": "./assets/images/SupernovaLogo.png",
           "imageWidth": 200
         }
       ],
