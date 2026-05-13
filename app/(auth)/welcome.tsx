@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
 import { Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/colors';
-import { FontSize, FontWeight, LetterSpacing } from '@/constants/typography';
+import { FontSize } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
 const { width, height } = Dimensions.get('window');
@@ -21,8 +21,11 @@ export default function WelcomeScreen() {
 
       {/* Logo area */}
       <View style={styles.hero}>
-        <Text style={styles.logoMark}>✦</Text>
-        <Text style={styles.wordmark}>SUPERNOVA</Text>
+        <Image
+          source={require('@/assets/images/SupernovaLogo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.tagline}>Travel the universe, together.</Text>
       </View>
 
@@ -70,17 +73,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing['8'],
   },
-  logoMark: {
-    fontSize: 64,
-    color: Colors.brand.purple,
+  logo: {
+    width: width * 0.65,
+    height: 120,
     marginBottom: Spacing['4'],
-  },
-  wordmark: {
-    fontSize: FontSize['4xl'],
-    fontWeight: FontWeight.black,
-    color: Colors.white,
-    letterSpacing: LetterSpacing.widest,
-    marginBottom: Spacing['3'],
   },
   tagline: {
     fontSize: FontSize.md,

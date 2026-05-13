@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, Image, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Link, router } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,6 +37,11 @@ export default function SignInScreen() {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
+        <Image
+          source={require('@/assets/images/SupernovaStar.png')}
+          style={styles.star}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.subtitle}>Sign in to continue your journey</Text>
 
@@ -93,6 +98,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flexGrow: 1, padding: Spacing['6'], paddingTop: Spacing['16'] },
   back: { marginBottom: Spacing['8'] },
+  star: { width: 52, height: 52, marginBottom: Spacing['4'] },
   backText: { color: Colors.brand.purple, fontSize: FontSize.base },
   title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.black, color: Colors.white, marginBottom: Spacing['2'] },
   subtitle: { fontSize: FontSize.base, color: Colors.text.secondary, marginBottom: Spacing['8'] },
