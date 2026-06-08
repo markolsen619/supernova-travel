@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['4'],
   },
-  wordmark: { width: 130, height: 30 },
-  wordmarkSpacer: { width: 130 },
+  wordmark: { width: 140, height: 36 },
+  wordmarkSpacer: { width: 140 },
   tabsRow: {
     flex: 1,
     flexDirection: 'row',

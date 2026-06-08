@@ -3,7 +3,7 @@ import { Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/colors';
-import { FontSize } from '@/constants/typography';
+import { FontSize, LetterSpacing } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
 const { width, height } = Dimensions.get('window');
@@ -74,9 +74,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['8'],
   },
   logo: {
-    width: width * 0.65,
-    height: 120,
-    marginBottom: Spacing['4'],
+    width: width * 0.7,
+    height: 80,
+    marginBottom: Spacing['5'],
   },
   tagline: {
     fontSize: FontSize.md,
