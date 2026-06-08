@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,10 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
+import { MapPin, MagnifyingGlass, X } from 'phosphor-react-native';
 import { TravelStyle } from '@/types/ai';
+import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
+import { DestinationPicker } from '@/components/ui/DestinationPicker';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -26,6 +29,8 @@ export interface AiPromptFormProps {
   onTravelStyleChange: (v: TravelStyle) => void;
   onMustSeeChange: (v: string) => void;
   onPreferencesChange: (v: string) => void;
+  destinationPlaceId?: string | null;
+  onPlaceSelect?: (s: PlaceSelection) => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -56,7 +61,11 @@ export function AiPromptForm({
   onTravelStyleChange,
   onMustSeeChange,
   onPreferencesChange,
+  destinationPlaceId,
+  onPlaceSelect,
 }: AiPromptFormProps) {
+  const [pickerVisible, setPickerVisible] = useState(false);
+
   const handleDecrement = () => {
     if (durationDays > MIN_DAYS) onDurationChange(durationDays - 1);
   };
@@ -65,24 +74,62 @@ export function AiPromptForm({
     if (durationDays < MAX_DAYS) onDurationChange(durationDays + 1);
   };
 
+  const handleOpenPicker = useCallback(() => setPickerVisible(true), []);
+  const handleClosePicker = useCallback(() => setPickerVisible(false), []);
+
+  const handlePlaceSelect = useCallback(
+    (s: PlaceSelection) => {
+      onDestinationChange(s.name);
+      if (s.countryCode) onCountryCodeChange(s.countryCode);
+      onPlaceSelect?.(s);
+      setPickerVisible(false);
+    },
+    [onDestinationChange, onCountryCodeChange, onPlaceSelect],
+  );
+
+  const handleClearPlace = useCallback(() => {
+    onPlaceSelect?.({ placeId: '', name: '', lat: null, lng: null, countryCode: null });
+    onDestinationChange('');
+    onCountryCodeChange('');
+  }, [onPlaceSelect, onDestinationChange, onCountryCodeChange]);
+
+  const isPlaceSelected = Boolean(destinationPlaceId);
+
   return (
     <View style={styles.container}>
       {/* Destination */}
       <View style={styles.field}>
         <Text style={styles.label}>Destination *</Text>
-        <TextInput
-          style={styles.input}
-          value={destination}
-          onChangeText={onDestinationChange}
-          placeholder="e.g. Tokyo, Japan"
-          placeholderTextColor={DarkColors.text.tertiary}
-          autoCapitalize="words"
-          autoCorrect={false}
-          returnKeyType="next"
-        />
+
+        {isPlaceSelected ? (
+          <View style={styles.selectedRow}>
+            <MapPin size={16} color={DarkColors.brand.purple} weight="duotone" />
+            <Text style={styles.selectedText} numberOfLines={1}>{destination}</Text>
+            <TouchableOpacity onPress={handleClearPlace} activeOpacity={0.7} hitSlop={8}>
+              <X size={16} color={DarkColors.text.tertiary} weight="bold" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.pickerBtn}
+            onPress={handleOpenPicker}
+            activeOpacity={0.7}
+          >
+            <MagnifyingGlass size={16} color={DarkColors.text.tertiary} weight="regular" />
+            <Text
+              style={[
+                styles.pickerBtnText,
+                destination ? styles.pickerBtnTextFilled : styles.pickerBtnPlaceholder,
+              ]}
+              numberOfLines={1}
+            >
+              {destination || 'Search for a destination…'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Country Code */}
+      {/* Country Code — shown as editable; auto-filled from Places when selected */}
       <View style={styles.field}>
         <Text style={styles.label}>Country Code (optional)</Text>
         <TextInput
@@ -96,7 +143,9 @@ export function AiPromptForm({
           maxLength={2}
           returnKeyType="next"
         />
-        <Text style={styles.hint}>2-letter ISO country code</Text>
+        <Text style={styles.hint}>
+          {isPlaceSelected ? 'Auto-filled from Places — tap to override' : '2-letter ISO country code'}
+        </Text>
       </View>
 
       {/* Duration */}
@@ -104,10 +153,7 @@ export function AiPromptForm({
         <Text style={styles.label}>Duration</Text>
         <View style={styles.durationRow}>
           <TouchableOpacity
-            style={[
-              styles.durationBtn,
-              durationDays <= MIN_DAYS && styles.durationBtnDisabled,
-            ]}
+            style={[styles.durationBtn, durationDays <= MIN_DAYS && styles.durationBtnDisabled]}
             onPress={handleDecrement}
             activeOpacity={0.7}
             disabled={durationDays <= MIN_DAYS}
@@ -117,16 +163,11 @@ export function AiPromptForm({
 
           <View style={styles.durationDisplay}>
             <Text style={styles.durationValue}>{durationDays}</Text>
-            <Text style={styles.durationUnit}>
-              {durationDays === 1 ? 'day' : 'days'}
-            </Text>
+            <Text style={styles.durationUnit}>{durationDays === 1 ? 'day' : 'days'}</Text>
           </View>
 
           <TouchableOpacity
-            style={[
-              styles.durationBtn,
-              durationDays >= MAX_DAYS && styles.durationBtnDisabled,
-            ]}
+            style={[styles.durationBtn, durationDays >= MAX_DAYS && styles.durationBtnDisabled]}
             onPress={handleIncrement}
             activeOpacity={0.7}
             disabled={durationDays >= MAX_DAYS}
@@ -143,19 +184,13 @@ export function AiPromptForm({
           {TRAVEL_STYLES.map((style) => (
             <TouchableOpacity
               key={style.value}
-              style={[
-                styles.stylePill,
-                travelStyle === style.value && styles.stylePillActive,
-              ]}
+              style={[styles.stylePill, travelStyle === style.value && styles.stylePillActive]}
               onPress={() => onTravelStyleChange(style.value)}
               activeOpacity={0.7}
             >
               <Text style={styles.styleEmoji}>{style.emoji}</Text>
               <Text
-                style={[
-                  styles.styleLabel,
-                  travelStyle === style.value && styles.styleLabelActive,
-                ]}
+                style={[styles.styleLabel, travelStyle === style.value && styles.styleLabelActive]}
               >
                 {style.label}
               </Text>
@@ -194,6 +229,13 @@ export function AiPromptForm({
           returnKeyType="done"
         />
       </View>
+
+      {/* Picker modal */}
+      <DestinationPicker
+        visible={pickerVisible}
+        onSelect={handlePlaceSelect}
+        onClose={handleClosePicker}
+      />
     </View>
   );
 }
@@ -201,12 +243,8 @@ export function AiPromptForm({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: Spacing['2'],
-  },
-  field: {
-    marginBottom: Spacing['5'],
-  },
+  container: { paddingTop: Spacing['2'] },
+  field: { marginBottom: Spacing['5'] },
   label: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
@@ -230,6 +268,47 @@ const styles = StyleSheet.create({
   textarea: {
     minHeight: 100,
     paddingTop: Spacing['3'],
+  },
+
+  // Destination picker button
+  pickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['3'],
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing['4'],
+  },
+  pickerBtnText: {
+    flex: 1,
+    fontSize: FontSize.base,
+    color: DarkColors.text.primary,
+  },
+  pickerBtnTextFilled: {
+    color: DarkColors.text.primary,
+  },
+  pickerBtnPlaceholder: {
+    color: DarkColors.text.tertiary,
+  },
+
+  // Selected destination chip
+  selectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['3'],
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    borderWidth: 1,
+    borderColor: DarkColors.brand.purple,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing['4'],
+  },
+  selectedText: {
+    flex: 1,
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semiBold,
+    color: DarkColors.text.primary,
   },
 
   // Duration counter
@@ -297,15 +376,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(167,139,250,0.2)',
     borderColor: DarkColors.brand.purple,
   },
-  styleEmoji: {
-    fontSize: 16,
-  },
+  styleEmoji: { fontSize: 16 },
   styleLabel: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
     color: DarkColors.text.secondary,
   },
-  styleLabelActive: {
-    color: DarkColors.brand.purple,
-  },
+  styleLabelActive: { color: DarkColors.brand.purple },
 });

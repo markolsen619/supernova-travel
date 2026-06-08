@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { MapPin } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
@@ -20,7 +21,7 @@ export function PlaceResult({ mainText, secondaryText, placeId, onPress }: Place
       activeOpacity={0.7}
       style={[styles.row, { borderBottomColor: colors.background.cardBorder }]}
     >
-      <Text style={styles.pin}>📍</Text>
+      <MapPin size={20} color={colors.brand.purple} weight="duotone" />
 
       <View style={styles.center}>
         <Text
@@ -49,10 +50,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: Spacing['3'],
   },
-  pin: {
-    fontSize: 20,
-    flexShrink: 0,
-  },
+  // pin style removed — using Phosphor MapPin directly
   center: {
     flex: 1,
     gap: 2,

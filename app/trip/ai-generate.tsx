@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AiPromptForm } from '@/components/trip/AiPromptForm';
+import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { TravelStyle } from '@/types/ai';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -19,12 +20,24 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AiGenerateScreen() {
-  const [destination, setDestination] = useState('');
-  const [countryCode, setCountryCode] = useState('');
+  // Optional params when navigating from the Search tab's Places picker
+  const params = useLocalSearchParams<{
+    destination?: string;
+    countryCode?: string;
+    placeId?: string;
+  }>();
+
+  const [destination, setDestination] = useState(params.destination ?? '');
+  const [countryCode, setCountryCode] = useState(params.countryCode ?? '');
+  const [placeId, setPlaceId] = useState<string | null>(params.placeId ?? null);
   const [durationDays, setDurationDays] = useState(7);
   const [travelStyle, setTravelStyle] = useState<TravelStyle>('adventure');
   const [mustSeeInput, setMustSeeInput] = useState('');
   const [preferences, setPreferences] = useState('');
+
+  const handlePlaceSelect = useCallback((s: PlaceSelection) => {
+    setPlaceId(s.placeId || null);
+  }, []);
 
   const isValid = destination.trim().length > 0 && durationDays >= 1;
 
@@ -116,6 +129,8 @@ export default function AiGenerateScreen() {
             onTravelStyleChange={setTravelStyle}
             onMustSeeChange={setMustSeeInput}
             onPreferencesChange={setPreferences}
+            destinationPlaceId={placeId}
+            onPlaceSelect={handlePlaceSelect}
           />
         </ScrollView>
       </KeyboardAvoidingView>

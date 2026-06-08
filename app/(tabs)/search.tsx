@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useSearch } from '@/hooks/useSearch';
+import { usePlaceAutocomplete } from '@/hooks/usePlaceAutocomplete';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { UserResult } from '@/components/search/UserResult';
@@ -24,46 +26,6 @@ import { PlaceResult } from '@/components/search/PlaceResult';
 type Tab = 'Places' | 'Users' | 'Trips';
 const TABS: Tab[] = ['Places', 'Users', 'Trips'];
 
-interface PlaceSuggestion {
-  placeId: string;
-  mainText: string;
-  secondaryText: string;
-}
-
-// ── Places fetch ──────────────────────────────────────────────────────────────
-
-async function fetchPlaces(input: string): Promise<PlaceSuggestion[]> {
-  const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ?? '',
-    },
-    body: JSON.stringify({ input, languageCode: 'en' }),
-  });
-
-  if (!res.ok) throw new Error(`Places API error: ${res.status}`);
-
-  const json = await res.json();
-  const suggestions: PlaceSuggestion[] = (json.suggestions ?? []).map(
-    (s: {
-      placePrediction: {
-        placeId: string;
-        structuredFormat: {
-          mainText: { text: string };
-          secondaryText: { text: string };
-        };
-      };
-    }) => ({
-      placeId: s.placePrediction.placeId,
-      mainText: s.placePrediction.structuredFormat.mainText.text,
-      secondaryText: s.placePrediction.structuredFormat.secondaryText?.text ?? '',
-    })
-  );
-
-  return suggestions;
-}
-
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function SearchScreen() {
@@ -72,55 +34,61 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('Places');
 
-  // Places state
-  const [places, setPlaces] = useState<PlaceSuggestion[]>([]);
-  const [placesLoading, setPlacesLoading] = useState(false);
-  const [placesError, setPlacesError] = useState(false);
+  // Places — session tokens managed inside the hook
+  const {
+    query: placesQuery,
+    setQuery: setPlacesQuery,
+    suggestions: places,
+    isLoading: placesLoading,
+    error: placesError,
+    selectPlace,
+  } = usePlaceAutocomplete();
 
-  // useSearch is called unconditionally (rules of hooks)
+  // Mirror the shared search bar into both Algolia and Places hooks
   const { users, trips, isSearching } = useSearch(query);
 
-  // Places debounce + fetch
-  useEffect(() => {
-    if (activeTab !== 'Places') return;
-    if (query.trim().length < 2) {
-      setPlaces([]);
-      setPlacesError(false);
-      return;
-    }
+  const handleQueryChange = useCallback(
+    (text: string) => {
+      setQuery(text);
+      setPlacesQuery(text);
+    },
+    [setPlacesQuery],
+  );
 
-    let cancelled = false;
-    setPlacesLoading(true);
-    setPlacesError(false);
+  const handleTabPress = useCallback(
+    (tab: Tab) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setActiveTab(tab);
+    },
+    [],
+  );
 
-    const timer = setTimeout(async () => {
+  const handlePlacePress = useCallback(
+    async (placeId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       try {
-        const results = await fetchPlaces(query.trim());
-        if (!cancelled) setPlaces(results);
+        const selection = await selectPlace(placeId);
+        // Navigate to AI generator with destination pre-filled
+        router.push({
+          pathname: '/trip/ai-generate',
+          params: {
+            destination: selection.name,
+            countryCode: selection.countryCode ?? '',
+            placeId: selection.placeId,
+          },
+        });
       } catch {
-        if (!cancelled) { setPlacesError(true); setPlaces([]); }
-      } finally {
-        if (!cancelled) setPlacesLoading(false);
+        // silently ignore — network error or quota exceeded
       }
-    }, 350);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [query, activeTab]);
-
-  const handlePlacePress = useCallback((placeId: string, mainText: string) => {
-    // Navigate or handle place selection — log for now
-    console.log('Place selected:', placeId, mainText);
-  }, []);
+    },
+    [selectPlace],
+  );
 
   // ── Render helpers ──────────────────────────────────────────────────────────
 
   function renderEmptyState(message: string) {
     return (
       <View style={styles.emptyWrap}>
-        <Text style={styles.emptyIcon}>🌍</Text>
         <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>{message}</Text>
       </View>
     );
@@ -162,11 +130,8 @@ export default function SearchScreen() {
   }
 
   function renderUsers() {
-    if (!query.trim()) {
-      return renderEmptyState('Search for places, people, and trips');
-    }
-    if (query.trim().length < 2) {
-      return renderEmptyState('Keep typing…');
+    if (!query.trim() || query.trim().length < 2) {
+      return renderEmptyState(!query.trim() ? 'Search for places, people, and trips' : 'Keep typing…');
     }
     if (isSearching) {
       return (
@@ -175,28 +140,19 @@ export default function SearchScreen() {
         </View>
       );
     }
-    if (users.length === 0) {
-      return renderEmptyState(`No results for "${query}"`);
-    }
+    if (users.length === 0) return renderEmptyState(`No results for "${query}"`);
     return (
       <>
         {users.map((u) => (
-          <UserResult
-            key={u.uid}
-            user={u}
-            onPress={() => router.push(`/user/${u.uid}`)}
-          />
+          <UserResult key={u.uid} user={u} onPress={() => router.push(`/user/${u.uid}`)} />
         ))}
       </>
     );
   }
 
   function renderTrips() {
-    if (!query.trim()) {
-      return renderEmptyState('Search for places, people, and trips');
-    }
-    if (query.trim().length < 2) {
-      return renderEmptyState('Keep typing…');
+    if (!query.trim() || query.trim().length < 2) {
+      return renderEmptyState(!query.trim() ? 'Search for places, people, and trips' : 'Keep typing…');
     }
     if (isSearching) {
       return (
@@ -205,17 +161,11 @@ export default function SearchScreen() {
         </View>
       );
     }
-    if (trips.length === 0) {
-      return renderEmptyState(`No results for "${query}"`);
-    }
+    if (trips.length === 0) return renderEmptyState(`No results for "${query}"`);
     return (
       <>
         {trips.map((t) => (
-          <TripResult
-            key={t.id}
-            trip={t}
-            onPress={() => router.push(`/trip/${t.id}`)}
-          />
+          <TripResult key={t.id} trip={t} onPress={() => router.push(`/trip/${t.id}`)} />
         ))}
       </>
     );
@@ -225,29 +175,20 @@ export default function SearchScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background.primary }]}>
-      <LinearGradient
-        colors={colors.gradient.dark}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={colors.gradient.dark} style={StyleSheet.absoluteFill} />
 
-      {/* Header */}
       <Text style={[styles.title, { color: colors.text.primary }]}>Search</Text>
 
-      {/* Search input */}
       <View
         style={[
           styles.inputWrap,
-          {
-            backgroundColor: colors.background.card,
-            borderColor: colors.background.cardBorder,
-          },
+          { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
         ]}
       >
-        <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={[styles.input, { color: colors.text.primary }]}
           value={query}
-          onChangeText={setQuery}
+          onChangeText={handleQueryChange}
           placeholder="Places, trips, people…"
           placeholderTextColor={colors.text.tertiary}
           autoCorrect={false}
@@ -256,7 +197,6 @@ export default function SearchScreen() {
         />
       </View>
 
-      {/* Category tabs */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -265,30 +205,19 @@ export default function SearchScreen() {
         {TABS.map((tab) => (
           <TouchableOpacity
             key={tab}
-            onPress={() => setActiveTab(tab)}
+            onPress={() => handleTabPress(tab)}
             style={[
               styles.tab,
               {
-                backgroundColor:
-                  activeTab === tab
-                    ? 'rgba(167,139,250,0.2)'
-                    : colors.background.card,
-                borderColor:
-                  activeTab === tab
-                    ? colors.brand.purple
-                    : colors.background.cardBorder,
+                backgroundColor: activeTab === tab ? 'rgba(167,139,250,0.2)' : colors.background.card,
+                borderColor: activeTab === tab ? colors.brand.purple : colors.background.cardBorder,
               },
             ]}
           >
             <Text
               style={[
                 styles.tabText,
-                {
-                  color:
-                    activeTab === tab
-                      ? colors.brand.purple
-                      : colors.text.tertiary,
-                },
+                { color: activeTab === tab ? colors.brand.purple : colors.text.tertiary },
               ]}
             >
               {tab}
@@ -297,7 +226,6 @@ export default function SearchScreen() {
         ))}
       </ScrollView>
 
-      {/* Results */}
       <ScrollView
         style={styles.results}
         keyboardShouldPersistTaps="handled"
@@ -306,8 +234,6 @@ export default function SearchScreen() {
         {activeTab === 'Places' && renderPlaces()}
         {activeTab === 'Users' && renderUsers()}
         {activeTab === 'Trips' && renderTrips()}
-
-        {/* Bottom breathing room */}
         <View style={{ height: Spacing['10'] }} />
       </ScrollView>
     </View>
@@ -315,9 +241,7 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   title: {
     fontSize: FontSize['2xl'],
     fontWeight: FontWeight.black,
@@ -333,10 +257,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing['4'],
     marginBottom: Spacing['4'],
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: Spacing['2'],
   },
   input: {
     flex: 1,
@@ -358,9 +278,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
   },
-  results: {
-    flex: 1,
-  },
+  results: { flex: 1 },
   centered: {
     paddingTop: Spacing['10'],
     alignItems: 'center',
@@ -369,11 +287,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: Spacing['16'],
-    gap: Spacing['3'],
     paddingHorizontal: Spacing['8'],
-  },
-  emptyIcon: {
-    fontSize: 48,
   },
   emptyText: {
     fontSize: FontSize.base,

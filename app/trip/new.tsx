@@ -24,8 +24,12 @@ import {
   CalendarBlank,
   MapPin,
   AirplaneTilt,
+  MagnifyingGlass,
+  X,
 } from 'phosphor-react-native';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
+import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
+import { DestinationPicker } from '@/components/ui/DestinationPicker';
 import { TripVisibility } from '@/types';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -211,46 +215,67 @@ function visibilityLabel(v: TripVisibility): string {
 interface Step1Props {
   destination: string;
   countryCode: string;
-  setDestination: (v: string) => void;
-  setCountryCode: (v: string) => void;
+  placeId: string | null;
+  onPlaceSelect: (s: PlaceSelection) => void;
+  onClearPlace: () => void;
 }
 
-function Step1Destination({ destination, countryCode, setDestination, setCountryCode }: Step1Props) {
+function Step1Destination({ destination, countryCode, placeId, onPlaceSelect, onClearPlace }: Step1Props) {
+  const [pickerVisible, setPickerVisible] = useState(false);
+
+  const handleOpenPicker = useCallback(() => setPickerVisible(true), []);
+  const handleClosePicker = useCallback(() => setPickerVisible(false), []);
+  const handleSelect = useCallback(
+    (s: PlaceSelection) => {
+      onPlaceSelect(s);
+      setPickerVisible(false);
+    },
+    [onPlaceSelect],
+  );
+
+  const isSelected = Boolean(placeId);
+
   return (
     <View style={step.container}>
       <Text style={step.stepLabel}>Step 1 of 4</Text>
       <Text style={step.title}>Where are you going?</Text>
-      <Text style={step.subtitle}>Enter your destination to get started</Text>
+      <Text style={step.subtitle}>Search for your destination to get started</Text>
 
       <View style={step.field}>
         <Text style={step.label}>Destination</Text>
-        <TextInput
-          style={step.input}
-          value={destination}
-          onChangeText={setDestination}
-          placeholder="e.g. Tokyo, Japan"
-          placeholderTextColor={DarkColors.text.tertiary}
-          autoCapitalize="words"
-          autoCorrect={false}
-          returnKeyType="next"
-        />
+
+        {isSelected ? (
+          <View style={step.selectedRow}>
+            <MapPin size={16} color={DarkColors.brand.purple} weight="duotone" />
+            <Text style={step.selectedText} numberOfLines={1}>{destination}</Text>
+            <TouchableOpacity onPress={onClearPlace} activeOpacity={0.7} hitSlop={8}>
+              <X size={16} color={DarkColors.text.tertiary} weight="bold" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={step.pickerBtn}
+            onPress={handleOpenPicker}
+            activeOpacity={0.7}
+          >
+            <MagnifyingGlass size={16} color={DarkColors.text.tertiary} weight="regular" />
+            <Text style={step.pickerBtnPlaceholder}>Search for a destination…</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      <View style={step.field}>
-        <Text style={step.label}>Country Code (optional)</Text>
-        <TextInput
-          style={step.input}
-          value={countryCode}
-          onChangeText={(v) => setCountryCode(v.toUpperCase())}
-          placeholder="e.g. JP"
-          placeholderTextColor={DarkColors.text.tertiary}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={2}
-          returnKeyType="done"
-        />
-        <Text style={step.hint}>2-letter ISO country code</Text>
-      </View>
+      {isSelected && countryCode ? (
+        <View style={step.field}>
+          <Text style={step.label}>Country</Text>
+          <Text style={step.countryBadge}>{countryCode}</Text>
+        </View>
+      ) : null}
+
+      <DestinationPicker
+        visible={pickerVisible}
+        onSelect={handleSelect}
+        onClose={handleClosePicker}
+      />
     </View>
   );
 }
@@ -567,6 +592,47 @@ const step = StyleSheet.create({
     color: DarkColors.text.primary,
     fontSize: FontSize.base,
   },
+  pickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['3'],
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing['4'],
+  },
+  pickerBtnPlaceholder: {
+    flex: 1,
+    fontSize: FontSize.base,
+    color: DarkColors.text.tertiary,
+  },
+  selectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['3'],
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    borderWidth: 1,
+    borderColor: DarkColors.brand.purple,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing['4'],
+  },
+  selectedText: {
+    flex: 1,
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semiBold,
+    color: DarkColors.text.primary,
+  },
+  countryBadge: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semiBold,
+    color: DarkColors.brand.purple,
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    paddingHorizontal: Spacing['3'],
+    paddingVertical: Spacing['1'],
+    borderRadius: BorderRadius.full,
+    alignSelf: 'flex-start',
+  },
   textarea: {
     minHeight: 100,
     paddingTop: Spacing['3'],
@@ -707,6 +773,25 @@ export default function NewTripScreen() {
   // Step 1
   const [destination, setDestination] = useState('');
   const [countryCode, setCountryCode] = useState('');
+  const [placeId, setPlaceId] = useState<string | null>(null);
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+
+  const handlePlaceSelect = useCallback((s: PlaceSelection) => {
+    setDestination(s.name);
+    setCountryCode(s.countryCode ?? '');
+    setPlaceId(s.placeId);
+    setLat(s.lat);
+    setLng(s.lng);
+  }, []);
+
+  const handleClearPlace = useCallback(() => {
+    setDestination('');
+    setCountryCode('');
+    setPlaceId(null);
+    setLat(null);
+    setLng(null);
+  }, []);
 
   // Step 2
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -783,9 +868,9 @@ export default function NewTripScreen() {
         description: description.trim(),
         destination: {
           name: destination.trim(),
-          placeId: null,
-          lat: null,
-          lng: null,
+          placeId,
+          lat,
+          lng,
           countryCode: countryCode.trim() || null,
         },
         startDate,
@@ -811,8 +896,9 @@ export default function NewTripScreen() {
           <Step1Destination
             destination={destination}
             countryCode={countryCode}
-            setDestination={setDestination}
-            setCountryCode={setCountryCode}
+            placeId={placeId}
+            onPlaceSelect={handlePlaceSelect}
+            onClearPlace={handleClearPlace}
           />
         );
       case 1:
