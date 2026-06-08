@@ -16,14 +16,24 @@ cd functions && npm run deploy  # deploy Cloud Functions to Firebase
 
 There is no separate build step for local dev — Expo handles transpilation at runtime. Cloud builds use EAS (`eas build --profile development|preview|production`).
 
+**EAS build profiles** (`eas.json`):
+- `development` — dev client; iOS simulator + Android APK
+- `preview` — internal distribution (device install)
+- `production` — app store submission with auto-incremented versions
+
 ## Environment
 
 Copy `.env.local.example` to `.env.local` and fill in all keys. Client vars are prefixed `EXPO_PUBLIC_` so Expo exposes them to the bundle. Cloud Function vars are set via `firebase functions:config:set` or Firebase environment secrets — never `EXPO_PUBLIC_`.
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `EXPO_PUBLIC_FIREBASE_*` | client | Firebase project config |
-| `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` | client | Places autocomplete (New API) |
+| `EXPO_PUBLIC_FIREBASE_API_KEY` | client | Firebase API key |
+| `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | client | Firebase auth domain |
+| `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | client | Firebase project ID |
+| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | client | Firebase storage bucket |
+| `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | client | Firebase messaging sender ID |
+| `EXPO_PUBLIC_FIREBASE_APP_ID` | client | Firebase app ID |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | client | Google Places autocomplete (New API) |
 | `EXPO_PUBLIC_REVENUECAT_IOS_KEY` | client | RevenueCat iOS SDK |
 | `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` | client | RevenueCat Android SDK |
 | `EXPO_PUBLIC_ALGOLIA_APP_ID` | client | Algolia search app ID |
@@ -37,18 +47,44 @@ Copy `.env.local.example` to `.env.local` and fill in all keys. Client vars are 
 
 ### Routing (Expo Router v6)
 
-File-based routing under `app/`:
-- `(auth)/` — unauthenticated stack: welcome, sign-in, sign-up, forgot-password
-- `(tabs)/` — main tab bar: feed (index), explore, create, search, profile
-- `(wallet)/` — travel wallet stack: boarding-passes, reservations, loyalty programs (linked from profile, not a tab)
-- `trip/[id]` — trip detail (modal)
-- `trip/new` — manual trip builder (modal, multi-step wizard)
-- `trip/ai-generate` — AI generation form (modal)
-- `trip/ai-generating` — generation loading screen (modal, routes to `trip/[id]` on completion)
-- `post/[id]` — post detail (modal)
-- `user/[uid]` — full-screen public profile (push)
-- `settings` — settings modal (theme toggle, account, sign out)
-- `paywall` — RevenueCat paywall modal
+File-based routing under `app/`. App bundle ID: `com.supernovatravel.app`. React Native New Architecture is enabled.
+
+```
+app/
+├── _layout.tsx                    # Root layout — auth listener, RevenueCat init, push token
+├── (auth)/
+│   ├── _layout.tsx
+│   ├── welcome.tsx
+│   ├── sign-in.tsx
+│   ├── sign-up.tsx
+│   └── forgot-password.tsx
+├── (tabs)/
+│   ├── _layout.tsx                # Tab bar: Feed, Explore, Create, Search, Profile
+│   ├── index.tsx                  # Feed
+│   ├── explore.tsx
+│   ├── create.tsx
+│   ├── search.tsx
+│   └── profile.tsx
+├── (wallet)/
+│   ├── _layout.tsx
+│   ├── boarding-passes.tsx        # List
+│   ├── boarding-pass/[id].tsx     # Detail
+│   ├── boarding-pass/add.tsx      # Add form
+│   ├── reservations.tsx           # List
+│   ├── reservation/[id].tsx       # Detail
+│   ├── loyalty.tsx                # List
+│   ├── loyalty/[id].tsx           # Detail
+│   └── loyalty/add.tsx            # Add form
+├── trip/
+│   ├── [id].tsx                   # Trip detail (modal)
+│   ├── new.tsx                    # Manual trip wizard (modal)
+│   ├── ai-generate.tsx            # AI generation form (modal)
+│   └── ai-generating.tsx          # Generation loading screen → routes to trip/[id]
+├── post/[id].tsx                  # Post detail (modal)
+├── user/[uid].tsx                 # Public profile (full-screen push)
+├── settings.tsx                   # Theme toggle, account, sign out (modal)
+└── paywall.tsx                    # RevenueCat paywall (modal)
+```
 
 **Auth routing is centralised in `app/_layout.tsx`** via a single `onAuthStateChanged` listener. On sign-in it calls `configureRevenueCat(uid)`, registers the Expo push token, fetches the user's `tier`, then `router.replace('/(tabs)')`. On sign-out: `router.replace('/(auth)/welcome')`. There is no route guard middleware.
 
@@ -65,7 +101,7 @@ TanStack React Query (staleTime 2 min, 2 retries) wraps all Firestore reads. **N
 
 ### Firebase
 
-`services/firebase.ts` exports `auth`, `db`, `storage`, `functions` as named singletons. Import these directly — never call `getAuth()` / `getFirestore()` elsewhere.
+`services/firebase.ts` exports `auth`, `db`, `storage`, `functions` as named singletons (region: `us-central1`). Import these directly — never call `getAuth()` / `getFirestore()` elsewhere.
 
 Firestore collections:
 - `users/{uid}` — profile + `tier` + `expoPushTokens[]`; subcollections: `feed/`, `notifications/`, `savedTrips/`
@@ -80,34 +116,39 @@ Firestore collections:
 
 **The `feed/` and `notifications/` subcollections are write-only from Cloud Functions.** `usage_quotas` is entirely server-side.
 
+**Firestore security rules** (`firestore.rules`): public trips/posts are readable by all; boarding passes, reservations, and loyalty programs are owner-only; `usage_quotas` has no client access at all; `reports` is create-only from the client.
+
 ### Cloud Functions (`functions/src/`)
 
 All functions use Firebase Functions v2.
 
-- `generateTrip` — HTTPS callable; receives `GenerateTripRequest`, calls Gemini 1.5 Flash, writes `trips` + `days` + `activities` subcollections, enforces weekly quota via `usage_quotas`
-- `checkFlightStatus` — Cloud Scheduler every 30 min; queries upcoming boarding passes, calls AviationStack HTTP API, updates Firestore status, sends Expo push notifications
-- `syncTripToAlgolia` — `onDocumentWritten('trips/{tripId}')`; upserts/deletes public trips in Algolia `trips` index
-- `syncUserToAlgolia` — `onDocumentWritten('users/{uid}')`; upserts/deletes users in Algolia `users` index
+- `generateTrip` (`generateTrip.ts`) — HTTPS callable; receives `GenerateTripRequest`, calls Gemini 1.5 Flash, writes `trips` + `days` + `activities` subcollections, enforces weekly quota via `usage_quotas`
+- `checkFlightStatus` (`checkFlightStatus.ts`) — Cloud Scheduler every 30 min; queries upcoming boarding passes, calls AviationStack HTTP API, updates Firestore status, sends Expo push notifications
+- `syncTripToAlgolia` / `syncUserToAlgolia` (`syncAlgolia.ts`) — `onDocumentWritten` triggers; upserts/deletes public trips in the Algolia `trips` index and users in the `users` index
+- `types.ts` — shared TypeScript interfaces for Cloud Function request/response shapes
 
 **Never call Gemini or any third-party secret API directly from client code.** All such calls go through Cloud Functions.
 
 ### Services
 
 - `services/firebase.ts` — `auth`, `db`, `storage`, `functions` singletons
-- `services/revenuecat.ts` — `configureRevenueCat(uid)`: sets log level, calls `Purchases.configure`; called in `_layout.tsx` after auth fires
+- `services/revenuecat.ts` — `configureRevenueCat(uid)`: sets log level, calls `Purchases.configure` with platform-specific keys; called in `_layout.tsx` after auth fires
 - `services/gemini.ts` — `callGenerateTrip(request)`: calls the `generateTrip` Cloud Function via `httpsCallable`
 
 ### Hooks (`hooks/`)
 
 | Hook | Returns |
 |---|---|
-| `useTheme` | `{ colors, isDark }` — resolves system theme |
+| `useTheme` | `{ colors, isDark, mode }` — resolves system theme |
+| `useFeed` | Infinite-paginated personalized feed posts (TanStack Query) |
+| `usePost(id)` | Single post query by ID |
 | `useSearch(text)` | `{ users, trips, isSearching }` — Algolia v5, 350ms debounce |
 | `useExplore` | `{ trips, tripsLoading, suggestions, suggestionsLoading }` |
 | `usePublicProfile(uid)` | `{ profile, isLoading, isFollowing, isOwnProfile }` |
+| `useUserProfile(uid)` | Raw user profile query by UID |
 | `useFollow(uid)` | `{ follow, unfollow }` mutations |
-| `useTripList(uid)` | TanStack Query result for user's trips |
-| `useTrip(id)` | Single trip query |
+| `useTripList(uid)` | TanStack Query result for user's trips (also exports `usePublicTrips`) |
+| `useTrip(id)` | Single trip query with nested days/activities |
 | `useCreateTrip` | Create trip mutation |
 | `useAiGenerateTrip` | AI generation mutation; redirects to `/paywall` on quota exceeded |
 | `useBoardingPasses` | `{ boardingPasses, isLoading, addPass, deletePass }` |
@@ -119,18 +160,72 @@ All functions use Firebase Functions v2.
 
 The tier (`free | pro | business`) is fetched from Firestore `users/{uid}.tier` on every auth state change and stored in `useAuthStore`. RevenueCat (`react-native-purchases`) handles purchase flows — `usePurchases` wraps `Purchases.purchasePackage` and `Purchases.restorePurchases`. A `syncTier` Cloud Function (webhook) is expected to update `users/{uid}.tier` after a successful purchase; `useAuthStore.tier` is the authoritative runtime source.
 
+Free tier: 1 AI-generated trip per week (enforced server-side via `usage_quotas`).
+
+### TypeScript Types (`types/`)
+
+`types/index.ts` — all core domain types:
+
+| Type/Interface | Description |
+|---|---|
+| `Tier` | `'free' \| 'pro' \| 'business'` |
+| `ThemeMode` | `'dark' \| 'light' \| 'system'` |
+| `UserProfile` | uid, displayName, username, avatarUrl, bio, location, follower/following/tripsCount, tier, createdAt |
+| `Post` | travel post with authorUid, caption, mediaType, mediaUrl, placeName/placeId/lat/lng, likesCount, commentsCount, tags |
+| `Comment` | authorUid, text, createdAt |
+| `Trip` | title, destination (name/placeId/lat/lng/countryCode), visibility, collaborators[], isAiGenerated, status, tags, likesCount, savesCount |
+| `TripWithDays` | `Trip` extended with `days: TripDay[]` |
+| `TripDay` | dayNumber, date, title, notes, activities[] (loaded from subcollection client-side) |
+| `TripActivity` | type (ActivityType), title, placeId, startTime/endTime (wall-clock strings, NOT Timestamps), durationMinutes, notes, bookingRef, cost, currency, mediaUrls, order |
+| `ActivityType` | `'flight' \| 'hotel' \| 'restaurant' \| 'activity' \| 'transport' \| 'free'` |
+| `TripStatus` | `'planning' \| 'active' \| 'completed'` |
+| `TripVisibility` | `'public' \| 'followers' \| 'private'` |
+| `BoardingPass` | airline, flightNumber, origin/destination (IATA codes), departureTime/arrivalTime (ISO 8601), seat, gate, barcode, status |
+| `BoardingPassStatus` | `'upcoming' \| 'checked_in' \| 'boarded' \| 'completed' \| 'cancelled'` |
+| `Reservation` | type (ReservationType), title, confirmationCode, checkIn/checkOut (ISO 8601 date) |
+| `ReservationType` | `'hotel' \| 'airbnb' \| 'rental_car' \| 'restaurant' \| 'activity'` |
+| `LoyaltyProgram` | programType, programName, memberNumber, balance, unit, tier, expiryDate, isManual |
+| `LoyaltyUnit` | `'miles' \| 'points' \| 'nights' \| 'segments'` |
+| `LoyaltyTier` | `'standard' \| 'silver' \| 'gold' \| 'platinum' \| 'diamond'` |
+| `CreateTripInput` / `UpdateTripInput` | mutation input shapes |
+
+`types/ai.ts` — AI generation types:
+- `TravelStyle`: `'adventure' | 'luxury' | 'budget' | 'family' | 'cultural'`
+- `GenerateTripRequest`: destination, countryCode, startDate/endDate (ISO string | null), durationDays, travelStyle, mustSee[], preferences
+
 ### Design System
 
 All design tokens live in `constants/`:
 - `colors.ts` — exports `DarkColors` and `LightColors`; `useTheme()` resolves the correct set. Brand: purple `#a78bfa`, pink `#f472b6`, blue `#60a5fa`. Accent: amber `#fbbf24`, teal `#34d399`. `colors.text.inverse` = text colour for branded (purple) surfaces.
-- `constants/typography.ts` — `FontSize`, `FontWeight`, `FontFamily`, `LineHeight`, `LetterSpacing`
-- `constants/spacing.ts` — `Spacing` (4px base), `BorderRadius`, `Shadow` (`Shadow.sm / .md / .lg` — purple-tinted)
+- `typography.ts` — `FontSize`, `FontWeight`, `FontFamily`, `LineHeight`, `LetterSpacing`
+- `spacing.ts` — `Spacing` (4px base), `BorderRadius`, `Shadow` (`Shadow.sm / .md / .lg` — purple-tinted)
+- `icons.ts` — Phosphor icon + semantic color maps; import from here instead of hard-coding icon/color pairs:
+  - `ACTIVITY_ICONS: Record<ActivityType, { Icon, color }>` — blue flights, purple hotels, pink restaurants, teal activities, amber transport, grey free time
+  - `RESERVATION_ICONS: Record<ReservationType, { Icon, color }>`
+  - `LOYALTY_ICONS: Record<LoyaltyProgram['programType'], { Icon, color }>`
+  - `VISIBILITY_ICONS: Record<TripVisibility, { Icon, color }>`
+  - `PAYWALL_FEATURE_ICONS: Array<{ Icon, color, label, description }>` — 6 pro-tier features for paywall screen
+  - `TAB_ICONS: Record<string, PhosphorIcon>` — tab bar icons (Create tab uses a gradient `+` circle, not an icon)
+  - `PhosphorIcon` — re-exported `Icon` type from `phosphor-react-native`
 
 UI primitives in `components/ui/`:
 - `Button` — variants: `primary` (LinearGradient purple→pink), `secondary`, `ghost`, `danger`; sizes: `sm | md | lg`; props: `label`, `onPress`, `loading?`, `disabled?`
 - `GlassCard` — `BlurView` frosted glass with configurable `intensity`
 - `Avatar` — sizes: `xs | sm | md | lg | xl`; props: `uri?`, `name`, `size`
-- `Badge`
+- `Badge` — pill/tag component
+- `TypeIconBubble` — 44×24 icon bubble for activity/reservation type; uses `ACTIVITY_ICONS`/`RESERVATION_ICONS` maps
+
+Feed components in `components/feed/`:
+- `FeedCard` — travel post card (photo/video + author metadata, like/comment counts)
+- `FeedActions` — like, comment, and save buttons row
+- `VideoPlayer` — video playback; uses `expo-av`
+
+Trip components in `components/trip/`:
+- `TripCard` — trip preview card for grids and lists
+- `DayTimeline` — day-by-day itinerary timeline visualization
+- `ActivityItem` — individual activity row (uses `ACTIVITY_ICONS` for type icon + color)
+- `AiPromptForm` — AI generation form: destination, dates, travel style (`TravelStyle`), must-see, free-text preferences
+- `AiGeneratingAnimation` — loading animation during AI generation (always-dark, does not use `useTheme`)
 
 Wallet components in `components/wallet/`:
 - `BoardingPassCard` — always-dark physical boarding pass card (`#1a1035 → #0f0a2a` gradient)
@@ -143,11 +238,23 @@ Profile components in `components/profile/`:
 - `EditProfileSheet` — RN `Modal` (`pageSheet`) for editing display name, bio, location
 - `PostsGrid`, `TripsGrid`, `SavedGrid` — profile tab content (Posts/Saved are placeholders)
 
-Search/Explore components in `components/search/` and `components/explore/`.
+Search components in `components/search/`:
+- `UserResult` — user search result item
+- `TripResult` — trip search result item
+- `PlaceResult` — Google Places search result item
 
-Paywall component: `components/paywall/PaywallFeatureList`.
+Explore components in `components/explore/`:
+- `UserSuggestion` — suggested user card
+- `TrendingCard` — trending trip card
+- `TripGrid` — grid layout for trending trips
+
+Other components:
+- `components/SplashOverlay` — overlay shown during app initialization (before auth resolves)
+- `components/paywall/PaywallFeatureList` — pro tier features list; driven by `PAYWALL_FEATURE_ICONS`
 
 **Platform handling**: iOS tab bar and translucent surfaces use `BlurView`; Android uses solid `rgba(10,10,26,0.95)`. Follow this pattern for any frosted-glass UI.
+
+**List performance**: Use `@shopify/flash-list` (`FlashList`) instead of `FlatList` for all scrollable lists. `react-native-draggable-flatlist` is available for drag-to-reorder (e.g., trip activity ordering).
 
 ## UI/UX Design Philosophy
 
@@ -157,7 +264,7 @@ Supernova Travel must look and feel like a premium, consumer-grade travel app �
 - Dark-first: deep navy/purple backgrounds (`#0a0a1a` range), not flat black
 - Brand gradient: purple `#a78bfa` → pink `#f472b6` on primary actions and hero elements
 - Phosphor Duotone icons everywhere — no emoji, no Material icons, no SF Symbols strings
-- Per-type semantic colors: blue flights, purple hotels, pink restaurants, teal activities, amber transport
+- Per-type semantic colors: blue flights, purple hotels, pink restaurants, teal activities, amber transport — always use `ACTIVITY_ICONS`/`RESERVATION_ICONS` maps from `constants/icons.ts`
 
 **Motion & interaction**
 - Spring physics for all enter/exit animations — `tension: 65, friction: 11` is the house curve
@@ -197,3 +304,6 @@ These rules apply to ALL new code:
 8. **Algolia Search-Only Key on client** — `EXPO_PUBLIC_ALGOLIA_SEARCH_KEY` is read-only. Admin key stays in Cloud Functions only
 9. **`@/` path alias** for all imports (maps to project root via `tsconfig.json`)
 10. **Haptics**: `expo-haptics` for tap feedback — `Light` on tab press, `Medium` on follow/create actions
+11. **Icon + color pairs**: always pull from `constants/icons.ts` maps (`ACTIVITY_ICONS`, `RESERVATION_ICONS`, etc.) — never hard-code icon components or hex colors for typed entities inline
+12. **Lists**: use `FlashList` from `@shopify/flash-list` — not `FlatList` — for all scrollable content lists
+13. **`TripActivity.startTime` / `endTime`** are wall-clock strings (`"14:30"`), not Firestore Timestamps — never coerce them to Date objects
