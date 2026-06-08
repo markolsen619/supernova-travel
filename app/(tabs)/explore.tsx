@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   StyleSheet,
   ActivityIndicator,
@@ -87,9 +88,16 @@ export default function ExploreScreen() {
       >
         {/* ── Header ── */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text.primary }]}>
-            Explore
-          </Text>
+          <View style={styles.titleRow}>
+            <Image
+              source={require('@/assets/images/SupernovaStar.png')}
+              style={styles.starIcon}
+              resizeMode="contain"
+            />
+            <Text style={[styles.title, { color: colors.text.primary }]}>
+              Explore
+            </Text>
+          </View>
           <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
             Discover your next destination
           </Text>
@@ -180,10 +188,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['6'],
     marginBottom: Spacing['6'],
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['2'],
+    marginBottom: Spacing['1'],
+  },
+  starIcon: { width: 28, height: 28 },
   title: {
     fontSize: FontSize['2xl'],
     fontWeight: FontWeight.black,
-    marginBottom: 4,
   },
   subtitle: {
     fontSize: FontSize.sm,

@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Dimensions,
   ActivityIndicator,
@@ -55,16 +56,24 @@ export default function FeedScreen() {
         style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}
         pointerEvents="box-none"
       >
-        <TouchableOpacity onPress={() => setTab('forYou')}>
-          <Text style={[styles.headerTab, tab === 'forYou' && styles.headerTabActive]}>
-            For You
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab('following')}>
-          <Text style={[styles.headerTab, tab === 'following' && styles.headerTabActive]}>
-            Following
-          </Text>
-        </TouchableOpacity>
+        <Image
+          source={require('@/assets/images/SupernovaWordmark.png')}
+          style={styles.wordmark}
+          resizeMode="contain"
+        />
+        <View style={styles.tabsRow}>
+          <TouchableOpacity onPress={() => setTab('forYou')}>
+            <Text style={[styles.headerTab, tab === 'forYou' && styles.headerTabActive]}>
+              For You
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setTab('following')}>
+            <Text style={[styles.headerTab, tab === 'following' && styles.headerTabActive]}>
+              Following
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.wordmarkSpacer} />
       </LinearGradient>
 
       {isLoading ? (
@@ -118,9 +127,17 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing['4'],
+    paddingBottom: Spacing['4'],
+  },
+  wordmark: { width: 130, height: 30 },
+  wordmarkSpacer: { width: 130 },
+  tabsRow: {
+    flex: 1,
+    flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing['6'],
-    paddingBottom: Spacing['4'],
   },
   headerTab: {
     fontSize: FontSize.base,

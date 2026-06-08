@@ -22,7 +22,7 @@ export default function WelcomeScreen() {
       {/* Logo area */}
       <View style={styles.hero}>
         <Image
-          source={require('@/assets/images/SupernovaLogo.png')}
+          source={require('@/assets/images/SupernovaWordmark.png')}
           style={styles.logo}
           resizeMode="contain"
         />

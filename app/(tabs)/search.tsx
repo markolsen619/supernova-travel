@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   TextInput,
   StyleSheet,
   ScrollView,
@@ -177,7 +178,14 @@ export default function SearchScreen() {
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background.primary }]}>
       <LinearGradient colors={colors.gradient.dark} style={StyleSheet.absoluteFill} />
 
-      <Text style={[styles.title, { color: colors.text.primary }]}>Search</Text>
+      <View style={styles.titleRow}>
+        <Image
+          source={require('@/assets/images/SupernovaStar.png')}
+          style={styles.starIcon}
+          resizeMode="contain"
+        />
+        <Text style={[styles.title, { color: colors.text.primary }]}>Search</Text>
+      </View>
 
       <View
         style={[
@@ -242,12 +250,18 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  title: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['2'],
     paddingHorizontal: Spacing['6'],
     paddingTop: Spacing['4'],
     marginBottom: Spacing['4'],
+  },
+  starIcon: { width: 28, height: 28 },
+  title: {
+    fontSize: FontSize['2xl'],
+    fontWeight: FontWeight.black,
   },
   inputWrap: {
     flexDirection: 'row',

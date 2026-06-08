@@ -1,6 +1,7 @@
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -124,7 +125,10 @@ export default function AddLoyaltyScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text.primary }]}>Add Loyalty Program</Text>
+        <View style={styles.titleGroup}>
+          <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
+          <Text style={[styles.title, { color: colors.text.primary }]}>Add Loyalty Program</Text>
+        </View>
         <View style={styles.backButton} />
       </View>
 
@@ -314,6 +318,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xl,
     fontWeight: FontWeight.bold,
   },
+  titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
+  starIcon: { width: 18, height: 18 },
   title: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,

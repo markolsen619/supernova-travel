@@ -199,7 +199,7 @@ export function SplashOverlay({ visible }: SplashOverlayProps) {
       <View style={styles.content}>
         <Animated.View style={[styles.logoWrap, logoAnimStyle]}>
           <Image
-            source={require('@/assets/images/SupernovaLogo.png')}
+            source={require('@/assets/images/SupernovaWordmark.png')}
             style={styles.logo}
             resizeMode="contain"
           />

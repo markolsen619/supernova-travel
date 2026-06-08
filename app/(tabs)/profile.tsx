@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signOut } from 'firebase/auth';
@@ -35,6 +35,13 @@ export default function ProfileScreen() {
       showsVerticalScrollIndicator={false}
     >
       <LinearGradient colors={['#1a0a3a', '#0a0a1a']} style={styles.headerGradient} />
+
+      {/* Brand star in hero */}
+      <Image
+        source={require('@/assets/images/SupernovaStar.png')}
+        style={[styles.profileStar, { top: insets.top + Spacing['3'] }]}
+        resizeMode="contain"
+      />
 
       {/* Profile header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing['4'] }]}>
@@ -89,6 +96,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background.primary },
   headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 280 },
+  profileStar: { position: 'absolute', right: Spacing['6'], width: 32, height: 32 },
   header: { alignItems: 'center', paddingHorizontal: Spacing['6'], paddingBottom: Spacing['6'] },
   name: { fontSize: FontSize.xl, fontWeight: FontWeight.black, color: Colors.white, marginTop: Spacing['3'] },
   username: { fontSize: FontSize.sm, color: Colors.text.secondary, marginBottom: Spacing['2'] },
