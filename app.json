@@ -69,7 +69,13 @@
           "cameraPermission": "Supernova needs camera access to capture travel photos and clips."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

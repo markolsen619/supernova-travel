@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '@/services/firebase';
 import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -93,7 +94,8 @@ export default function RootLayout() {
         }
         registerPushToken(firebaseUser.uid);
         configureRevenueCat(firebaseUser.uid);
-        router.replace('/(tabs)');
+        const onboardingDone = await AsyncStorage.getItem('onboarding_complete');
+        router.replace(onboardingDone ? '/(tabs)' : '/(auth)/onboarding');
       } else {
         router.replace('/(auth)/welcome');
       }
