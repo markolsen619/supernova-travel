@@ -3,15 +3,13 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CalendarPlus, Sparkle, Compass } from 'phosphor-react-native';
+import { Camera, MapTrifold } from 'phosphor-react-native';
 import type { PhosphorIcon } from '@/constants/icons';
 import { StarField } from '@/components/animations/StarField';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { useAuthStore } from '@/stores/useAuthStore';
-
-interface CreateOption {
+interface PostOption {
   Icon: PhosphorIcon;
   iconColor: string;
   title: string;
@@ -19,31 +17,23 @@ interface CreateOption {
   onPress: () => void;
 }
 
-export default function CreateScreen() {
+export default function AddToFeedScreen() {
   const insets = useSafeAreaInsets();
-  const { tier } = useAuthStore();
 
-  const options: CreateOption[] = [
+  const options: PostOption[] = [
     {
-      Icon: CalendarPlus,
+      Icon: Camera,
+      iconColor: '#f472b6',
+      title: 'Post a Photo',
+      description: 'Share a travel moment with your followers',
+      onPress: () => router.push('/post/create-photo'),
+    },
+    {
+      Icon: MapTrifold,
       iconColor: '#60a5fa',
-      title: 'Manual Trip',
-      description: 'Build your own itinerary day by day',
-      onPress: () => router.push('/trip/new'),
-    },
-    {
-      Icon: Sparkle,
-      iconColor: '#a78bfa',
-      title: 'AI Generate Trip',
-      description: tier === 'free' ? '1 free trip per week with Gemini AI' : 'Unlimited AI trips with Gemini AI',
-      onPress: () => router.push('/trip/ai-generate'),
-    },
-    {
-      Icon: Compass,
-      iconColor: '#fbbf24',
-      title: 'Get Inspired',
-      description: 'See where others are traveling',
-      onPress: () => router.navigate('/(tabs)/explore'),
+      title: 'Share a Trip',
+      description: 'Feature one of your trips on the feed',
+      onPress: () => router.push('/post/create-trip'),
     },
   ];
 
@@ -55,16 +45,19 @@ export default function CreateScreen() {
       />
       <StarField starCount={80} />
 
-      <Image
-        source={require('@/assets/images/SupernovaStar.png')}
-        style={[styles.headerLogo, { top: insets.top + Spacing['6'] }]}
-        resizeMode="contain"
-      />
-
-      <View style={styles.header}>
-        <Text style={styles.title}>Create Trip</Text>
-        <Text style={styles.subtitle}>Create your next adventure!</Text>
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Add to Feed</Text>
+        <Image
+          source={require('@/assets/images/SupernovaStar.png')}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
       </View>
+
+      <Text style={styles.subtitle}>What would you like to share?</Text>
 
       <View style={styles.cardsWrapper}>
         <View style={styles.options}>
@@ -95,19 +88,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#020208',
   },
-  header: {
+  topBar: {
+    flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing['6'],
-    paddingTop: Spacing['6'],
+    paddingTop: Spacing['4'],
     paddingBottom: Spacing['2'],
   },
+  backBtn: {
+    width: 44,
+    height: 64,
+    justifyContent: 'center',
+  },
+  backText: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: '#a78bfa',
+  },
   headerLogo: {
-    position: 'absolute',
-    left: Spacing['6'],
     width: 64,
     height: 64,
   },
   title: {
+    flex: 1,
     fontSize: FontSize['2xl'],
     fontWeight: FontWeight.black,
     color: DarkColors.text.primary,
@@ -117,13 +120,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: DarkColors.text.secondary,
     textAlign: 'center',
-    marginTop: Spacing['1'],
+    paddingHorizontal: Spacing['6'],
+    marginBottom: Spacing['2'],
   },
   cardsWrapper: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     paddingHorizontal: Spacing['6'],
-    paddingBottom: 120,
+    paddingTop: Spacing['6'],
   },
   options: {
     gap: Spacing['3'],

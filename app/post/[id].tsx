@@ -29,7 +29,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { Avatar } from '@/components/ui/Avatar';
 import { Comment, Post } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing } from '@/constants/spacing';
+import { Spacing, BorderRadius } from '@/constants/spacing';
+import { MapTrifold } from 'phosphor-react-native';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string {
@@ -166,6 +167,34 @@ export default function PostDetailScreen() {
                 📍 {post.placeName}
               </Text>
             )}
+
+            {post.mediaType === 'trip' && post.tripId && (
+              <View style={[styles.tripCard, { backgroundColor: colors.background.elevated, borderColor: colors.background.cardBorder }]}>
+                <View style={styles.tripCardHeader}>
+                  <MapTrifold size={16} color="#60a5fa" weight="duotone" />
+                  <Text style={styles.tripCardLabel}>TRIP</Text>
+                </View>
+                {!!post.tripDestination && (
+                  <Text style={[styles.tripCardDestination, { color: colors.text.primary }]}>
+                    {post.tripDestination}
+                  </Text>
+                )}
+                {!!post.tripDateRange && (
+                  <Text style={[styles.tripCardDates, { color: colors.text.secondary }]}>
+                    {post.tripDateRange}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={styles.viewTripBtn}
+                  onPress={() => router.push(`/trip/${post.tripId}`)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.viewTripText, { color: colors.brand.blue }]}>
+                    View Trip →
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         )}
 
@@ -247,6 +276,39 @@ const styles = StyleSheet.create({
   authorHandle: { fontSize: FontSize.sm },
   caption: { fontSize: FontSize.base, lineHeight: 22 },
   place: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  tripCard: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    padding: Spacing['4'],
+    gap: Spacing['1'],
+  },
+  tripCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['1'],
+    marginBottom: Spacing['1'],
+  },
+  tripCardLabel: {
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    color: '#60a5fa',
+    letterSpacing: 1,
+  },
+  tripCardDestination: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+  },
+  tripCardDates: {
+    fontSize: FontSize.sm,
+  },
+  viewTripBtn: {
+    marginTop: Spacing['2'],
+    alignSelf: 'flex-end',
+  },
+  viewTripText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semiBold,
+  },
   commentsSection: { padding: Spacing['4'], gap: Spacing['4'] },
   sectionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, marginBottom: Spacing['1'] },
   commentRow: { flexDirection: 'row', gap: Spacing['3'], alignItems: 'flex-start' },

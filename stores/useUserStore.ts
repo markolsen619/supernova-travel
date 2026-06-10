@@ -3,6 +3,7 @@ import { create } from 'zustand';
 interface UserProfile {
   uid: string;
   displayName: string;
+  username: string;
   avatarUrl: string | null;
   bio: string;
   location: string;

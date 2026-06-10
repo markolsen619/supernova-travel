@@ -9,8 +9,6 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/SupernovaLogo.png",
-      "resizeMode": "contain",
       "backgroundColor": "#0a0a1a"
     },
     "ios": {
@@ -57,9 +55,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0a0a1a",
-          "image": "./assets/images/SupernovaLogo.png",
-          "imageWidth": 200
+          "backgroundColor": "#0a0a1a"
         }
       ],
       [

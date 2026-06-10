@@ -7,14 +7,10 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   ListRenderItemInfo,
+  Animated,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -94,20 +90,23 @@ async function markOnboardingComplete() {
 }
 
 function DotItem({ active }: { active: boolean }) {
-  const width = useSharedValue(active ? 24 : 8);
+  const width = useRef(new Animated.Value(active ? 24 : 8)).current;
 
   useEffect(() => {
-    width.value = withSpring(active ? 24 : 8, { stiffness: 220, damping: 20 });
+    Animated.spring(width, {
+      toValue: active ? 24 : 8,
+      useNativeDriver: false,
+      stiffness: 220,
+      damping: 20,
+    }).start();
   }, [active, width]);
-
-  const style = useAnimatedStyle(() => ({ width: width.value }));
 
   return (
     <Animated.View
       style={[
         styles.dot,
         { backgroundColor: active ? DarkColors.brand.purple : 'rgba(255,255,255,0.25)' },
-        style,
+        { width },
       ]}
     />
   );

@@ -6,13 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Animated,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  interpolate,
-} from 'react-native-reanimated';
+import { useRef } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -28,31 +24,31 @@ const CARD_HEIGHT = 200;
 
 function FlippableCard({ pass }: { pass: BoardingPass }) {
   const { colors } = useTheme();
-  const flipValue = useSharedValue(0);
+  const flipValue = useRef(new Animated.Value(0)).current;
+  const isFlipped = useRef(false);
 
   const handleFlip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    flipValue.value = withSpring(flipValue.value === 0 ? 1 : 0, {
+    isFlipped.current = !isFlipped.current;
+    Animated.spring(flipValue, {
+      toValue: isFlipped.current ? 1 : 0,
+      useNativeDriver: true,
       damping: 15,
       stiffness: 100,
-    });
+    }).start();
   };
 
-  const frontAnimStyle = useAnimatedStyle(() => {
-    const rotateY = interpolate(flipValue.value, [0, 1], [0, 180]);
-    return {
-      transform: [{ perspective: 1000 }, { rotateY: `${rotateY}deg` }],
-      backfaceVisibility: 'hidden',
-    };
-  });
+  const frontRotateY = flipValue.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const backRotateY  = flipValue.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
 
-  const backAnimStyle = useAnimatedStyle(() => {
-    const rotateY = interpolate(flipValue.value, [0, 1], [180, 360]);
-    return {
-      transform: [{ perspective: 1000 }, { rotateY: `${rotateY}deg` }],
-      backfaceVisibility: 'hidden',
-    };
-  });
+  const frontAnimStyle = {
+    transform: [{ perspective: 1000 }, { rotateY: frontRotateY }],
+    backfaceVisibility: 'hidden' as const,
+  };
+  const backAnimStyle = {
+    transform: [{ perspective: 1000 }, { rotateY: backRotateY }],
+    backfaceVisibility: 'hidden' as const,
+  };
 
   return (
     <TouchableOpacity

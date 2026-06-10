@@ -275,55 +275,13 @@ export default function SignUpScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: Spacing['6'],
-    paddingTop: Spacing['16'],
-    paddingBottom: Spacing['10'],
-  },
-
-  glow1: {
-    position: 'absolute', top: -80, left: -60,
-    width: 260, height: 260, borderRadius: 130,
-    backgroundColor: 'rgba(120,80,255,0.18)',
-  },
-  glow2: {
-    position: 'absolute', bottom: 120, right: -60,
-    width: 220, height: 220, borderRadius: 110,
-    backgroundColor: 'rgba(244,114,182,0.14)',
-  },
-
-  back: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: Spacing['8'],
-  },
-
-  star: { width: 52, height: 52, marginBottom: Spacing['5'] },
-  title: {
-    fontSize: FontSize['3xl'],
-    fontWeight: FontWeight.black,
-    color: DarkColors.text.primary,
-    marginBottom: Spacing['2'],
-  },
-  subtitle: {
-    fontSize: FontSize.base,
-    color: DarkColors.text.secondary,
-    marginBottom: Spacing['8'],
-    lineHeight: FontSize.base * 1.5,
-  },
-
-  errorBox: {
-    backgroundColor: 'rgba(248,113,113,0.1)',
-    borderRadius: BorderRadius.md,
-    padding: Spacing['3'],
-    marginBottom: Spacing['4'],
-    borderWidth: 1,
-    borderColor: 'rgba(248,113,113,0.3)',
-  },
-  errorText: { color: '#f87171', fontSize: FontSize.sm },
-
+  container: { flexGrow: 1, padding: Spacing['6'], paddingTop: Spacing['16'] },
+  back: { marginBottom: Spacing['8'] },
+  star: { width: 78, height: 78, marginBottom: Spacing['4'] },
+  backText: { color: Colors.brand.purple, fontSize: FontSize.base },
+  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.black, color: Colors.white, marginBottom: Spacing['2'] },
+  subtitle: { fontSize: FontSize.base, color: Colors.text.secondary, marginBottom: Spacing['8'] },
+  error: { color: Colors.semantic.error, fontSize: FontSize.sm, marginBottom: Spacing['4'], backgroundColor: 'rgba(248,113,113,0.1)', padding: Spacing['3'], borderRadius: BorderRadius.md },
   field: { marginBottom: Spacing['5'] },
   label: {
     fontSize: FontSize.sm,
