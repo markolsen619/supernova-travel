@@ -2,14 +2,18 @@ import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Dimensions,
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Plus, Heart } from 'phosphor-react-native';
+import * as Haptics from 'expo-haptics';
 import { FeedCard } from '@/components/feed/FeedCard';
 import { useFeed } from '@/hooks/useFeed';
 import { Post } from '@/types';
@@ -17,15 +21,18 @@ import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-type FeedTab = 'forYou' | 'following';
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function overrideItemLayout(layout: { size: number }) {
+  layout.size = SCREEN_HEIGHT;
+}
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<FeedTab>('forYou');
+  const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed(tab);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
 
   const posts: Post[] = data?.pages.flatMap((p) => p.posts) ?? [];
 
@@ -49,21 +56,34 @@ export default function FeedScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Tab toggle */}
+      {/* Header */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.6)', 'transparent']}
-        style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}
+        colors={['rgba(0,0,0,0.65)', 'transparent'] as [string, string]}
+        style={[styles.header, { paddingTop: insets.top }]}
         pointerEvents="box-none"
       >
-        <TouchableOpacity onPress={() => setTab('forYou')}>
-          <Text style={[styles.headerTab, tab === 'forYou' && styles.headerTabActive]}>
-            For You
-          </Text>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/add-to-feed'); }}
+          activeOpacity={0.7}
+        >
+          <Plus size={26} color="rgba(255,255,255,0.92)" weight="regular" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab('following')}>
-          <Text style={[styles.headerTab, tab === 'following' && styles.headerTabActive]}>
-            Following
-          </Text>
+
+        <View style={styles.headerCenter}>
+          <Image
+            source={require('@/assets/images/SupernovaLogo.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
+        </View>
+
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/notifications'); }}
+          activeOpacity={0.7}
+        >
+          <Heart size={26} color="rgba(255,255,255,0.92)" weight="regular" />
         </TouchableOpacity>
       </LinearGradient>
 
@@ -75,9 +95,7 @@ export default function FeedScreen() {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>✈️</Text>
           <Text style={styles.emptyTitle}>Nothing here yet</Text>
-          <Text style={styles.emptySubtitle}>
-            {tab === 'following' ? 'Follow travelers to see their posts here' : 'Be the first to share a travel moment'}
-          </Text>
+          <Text style={styles.emptySubtitle}>Be the first to share a travel moment</Text>
         </View>
       ) : (
         <FlashList
@@ -87,6 +105,8 @@ export default function FeedScreen() {
             <FeedCard post={item} isActive={index === activeIndex} />
           )}
           pagingEnabled
+          estimatedItemSize={SCREEN_HEIGHT}
+          overrideItemLayout={overrideItemLayout}
           showsVerticalScrollIndicator={false}
           decelerationRate="fast"
           viewabilityConfig={viewabilityConfig.current}
@@ -118,20 +138,23 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing['6'],
+    alignItems: 'center',
+    paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['4'],
   },
-  headerTab: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semiBold,
-    color: 'rgba(255,255,255,0.5)',
+  headerBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerTabActive: {
-    color: '#fff',
-    borderBottomWidth: 2,
-    borderBottomColor: '#fff',
-    paddingBottom: 2,
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerLogo: {
+    width: '100%',
+    height: 97,
   },
   loadingContainer: {
     flex: 1,

@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flexGrow: 1, padding: Spacing['6'], paddingTop: Spacing['16'] },
   back: { marginBottom: Spacing['8'] },
-  star: { width: 52, height: 52, marginBottom: Spacing['4'] },
+  star: { width: 78, height: 78, marginBottom: Spacing['4'] },
   backText: { color: Colors.brand.purple, fontSize: FontSize.base },
   title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.black, color: Colors.white, marginBottom: Spacing['2'] },
   subtitle: { fontSize: FontSize.base, color: Colors.text.secondary, marginBottom: Spacing['8'] },

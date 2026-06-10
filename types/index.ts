@@ -17,7 +17,7 @@ export interface UserProfile {
   createdAt: string;
 }
 
-export type PostMediaType = 'photo' | 'video';
+export type PostMediaType = 'photo' | 'video' | 'trip';
 
 export interface Post {
   id: string;
@@ -28,12 +28,16 @@ export interface Post {
   caption: string;
   mediaType: PostMediaType;
   mediaUrl: string;
+  mediaUrls: string[];
   thumbnailUrl: string | null;
   placeName: string | null;
   placeId: string | null;
   lat: number | null;
   lng: number | null;
   tripId: string | null;
+  tripTitle: string | null;
+  tripDestination: string | null;
+  tripDateRange: string | null;
   likesCount: number;
   commentsCount: number;
   tags: string[];

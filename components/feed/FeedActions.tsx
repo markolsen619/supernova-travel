@@ -89,17 +89,14 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
             color={liked ? '#f472b6' : 'rgba(255,255,255,0.9)'}
             weight={liked ? 'fill' : 'regular'}
           />
-          <Text style={styles.actionCount}>{formatCount(localLikes)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onCommentPress}>
           <ChatCircle size={28} color="rgba(255,255,255,0.9)" weight="duotone" />
-          <Text style={styles.actionCount}>{formatCount(post.commentsCount)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
           <Export size={28} color="rgba(255,255,255,0.9)" weight="regular" />
-          <Text style={styles.actionCount}>Share</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onToggleMute}>
