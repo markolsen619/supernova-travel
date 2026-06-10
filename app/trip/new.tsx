@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,10 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
 import {
   CalendarBlank,
   MapPin,
@@ -724,21 +719,25 @@ export default function NewTripScreen() {
   const [createError, setCreateError] = useState('');
 
   // Animation
-  const translateX = useSharedValue(0);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
+  const translateX = useRef(new Animated.Value(0)).current;
+  const animatedStyle = { transform: [{ translateX }] };
 
   const goToStep = useCallback((nextStep: number, forward: boolean) => {
     const direction = forward ? -SCREEN_WIDTH : SCREEN_WIDTH;
-
-    // Slide current off
-    translateX.value = withSpring(direction, { damping: 20, stiffness: 200 }, () => {
-      runOnJS(setStep)(nextStep);
-      // Jump to opposite side, then spring back to center
-      translateX.value = -direction;
-      translateX.value = withSpring(0, { damping: 20, stiffness: 200 });
+    Animated.spring(translateX, {
+      toValue: direction,
+      useNativeDriver: true,
+      damping: 20,
+      stiffness: 200,
+    }).start(() => {
+      setStep(nextStep);
+      translateX.setValue(-direction);
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 20,
+        stiffness: 200,
+      }).start();
     });
   }, [translateX]);
 

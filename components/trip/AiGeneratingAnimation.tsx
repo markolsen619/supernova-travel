@@ -1,24 +1,12 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withDelay,
-  Easing,
-} from 'react-native-reanimated';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface AiGeneratingAnimationProps {
   status: string;
 }
-
-// ─── Orb sub-component ────────────────────────────────────────────────────────
 
 interface OrbProps {
   color: string;
@@ -29,40 +17,43 @@ interface OrbProps {
 }
 
 function Orb({ color, size, delayMs, translateXRange, translateYRange }: OrbProps) {
-  const opacity = useSharedValue(0.3);
-  const scale = useSharedValue(0.8);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
+  const opacity    = useRef(new Animated.Value(0.3)).current;
+  const scale      = useRef(new Animated.Value(0.8)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const timing = { duration: 2400, easing: Easing.inOut(Easing.sin) };
+    const loop = (value: Animated.Value, toValue: number, duration: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.timing(value, { toValue, duration, useNativeDriver: true }),
+        Animated.timing(value, { toValue: value === opacity ? 0.3 : value === scale ? 0.8 : 0, duration, useNativeDriver: true }),
+      ]));
 
-    opacity.value = withDelay(
-      delayMs,
-      withRepeat(withTiming(0.85, timing), -1, true)
-    );
-    scale.value = withDelay(
-      delayMs,
-      withRepeat(withTiming(1.25, timing), -1, true)
-    );
-    translateX.value = withDelay(
-      delayMs,
-      withRepeat(withTiming(translateXRange, { duration: 3200, easing: Easing.inOut(Easing.quad) }), -1, true)
-    );
-    translateY.value = withDelay(
-      delayMs,
-      withRepeat(withTiming(translateYRange, { duration: 2800, easing: Easing.inOut(Easing.quad) }), -1, true)
-    );
+    Animated.sequence([
+      Animated.delay(delayMs),
+      Animated.parallel([
+        Animated.loop(Animated.sequence([
+          Animated.timing(opacity,    { toValue: 0.85,           duration: 2400, useNativeDriver: true }),
+          Animated.timing(opacity,    { toValue: 0.3,            duration: 2400, useNativeDriver: true }),
+        ])),
+        Animated.loop(Animated.sequence([
+          Animated.timing(scale,      { toValue: 1.25,           duration: 2400, useNativeDriver: true }),
+          Animated.timing(scale,      { toValue: 0.8,            duration: 2400, useNativeDriver: true }),
+        ])),
+        Animated.loop(Animated.sequence([
+          Animated.timing(translateX, { toValue: translateXRange, duration: 3200, useNativeDriver: true }),
+          Animated.timing(translateX, { toValue: 0,              duration: 3200, useNativeDriver: true }),
+        ])),
+        Animated.loop(Animated.sequence([
+          Animated.timing(translateY, { toValue: translateYRange, duration: 2800, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: 0,              duration: 2800, useNativeDriver: true }),
+        ])),
+      ]),
+    ]).start();
+
+    // suppress unused warning
+    void loop;
   }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { scale: scale.value },
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-    ],
-  }));
 
   return (
     <Animated.View
@@ -73,69 +64,36 @@ function Orb({ color, size, delayMs, translateXRange, translateYRange }: OrbProp
           height: size,
           borderRadius: size / 2,
           backgroundColor: color,
+          opacity,
+          transform: [{ scale }, { translateX }, { translateY }],
         },
-        animatedStyle,
       ]}
     />
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export function AiGeneratingAnimation({ status }: AiGeneratingAnimationProps) {
-  const statusOpacity = useSharedValue(0);
+  const statusOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    statusOpacity.value = 0;
-    statusOpacity.value = withTiming(1, { duration: 400 });
+    statusOpacity.setValue(0);
+    Animated.timing(statusOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
   }, [status]);
-
-  const statusStyle = useAnimatedStyle(() => ({
-    opacity: statusOpacity.value,
-  }));
 
   return (
     <View style={styles.container}>
-      {/* Orb cluster */}
       <View style={styles.orbStage}>
-        {/* Purple orb — large, center-ish */}
-        <Orb
-          color="rgba(167,139,250,0.55)"
-          size={160}
-          delayMs={0}
-          translateXRange={18}
-          translateYRange={-14}
-        />
-        {/* Pink orb — medium, offset right */}
-        <Orb
-          color="rgba(244,114,182,0.45)"
-          size={120}
-          delayMs={400}
-          translateXRange={-22}
-          translateYRange={20}
-        />
-        {/* Blue orb — small, offset left-top */}
-        <Orb
-          color="rgba(96,165,250,0.40)"
-          size={90}
-          delayMs={800}
-          translateXRange={14}
-          translateYRange={28}
-        />
+        <Orb color="rgba(167,139,250,0.55)" size={160} delayMs={0}   translateXRange={18}  translateYRange={-14} />
+        <Orb color="rgba(244,114,182,0.45)" size={120} delayMs={400} translateXRange={-22} translateYRange={20}  />
+        <Orb color="rgba(96,165,250,0.40)"  size={90}  delayMs={800} translateXRange={14}  translateYRange={28}  />
       </View>
-
-      {/* Sparkle label above status */}
       <Text style={styles.sparkle}>✨</Text>
-
-      {/* Status text — fades in on each change */}
-      <Animated.Text style={[styles.statusText, statusStyle]}>
+      <Animated.Text style={[styles.statusText, { opacity: statusOpacity }]}>
         {status}
       </Animated.Text>
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -150,9 +108,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing['8'],
   },
-  orb: {
-    position: 'absolute',
-  },
+  orb: { position: 'absolute' },
   sparkle: {
     fontSize: 28,
     marginBottom: Spacing['3'],
