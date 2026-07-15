@@ -14,6 +14,9 @@ export function useAiGenerateTrip() {
     onSuccess: () => {
       if (uid) {
         queryClient.invalidateQueries({ queryKey: ['trips', uid] });
+        // Keep the "remaining generations" display in sync — a successful
+        // generation just consumed this week's quota server-side.
+        queryClient.invalidateQueries({ queryKey: ['aiTripQuota', uid] });
       }
     },
     onError: (error: unknown) => {
@@ -22,6 +25,9 @@ export function useAiGenerateTrip() {
         error instanceof FirebaseError &&
         error.code === 'functions/resource-exhausted'
       ) {
+        // The client's cached "remaining" was stale (showed >0 but the
+        // server rejected) — refresh it so the UI self-corrects to 0.
+        if (uid) queryClient.invalidateQueries({ queryKey: ['aiTripQuota', uid] });
         router.replace('/paywall');
       }
     },

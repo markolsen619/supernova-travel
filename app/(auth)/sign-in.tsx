@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,40 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { CaretLeft, Eye, EyeSlash } from 'phosphor-react-native';
 import { auth } from '@/services/firebase';
-import { Button } from '@/components/ui/Button';
+import { useTheme } from '@/hooks/useTheme';
 import { DarkColors } from '@/constants/colors';
+import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
 export default function SignInScreen() {
+  const { colors } = useTheme();
+
+  // ── Dark splash → light auth handoff (signature moment, mirrors the
+  // opposite fade used entering ai-generating.tsx) — plays once on first
+  // mount only, not on back-navigation returns to an already-mounted screen.
+  const revealOpacity = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const contentTranslateY = useRef(new Animated.Value(12)).current;
+
+  useEffect(() => {
+    Animated.timing(revealOpacity, { toValue: 0, duration: 500, useNativeDriver: true }).start();
+    Animated.sequence([
+      Animated.delay(120),
+      Animated.parallel([
+        Animated.spring(contentOpacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
+        Animated.spring(contentTranslateY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,55 +64,59 @@ export default function SignInScreen() {
     }
   }, [email, password]);
 
-  const togglePassword = useCallback(() => setShowPassword((v) => !v), []);
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
+
+  const togglePassword = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowPassword((v) => !v);
+  }, []);
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient
-        colors={['#0a0a1a', '#1a0a3a', '#0a0a1a']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Aurora glows */}
-      <View style={styles.glow1} />
-      <View style={styles.glow2} />
-
+    <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Animated.View style={[styles.flex, { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] }]}>
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {/* Back button */}
-        <TouchableOpacity onPress={() => router.back()} style={styles.back} activeOpacity={0.7}>
-          <CaretLeft size={20} color={DarkColors.text.primary} weight="bold" />
+        <TouchableOpacity onPress={handleBack} style={styles.back} activeOpacity={0.7} hitSlop={8} accessibilityLabel="Back">
+          <CaretLeft size={20} color={colors.text.primary} weight="bold" />
         </TouchableOpacity>
 
-        {/* Brand */}
+        {/* Brand — the star mark's own gradient art is the one hit of brand color on this screen. */}
         <Image
           source={require('@/assets/images/SupernovaStar.png')}
           style={styles.star}
           resizeMode="contain"
         />
-        <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+        <Text style={[styles.title, { color: colors.text.primary }]}>Welcome back</Text>
+        <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Sign in to continue your journey</Text>
 
         {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBox, { backgroundColor: `${colors.semantic.error}14` }]}>
+            <Text style={[styles.errorText, { color: colors.semantic.error }]}>{error}</Text>
           </View>
         ) : null}
 
         {/* Email */}
         <View style={styles.field}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Email</Text>
           <TextInput
-            style={[styles.input, emailFocused && styles.inputFocused]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary },
+              emailFocused && { borderColor: colors.brand.purple },
+            ]}
             value={email}
             onChangeText={setEmail}
             onFocus={() => setEmailFocused(true)}
             onBlur={() => setEmailFocused(false)}
             placeholder="you@example.com"
-            placeholderTextColor={DarkColors.text.tertiary}
+            placeholderTextColor={colors.text.tertiary}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -100,41 +126,56 @@ export default function SignInScreen() {
 
         {/* Password */}
         <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Password</Text>
           <View style={styles.inputRow}>
             <TextInput
-              style={[styles.input, styles.inputFlex, passwordFocused && styles.inputFocused]}
+              style={[
+                styles.input,
+                styles.inputFlex,
+                { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary },
+                passwordFocused && { borderColor: colors.brand.purple },
+              ]}
               value={password}
               onChangeText={setPassword}
               onFocus={() => setPasswordFocused(true)}
               onBlur={() => setPasswordFocused(false)}
               placeholder="••••••••"
-              placeholderTextColor={DarkColors.text.tertiary}
+              placeholderTextColor={colors.text.tertiary}
               secureTextEntry={!showPassword}
               returnKeyType="done"
               onSubmitEditing={handleSignIn}
             />
             <TouchableOpacity
               onPress={togglePassword}
-              style={[styles.eyeBtn, passwordFocused && styles.inputFocused]}
+              style={[
+                styles.eyeBtn,
+                { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+                passwordFocused && { borderColor: colors.brand.purple },
+              ]}
               activeOpacity={0.7}
               hitSlop={8}
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword
-                ? <EyeSlash size={20} color={DarkColors.text.tertiary} weight="regular" />
-                : <Eye size={20} color={DarkColors.text.tertiary} weight="regular" />}
+                ? <EyeSlash size={20} color={colors.text.tertiary} weight="regular" />
+                : <Eye size={20} color={colors.text.tertiary} weight="regular" />}
             </TouchableOpacity>
           </View>
         </View>
 
         <Link href="/(auth)/forgot-password" asChild>
-          <TouchableOpacity style={styles.forgotWrap} activeOpacity={0.7}>
-            <Text style={styles.forgot}>Forgot password?</Text>
+          <TouchableOpacity
+            style={styles.forgotWrap}
+            activeOpacity={0.7}
+            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+          >
+            <Text style={[styles.forgot, { color: colors.brand.purple }]}>Forgot password?</Text>
           </TouchableOpacity>
         </Link>
 
+        {/* Not the hero gradient — that's reserved for the star mark above. */}
         <Button
-          label="Sign In"
+          label="Sign in"
           onPress={handleSignIn}
           loading={loading}
           fullWidth
@@ -143,14 +184,25 @@ export default function SignInScreen() {
         />
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
+          <Text style={[styles.footerText, { color: colors.text.secondary }]}>Don't have an account? </Text>
           <Link href="/(auth)/sign-up" asChild>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={styles.footerLink}>Sign Up</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            >
+              <Text style={[styles.footerLink, { color: colors.brand.purple }]}>Sign up</Text>
             </TouchableOpacity>
           </Link>
         </View>
       </ScrollView>
+      </Animated.View>
+
+      {/* Fades out on first mount only, revealing the light content — the
+          arrival counterpart to ai-generating.tsx's fade-out-into-dark. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: DarkColors.background.primary, opacity: revealOpacity }]}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -158,48 +210,39 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flexGrow: 1, padding: Spacing['6'], paddingTop: Spacing['16'] },
-  back: { marginBottom: Spacing['8'] },
+  back: { marginBottom: Spacing['8'], minWidth: 44, minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' },
   star: { width: 78, height: 78, marginBottom: Spacing['4'] },
-  backText: { color: Colors.brand.purple, fontSize: FontSize.base },
-  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.black, color: Colors.white, marginBottom: Spacing['2'] },
-  subtitle: { fontSize: FontSize.base, color: Colors.text.secondary, marginBottom: Spacing['8'] },
-  error: { color: Colors.semantic.error, fontSize: FontSize.sm, marginBottom: Spacing['4'], backgroundColor: 'rgba(248,113,113,0.1)', padding: Spacing['3'], borderRadius: BorderRadius.md },
+  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.semiBold, letterSpacing: -0.02 * FontSize['3xl'], marginBottom: Spacing['2'] },
+  subtitle: { fontSize: FontSize.base, marginBottom: Spacing['8'] },
+  errorBox: { padding: Spacing['3'], borderRadius: BorderRadius.md, marginBottom: Spacing['4'] },
+  errorText: { fontSize: FontSize.sm },
   field: { marginBottom: Spacing['5'] },
   label: {
     fontSize: FontSize.sm, fontWeight: FontWeight.medium,
-    color: DarkColors.text.secondary, marginBottom: Spacing['2'],
+    marginBottom: Spacing['2'],
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
-  },
-  inputFocused: {
-    borderColor: DarkColors.brand.purple,
-    backgroundColor: 'rgba(167,139,250,0.06)',
   },
   inputRow: { flexDirection: 'row', gap: Spacing['2'] },
   inputFlex: { flex: 1 },
   eyeBtn: {
     width: 52, height: 52,
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   forgotWrap: { alignSelf: 'flex-end', marginBottom: Spacing['6'] },
-  forgot: { color: DarkColors.brand.purple, fontSize: FontSize.sm, fontWeight: FontWeight.medium },
+  forgot: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
 
   cta: { marginBottom: Spacing['6'] },
 
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: Spacing['4'] },
-  footerText: { color: DarkColors.text.secondary, fontSize: FontSize.sm },
-  footerLink: { color: DarkColors.brand.purple, fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
+  footerText: { fontSize: FontSize.sm },
+  footerLink: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
 });

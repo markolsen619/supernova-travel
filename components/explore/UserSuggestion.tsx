@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useFollow, useIsFollowing } from '@/hooks/useFollow';
@@ -27,13 +28,14 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
   const isFollowing = isFollowingQuery.data === true;
   const followLoading = follow.isPending || unfollow.isPending || isFollowingQuery.isLoading;
 
-  const handleRowPress = () => {
+  const handleRowPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (onPress) {
       onPress();
     } else {
       router.push(`/user/${user.uid}`);
     }
-  };
+  }, [onPress, router, user.uid]);
 
   const handleFollowPress = () => {
     if (isFollowing) {
@@ -48,6 +50,7 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
       onPress={handleRowPress}
       activeOpacity={0.7}
       style={[styles.container, { borderBottomColor: colors.background.cardBorder }]}
+      accessibilityLabel={`View ${user.displayName}'s profile`}
     >
       <Avatar uri={user.avatarUrl} name={user.displayName} size="md" />
 
@@ -71,6 +74,7 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
           label={isFollowing ? 'Following' : 'Follow'}
           variant="secondary"
           size="sm"
+          haptic="medium"
           onPress={handleFollowPress}
           loading={followLoading}
         />

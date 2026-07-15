@@ -5,7 +5,7 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,9 +14,14 @@ import { useExplore } from '@/hooks/useExplore';
 import { TrendingCard } from '@/components/explore/TrendingCard';
 import { UserSuggestion } from '@/components/explore/UserSuggestion';
 import { TripGrid } from '@/components/explore/TripGrid';
+import { SkeletonCard, SkeletonListRow } from '@/components/ui/Skeleton';
+import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing } from '@/constants/spacing';
 import { Trip } from '@/types';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const TRENDING_CARD_WIDTH = (SCREEN_WIDTH - Spacing['6'] * 2 - Spacing['3']) / 2;
+const GRID_ITEM_WIDTH = (SCREEN_WIDTH - Spacing['6'] * 2 - Spacing['3']) / 2;
 
 // Map ISO country codes to flag emojis.  Falls back to 🌍 for unknowns.
 function countryCodeToEmoji(code: string | null): string {
@@ -110,10 +115,11 @@ export default function ExploreScreen() {
           </Text>
 
           {tripsLoading ? (
-            <ActivityIndicator
-              color={colors.brand.purple}
-              style={styles.loader}
-            />
+            <View style={styles.trendingScroll}>
+              {[0, 1, 2].map((i) => (
+                <SkeletonCard key={i} width={TRENDING_CARD_WIDTH} height={TRENDING_CARD_WIDTH} radius={BorderRadius.xl} />
+              ))}
+            </View>
           ) : trending.length > 0 ? (
             <ScrollView
               horizontal
@@ -141,10 +147,11 @@ export default function ExploreScreen() {
           </Text>
 
           {tripsLoading ? (
-            <ActivityIndicator
-              color={colors.brand.purple}
-              style={styles.loader}
-            />
+            <View style={styles.tripGridSkeleton}>
+              {[0, 1, 2, 3].map((i) => (
+                <SkeletonCard key={i} width={GRID_ITEM_WIDTH} height={160} radius={BorderRadius.xl} />
+              ))}
+            </View>
           ) : (
             <TripGrid trips={trips} onTripPress={handleTripPress} />
           )}
@@ -158,10 +165,11 @@ export default function ExploreScreen() {
             </Text>
 
             {suggestionsLoading ? (
-              <ActivityIndicator
-                color={colors.brand.purple}
-                style={styles.loader}
-              />
+              <View style={{ gap: Spacing['4'] }}>
+                {[0, 1, 2].map((i) => (
+                  <SkeletonListRow key={i} />
+                ))}
+              </View>
             ) : (
               suggestions.map((user) => (
                 <UserSuggestion key={user.uid} user={user} />
@@ -197,7 +205,8 @@ const styles = StyleSheet.create({
   starIcon: { width: 28, height: 28 },
   title: {
     fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
   },
   subtitle: {
     fontSize: FontSize.sm,
@@ -221,8 +230,11 @@ const styles = StyleSheet.create({
   peopleSection: {
     paddingHorizontal: Spacing['6'],
   },
-  loader: {
-    marginVertical: Spacing['6'],
+  tripGridSkeleton: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing['6'],
+    gap: Spacing['3'],
   },
   bottomPad: {
     height: 100,

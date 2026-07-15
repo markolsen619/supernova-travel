@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Sparkle } from 'phosphor-react-native';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
@@ -87,7 +88,7 @@ export function AiGeneratingAnimation({ status }: AiGeneratingAnimationProps) {
         <Orb color="rgba(244,114,182,0.45)" size={120} delayMs={400} translateXRange={-22} translateYRange={20}  />
         <Orb color="rgba(96,165,250,0.40)"  size={90}  delayMs={800} translateXRange={14}  translateYRange={28}  />
       </View>
-      <Text style={styles.sparkle}>✨</Text>
+      <Sparkle size={28} color={DarkColors.brand.purple} weight="duotone" style={styles.sparkle} />
       <Animated.Text style={[styles.statusText, { opacity: statusOpacity }]}>
         {status}
       </Animated.Text>
@@ -110,7 +111,6 @@ const styles = StyleSheet.create({
   },
   orb: { position: 'absolute' },
   sparkle: {
-    fontSize: 28,
     marginBottom: Spacing['3'],
   },
   statusText: {

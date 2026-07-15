@@ -11,67 +11,80 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import {
+  MapView,
+  Camera,
+  StyleImport,
+  setAccessToken,
+} from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import {
-  MagnifyingGlass,
-  X,
-  MapPin,
-  ArrowRight,
-  NavigationArrow,
-} from 'phosphor-react-native';
-import { useTheme } from '@/hooks/useTheme';
+import { MagnifyingGlass, X, Compass, WarningCircle } from 'phosphor-react-native';
+import { DarkColors } from '@/constants/colors';
 import { useSearch } from '@/hooks/useSearch';
-import { usePlaceAutocomplete, PlaceSelection } from '@/hooks/usePlaceAutocomplete';
-import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing, BorderRadius } from '@/constants/spacing';
+import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
+import { useFlyTo } from '@/hooks/useFlyTo';
+import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
+import { enrichPoiByNameAndCoords, placeFromSelection, zoomForPlaceType } from '@/services/places/googlePlaces';
+import { extractPoiFromFeatures } from '@/services/places/poiTapBridge';
+import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { UserResult } from '@/components/search/UserResult';
 import { TripResult } from '@/components/search/TripResult';
 import { PlaceResult } from '@/components/search/PlaceResult';
+import { FontSize, FontWeight } from '@/constants/typography';
+import { Spacing, BorderRadius } from '@/constants/spacing';
+import type * as GeoJSON from 'geojson';
+
+// ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
+type ScreenPointPayload = { screenPointX: number; screenPointY: number };
+
+// Set token once at module load — before any MapView renders
+setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
+
+const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
 
 type Tab = 'Places' | 'Users' | 'Trips';
 const TABS: Tab[] = ['Places', 'Users', 'Trips'];
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const WORLD_REGION = {
-  latitude: 20,
-  longitude: 0,
-  latitudeDelta: 100,
-  longitudeDelta: 100,
-};
-
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0d0d1a' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0d0d1a' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a9a' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
-  { featureType: 'administrative.country', elementType: 'labels.text.fill', stylers: [{ color: '#9d9da8' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#c5c5d4' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', stylers: [{ visibility: 'simplified' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1e1e30' }] },
-  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#686880' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2a2a40' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#06060f' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3a3a5c' }] },
-  { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#0d0d1a' }] },
-];
+// Initial camera: wide-angle globe view centred on 0°N 20°W
+const INITIAL_ZOOM = 1.5;
+const INITIAL_COORDS: [number, number] = [0, 20]; // [lng, lat]
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useTheme();
+  // Always-dark immersive screen (Architecture Rule 3) — the globe is
+  // atmosphere, not app chrome, so this hardcodes DarkColors rather than
+  // following the (now light-by-default) theme.
+  const colors = DarkColors;
+  const { cameraRef, flyTo, flyToBounds } = useFlyTo();
+  const mapRef = useRef<InstanceType<typeof MapView>>(null);
+
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('Places');
-  const [selectedPlace, setSelectedPlace] = useState<PlaceSelection | null>(null);
+  const [enriching, setEnriching] = useState(false);
 
-  const mapRef = useRef<MapView>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
+  const {
+    selectedPlace,
+    setSelectedPlace,
+    getRecon,
+    setRecon,
+    getPlace,
+    setPlace,
+  } = usePlacesStore();
+
+  // ── Algolia search (Users + Trips tabs) ───────────────────────────────────
+  const { users, trips, isSearching } = useSearch(query);
+
+  // ── Google Places autocomplete (Places tab) ───────────────────────────────
+  // richDetails: true — the sheet always opens right after a selection here,
+  // so the terminating Details call requests the Tier-2 mask directly (one
+  // billed call instead of two: this call + the sheet's own upgrade fetch).
   const {
     setQuery: setPlacesQuery,
     suggestions: places,
@@ -79,11 +92,10 @@ export default function SearchScreen() {
     error: placesError,
     selectPlace,
     clearQuery: clearPlacesQuery,
-  } = usePlaceAutocomplete();
+  } = usePlaceAutocomplete(350, { richDetails: true });
 
-  const { users, trips, isSearching } = useSearch(query);
-
-  const showBottomSheet = useCallback(() => {
+  // ── Bottom sheet animation ────────────────────────────────────────────────
+  const showSheet = useCallback(() => {
     Animated.spring(slideAnim, {
       toValue: 0,
       useNativeDriver: true,
@@ -92,7 +104,7 @@ export default function SearchScreen() {
     }).start();
   }, [slideAnim]);
 
-  const hideBottomSheet = useCallback(() => {
+  const hideSheet = useCallback(() => {
     Animated.spring(slideAnim, {
       toValue: SCREEN_HEIGHT,
       useNativeDriver: true,
@@ -101,103 +113,166 @@ export default function SearchScreen() {
     }).start();
   }, [slideAnim]);
 
+  // ── Type-aware fly-in (Part A) ─────────────────────────────────────────────
+  // Countries/regions/cities frame far more correctly against Google's viewport
+  // than a guessed zoom; everything else (POIs, or a region with no viewport)
+  // falls back to the zoom ladder keyed off primaryType.
+  const flyToPlace = useCallback(
+    (place: EnrichedPlace) => {
+      if (place.viewport) {
+        flyToBounds(place.viewport.ne, place.viewport.sw);
+      } else {
+        flyTo(place.lng, place.lat, zoomForPlaceType(place.primaryType));
+      }
+    },
+    [flyTo, flyToBounds],
+  );
+
+  // ── Search bar ────────────────────────────────────────────────────────────
   const handleQueryChange = useCallback(
     (text: string) => {
       setQuery(text);
       setPlacesQuery(text);
       if (text.length > 0) {
-        showBottomSheet();
+        showSheet();
       } else {
-        hideBottomSheet();
+        hideSheet();
         setSelectedPlace(null);
-        mapRef.current?.animateToRegion(WORLD_REGION, 800);
       }
     },
-    [setPlacesQuery, showBottomSheet, hideBottomSheet],
+    [setPlacesQuery, showSheet, hideSheet, setSelectedPlace],
   );
 
   const handleClearQuery = useCallback(() => {
     setQuery('');
     clearPlacesQuery();
     setSelectedPlace(null);
-    hideBottomSheet();
-    mapRef.current?.animateToRegion(WORLD_REGION, 800);
-  }, [clearPlacesQuery, hideBottomSheet]);
+    hideSheet();
+  }, [clearPlacesQuery, hideSheet, setSelectedPlace]);
 
   const handleTabPress = useCallback((tab: Tab) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
   }, []);
 
+  // ── Flow A: Google Places autocomplete item tap ───────────────────────────
+  // Cheap path — one billed autocomplete session per search; no Text Search.
   const handlePlacePress = useCallback(
     async (placeId: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Navigation/selection (flies the camera, opens a read-only detail
+      // sheet) — doesn't write anything, so Light, not Medium.
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       try {
-        const selection = await selectPlace(placeId);
-        setSelectedPlace(selection);
+        const sel: PlaceSelection = await selectPlace(placeId);
+        const enriched = placeFromSelection(sel);
+        if (!enriched) return;
+
+        setPlace(enriched); // cache as tier1 for potential future tap upgrade
         setQuery('');
-        if (selection.lat !== null && selection.lng !== null) {
-          mapRef.current?.animateToRegion(
-            {
-              latitude: selection.lat,
-              longitude: selection.lng,
-              latitudeDelta: 0.08,
-              longitudeDelta: 0.08,
-            },
-            700,
-          );
-        }
-        showBottomSheet();
+        setSelectedPlace(enriched);
+        flyToPlace(enriched);
+        showSheet();
       } catch {
-        // silently ignore network errors
+        // network error — stay silent
       }
     },
-    [selectPlace, showBottomSheet],
+    [selectPlace, setPlace, setSelectedPlace, flyToPlace, showSheet],
   );
 
-  const handlePlanTrip = useCallback(() => {
-    if (!selectedPlace) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push({
-      pathname: '/trip/ai-generate',
-      params: {
-        destination: selectedPlace.name,
-        countryCode: selectedPlace.countryCode ?? '',
-        placeId: selectedPlace.placeId,
-      },
-    });
-  }, [selectedPlace]);
+  // ── Flow B: Mapbox ambient POI tap ────────────────────────────────────────
+  // Cache-first: reconciliation → place-detail → Text Search (Tier 2) on miss.
+  const handleMapPress = useCallback(
+    async (feature: GeoJSON.Feature<GeoJSON.Point, ScreenPointPayload>) => {
+      const { screenPointX, screenPointY } = feature.properties;
+      const [tapLng, tapLat] = feature.geometry.coordinates;
+
+      const collection = await mapRef.current?.queryRenderedFeaturesAtPoint([
+        screenPointX,
+        screenPointY,
+      ]);
+      const poi = extractPoiFromFeatures(collection, tapLat, tapLng);
+      if (!poi) return;
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      console.log('[POI tap]', poi.name, poi.lat, poi.lng);
+
+      // 1. Reconciliation cache: do we already know the placeId for this POI?
+      const cachedId = getRecon(poi.cacheKey);
+      if (cachedId) {
+        const cached = getPlace(cachedId);
+        if (cached?.tier === 'tier2') {
+          console.log('[POI tap] cache hit (tier2) →', cachedId);
+          setSelectedPlace(cached);
+          flyToPlace(cached);
+          showSheet();
+          return;
+        }
+      }
+
+      // 2. Cache miss (or only tier1) → Text Search (Tier 2 field mask)
+      setEnriching(true);
+      try {
+        const enriched = await enrichPoiByNameAndCoords(poi.name, poi.lat, poi.lng);
+        if (!enriched) return;
+
+        setRecon(poi.cacheKey, enriched.placeId);
+        setPlace(enriched);
+        setSelectedPlace(enriched);
+        flyToPlace(enriched);
+        showSheet();
+      } catch {
+        // network error — silent
+      } finally {
+        setEnriching(false);
+      }
+    },
+    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet],
+  );
 
   const handleDismissPlace = useCallback(() => {
     setSelectedPlace(null);
     if (query.length > 0) {
-      showBottomSheet();
+      showSheet();
     } else {
-      hideBottomSheet();
-      mapRef.current?.animateToRegion(WORLD_REGION, 800);
+      hideSheet();
     }
-  }, [query, showBottomSheet, hideBottomSheet]);
+  }, [query, setSelectedPlace, showSheet, hideSheet]);
 
-  // ── Render helpers ──────────────────────────────────────────────────────────
-
-  const renderEmptyState = (message: string) => (
-    <View style={styles.emptyWrap}>
-      <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>{message}</Text>
-    </View>
-  );
+  // ── Render helpers ────────────────────────────────────────────────────────
+  // Hand-rolled, not the shared EmptyState component — EmptyState calls
+  // useTheme() internally and would render LIGHT if the app theme is light,
+  // which is wrong floating over this screen's always-dark globe.
+  const renderEmptyState = (
+    icon: React.ComponentType<{ size: number; color: string; weight: 'duotone' | 'regular' }>,
+    title: string,
+    description?: string,
+  ) => {
+    const Icon = icon;
+    return (
+      <View style={styles.emptyWrap}>
+        <Icon size={28} color={colors.text.disabled} weight="duotone" />
+        <Text style={[styles.emptyTitle, { color: colors.text.secondary }]}>{title}</Text>
+        {description ? (
+          <Text style={[styles.emptyDescription, { color: colors.text.tertiary }]}>{description}</Text>
+        ) : null}
+      </View>
+    );
+  };
 
   const renderPlaces = () => {
     if (placesLoading) {
+      // Fast (350ms-debounced) autocomplete — a skeleton would flash in and
+      // out faster than it reads; a small spinner is the better fit here.
       return (
         <View style={styles.centered}>
           <ActivityIndicator color={colors.brand.purple} />
         </View>
       );
     }
-    if (placesError) return renderEmptyState('Search failed. Please try again.');
-    if (!query.trim()) return renderEmptyState('Search for places, people, and trips');
-    if (query.trim().length < 2) return renderEmptyState('Keep typing…');
-    if (places.length === 0) return renderEmptyState(`No results for "${query}"`);
+    if (placesError) return renderEmptyState(WarningCircle, 'Search failed', 'Check your connection and try again.');
+    if (!query.trim()) return renderEmptyState(Compass, 'Search the map', 'Find places, people, and trips.');
+    if (query.trim().length < 2) return renderEmptyState(MagnifyingGlass, 'Keep typing…');
+    if (places.length === 0) return renderEmptyState(MagnifyingGlass, `No results for "${query}"`);
     return (
       <>
         {places.map((p) => (
@@ -207,6 +282,7 @@ export default function SearchScreen() {
             mainText={p.mainText}
             secondaryText={p.secondaryText}
             onPress={handlePlacePress}
+            colors={DarkColors}
           />
         ))}
       </>
@@ -214,9 +290,8 @@ export default function SearchScreen() {
   };
 
   const renderUsers = () => {
-    if (!query.trim() || query.trim().length < 2) {
-      return renderEmptyState(!query.trim() ? 'Search for places, people, and trips' : 'Keep typing…');
-    }
+    if (!query.trim()) return renderEmptyState(Compass, 'Search the map', 'Find places, people, and trips.');
+    if (query.trim().length < 2) return renderEmptyState(MagnifyingGlass, 'Keep typing…');
     if (isSearching) {
       return (
         <View style={styles.centered}>
@@ -224,7 +299,7 @@ export default function SearchScreen() {
         </View>
       );
     }
-    if (users.length === 0) return renderEmptyState(`No results for "${query}"`);
+    if (users.length === 0) return renderEmptyState(MagnifyingGlass, `No results for "${query}"`);
     return (
       <>
         {users.map((u) => (
@@ -235,9 +310,8 @@ export default function SearchScreen() {
   };
 
   const renderTrips = () => {
-    if (!query.trim() || query.trim().length < 2) {
-      return renderEmptyState(!query.trim() ? 'Search for places, people, and trips' : 'Keep typing…');
-    }
+    if (!query.trim()) return renderEmptyState(Compass, 'Search the map', 'Find places, people, and trips.');
+    if (query.trim().length < 2) return renderEmptyState(MagnifyingGlass, 'Keep typing…');
     if (isSearching) {
       return (
         <View style={styles.centered}>
@@ -245,7 +319,7 @@ export default function SearchScreen() {
         </View>
       );
     }
-    if (trips.length === 0) return renderEmptyState(`No results for "${query}"`);
+    if (trips.length === 0) return renderEmptyState(MagnifyingGlass, `No results for "${query}"`);
     return (
       <>
         {trips.map((t) => (
@@ -256,36 +330,42 @@ export default function SearchScreen() {
   };
 
   const showingQuery = query.length > 0 && !selectedPlace;
-  const bottomSheetVisible = showingQuery || selectedPlace !== null;
 
   return (
     <View style={styles.container}>
-      {/* Full-screen map */}
+      {/* ── Mapbox Standard globe ─────────────────────────────────────────── */}
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={WORLD_REGION}
-        customMapStyle={DARK_MAP_STYLE}
-        mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
-        showsUserLocation
-        showsCompass={false}
-        showsScale={false}
-        toolbarEnabled={false}
-        pitchEnabled={false}
+        styleURL={STANDARD_STYLE}
+        projection="globe"
+        onPress={handleMapPress}
+        logoEnabled={false}
+        attributionEnabled={false}
+        compassEnabled={false}
+        scaleBarEnabled={false}
       >
-        {selectedPlace?.lat !== null && selectedPlace?.lng !== null && selectedPlace && (
-          <Marker
-            coordinate={{
-              latitude: selectedPlace.lat!,
-              longitude: selectedPlace.lng!,
-            }}
-            pinColor="#a78bfa"
-          />
-        )}
+        <StyleImport
+          id="basemap"
+          existing
+          config={{
+            lightPreset: 'night',
+            showPointOfInterestLabels: true,
+            showLandmarkIcons: true,
+            show3dBuildings: true,
+          }}
+        />
+        <Camera
+          ref={cameraRef}
+          defaultSettings={{
+            centerCoordinate: INITIAL_COORDS,
+            zoomLevel: INITIAL_ZOOM,
+          }}
+          animationMode="none"
+        />
       </MapView>
 
-      {/* Floating top bar */}
+      {/* ── Floating search bar ───────────────────────────────────────────── */}
       <View style={[styles.topBar, { paddingTop: insets.top + Spacing['2'] }]}>
         {Platform.OS === 'ios' ? (
           <BlurView intensity={60} tint="dark" style={styles.searchBarBlur}>
@@ -305,7 +385,6 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {/* Tab switcher — only when query is active and no place selected */}
         {showingQuery && (
           <ScrollView
             horizontal
@@ -319,12 +398,18 @@ export default function SearchScreen() {
                 style={[
                   styles.tab,
                   {
+                    // Tied to colors.background.primary (the same dark void
+                    // token the globe/other floating chrome uses) rather than
+                    // an independently-invented rgba(10,10,26,…) — deliberate,
+                    // not a scattered magic number.
                     backgroundColor:
-                      activeTab === tab ? 'rgba(167,139,250,0.2)' : 'rgba(10,10,26,0.7)',
+                      activeTab === tab ? `${colors.brand.purple}33` : `${colors.background.primary}B3`,
                     borderColor:
                       activeTab === tab ? colors.brand.purple : 'rgba(255,255,255,0.15)',
                   },
                 ]}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                accessibilityLabel={`${tab} tab`}
               >
                 <Text
                   style={[
@@ -340,87 +425,65 @@ export default function SearchScreen() {
         )}
       </View>
 
-      {/* Bottom sheet — results or selected place card */}
-      {bottomSheetVisible && (
+      {/* ── Enriching spinner ─────────────────────────────────────────────── */}
+      {enriching && (
+        <View style={[styles.enrichingBadge, { backgroundColor: `${colors.background.primary}D9` }]}>
+          <ActivityIndicator size="small" color={colors.text.primary} />
+        </View>
+      )}
+
+      {/* ── Search results bottom sheet ───────────────────────────────────── */}
+      {showingQuery && (
         <Animated.View
-          style={[
-            styles.bottomSheet,
-            { transform: [{ translateY: slideAnim }] },
-          ]}
+          style={[styles.bottomSheet, { transform: [{ translateY: slideAnim }] }]}
         >
           {Platform.OS === 'ios' ? (
             <BlurView intensity={80} tint="dark" style={styles.bottomSheetInner}>
               <View style={styles.sheetHandle} />
-              {selectedPlace
-                ? renderPlaceCard()
-                : renderResultsList()}
+              <ScrollView
+                style={styles.resultsList}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
+              >
+                {activeTab === 'Places' && renderPlaces()}
+                {activeTab === 'Users' && renderUsers()}
+                {activeTab === 'Trips' && renderTrips()}
+              </ScrollView>
             </BlurView>
           ) : (
             <View style={[styles.bottomSheetInner, styles.bottomSheetAndroid]}>
               <View style={styles.sheetHandle} />
-              {selectedPlace
-                ? renderPlaceCard()
-                : renderResultsList()}
+              <ScrollView
+                style={styles.resultsList}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
+              >
+                {activeTab === 'Places' && renderPlaces()}
+                {activeTab === 'Users' && renderUsers()}
+                {activeTab === 'Trips' && renderTrips()}
+              </ScrollView>
             </View>
           )}
         </Animated.View>
       )}
+
+      {/* ── Place detail sheet ────────────────────────────────────────────── */}
+      {selectedPlace && (
+        <PlaceDetailSheet
+          place={selectedPlace}
+          slideAnim={slideAnim}
+          bottomInset={insets.bottom}
+          onDismiss={handleDismissPlace}
+          colors={DarkColors}
+        />
+      )}
     </View>
   );
-
-  function renderPlaceCard() {
-    if (!selectedPlace) return null;
-    return (
-      <View style={[styles.placeCard, { paddingBottom: insets.bottom + Spacing['4'] }]}>
-        <View style={styles.placeCardHeader}>
-          <View style={styles.placeIconBubble}>
-            <MapPin size={22} color="#a78bfa" weight="duotone" />
-          </View>
-          <View style={styles.placeCardText}>
-            <Text style={[styles.placeName, { color: colors.text.primary }]} numberOfLines={1}>
-              {selectedPlace.name}
-            </Text>
-            {selectedPlace.countryCode ? (
-              <Text style={[styles.placeCountry, { color: colors.text.tertiary }]}>
-                {selectedPlace.countryCode}
-              </Text>
-            ) : null}
-          </View>
-          <TouchableOpacity onPress={handleDismissPlace} hitSlop={12} style={styles.dismissBtn}>
-            <X size={18} color={colors.text.tertiary} weight="bold" />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.planBtn, { backgroundColor: colors.brand.purple }]}
-          onPress={handlePlanTrip}
-          activeOpacity={0.85}
-        >
-          <NavigationArrow size={18} color="#ffffff" weight="bold" />
-          <Text style={styles.planBtnText}>Plan a Trip Here</Text>
-          <ArrowRight size={16} color="rgba(255,255,255,0.7)" weight="bold" />
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  function renderResultsList() {
-    return (
-      <ScrollView
-        style={styles.resultsList}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
-      >
-        {activeTab === 'Places' && renderPlaces()}
-        {activeTab === 'Users' && renderUsers()}
-        {activeTab === 'Trips' && renderTrips()}
-      </ScrollView>
-    );
-  }
 }
 
-// ── Search bar inner (reused for iOS blur + Android solid)
+// ── Search bar inner ──────────────────────────────────────────────────────────
 
 function SearchBarInner({
   query,
@@ -431,30 +494,43 @@ function SearchBarInner({
   onChangeText: (t: string) => void;
   onClear: () => void;
 }) {
+  const colors = DarkColors;
   return (
     <View style={styles.searchRow}>
-      <MagnifyingGlass size={18} color="rgba(255,255,255,0.5)" weight="bold" />
+      <MagnifyingGlass size={18} color={colors.text.secondary} weight="bold" />
       <TextInput
-        style={styles.searchInput}
+        style={[styles.searchInput, { color: colors.text.primary }]}
         value={query}
         onChangeText={onChangeText}
         placeholder="Places, trips, people…"
-        placeholderTextColor="rgba(255,255,255,0.35)"
+        placeholderTextColor={colors.text.tertiary}
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
       />
       {query.length > 0 && (
-        <TouchableOpacity onPress={onClear} hitSlop={8}>
-          <X size={16} color="rgba(255,255,255,0.5)" weight="bold" />
+        <TouchableOpacity
+          onPress={onClear}
+          hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+          accessibilityLabel="Clear search"
+        >
+          <X size={16} color={colors.text.secondary} weight="bold" />
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+// DarkColors is a static import (this screen never resolves the runtime
+// theme — see Architecture Rule 3), so these derived tones are safe to
+// compute once at module scope rather than re-deriving inline per render.
+const DARK_SCRIM_90 = `${DarkColors.background.primary}E6`;
+const DARK_SCRIM_96 = `${DarkColors.background.primary}F5`;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a1a' },
+  container: { flex: 1, backgroundColor: DarkColors.background.primary },
 
   topBar: {
     position: 'absolute',
@@ -466,7 +542,10 @@ const styles = StyleSheet.create({
     gap: Spacing['2'],
     paddingBottom: Spacing['2'],
   },
-
+  // Translucent white border, not a DarkColors token — this is a glass edge
+  // meant to catch light over an unpredictable map/satellite background, the
+  // same reasoning as the trip header's photo-overlay buttons. Deliberate,
+  // not a leftover magic number.
   searchBarBlur: {
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
@@ -478,7 +557,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(10,10,26,0.9)',
+    backgroundColor: DARK_SCRIM_90,
   },
   searchRow: {
     flexDirection: 'row',
@@ -490,23 +569,19 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: FontSize.base,
-    color: '#ffffff',
     paddingVertical: 0,
   },
 
-  tabs: {
-    gap: Spacing['2'],
-  },
+  tabs: { gap: Spacing['2'] },
   tab: {
     paddingHorizontal: Spacing['4'],
     paddingVertical: Spacing['2'],
     borderRadius: BorderRadius.full,
     borderWidth: 1,
+    minHeight: 36,
+    justifyContent: 'center',
   },
-  tabText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
-  },
+  tabText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
 
   bottomSheet: {
     position: 'absolute',
@@ -518,69 +593,26 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius['2xl'] ?? 24,
     overflow: 'hidden',
   },
-  bottomSheetInner: {
-    flex: 1,
-    minHeight: 180,
-  },
-  bottomSheetAndroid: {
-    backgroundColor: 'rgba(10,10,26,0.96)',
-  },
+  bottomSheetInner: { flex: 1, minHeight: 180 },
+  bottomSheetAndroid: { backgroundColor: DARK_SCRIM_96 },
   sheetHandle: {
     width: 36,
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: DarkColors.text.disabled,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: Spacing['3'],
     marginBottom: Spacing['2'],
   },
-
   resultsList: { flex: 1 },
 
-  placeCard: {
-    padding: Spacing['5'],
-    gap: Spacing['4'],
-  },
-  placeCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing['3'],
-  },
-  placeIconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(167,139,250,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  placeCardText: { flex: 1 },
-  placeName: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-  },
-  placeCountry: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
-    marginTop: 2,
-  },
-  dismissBtn: {
-    padding: Spacing['2'],
-  },
-  planBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing['2'],
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing['4'],
-    paddingHorizontal: Spacing['5'],
-  },
-  planBtnText: {
-    flex: 1,
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.bold,
-    color: '#ffffff',
+  enrichingBadge: {
+    position: 'absolute',
+    top: '50%',
+    alignSelf: 'center',
+    borderRadius: 20,
+    padding: Spacing['3'],
+    zIndex: 20,
   },
 
   centered: { paddingTop: Spacing['8'], alignItems: 'center' },
@@ -589,6 +621,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: Spacing['10'],
     paddingHorizontal: Spacing['8'],
+    gap: Spacing['1'],
   },
-  emptyText: { fontSize: FontSize.base, textAlign: 'center' },
+  emptyTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semiBold,
+    textAlign: 'center',
+    marginTop: Spacing['2'],
+  },
+  emptyDescription: {
+    fontSize: FontSize.sm,
+    textAlign: 'center',
+  },
 });

@@ -207,13 +207,20 @@ export default function OnboardingScreen() {
           ))}
         </View>
 
-        {/* CTA button */}
+        {/* CTA button — handleNext/handleFinish already fire the correct
+            Light/Medium haptic per branch; haptic="none" stops Button's own
+            default from double-buzzing on top of that. colors={DarkColors}
+            pins it to this always-dark screen's palette — found missing
+            during the dark-screen shared-component audit (same bug class as
+            welcome.tsx's buttons and search.tsx's result rows). */}
         <Button
-          label={isLast ? 'Get Started' : 'Next'}
+          label={isLast ? 'Get started' : 'Next'}
           onPress={handleNext}
           variant="primary"
           size="lg"
           fullWidth
+          haptic="none"
+          colors={DarkColors}
           style={styles.ctaBtn}
         />
       </View>

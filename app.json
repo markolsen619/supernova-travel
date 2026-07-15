@@ -17,7 +17,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Supernova needs camera access to capture travel photos and clips.",
         "NSPhotoLibraryUsageDescription": "Supernova needs photo library access to share your travel memories.",
-        "NSLocationWhenInUseUsageDescription": "Supernova uses your location to tag travel posts and find nearby places."
+        "NSLocationWhenInUseUsageDescription": "Supernova uses your location to tag travel posts and find nearby places.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -75,6 +76,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4218e2b6-1605-4105-9225-c3fc5d12156d"
+      }
     }
   }
 }

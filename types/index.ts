@@ -108,6 +108,15 @@ export interface TripActivity {
   mediaUrls: string[];
   order: number;
   createdAt: Timestamp;
+  /**
+   * Human-readable, geographically-qualified search string (e.g. "Louvre
+   * Museum, Paris") set by AI generation for stops not yet grounded to a real
+   * Google place. Non-null exactly when placeId is still null — the stop is
+   * "ungrounded" until the client lazily resolves it on first interaction
+   * (tap in the trip view, add-to-trip, show-on-map). Always null for
+   * manually-created or already-grounded activities.
+   */
+  searchQuery: string | null;
 }
 
 export interface TripDay {

@@ -110,14 +110,17 @@ export default function WelcomeScreen() {
         </Animated.Text>
       </View>
 
-      {/* CTA buttons */}
+      {/* CTA buttons — colors={DarkColors} pins these to the splash's palette;
+          without it, Button's own useTheme() would follow the user's
+          light/dark app setting instead of staying dark on this immersive
+          screen (the same bug class fixed for search.tsx's result rows). */}
       <Animated.View style={[styles.actions, { opacity: actionsOpacity, transform: [{ translateY: actionsTranslateY }] }]}>
         <Link href="/(auth)/sign-up" asChild>
-          <Button label="Get Started" variant="primary" size="lg" fullWidth />
+          <Button label="Get started" variant="primary" size="lg" fullWidth haptic="light" colors={DarkColors} />
         </Link>
         <View style={styles.spacer} />
         <Link href="/(auth)/sign-in" asChild>
-          <Button label="Sign In" variant="ghost" size="lg" fullWidth />
+          <Button label="Sign in" variant="ghost" size="lg" fullWidth haptic="light" colors={DarkColors} />
         </Link>
       </Animated.View>
 

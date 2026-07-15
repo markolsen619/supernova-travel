@@ -18,8 +18,9 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { X } from 'phosphor-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -57,6 +58,11 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
     onClose();
   }, [onClose]);
 
+  const handleClose = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClose();
+  }, [onClose]);
+
   return (
     <Modal
       visible={visible}
@@ -65,11 +71,6 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
       onRequestClose={onClose}
     >
       <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
-        <LinearGradient
-          colors={colors.gradient.dark as [string, string]}
-          style={StyleSheet.absoluteFill}
-        />
-
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -85,17 +86,15 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
             {/* Header */}
             <View style={styles.header}>
               <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
-                Edit Profile
+                Edit profile
               </Text>
               <TouchableOpacity
-                onPress={onClose}
+                onPress={handleClose}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessibilityRole="button"
                 accessibilityLabel="Close"
               >
-                <Text style={{ color: colors.text.secondary, fontSize: FontSize.xl }}>
-                  ✕
-                </Text>
+                <X size={22} color={colors.text.secondary} weight="bold" />
               </TouchableOpacity>
             </View>
 
@@ -104,7 +103,7 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
               {/* Display Name */}
               <View style={styles.fieldGroup}>
                 <Text style={[styles.label, { color: colors.text.secondary }]}>
-                  Display Name
+                  Display name
                 </Text>
                 <TextInput
                   value={displayName}

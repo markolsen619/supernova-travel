@@ -30,7 +30,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Comment, Post } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { MapTrifold } from 'phosphor-react-native';
+import { MapTrifold, ArrowLeft, MapPin, ArrowRight } from 'phosphor-react-native';
+import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string {
@@ -102,6 +103,7 @@ export default function PostDetailScreen() {
 
   async function handleSubmitComment() {
     if (!commentText.trim() || !uid || !id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSubmitting(true);
     try {
       await addDoc(collection(db, 'posts', id, 'comments'), {
@@ -131,8 +133,16 @@ export default function PostDetailScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={[styles.backIcon, { color: colors.text.primary }]}>←</Text>
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+          style={styles.backBtn}
+          hitSlop={8}
+          accessibilityLabel="Back"
+        >
+          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Post</Text>
         <View style={styles.backBtn} />
@@ -147,7 +157,10 @@ export default function PostDetailScreen() {
           <View style={[styles.postInfo, { borderBottomColor: colors.background.cardBorder }]}>
             <TouchableOpacity
               style={styles.authorRow}
-              onPress={() => router.push(`/user/${post.authorUid}`)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/user/${post.authorUid}`);
+              }}
             >
               <Avatar uri={post.authorAvatarUrl} name={post.authorDisplayName} size="sm" />
               <View>
@@ -163,16 +176,17 @@ export default function PostDetailScreen() {
               <Text style={[styles.caption, { color: colors.text.secondary }]}>{post.caption}</Text>
             )}
             {!!post.placeName && (
-              <Text style={[styles.place, { color: colors.brand.purple }]}>
-                📍 {post.placeName}
-              </Text>
+              <View style={styles.placeRow}>
+                <MapPin size={13} color={colors.brand.purple} weight="bold" />
+                <Text style={[styles.place, { color: colors.brand.purple }]}>{post.placeName}</Text>
+              </View>
             )}
 
             {post.mediaType === 'trip' && post.tripId && (
               <View style={[styles.tripCard, { backgroundColor: colors.background.elevated, borderColor: colors.background.cardBorder }]}>
                 <View style={styles.tripCardHeader}>
-                  <MapTrifold size={16} color="#60a5fa" weight="duotone" />
-                  <Text style={styles.tripCardLabel}>TRIP</Text>
+                  <MapTrifold size={16} color={colors.brand.blue} weight="duotone" />
+                  <Text style={[styles.tripCardLabel, { color: colors.brand.blue }]}>TRIP</Text>
                 </View>
                 {!!post.tripDestination && (
                   <Text style={[styles.tripCardDestination, { color: colors.text.primary }]}>
@@ -186,12 +200,14 @@ export default function PostDetailScreen() {
                 )}
                 <TouchableOpacity
                   style={styles.viewTripBtn}
-                  onPress={() => router.push(`/trip/${post.tripId}`)}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(`/trip/${post.tripId}`);
+                  }}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.viewTripText, { color: colors.brand.blue }]}>
-                    View Trip →
-                  </Text>
+                  <Text style={[styles.viewTripText, { color: colors.brand.blue }]}>View trip</Text>
+                  <ArrowRight size={13} color={colors.brand.blue} weight="bold" />
                 </TouchableOpacity>
               </View>
             )}
@@ -261,8 +277,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['3'],
   },
-  backBtn: { width: 40 },
-  backIcon: { fontSize: 24 },
+  backBtn: { width: 44, minHeight: 44, justifyContent: 'center' },
   headerTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold },
   scroll: { flex: 1 },
   media: { width: '100%', aspectRatio: 9 / 16, backgroundColor: '#111' },
@@ -275,6 +290,7 @@ const styles = StyleSheet.create({
   authorName: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },
   authorHandle: { fontSize: FontSize.sm },
   caption: { fontSize: FontSize.base, lineHeight: 22 },
+  placeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   place: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
   tripCard: {
     borderRadius: BorderRadius.lg,
@@ -291,7 +307,6 @@ const styles = StyleSheet.create({
   tripCardLabel: {
     fontSize: 11,
     fontWeight: FontWeight.bold,
-    color: '#60a5fa',
     letterSpacing: 1,
   },
   tripCardDestination: {
@@ -302,8 +317,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   viewTripBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginTop: Spacing['2'],
     alignSelf: 'flex-end',
+    minHeight: 32,
   },
   viewTripText: {
     fontSize: FontSize.sm,

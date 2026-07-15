@@ -11,7 +11,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { MapTrifold } from 'phosphor-react-native';
+import { useTheme } from '@/hooks/useTheme';
 import { VideoPlayer } from './VideoPlayer';
 import { FeedActions } from './FeedActions';
 import { Post } from '@/types';
@@ -35,6 +37,7 @@ interface TripInfoBadgeProps {
 function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
   const router = useRouter();
   const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/trip/${tripId}`);
   }, [tripId, router]);
 
@@ -43,6 +46,7 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
       style={styles.tripBadge}
       onPress={handlePress}
       activeOpacity={0.85}
+      accessibilityLabel={destination ? `Open trip to ${destination}` : 'Open trip'}
     >
       <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
       <View style={styles.tripBadgeContent}>
@@ -63,6 +67,7 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
 
 export function FeedCard({ post, isActive }: FeedCardProps) {
   const router = useRouter();
+  const { colors } = useTheme();
   const [isMuted, setIsMuted] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
 
@@ -102,10 +107,12 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
       ) : imageUrls.length > 0 ? (
         <Image source={{ uri: imageUrls[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : (
-        <LinearGradient
-          colors={['#07031a', '#1a0533'] as [string, string]}
-          style={StyleSheet.absoluteFill}
-        />
+        // Post.mediaUrl is required, so this is unreachable in practice — kept
+        // as a light, named placeholder (not a dark gradient) for parity with
+        // the trip header's "no photo" fallback, in case that invariant ever slips.
+        <View style={[StyleSheet.absoluteFill, styles.noMediaFallback, { backgroundColor: colors.background.sunken }]}>
+          <MapTrifold size={32} color={colors.text.disabled} weight="duotone" />
+        </View>
       )}
 
       {/* Bottom gradient for readability */}
@@ -168,6 +175,10 @@ const styles = StyleSheet.create({
   carouselImage: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
+  },
+  noMediaFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   indicatorWrapper: {
     position: 'absolute',

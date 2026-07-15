@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   TouchableOpacity,
   View,
@@ -7,6 +7,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -31,53 +32,50 @@ export function TrendingCard({
 }: TrendingCardProps) {
   const { colors } = useTheme();
 
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.();
+  }, [onPress]);
+
   return (
-    <View style={[styles.shadowWrapper, { shadowColor: colors.brand.purple }]}>
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.85}
-        style={styles.touchable}
-      >
-        <LinearGradient
-          colors={colors.gradient.card}
-          style={StyleSheet.absoluteFill}
-        />
-        <View
-          style={[
-            styles.border,
-            { borderColor: colors.background.cardBorder },
-          ]}
-        />
-        <Text style={styles.emoji}>{emoji}</Text>
-        <Text style={[styles.name, { color: colors.text.primary }]}>
-          {name}
+    // Fill + hairline only — no shadow (SKILL.md: borders AND shadows AND
+    // fills is the anti-pattern; the reference trip screen never shadows a card).
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.85}
+      style={styles.touchable}
+      accessibilityLabel={`Explore ${name}`}
+    >
+      <LinearGradient
+        colors={colors.gradient.card}
+        style={StyleSheet.absoluteFill}
+      />
+      <View
+        style={[
+          styles.border,
+          { borderColor: colors.background.cardBorder },
+        ]}
+      />
+      <Text style={styles.emoji}>{emoji}</Text>
+      <Text style={[styles.name, { color: colors.text.primary }]}>
+        {name}
+      </Text>
+      <Text style={[styles.country, { color: colors.text.tertiary }]}>
+        {country}
+      </Text>
+      {tripCount !== undefined && (
+        <Text style={[styles.tripCount, { color: colors.text.secondary }]}>
+          {tripCount} {tripCount === 1 ? 'trip' : 'trips'}
         </Text>
-        <Text style={[styles.country, { color: colors.text.tertiary }]}>
-          {country}
-        </Text>
-        {tripCount !== undefined && (
-          <Text style={[styles.tripCount, { color: colors.text.secondary }]}>
-            {tripCount} {tripCount === 1 ? 'trip' : 'trips'}
-          </Text>
-        )}
-      </TouchableOpacity>
-    </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  shadowWrapper: {
+  touchable: {
     width: CARD_WIDTH,
     aspectRatio: 1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-    borderRadius: BorderRadius.xl,
-  },
-  touchable: {
-    width: '100%',
-    height: '100%',
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     alignItems: 'center',

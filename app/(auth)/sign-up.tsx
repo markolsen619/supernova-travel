@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,41 @@ import {
   Platform,
   ScrollView,
   Modal,
+  Animated,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { CaretLeft, Eye, EyeSlash, CalendarBlank } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { auth, db } from '@/services/firebase';
-import { Button } from '@/components/ui/Button';
+import { useTheme } from '@/hooks/useTheme';
 import { DarkColors } from '@/constants/colors';
+import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
 export default function SignUpScreen() {
+  const { colors } = useTheme();
+
+  // ── Dark splash → light auth handoff — see sign-in.tsx for the matching
+  // treatment; plays once on first mount only.
+  const revealOpacity = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const contentTranslateY = useRef(new Animated.Value(12)).current;
+
+  useEffect(() => {
+    Animated.timing(revealOpacity, { toValue: 0, duration: 500, useNativeDriver: true }).start();
+    Animated.sequence([
+      Animated.delay(120),
+      Animated.parallel([
+        Animated.spring(contentOpacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
+        Animated.spring(contentTranslateY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
+
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -88,7 +109,25 @@ export default function SignUpScreen() {
     }
   }, [displayName, email, password, dob, isUnder13]);
 
-  const togglePassword = useCallback(() => setShowPassword((v) => !v), []);
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
+
+  const togglePassword = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowPassword((v) => !v);
+  }, []);
+
+  const openDatePicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowDatePicker(true);
+  }, []);
+
+  const closeDatePicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowDatePicker(false);
+  }, []);
 
   const onDateChange = useCallback((_: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') setShowDatePicker(false);
@@ -99,49 +138,47 @@ export default function SignUpScreen() {
     date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient
-        colors={['#0a0a1a', '#1a0a3a', '#0a0a1a']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      <View style={styles.glow1} />
-      <View style={styles.glow2} />
-
+    <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Animated.View style={[styles.flex, { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] }]}>
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.back} activeOpacity={0.7}>
-          <CaretLeft size={20} color={DarkColors.text.primary} weight="bold" />
+        <TouchableOpacity onPress={handleBack} style={styles.back} activeOpacity={0.7} hitSlop={8} accessibilityLabel="Back">
+          <CaretLeft size={20} color={colors.text.primary} weight="bold" />
         </TouchableOpacity>
 
+        {/* Brand — the star mark's own gradient art is the one hit of brand color on this screen. */}
         <Image
           source={require('@/assets/images/SupernovaStar.png')}
           style={styles.star}
           resizeMode="contain"
         />
-        <Text style={styles.title}>Join Supernova</Text>
-        <Text style={styles.subtitle}>Start exploring the universe of travel</Text>
+        <Text style={[styles.title, { color: colors.text.primary }]}>Join Supernova</Text>
+        <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Start exploring the universe of travel</Text>
 
         {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBox, { backgroundColor: `${colors.semantic.error}14` }]}>
+            <Text style={[styles.errorText, { color: colors.semantic.error }]}>{error}</Text>
           </View>
         ) : null}
 
         {/* Display Name */}
         <View style={styles.field}>
-          <Text style={styles.label}>Display Name</Text>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Display name</Text>
           <TextInput
-            style={[styles.input, nameFocused && styles.inputFocused]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary },
+              nameFocused && { borderColor: colors.brand.purple },
+            ]}
             value={displayName}
             onChangeText={setDisplayName}
             onFocus={() => setNameFocused(true)}
             onBlur={() => setNameFocused(false)}
             placeholder="Your travel name"
-            placeholderTextColor={DarkColors.text.tertiary}
+            placeholderTextColor={colors.text.tertiary}
             autoCapitalize="words"
             autoCorrect={false}
             returnKeyType="next"
@@ -150,15 +187,19 @@ export default function SignUpScreen() {
 
         {/* Email */}
         <View style={styles.field}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Email</Text>
           <TextInput
-            style={[styles.input, emailFocused && styles.inputFocused]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary },
+              emailFocused && { borderColor: colors.brand.purple },
+            ]}
             value={email}
             onChangeText={setEmail}
             onFocus={() => setEmailFocused(true)}
             onBlur={() => setEmailFocused(false)}
             placeholder="you@example.com"
-            placeholderTextColor={DarkColors.text.tertiary}
+            placeholderTextColor={colors.text.tertiary}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -168,18 +209,22 @@ export default function SignUpScreen() {
 
         {/* Date of Birth */}
         <View style={styles.field}>
-          <Text style={styles.label}>Date of Birth</Text>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Date of birth</Text>
           <TouchableOpacity
-            style={[styles.input, styles.dobRow]}
-            onPress={() => setShowDatePicker(true)}
+            style={[
+              styles.input,
+              styles.dobRow,
+              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+            ]}
+            onPress={openDatePicker}
             activeOpacity={0.8}
           >
             <CalendarBlank
               size={18}
-              color={dob ? DarkColors.text.primary : DarkColors.text.tertiary}
+              color={dob ? colors.text.primary : colors.text.tertiary}
               weight="regular"
             />
-            <Text style={[styles.dobText, { color: dob ? DarkColors.text.primary : DarkColors.text.tertiary }]}>
+            <Text style={[styles.dobText, { color: dob ? colors.text.primary : colors.text.tertiary }]}>
               {dob ? formatDob(dob) : 'Select your date of birth'}
             </Text>
           </TouchableOpacity>
@@ -187,35 +232,46 @@ export default function SignUpScreen() {
 
         {/* Password */}
         <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Password</Text>
           <View style={styles.inputRow}>
             <TextInput
-              style={[styles.input, styles.inputFlex, passwordFocused && styles.inputFocused]}
+              style={[
+                styles.input,
+                styles.inputFlex,
+                { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary },
+                passwordFocused && { borderColor: colors.brand.purple },
+              ]}
               value={password}
               onChangeText={setPassword}
               onFocus={() => setPasswordFocused(true)}
               onBlur={() => setPasswordFocused(false)}
               placeholder="Min. 8 characters"
-              placeholderTextColor={DarkColors.text.tertiary}
+              placeholderTextColor={colors.text.tertiary}
               secureTextEntry={!showPassword}
               returnKeyType="done"
               onSubmitEditing={handleSignUp}
             />
             <TouchableOpacity
               onPress={togglePassword}
-              style={[styles.eyeBtn, passwordFocused && styles.inputFocused]}
+              style={[
+                styles.eyeBtn,
+                { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+                passwordFocused && { borderColor: colors.brand.purple },
+              ]}
               activeOpacity={0.7}
               hitSlop={8}
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword
-                ? <EyeSlash size={20} color={DarkColors.text.tertiary} weight="regular" />
-                : <Eye size={20} color={DarkColors.text.tertiary} weight="regular" />}
+                ? <EyeSlash size={20} color={colors.text.tertiary} weight="regular" />
+                : <Eye size={20} color={colors.text.tertiary} weight="regular" />}
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* Not the hero gradient — that's reserved for the star mark above. */}
         <Button
-          label="Create Account"
+          label="Create account"
           onPress={handleSignUp}
           loading={loading}
           fullWidth
@@ -224,24 +280,29 @@ export default function SignUpScreen() {
         />
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
+          <Text style={[styles.footerText, { color: colors.text.secondary }]}>Already have an account? </Text>
           <Link href="/(auth)/sign-in" asChild>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={styles.footerLink}>Sign In</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            >
+              <Text style={[styles.footerLink, { color: colors.brand.purple }]}>Sign in</Text>
             </TouchableOpacity>
           </Link>
         </View>
       </ScrollView>
+      </Animated.View>
 
-      {/* iOS date picker in a bottom sheet modal */}
+      {/* iOS date picker in a bottom sheet modal — matches the rest of the
+          (now light) form, not hardcoded dark. */}
       {Platform.OS === 'ios' && showDatePicker && (
         <Modal transparent animationType="slide">
           <View style={styles.pickerOverlay}>
-            <TouchableOpacity style={styles.pickerBackdrop} onPress={() => setShowDatePicker(false)} />
-            <View style={styles.pickerSheet}>
-              <View style={styles.pickerHeader}>
-                <TouchableOpacity onPress={() => setShowDatePicker(false)} hitSlop={8}>
-                  <Text style={styles.pickerDone}>Done</Text>
+            <TouchableOpacity style={styles.pickerBackdrop} onPress={closeDatePicker} />
+            <View style={[styles.pickerSheet, { backgroundColor: colors.background.elevated }]}>
+              <View style={[styles.pickerHeader, { borderBottomColor: colors.background.cardBorder }]}>
+                <TouchableOpacity onPress={closeDatePicker} hitSlop={8}>
+                  <Text style={[styles.pickerDone, { color: colors.brand.purple }]}>Done</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -251,7 +312,7 @@ export default function SignUpScreen() {
                 onChange={onDateChange}
                 maximumDate={maxDobDate}
                 minimumDate={new Date(1900, 0, 1)}
-                textColor={DarkColors.text.primary}
+                textColor={colors.text.primary}
               />
             </View>
           </View>
@@ -269,6 +330,13 @@ export default function SignUpScreen() {
           minimumDate={new Date(1900, 0, 1)}
         />
       )}
+
+      {/* Fades out on first mount only, revealing the light content — the
+          arrival counterpart to ai-generating.tsx's fade-out-into-dark. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: DarkColors.background.primary, opacity: revealOpacity }]}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -276,31 +344,23 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flexGrow: 1, padding: Spacing['6'], paddingTop: Spacing['16'] },
-  back: { marginBottom: Spacing['8'] },
+  back: { marginBottom: Spacing['8'], minWidth: 44, minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' },
   star: { width: 78, height: 78, marginBottom: Spacing['4'] },
-  backText: { color: Colors.brand.purple, fontSize: FontSize.base },
-  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.black, color: Colors.white, marginBottom: Spacing['2'] },
-  subtitle: { fontSize: FontSize.base, color: Colors.text.secondary, marginBottom: Spacing['8'] },
-  error: { color: Colors.semantic.error, fontSize: FontSize.sm, marginBottom: Spacing['4'], backgroundColor: 'rgba(248,113,113,0.1)', padding: Spacing['3'], borderRadius: BorderRadius.md },
+  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.semiBold, letterSpacing: -0.02 * FontSize['3xl'], marginBottom: Spacing['2'] },
+  subtitle: { fontSize: FontSize.base, marginBottom: Spacing['8'] },
+  errorBox: { padding: Spacing['3'], borderRadius: BorderRadius.md, marginBottom: Spacing['4'] },
+  errorText: { fontSize: FontSize.sm },
   field: { marginBottom: Spacing['5'] },
   label: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
-    color: DarkColors.text.secondary,
     marginBottom: Spacing['2'],
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
-  },
-  inputFocused: {
-    borderColor: DarkColors.brand.purple,
-    backgroundColor: 'rgba(167,139,250,0.06)',
   },
   dobRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'] },
   dobText: { fontSize: FontSize.base, flex: 1 },
@@ -308,9 +368,7 @@ const styles = StyleSheet.create({
   inputFlex: { flex: 1 },
   eyeBtn: {
     width: 52, height: 52,
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -324,17 +382,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing['4'],
   },
-  footerText: { color: DarkColors.text.secondary, fontSize: FontSize.sm },
+  footerText: { fontSize: FontSize.sm },
   footerLink: {
-    color: DarkColors.brand.purple,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semiBold,
   },
 
+  // Date picker modal
   pickerOverlay: { flex: 1, justifyContent: 'flex-end' },
   pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   pickerSheet: {
-    backgroundColor: '#1a0a3a',
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     paddingBottom: 32,
@@ -343,11 +400,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     padding: Spacing['4'],
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   pickerDone: {
-    color: DarkColors.brand.purple,
     fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
   },

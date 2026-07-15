@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { CheckCircle } from 'phosphor-react-native';
+import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -17,40 +18,43 @@ const LABELS: Record<BadgeVariant, string> = {
   pro: 'Pro',
   business: 'Business',
   new: 'New',
-  verified: '✓ Verified',
+  verified: 'Verified',
 };
 
-const COLORS: Record<BadgeVariant, { bg: string; text: string; border: string }> = {
-  free: { bg: 'rgba(255,255,255,0.08)', text: Colors.text.secondary, border: 'rgba(255,255,255,0.15)' },
-  pro: { bg: 'rgba(251,191,36,0.15)', text: Colors.accent.amber, border: 'rgba(251,191,36,0.4)' },
-  business: { bg: 'rgba(167,139,250,0.15)', text: Colors.brand.purple, border: 'rgba(167,139,250,0.4)' },
-  new: { bg: 'rgba(52,211,153,0.15)', text: Colors.accent.teal, border: 'rgba(52,211,153,0.4)' },
-  verified: { bg: 'rgba(96,165,250,0.15)', text: Colors.brand.blue, border: 'rgba(96,165,250,0.4)' },
+// Solid tint + dark text — same pattern as the trip screen's status chips,
+// computed for ≥4.5:1 contrast (business 6.59:1; the rest reuse already-
+// verified pairs from constants/colors.ts's status tokens).
+const PALETTE: Record<BadgeVariant, { bg: string; text: string }> = {
+  free: { bg: '', text: '' }, // resolved from theme below (neutral, not a fixed hue)
+  pro: { bg: '#FEF3C7', text: '#92400E' },
+  business: { bg: '#EDEBFB', text: '#4C46A3' },
+  new: { bg: '#DCFCE7', text: '#166534' },
+  verified: { bg: '#DBEAFE', text: '#1E40AF' },
 };
 
 export function Badge({ variant, label, style }: BadgeProps) {
-  const colors = COLORS[variant];
+  const { colors } = useTheme();
   const text = label ?? LABELS[variant];
+  const p = variant === 'free'
+    ? { bg: colors.background.sunken, text: colors.text.secondary }
+    : PALETTE[variant];
 
   return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: colors.bg, borderColor: colors.border },
-        style,
-      ]}
-    >
-      <Text style={[styles.text, { color: colors.text }]}>{text}</Text>
+    <View style={[styles.badge, { backgroundColor: p.bg }, style]}>
+      {variant === 'verified' && <CheckCircle size={11} color={p.text} weight="fill" />}
+      <Text style={[styles.text, { color: p.text }]}>{text}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     paddingHorizontal: Spacing['2'],
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
     alignSelf: 'flex-start',
   },
   text: {

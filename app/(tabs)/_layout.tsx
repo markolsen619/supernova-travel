@@ -11,11 +11,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/hooks/useTheme';
 import { TAB_ICONS } from '@/constants/icons';
 import { TAB_BAR_HEIGHT } from '@/constants/layout';
 
-const PURPLE = '#a78bfa';
-const PINK = '#f472b6';
 const SPRING = { damping: 18, stiffness: 220, mass: 0.8, useNativeDriver: true } as const;
 
 const TABS = [
@@ -36,6 +35,7 @@ interface TabBarProps {
 
 function FullWidthTabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   const createScale = useRef(new Animated.Value(1.0)).current;
   const scales = useRef(TABS.map((_, i) => new Animated.Value(i === 0 ? 1.1 : 1.0))).current;
@@ -62,9 +62,13 @@ function FullWidthTabBar({ state, navigation }: TabBarProps) {
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <View style={styles.hairline} />
-      <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, styles.bgOverlay]} />
+      <View style={[styles.hairline, { backgroundColor: colors.background.cardBorder }]} />
+      <BlurView intensity={60} tint={colors.blurTint} style={StyleSheet.absoluteFill} />
+      {/* Frosted backing over the blur — colors.background.elevated already
+          resolves to the right tone per theme (white surface on light,
+          void-elevated on dark); the alpha suffix keeps it a frost, not a
+          flat fill, same intent as the original's dark-only rgba(5,3,15,0.88). */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: `${colors.background.elevated}D9` }]} />
 
       <View style={styles.row}>
         {state.routes.map((route, index) => {
@@ -78,9 +82,9 @@ function FullWidthTabBar({ state, navigation }: TabBarProps) {
                 accessibilityRole="button"
                 accessibilityLabel="Create"
               >
-                <Animated.View style={[styles.createWrapper, { transform: [{ scale: createScale }] }]}>
+                <Animated.View style={[styles.createWrapper, { shadowColor: colors.brand.purple, transform: [{ scale: createScale }] }]}>
                   <LinearGradient
-                    colors={[PURPLE, PINK] as [string, string]}
+                    colors={colors.gradient.purplePink}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.createGradient}
@@ -108,12 +112,12 @@ function FullWidthTabBar({ state, navigation }: TabBarProps) {
                 {TabIcon && (
                   <TabIcon
                     size={24}
-                    color={focused ? PURPLE : 'rgba(255,255,255,0.35)'}
+                    color={focused ? colors.brand.purple : colors.text.tertiary}
                     weight="duotone"
                   />
                 )}
               </Animated.View>
-              {focused && <View style={styles.activeDot} />}
+              {focused && <View style={[styles.activeDot, { backgroundColor: colors.brand.purple }]} />}
             </TouchableOpacity>
           );
         })}
@@ -146,10 +150,6 @@ const styles = StyleSheet.create({
   },
   hairline: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  bgOverlay: {
-    backgroundColor: 'rgba(5,3,15,0.88)',
   },
   row: {
     height: TAB_BAR_HEIGHT,
@@ -167,11 +167,9 @@ const styles = StyleSheet.create({
     width: 3,
     height: 3,
     borderRadius: 2,
-    backgroundColor: PURPLE,
   },
   createWrapper: {
     marginBottom: 10,
-    shadowColor: PURPLE,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.5,
     shadowRadius: 10,

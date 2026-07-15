@@ -258,37 +258,96 @@ Other components:
 
 ## UI/UX Design Philosophy
 
-Supernova Travel must look and feel like a premium, consumer-grade travel app — not a prototype. Every screen should feel polished, intentional, and visually cohesive. Apply these principles to all new UI work:
+**Before writing ANY user-facing UI, read `.claude/skills/supernova-design/SKILL.md` and run its
+pre-ship checklist.** That skill is the authority; this section is the summary. UI shipped without
+running the checklist is not done.
 
-**Visual identity**
-- Dark-first: deep navy/purple backgrounds (`#0a0a1a` range), not flat black
-- Brand gradient: purple `#a78bfa` → pink `#f472b6` on primary actions and hero elements
-- Phosphor Duotone icons everywhere — no emoji, no Material icons, no SF Symbols strings
-- Per-type semantic colors: blue flights, purple hotels, pink restaurants, teal activities, amber transport — always use `ACTIVITY_ICONS`/`RESERVATION_ICONS` maps from `constants/icons.ts`
+### The direction: light editorial
 
-**Motion & interaction**
-- Spring physics for all enter/exit animations — `tension: 65, friction: 11` is the house curve
-- Haptic feedback on every meaningful tap (`Light` for navigation, `Medium` for create/follow actions)
-- Skeleton loaders instead of spinners for list content
-- Smooth shared-element transitions between list and detail views where possible
+Supernova is a **light, warm, editorial travel app where photography is the hero.** Think a printed
+travel magazine — generous whitespace, confident type, photos that breathe. Dark is reserved
+exclusively for **immersive moments**: the Mapbox globe/trip map, the splash screen, and the
+AI-generating screen. Those earn darkness; a settings list does not.
 
-**Layout & typography**
-- Generous padding — minimum `Spacing['4']` (16px) horizontal margins on content
-- Cards use `GlassCard` (BlurView frosted glass) or the dark card background, never plain white
-- Section headers are small-caps or heavy weight, never plain regular text
-- Avoid walls of text — use whitespace, dividers, and visual hierarchy
+Rationale: dark-navy-with-a-purple-gradient is the default aesthetic of every AI-generated app. It's
+forgiving — it hides bad spacing and weak type. Light is harder, which is why it reads as designed.
+And travel photography needs whitespace the way a painting needs a gallery wall.
 
-**Component quality bar**
-- No placeholder UI ("coming soon", grey boxes, lorem ipsum) shipped to any screen
-- Every empty state has an icon, a title, and a short description
-- Error states are friendly and actionable — never raw error strings
-- Interactive elements have visible pressed states (`activeOpacity`, scale transforms, or color shifts)
+### Hard rules (violating any of these is a bug, not a preference)
 
-**Current design stack**
-- Icons: `phosphor-react-native` Duotone weight exclusively
-- Blur: `expo-blur` `BlurView` on iOS; solid fallback on Android
-- Gradients: `expo-linear-gradient` `LinearGradient`
-- Animations: `react-native-reanimated` for complex; `Animated` API for simple spring/fade
+1. **No emoji. Ever.** Phosphor icons only, from `constants/icons.ts` where a semantic map exists.
+   Duotone for semantic/type icons; bold/regular for small utility icons (X, Plus, chevrons).
+2. **No dashed borders on actions.** Dashed = dropzone semantics. It reads as a wireframe.
+3. **One primary action per screen.** Everything else is secondary or a text link. Three
+   identical-weight buttons means the screen has no hierarchy.
+4. **Every empty state = icon + title + description + action.** "No activities yet" in grey is not
+   an empty state. Name the space and invite: "Start your first day."
+5. **Photos lead** on any place/trip/post screen.
+6. **Motion on every state change** — house spring `tension: 65, friction: 11`.
+7. **Haptics** — `Light` on nav/select, `Medium` on create/add/destructive.
+8. **Touch targets ≥44pt; body contrast ≥4.5:1; icon buttons need `accessibilityLabel`.**
+
+### Palette
+
+**Light chrome (default — all app surfaces).** Warm neutrals, never clinical white:
+
+| Token | Value | Use |
+|---|---|---|
+| Canvas | `#FBF9F5` | Page background |
+| Surface | `#FFFFFF` | Cards, sheets |
+| Sunken | `#F0EAE0` | Chips, inset areas |
+| Hairline | `#E5DDD2` | Dividers (0.5px) |
+| Text primary | `#1F1C19` | Headings, body |
+| Text secondary | `#6B6157` | Supporting copy |
+| Text muted | `#9A8F82` | Metadata, eyebrow labels |
+| Text disabled | `#C4B8A8` | Empty-state icons |
+
+**Primary action:** near-black `#1F1C19` with `#FBF9F5` text. Confident, not shouty. Do NOT make
+every CTA a purple gradient — that's the AI-default tell.
+
+**Brand accent — sparingly.** The star's violet→pink gradient is a *jewel against neutrals*, not
+wallpaper. Reserve for: the star mark, active/selected states, and at most one hero CTA per flow
+(e.g. "Generate with AI"). Purple `#7F77DD` · Pink `#D4537E`.
+
+**Semantic:** keep `ACTIVITY_ICONS` (blue flights, purple hotels, pink restaurants, teal activities,
+amber transport). On light, use the color for the icon and a ~10% tint for its bubble.
+
+**Dark — immersive moments ONLY** (globe/trip map, splash, AI-generating): Void `#0B0A12` · Elevated
+`#171422` · Hairline `#26232E` · Text `#F5F3F9` / `#9C95AD`. The light→dark transition is a
+signature moment — fade/scale it, never hard-cut.
+
+### Typography
+
+| Role | Size | Weight | Notes |
+|---|---|---|---|
+| Screen title | 26–30 | 500–600 | Tight tracking (`-0.02em`) |
+| Section head | 17 | 500 | |
+| Body | 15 | 400 | `lineHeight: 1.5` |
+| Eyebrow / meta | 11 | 500 | Uppercase, letterspaced `0.08em`, muted |
+| Caption | 12–13 | 400 | Muted |
+
+**The eyebrow label is the editorial signature** — small, tracked-out, muted, sitting above a big
+title (`JUL 25 – 30 · 6 DAYS` above `Trip to Pacific Beach`). This single pattern does more for the
+editorial feel than anything else. Sentence case everywhere; never Title Case buttons.
+
+### Spacing & shape
+
+Screen margins **≥20px** (generosity is the point). Card radius 16–20px; buttons/chips 12px or full
+pill. Vertical rhythm 8/12/16/20/32. Hairlines `0.5px`. Align **optically**, not just
+mathematically.
+
+### Copy voice
+
+Sentence case, contractions, verb-first. Buttons name the verb ("Find a place", not "Submit").
+Empty states invite, never apologize. Errors say what happened and what to do. Skip
+"successfully", "please", "simply", "just", and exclamation marks.
+
+### Anti-patterns — the AI-generated tells
+
+Dark navy + purple gradient on everything · decorative glassmorphism · gradient on every button ·
+emoji as icons · dashed placeholder boxes shipped as real UI · three equal-weight buttons in a row ·
+grey "No items yet" as an empty state · perfectly even spacing with no rhythm · cards with borders
+AND shadows AND fills.
 
 ## Architecture Rules
 
@@ -296,7 +355,7 @@ These rules apply to ALL new code:
 
 1. **No direct Gemini / secret API calls from client** — Cloud Function proxy only
 2. **No `onSnapshot` in TanStack Query hooks** — use `getDocs`/`getDoc`. Exception: post comments
-3. **All components use `const { colors } = useTheme()`** — never import `DarkColors`/`LightColors` directly, except in always-dark screens (`BoardingPassCard`, `AiGeneratingAnimation`, AI generation screens)
+3. **All components use `const { colors } = useTheme()`** — never import `DarkColors`/`LightColors` directly, except in always-dark screens: the Mapbox globe/trip map (`app/(tabs)/search.tsx`, `components/trip/TripMapView`), the splash screen (`SplashOverlay`), the AI-generating screens (`AiGeneratingAnimation`, `app/trip/ai-generating.tsx`), and `BoardingPassCard` (kept dark deliberately — a boarding pass is a physical-object skeuomorph, not app chrome)
 4. **`StyleSheet.create` is module-level** — it cannot call `useTheme()`. Dynamic/theme-dependent colors go in **inline styles only**, not inside `StyleSheet.create`
 5. **`LinearGradient` colors prop** must be typed as `[string, string]`, not `string[]`
 6. **`useCallback`** required for all event handlers passed as props to child components

@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
-  Text,
   Image,
   StyleSheet,
   Dimensions,
@@ -12,13 +11,14 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, Heart } from 'phosphor-react-native';
+import { Plus, Heart, AirplaneTilt } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { FeedCard } from '@/components/feed/FeedCard';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { useFeed } from '@/hooks/useFeed';
+import { useTheme } from '@/hooks/useTheme';
 import { Post } from '@/types';
-import { DarkColors } from '@/constants/colors';
-import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -30,11 +30,18 @@ function overrideItemLayout(layout: { size: number }) {
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors } = useTheme();
   const [activeIndex, setActiveIndex] = useState(0);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
 
   const posts: Post[] = data?.pages.flatMap((p) => p.posts) ?? [];
+  // The fixed header sits on top of whatever's behind it — almost always a
+  // photo/video card, but not during loading/empty. Its dark scrim (needed
+  // for the white icons to read over arbitrary media) only makes sense when
+  // there's actually a card behind it; over the light empty/loading canvas
+  // it would just be a stray dark bar.
+  const hasContent = !isLoading && posts.length > 0;
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 80,
@@ -54,20 +61,41 @@ export default function FeedScreen() {
     }
   }
 
+  const handleAddPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/add-to-feed');
+  }, [router]);
+
+  const handleNotificationsPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/notifications');
+  }, [router]);
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.65)', 'transparent'] as [string, string]}
-        style={[styles.header, { paddingTop: insets.top }]}
-        pointerEvents="box-none"
-      >
+    <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
+      {/* Header — icons stay a fixed light-circle/dark-icon treatment so
+          they're legible whether they're floating over a photo or, during
+          loading/empty, the plain light canvas (same reasoning as the trip
+          header's Fix 4). The dark scrim behind them only renders when a
+          card is actually there to need it. */}
+      <View style={[styles.header, { paddingTop: insets.top }]} pointerEvents="box-none">
+        {hasContent && (
+          <LinearGradient
+            colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        )}
+
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/add-to-feed'); }}
+          onPress={handleAddPress}
           activeOpacity={0.7}
+          accessibilityLabel="Share a moment"
         >
-          <Plus size={26} color="rgba(255,255,255,0.92)" weight="regular" />
+          <View style={styles.headerBtnCircle}>
+            <Plus size={20} color={colors.text.primary} weight="bold" />
+          </View>
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -80,22 +108,28 @@ export default function FeedScreen() {
 
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/notifications'); }}
+          onPress={handleNotificationsPress}
           activeOpacity={0.7}
+          accessibilityLabel="Notifications"
         >
-          <Heart size={26} color="rgba(255,255,255,0.92)" weight="regular" />
+          <View style={styles.headerBtnCircle}>
+            <Heart size={20} color={colors.text.primary} weight="bold" />
+          </View>
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
 
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={DarkColors.brand.purple} />
-        </View>
+        <SkeletonCard width={SCREEN_WIDTH} height={SCREEN_HEIGHT} radius={0} />
       ) : posts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>✈️</Text>
-          <Text style={styles.emptyTitle}>Nothing here yet</Text>
-          <Text style={styles.emptySubtitle}>Be the first to share a travel moment</Text>
+          <EmptyState
+            icon={AirplaneTilt}
+            title="Nothing here yet"
+            description="Be the first to share a travel moment."
+            actionLabel="Share a moment"
+            onAction={handleAddPress}
+            actionHaptic="none"
+          />
         </View>
       ) : (
         <FlashList
@@ -116,7 +150,7 @@ export default function FeedScreen() {
           ListFooterComponent={
             isFetchingNextPage ? (
               <View style={styles.footerLoader}>
-                <ActivityIndicator color={DarkColors.brand.purple} />
+                <ActivityIndicator color={colors.brand.purple} />
               </View>
             ) : null
           }
@@ -129,7 +163,6 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   header: {
     position: 'absolute',
@@ -148,6 +181,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerBtnCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    // Fixed light-translucent circle, independent of theme — legible over
+    // both a photo (aided by the header's own scrim) and the plain canvas.
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
+    elevation: 2,
+  },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
@@ -156,31 +204,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 97,
   },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing['3'],
-    paddingHorizontal: Spacing['8'],
-  },
-  emptyIcon: {
-    fontSize: 48,
-  },
-  emptyTitle: {
-    color: '#fff',
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-  },
-  emptySubtitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: FontSize.base,
-    textAlign: 'center',
-    lineHeight: 22,
   },
   footerLoader: {
     padding: Spacing['5'],

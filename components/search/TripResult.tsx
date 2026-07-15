@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '@/hooks/useTheme';
+import * as Haptics from 'expo-haptics';
+import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Trip, TripStatus } from '@/types';
@@ -11,8 +12,16 @@ interface TripResultProps {
   onPress: () => void;
 }
 
+// Only ever rendered inside search.tsx's bottom sheet, floating over the
+// always-dark globe (Architecture Rule 3 exception) — hardcoded DarkColors,
+// not useTheme(), so it doesn't flip light if the app theme does.
 export function TripResult({ trip, onPress }: TripResultProps) {
-  const { colors } = useTheme();
+  const colors = DarkColors;
+
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  }, [onPress]);
 
   const STATUS_CONFIG: Record<TripStatus, { label: string; bg: string; text: string }> = {
     planning:  { label: 'Planning',  bg: colors.accent.amber + '33', text: colors.accent.amber },
@@ -24,9 +33,10 @@ export function TripResult({ trip, onPress }: TripResultProps) {
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={handlePress}
       activeOpacity={0.7}
       style={[styles.row, { borderBottomColor: colors.background.cardBorder }]}
+      accessibilityLabel={`Open trip: ${trip.title}`}
     >
       {/* Thumbnail */}
       <View style={[styles.thumbnail, { backgroundColor: colors.brand.purple + '26' }]}>

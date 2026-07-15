@@ -8,25 +8,27 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
   Modal,
   Dimensions,
   Animated,
 } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import {
   CalendarBlank,
   MapPin,
   AirplaneTilt,
   MagnifyingGlass,
   X,
+  ArrowLeft,
 } from 'phosphor-react-native';
+import { useTheme } from '@/hooks/useTheme';
+import { Button } from '@/components/ui/Button';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { DestinationPicker } from '@/components/ui/DestinationPicker';
 import { TripVisibility } from '@/types';
-import { DarkColors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { VISIBILITY_ICONS } from '@/constants/icons';
@@ -46,6 +48,7 @@ interface DatePickerModalProps {
 }
 
 function DatePickerModal({ visible, date, title, onConfirm, onCancel, minimumDate }: DatePickerModalProps) {
+  const { colors } = useTheme();
   const now = date ?? new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
@@ -65,61 +68,50 @@ function DatePickerModal({ visible, date, title, onConfirm, onCancel, minimumDat
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={dp.overlay}>
-        <View style={dp.sheet}>
-          <Text style={dp.sheetTitle}>{title}</Text>
-          <Text style={dp.hint}>Enter date (YYYY · MM · DD)</Text>
+        <View style={[dp.sheet, { backgroundColor: colors.background.elevated }]}>
+          <Text style={[dp.sheetTitle, { color: colors.text.primary }]}>{title}</Text>
+          <Text style={[dp.hint, { color: colors.text.tertiary }]}>Enter date (YYYY · MM · DD)</Text>
           <View style={dp.row}>
             <View style={dp.field}>
-              <Text style={dp.fieldLabel}>Year</Text>
+              <Text style={[dp.fieldLabel, { color: colors.text.secondary }]}>Year</Text>
               <TextInput
-                style={dp.fieldInput}
+                style={[dp.fieldInput, { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
                 value={year}
                 onChangeText={setYear}
                 keyboardType="number-pad"
                 maxLength={4}
                 placeholder="2025"
-                placeholderTextColor={DarkColors.text.tertiary}
+                placeholderTextColor={colors.text.tertiary}
               />
             </View>
             <View style={dp.field}>
-              <Text style={dp.fieldLabel}>Month</Text>
+              <Text style={[dp.fieldLabel, { color: colors.text.secondary }]}>Month</Text>
               <TextInput
-                style={dp.fieldInput}
+                style={[dp.fieldInput, { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
                 value={month}
                 onChangeText={setMonth}
                 keyboardType="number-pad"
                 maxLength={2}
                 placeholder="01"
-                placeholderTextColor={DarkColors.text.tertiary}
+                placeholderTextColor={colors.text.tertiary}
               />
             </View>
             <View style={dp.field}>
-              <Text style={dp.fieldLabel}>Day</Text>
+              <Text style={[dp.fieldLabel, { color: colors.text.secondary }]}>Day</Text>
               <TextInput
-                style={dp.fieldInput}
+                style={[dp.fieldInput, { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
                 value={day}
                 onChangeText={setDay}
                 keyboardType="number-pad"
                 maxLength={2}
                 placeholder="01"
-                placeholderTextColor={DarkColors.text.tertiary}
+                placeholderTextColor={colors.text.tertiary}
               />
             </View>
           </View>
           <View style={dp.actions}>
-            <TouchableOpacity onPress={onCancel} style={dp.cancelBtn}>
-              <Text style={dp.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleConfirm} style={dp.confirmBtn}>
-              <LinearGradient
-                colors={DarkColors.gradient.purplePink}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={dp.confirmGradient}
-              >
-                <Text style={dp.confirmText}>Set Date</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <Button label="Cancel" variant="secondary" onPress={onCancel} haptic="light" style={dp.actionBtn} />
+            <Button label="Set date" variant="primary" onPress={handleConfirm} haptic="light" style={dp.actionBtn} />
           </View>
         </View>
       </View>
@@ -128,62 +120,38 @@ function DatePickerModal({ visible, date, title, onConfirm, onCancel, minimumDat
 }
 
 const dp = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: {
-    backgroundColor: DarkColors.background.elevated,
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
     padding: Spacing['6'],
     paddingBottom: Spacing['10'],
   },
   sheetTitle: {
-    color: DarkColors.text.primary,
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semiBold,
     marginBottom: Spacing['2'],
   },
   hint: {
-    color: DarkColors.text.tertiary,
     fontSize: FontSize.sm,
     marginBottom: Spacing['5'],
   },
   row: { flexDirection: 'row', gap: Spacing['3'] },
   field: { flex: 1 },
   fieldLabel: {
-    color: DarkColors.text.secondary,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
     marginBottom: Spacing['2'],
   },
   fieldInput: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['3'],
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
     textAlign: 'center',
   },
   actions: { flexDirection: 'row', gap: Spacing['3'], marginTop: Spacing['6'] },
-  cancelBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing['3'],
-  },
-  cancelText: { color: DarkColors.text.secondary, fontSize: FontSize.base, fontWeight: FontWeight.medium },
-  confirmBtn: { flex: 1 },
-  confirmGradient: {
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing['3'],
-  },
-  confirmText: { color: DarkColors.white, fontSize: FontSize.base, fontWeight: FontWeight.bold },
+  actionBtn: { flex: 1 },
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -216,6 +184,7 @@ interface Step1Props {
 }
 
 function Step1Destination({ destination, countryCode, placeId, onPlaceSelect, onClearPlace }: Step1Props) {
+  const { colors } = useTheme();
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const handleOpenPicker = useCallback(() => setPickerVisible(true), []);
@@ -227,42 +196,46 @@ function Step1Destination({ destination, countryCode, placeId, onPlaceSelect, on
     },
     [onPlaceSelect],
   );
+  const handleClear = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClearPlace();
+  }, [onClearPlace]);
 
   const isSelected = Boolean(placeId);
 
   return (
     <View style={step.container}>
-      <Text style={step.stepLabel}>Step 1 of 4</Text>
-      <Text style={step.title}>Where are you going?</Text>
-      <Text style={step.subtitle}>Search for your destination to get started</Text>
+      <Text style={[step.stepLabel, { color: colors.brand.purple }]}>Step 1 of 4</Text>
+      <Text style={[step.title, { color: colors.text.primary }]}>Where are you going?</Text>
+      <Text style={[step.subtitle, { color: colors.text.secondary }]}>Search for your destination to get started</Text>
 
       <View style={step.field}>
-        <Text style={step.label}>Destination</Text>
+        <Text style={[step.label, { color: colors.text.secondary }]}>Destination</Text>
 
         {isSelected ? (
-          <View style={step.selectedRow}>
-            <MapPin size={16} color={DarkColors.brand.purple} weight="duotone" />
-            <Text style={step.selectedText} numberOfLines={1}>{destination}</Text>
-            <TouchableOpacity onPress={onClearPlace} activeOpacity={0.7} hitSlop={8}>
-              <X size={16} color={DarkColors.text.tertiary} weight="bold" />
+          <View style={[step.selectedRow, { backgroundColor: `${colors.brand.purple}14`, borderColor: colors.brand.purple }]}>
+            <MapPin size={16} color={colors.brand.purple} weight="duotone" />
+            <Text style={[step.selectedText, { color: colors.text.primary }]} numberOfLines={1}>{destination}</Text>
+            <TouchableOpacity onPress={handleClear} activeOpacity={0.7} hitSlop={10} accessibilityLabel="Clear destination">
+              <X size={16} color={colors.text.tertiary} weight="bold" />
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
-            style={step.pickerBtn}
+            style={[step.pickerBtn, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
             onPress={handleOpenPicker}
             activeOpacity={0.7}
           >
-            <MagnifyingGlass size={16} color={DarkColors.text.tertiary} weight="regular" />
-            <Text style={step.pickerBtnPlaceholder}>Search for a destination…</Text>
+            <MagnifyingGlass size={16} color={colors.text.tertiary} weight="regular" />
+            <Text style={[step.pickerBtnPlaceholder, { color: colors.text.tertiary }]}>Search for a destination…</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {isSelected && countryCode ? (
         <View style={step.field}>
-          <Text style={step.label}>Country</Text>
-          <Text style={step.countryBadge}>{countryCode}</Text>
+          <Text style={[step.label, { color: colors.text.secondary }]}>Country</Text>
+          <Text style={[step.countryBadge, { color: colors.brand.purple, backgroundColor: `${colors.brand.purple}1F` }]}>{countryCode}</Text>
         </View>
       ) : null}
 
@@ -283,65 +256,76 @@ interface Step2Props {
 }
 
 function Step2Dates({ startDate, endDate, setStartDate, setEndDate }: Step2Props) {
+  const { colors } = useTheme();
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
 
   const days = diffDays(startDate, endDate);
 
+  const handleOpenStart = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowStart(true);
+  }, []);
+  const handleOpenEnd = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowEnd(true);
+  }, []);
+
   return (
     <View style={step.container}>
-      <Text style={step.stepLabel}>Step 2 of 4</Text>
-      <Text style={step.title}>When are you going?</Text>
-      <Text style={step.subtitle}>Dates are optional — you can add them later</Text>
+      <Text style={[step.stepLabel, { color: colors.brand.purple }]}>Step 2 of 4</Text>
+      <Text style={[step.title, { color: colors.text.primary }]}>When are you going?</Text>
+      <Text style={[step.subtitle, { color: colors.text.secondary }]}>Dates are optional — you can add them later</Text>
 
       <View style={step.field}>
-        <Text style={step.label}>Start Date</Text>
-        <TouchableOpacity style={step.dateButton} onPress={() => setShowStart(true)} activeOpacity={0.7}>
-          <Text style={[step.dateText, !startDate && step.datePlaceholder]}>
+        <Text style={[step.label, { color: colors.text.secondary }]}>Start date</Text>
+        <TouchableOpacity
+          style={[step.dateButton, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
+          onPress={handleOpenStart}
+          activeOpacity={0.7}
+        >
+          <Text style={[step.dateText, { color: startDate ? colors.text.primary : colors.text.tertiary }]}>
             {formatDate(startDate)}
           </Text>
-          <CalendarBlank size={20} color={DarkColors.text.tertiary} weight="regular" />
+          <CalendarBlank size={20} color={colors.text.tertiary} weight="regular" />
         </TouchableOpacity>
       </View>
 
       <View style={step.field}>
-        <Text style={step.label}>End Date</Text>
-        <TouchableOpacity style={step.dateButton} onPress={() => setShowEnd(true)} activeOpacity={0.7}>
-          <Text style={[step.dateText, !endDate && step.datePlaceholder]}>
+        <Text style={[step.label, { color: colors.text.secondary }]}>End date</Text>
+        <TouchableOpacity
+          style={[step.dateButton, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
+          onPress={handleOpenEnd}
+          activeOpacity={0.7}
+        >
+          <Text style={[step.dateText, { color: endDate ? colors.text.primary : colors.text.tertiary }]}>
             {formatDate(endDate)}
           </Text>
-          <CalendarBlank size={20} color={DarkColors.text.tertiary} weight="regular" />
+          <CalendarBlank size={20} color={colors.text.tertiary} weight="regular" />
         </TouchableOpacity>
       </View>
 
       {days !== null && days >= 0 && (
-        <View style={step.durationBadge}>
-          <LinearGradient
-            colors={DarkColors.gradient.purplePink}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={step.durationGradient}
-          >
-            <Text style={step.durationText}>Trip duration: {days} day{days !== 1 ? 's' : ''}</Text>
-          </LinearGradient>
+        <View style={[step.durationBadge, { backgroundColor: `${colors.brand.purple}1F` }]}>
+          <Text style={[step.durationText, { color: colors.brand.purple }]}>Trip duration: {days} day{days !== 1 ? 's' : ''}</Text>
         </View>
       )}
 
       {days !== null && days < 0 && (
-        <Text style={step.warningText}>End date must be after start date</Text>
+        <Text style={[step.warningText, { color: colors.semantic.error }]}>End date must be after start date</Text>
       )}
 
       <DatePickerModal
         visible={showStart}
         date={startDate}
-        title="Select Start Date"
+        title="Select start date"
         onConfirm={(d) => { setStartDate(d); setShowStart(false); }}
         onCancel={() => setShowStart(false)}
       />
       <DatePickerModal
         visible={showEnd}
         date={endDate}
-        title="Select End Date"
+        title="Select end date"
         onConfirm={(d) => { setEndDate(d); setShowEnd(false); }}
         onCancel={() => setShowEnd(false)}
         minimumDate={startDate ?? undefined}
@@ -362,35 +346,41 @@ interface Step3Props {
 }
 
 function Step3Details({ title, description, visibility, tagsInput, setTitle, setDescription, setVisibility, setTagsInput }: Step3Props) {
+  const { colors } = useTheme();
   const visibilities: TripVisibility[] = ['public', 'followers', 'private'];
+
+  const handleSetVisibility = useCallback((v: TripVisibility) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setVisibility(v);
+  }, [setVisibility]);
 
   return (
     <View style={step.container}>
-      <Text style={step.stepLabel}>Step 3 of 4</Text>
-      <Text style={step.title}>Tell us about the trip</Text>
-      <Text style={step.subtitle}>Add details to help others discover your journey</Text>
+      <Text style={[step.stepLabel, { color: colors.brand.purple }]}>Step 3 of 4</Text>
+      <Text style={[step.title, { color: colors.text.primary }]}>Tell us about the trip</Text>
+      <Text style={[step.subtitle, { color: colors.text.secondary }]}>Add details to help others discover your journey</Text>
 
       <View style={step.field}>
-        <Text style={step.label}>Trip Title</Text>
+        <Text style={[step.label, { color: colors.text.secondary }]}>Trip title</Text>
         <TextInput
-          style={step.input}
+          style={[step.input, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
           value={title}
           onChangeText={setTitle}
           placeholder="Give your trip a name"
-          placeholderTextColor={DarkColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           autoCapitalize="words"
           returnKeyType="next"
         />
       </View>
 
       <View style={step.field}>
-        <Text style={step.label}>Description (optional)</Text>
+        <Text style={[step.label, { color: colors.text.secondary }]}>Description (optional)</Text>
         <TextInput
-          style={[step.input, step.textarea]}
+          style={[step.input, step.textarea, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
           value={description}
           onChangeText={setDescription}
           placeholder="Share what you're planning..."
-          placeholderTextColor={DarkColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           multiline
           numberOfLines={4}
           textAlignVertical="top"
@@ -398,40 +388,48 @@ function Step3Details({ title, description, visibility, tagsInput, setTitle, set
       </View>
 
       <View style={step.field}>
-        <Text style={step.label}>Visibility</Text>
+        <Text style={[step.label, { color: colors.text.secondary }]}>Visibility</Text>
         <View style={step.visibilityRow}>
-          {visibilities.map((v) => (
-            <TouchableOpacity
-              key={v}
-              onPress={() => setVisibility(v)}
-              style={[step.visibilityBtn, visibility === v && step.visibilityBtnActive]}
-              activeOpacity={0.7}
-            >
-              {(() => {
-                const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[v];
-                return <VIcon size={18} color={visibility === v ? vColor : DarkColors.text.tertiary} weight={visibility === v ? 'duotone' : 'regular'} />;
-              })()}
-              <Text style={[step.visibilityLabel, visibility === v && step.visibilityLabelActive]}>
-                {visibilityLabel(v)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {visibilities.map((v) => {
+            const active = visibility === v;
+            const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[v];
+            return (
+              <TouchableOpacity
+                key={v}
+                onPress={() => handleSetVisibility(v)}
+                style={[
+                  step.visibilityBtn,
+                  {
+                    backgroundColor: active ? `${colors.brand.purple}1F` : colors.background.card,
+                    borderColor: active ? colors.brand.purple : colors.background.cardBorder,
+                  },
+                ]}
+                activeOpacity={0.7}
+                accessibilityLabel={`${visibilityLabel(v)} visibility`}
+              >
+                <VIcon size={18} color={active ? vColor : colors.text.tertiary} weight={active ? 'duotone' : 'regular'} />
+                <Text style={[step.visibilityLabel, { color: active ? colors.brand.purple : colors.text.secondary }]}>
+                  {visibilityLabel(v)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
       <View style={step.field}>
-        <Text style={step.label}>Tags (optional)</Text>
+        <Text style={[step.label, { color: colors.text.secondary }]}>Tags (optional)</Text>
         <TextInput
-          style={step.input}
+          style={[step.input, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
           value={tagsInput}
           onChangeText={setTagsInput}
           placeholder="adventure, food, culture"
-          placeholderTextColor={DarkColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="done"
         />
-        <Text style={step.hint}>Comma-separated tags</Text>
+        <Text style={[step.hint, { color: colors.text.tertiary }]}>Comma-separated tags</Text>
       </View>
     </View>
   );
@@ -450,96 +448,83 @@ interface Step4Props {
 }
 
 function Step4Review({ destination, countryCode, startDate, endDate, title, visibility, creating, error, onCreateTrip }: Step4Props) {
+  const { colors } = useTheme();
   const days = diffDays(startDate, endDate);
+  const { Icon: VisibilityIcon, color: visibilityColor } = VISIBILITY_ICONS[visibility];
 
   return (
     <View style={step.container}>
-      <Text style={step.stepLabel}>Step 4 of 4</Text>
-      <Text style={step.title}>Ready to go?</Text>
-      <Text style={step.subtitle}>Review your trip before creating it</Text>
+      <Text style={[step.stepLabel, { color: colors.brand.purple }]}>Step 4 of 4</Text>
+      <Text style={[step.title, { color: colors.text.primary }]}>Ready to go?</Text>
+      <Text style={[step.subtitle, { color: colors.text.secondary }]}>Review your trip before creating it</Text>
 
-      <View style={review.card}>
-        <LinearGradient
-          colors={DarkColors.gradient.card}
-          style={review.cardGradient}
-        >
+      <View style={[review.card, { borderColor: colors.background.cardBorder }]}>
+        <View style={[review.cardInner, { backgroundColor: colors.background.card }]}>
           <View style={review.row}>
-            <MapPin size={20} color="#34d399" weight="duotone" />
+            <MapPin size={20} color={colors.accent.teal} weight="duotone" />
             <View style={review.rowContent}>
-              <Text style={review.rowLabel}>Destination</Text>
-              <Text style={review.rowValue}>
+              <Text style={[review.rowLabel, { color: colors.text.tertiary }]}>Destination</Text>
+              <Text style={[review.rowValue, { color: colors.text.primary }]}>
                 {destination}{countryCode ? ` · ${countryCode}` : ''}
               </Text>
             </View>
           </View>
 
-          <View style={review.divider} />
+          <View style={[review.divider, { backgroundColor: colors.background.cardBorder }]} />
 
           <View style={review.row}>
-            <CalendarBlank size={20} color="#60a5fa" weight="duotone" />
+            <CalendarBlank size={20} color={colors.brand.blue} weight="duotone" />
             <View style={review.rowContent}>
-              <Text style={review.rowLabel}>Dates</Text>
-              <Text style={review.rowValue}>
+              <Text style={[review.rowLabel, { color: colors.text.tertiary }]}>Dates</Text>
+              <Text style={[review.rowValue, { color: colors.text.primary }]}>
                 {startDate || endDate
                   ? `${formatDate(startDate)} → ${formatDate(endDate)}`
                   : 'Not set'}
               </Text>
               {days !== null && days >= 0 && (
-                <Text style={review.rowMeta}>{days} day{days !== 1 ? 's' : ''}</Text>
+                <Text style={[review.rowMeta, { color: colors.brand.purple }]}>{days} day{days !== 1 ? 's' : ''}</Text>
               )}
             </View>
           </View>
 
-          <View style={review.divider} />
+          <View style={[review.divider, { backgroundColor: colors.background.cardBorder }]} />
 
           <View style={review.row}>
-            <AirplaneTilt size={20} color="#a78bfa" weight="duotone" />
+            <AirplaneTilt size={20} color={colors.brand.purple} weight="duotone" />
             <View style={review.rowContent}>
-              <Text style={review.rowLabel}>Title</Text>
-              <Text style={review.rowValue}>{title}</Text>
+              <Text style={[review.rowLabel, { color: colors.text.tertiary }]}>Title</Text>
+              <Text style={[review.rowValue, { color: colors.text.primary }]}>{title}</Text>
             </View>
           </View>
 
-          <View style={review.divider} />
+          <View style={[review.divider, { backgroundColor: colors.background.cardBorder }]} />
 
           <View style={review.row}>
-            {(() => {
-              const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[visibility];
-              return <VIcon size={20} color={vColor} weight="duotone" />;
-            })()}
+            <VisibilityIcon size={20} color={visibilityColor} weight="duotone" />
             <View style={review.rowContent}>
-              <Text style={review.rowLabel}>Visibility</Text>
-              <Text style={review.rowValue}>{visibilityLabel(visibility)}</Text>
+              <Text style={[review.rowLabel, { color: colors.text.tertiary }]}>Visibility</Text>
+              <Text style={[review.rowValue, { color: colors.text.primary }]}>{visibilityLabel(visibility)}</Text>
             </View>
           </View>
-        </LinearGradient>
+        </View>
       </View>
 
       {error ? (
-        <View style={review.errorBox}>
-          <Text style={review.errorText}>{error}</Text>
+        <View style={[review.errorBox, { backgroundColor: `${colors.semantic.error}14` }]}>
+          <Text style={[review.errorText, { color: colors.semantic.error }]}>{error}</Text>
         </View>
       ) : null}
 
-      <TouchableOpacity
+      {/* The one hero moment of this flow — the actual data write. */}
+      <Button
+        label="Create trip"
         onPress={onCreateTrip}
+        loading={creating}
         disabled={creating}
-        activeOpacity={0.8}
-        style={review.createBtn}
-      >
-        <LinearGradient
-          colors={DarkColors.gradient.purplePink}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[review.createGradient, creating && review.createDisabled]}
-        >
-          {creating ? (
-            <ActivityIndicator color={DarkColors.white} size="small" />
-          ) : (
-            <Text style={review.createText}>Create Trip</Text>
-          )}
-        </LinearGradient>
-      </TouchableOpacity>
+        variant="hero"
+        size="lg"
+        fullWidth
+      />
     </View>
   );
 }
@@ -547,22 +532,20 @@ function Step4Review({ destination, countryCode, startDate, endDate, title, visi
 const step = StyleSheet.create({
   container: { flex: 1, paddingTop: Spacing['2'] },
   stepLabel: {
-    fontSize: FontSize.sm,
-    color: DarkColors.brand.purple,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.semiBold,
     marginBottom: Spacing['3'],
-    letterSpacing: 0.5,
+    letterSpacing: 0.08 * FontSize.xs,
     textTransform: 'uppercase',
   },
   title: {
     fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
-    color: DarkColors.text.primary,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
     marginBottom: Spacing['2'],
   },
   subtitle: {
     fontSize: FontSize.base,
-    color: DarkColors.text.secondary,
     marginBottom: Spacing['8'],
     lineHeight: FontSize.base * 1.5,
   },
@@ -570,45 +553,36 @@ const step = StyleSheet.create({
   label: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
-    color: DarkColors.text.secondary,
     marginBottom: Spacing['2'],
   },
   hint: {
     fontSize: FontSize.xs,
-    color: DarkColors.text.tertiary,
     marginTop: Spacing['1'],
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
   },
   pickerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['3'],
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
+    minHeight: 44,
   },
   pickerBtnPlaceholder: {
     flex: 1,
     fontSize: FontSize.base,
-    color: DarkColors.text.tertiary,
   },
   selectedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['3'],
-    backgroundColor: 'rgba(167,139,250,0.12)',
     borderWidth: 1,
-    borderColor: DarkColors.brand.purple,
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
   },
@@ -616,56 +590,44 @@ const step = StyleSheet.create({
     flex: 1,
     fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
-    color: DarkColors.text.primary,
   },
   countryBadge: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semiBold,
-    color: DarkColors.brand.purple,
-    backgroundColor: 'rgba(167,139,250,0.12)',
     paddingHorizontal: Spacing['3'],
     paddingVertical: Spacing['1'],
     borderRadius: BorderRadius.full,
     alignSelf: 'flex-start',
+    overflow: 'hidden',
   },
   textarea: {
     minHeight: 100,
     paddingTop: Spacing['3'],
   },
   dateButton: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 44,
   },
   dateText: {
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
-  },
-  datePlaceholder: {
-    color: DarkColors.text.tertiary,
   },
   durationBadge: {
     alignSelf: 'flex-start',
     borderRadius: BorderRadius.full,
-    overflow: 'hidden',
-    marginTop: Spacing['3'],
-  },
-  durationGradient: {
     paddingVertical: Spacing['2'],
     paddingHorizontal: Spacing['4'],
+    marginTop: Spacing['3'],
   },
   durationText: {
-    color: DarkColors.white,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semiBold,
   },
   warningText: {
-    color: DarkColors.semantic.error,
     fontSize: FontSize.sm,
     marginTop: Spacing['2'],
   },
@@ -675,25 +637,17 @@ const step = StyleSheet.create({
   },
   visibilityBtn: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['3'],
     alignItems: 'center',
     gap: Spacing['1'],
-  },
-  visibilityBtnActive: {
-    borderColor: DarkColors.brand.purple,
-    backgroundColor: 'rgba(167,139,250,0.15)',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   visibilityLabel: {
     fontSize: FontSize.xs,
-    color: DarkColors.text.secondary,
     fontWeight: FontWeight.medium,
-  },
-  visibilityLabelActive: {
-    color: DarkColors.brand.purple,
   },
 });
 
@@ -702,15 +656,13 @@ const review = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: DarkColors.background.cardBorder,
     marginBottom: Spacing['6'],
   },
-  cardGradient: { padding: Spacing['5'] },
+  cardInner: { padding: Spacing['5'] },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing['3'] },
   rowContent: { flex: 1 },
   rowLabel: {
     fontSize: FontSize.xs,
-    color: DarkColors.text.tertiary,
     fontWeight: FontWeight.medium,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -718,48 +670,30 @@ const review = StyleSheet.create({
   },
   rowValue: {
     fontSize: FontSize.base,
-    color: DarkColors.text.primary,
     fontWeight: FontWeight.medium,
   },
   rowMeta: {
     fontSize: FontSize.sm,
-    color: DarkColors.brand.purple,
     marginTop: 2,
   },
   divider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    height: StyleSheet.hairlineWidth,
     marginVertical: Spacing['4'],
   },
   errorBox: {
-    backgroundColor: 'rgba(248,113,113,0.1)',
     borderRadius: BorderRadius.md,
     padding: Spacing['3'],
     marginBottom: Spacing['4'],
   },
   errorText: {
-    color: DarkColors.semantic.error,
     fontSize: FontSize.sm,
-  },
-  createBtn: { width: '100%' },
-  createGradient: {
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing['4'],
-  },
-  createDisabled: { opacity: 0.6 },
-  createText: {
-    color: DarkColors.white,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 0.3,
   },
 });
 
 // ─── Main wizard ──────────────────────────────────────────────────────────────
 
 export default function NewTripScreen() {
+  const { colors } = useTheme();
   const { createTrip } = useCreateTrip();
 
   // Step state
@@ -837,21 +771,24 @@ export default function NewTripScreen() {
     setTitle(v);
   }, []);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (!canAdvance()) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === 1 && titleAutoFilled) {
       setTitle(`Trip to ${destination.trim()}`);
     }
     goToStep(step + 1, true);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, titleAutoFilled, destination, goToStep]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === 0) {
       router.back();
     } else {
       goToStep(step - 1, false);
     }
-  };
+  }, [step, goToStep]);
 
   const handleCreateTrip = async () => {
     setCreating(true);
@@ -942,24 +879,21 @@ export default function NewTripScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      {/* Background */}
-      <LinearGradient
-        colors={DarkColors.gradient.dark}
-        style={StyleSheet.absoluteFill}
-      />
-      {/* Aurora accent */}
-      <LinearGradient
-        colors={['rgba(167,139,250,0.15)', 'rgba(244,114,182,0.08)', 'transparent']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.aurora}
-      />
-
+    <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={styles.backText}>{step === 0 ? '✕' : '← Back'}</Text>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityLabel={step === 0 ? 'Close' : 'Back'}
+        >
+          {step === 0 ? (
+            <X size={20} color={colors.text.primary} weight="regular" />
+          ) : (
+            <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
+          )}
         </TouchableOpacity>
 
         {/* Step dots */}
@@ -967,7 +901,11 @@ export default function NewTripScreen() {
           {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
             <View
               key={i}
-              style={[styles.dot, i === step && styles.dotActive]}
+              style={[
+                styles.dot,
+                { backgroundColor: colors.background.cardBorder },
+                i === step && [styles.dotActive, { backgroundColor: colors.brand.purple }],
+              ]}
             />
           ))}
         </View>
@@ -994,26 +932,19 @@ export default function NewTripScreen() {
         </Animated.View>
       </KeyboardAvoidingView>
 
-      {/* Footer: Next button (not on review step) */}
+      {/* Footer: Next button (not on review step) — near-black, not gradient;
+          the gradient hero is reserved for the actual "Create trip" write. */}
       {step < 3 && (
-        <View style={styles.footer}>
-          <TouchableOpacity
+        <View style={[styles.footer, { borderTopColor: colors.background.cardBorder }]}>
+          <Button
+            label={step === 2 ? 'Review' : 'Next'}
             onPress={handleNext}
             disabled={!canAdvance()}
-            activeOpacity={0.8}
-            style={styles.nextBtnWrapper}
-          >
-            <LinearGradient
-              colors={DarkColors.gradient.purplePink}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.nextBtn, !canAdvance() && styles.nextBtnDisabled]}
-            >
-              <Text style={styles.nextText}>
-                {step === 2 ? 'Review' : 'Next →'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            variant="primary"
+            size="lg"
+            fullWidth
+            haptic="none"
+          />
         </View>
       )}
     </View>
@@ -1021,15 +952,8 @@ export default function NewTripScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: DarkColors.background.primary },
+  screen: { flex: 1 },
   flex: { flex: 1 },
-  aurora: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 300,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1038,25 +962,18 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 20,
     paddingBottom: Spacing['4'],
   },
-  backBtn: { minWidth: 70 },
-  backText: {
-    color: DarkColors.brand.purple,
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.medium,
-  },
+  backBtn: { minWidth: 44, minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' },
   dots: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   dotActive: {
-    backgroundColor: DarkColors.brand.purple,
     width: 20,
     borderRadius: 10,
   },
-  headerRight: { minWidth: 70 },
+  headerRight: { minWidth: 44 },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: Spacing['6'],
@@ -1066,21 +983,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['6'],
     paddingBottom: Platform.OS === 'ios' ? 40 : Spacing['6'],
     paddingTop: Spacing['4'],
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-  },
-  nextBtnWrapper: { width: '100%' },
-  nextBtn: {
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing['4'],
-  },
-  nextBtnDisabled: { opacity: 0.4 },
-  nextText: {
-    color: DarkColors.white,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 0.3,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

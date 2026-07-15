@@ -9,9 +9,12 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { ArrowLeft, Plus, AirplaneTilt } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { BoardingPassCard } from '@/components/wallet/BoardingPassCard';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
@@ -19,6 +22,15 @@ export default function BoardingPassesScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { boardingPasses, isLoading } = useBoardingPasses();
+
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  };
+  const handleAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/(wallet)/boarding-pass/add');
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
@@ -32,18 +44,19 @@ export default function BoardingPassesScreen() {
           },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
+          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <View style={styles.titleGroup}>
           <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
-          <Text style={[styles.title, { color: colors.text.primary }]}>Boarding Passes</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>Boarding passes</Text>
         </View>
         <TouchableOpacity
-          onPress={() => router.push('/(wallet)/boarding-pass/add')}
+          onPress={handleAdd}
           style={styles.addButton}
+          accessibilityLabel="Add boarding pass"
         >
-          <Text style={[styles.addText, { color: colors.brand.purple }]}>+</Text>
+          <Plus size={20} color={colors.text.primary} weight="bold" />
         </TouchableOpacity>
       </View>
 
@@ -53,12 +66,14 @@ export default function BoardingPassesScreen() {
           <ActivityIndicator color={colors.brand.purple} size="large" />
         </View>
       ) : boardingPasses.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyIcon}>✈️</Text>
-          <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>
-            No boarding passes yet.
-          </Text>
-        </View>
+        <EmptyState
+          icon={AirplaneTilt}
+          title="No boarding passes yet"
+          description="Add a flight to keep your pass and gate info handy."
+          actionLabel="Add boarding pass"
+          onAction={handleAdd}
+          actionHaptic="none"
+        />
       ) : (
         <ScrollView
           style={styles.scroll}
@@ -69,7 +84,10 @@ export default function BoardingPassesScreen() {
             <BoardingPassCard
               key={pass.id}
               pass={pass}
-              onPress={() => router.push(`/(wallet)/boarding-pass/${pass.id}`)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/(wallet)/boarding-pass/${pass.id}`);
+              }}
             />
           ))}
         </ScrollView>
@@ -92,39 +110,27 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 44,
+    minHeight: 44,
     alignItems: 'flex-start',
     justifyContent: 'center',
-  },
-  backText: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
   starIcon: { width: 18, height: 18 },
   title: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semiBold,
   },
   addButton: {
     width: 44,
+    minHeight: 44,
     alignItems: 'flex-end',
     justifyContent: 'center',
-  },
-  addText: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.bold,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing['3'],
-  },
-  emptyIcon: {
-    fontSize: 48,
-  },
-  emptyText: {
-    fontSize: FontSize.base,
   },
   scroll: {
     flex: 1,

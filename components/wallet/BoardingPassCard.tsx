@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AirplaneTilt } from 'phosphor-react-native';
 import { BoardingPass, BoardingPassStatus } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -63,7 +64,7 @@ export function BoardingPassCard({ pass, onPress }: BoardingPassCardProps) {
           </View>
 
           <View style={styles.routeCenter}>
-            <Text style={styles.planeIcon}>✈</Text>
+            <AirplaneTilt size={16} color="#a78bfa" weight="fill" />
             <View style={styles.dashedLine} />
           </View>
 
@@ -189,10 +190,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: Spacing['1'],
-  },
-  planeIcon: {
-    fontSize: FontSize.lg,
-    color: '#a78bfa',
   },
   dashedLine: {
     width: '80%',

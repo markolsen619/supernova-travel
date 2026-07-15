@@ -5,12 +5,10 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Dimensions,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
@@ -21,6 +19,7 @@ import {
   MapTrifold,
   BookmarkSimple,
   SquaresFour,
+  Compass,
 } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -29,6 +28,9 @@ import { useTripList } from '@/hooks/useTripList';
 import { db } from '@/services/firebase';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { TripCard } from '@/components/trip/TripCard';
 import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -44,10 +46,10 @@ const TRIP_STATUS_MAP: Record<TripFilter, TripStatus> = {
   Past: 'completed',
 };
 
-const EMPTY_MESSAGES: Record<TripFilter, string> = {
-  Upcoming: 'No upcoming trips yet — time to plan one!',
-  Current: 'No active trips right now.',
-  Past: 'No completed trips yet.',
+const EMPTY_COPY: Record<TripFilter, { title: string; description: string }> = {
+  Upcoming: { title: 'No upcoming trips', description: 'Plan your next adventure.' },
+  Current: { title: 'No active trips', description: "Trips you're on now will show up here." },
+  Past: { title: 'No completed trips yet', description: 'Your travel history will appear here.' },
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -122,6 +124,11 @@ export default function ProfileScreen() {
     router.push('/settings');
   }, []);
 
+  const handlePostPress = useCallback((postId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/post/${postId}`);
+  }, []);
+
   const openEditSheet = useCallback(() => {
     setEditSheetVisible(true);
   }, []);
@@ -134,11 +141,7 @@ export default function ProfileScreen() {
 
   const headerComponent = (
     <>
-      {/* Hero gradient */}
-      <LinearGradient
-        colors={['#1a0a3a', '#0a0a1a'] as [string, string]}
-        style={[styles.heroGradient, { paddingTop: insets.top }]}
-      >
+      <View style={[styles.hero, { paddingTop: insets.top, backgroundColor: colors.background.primary }]}>
         {/* Top actions */}
         <View style={styles.heroActions}>
           <Image
@@ -146,16 +149,22 @@ export default function ProfileScreen() {
             style={styles.heroStar}
             resizeMode="contain"
           />
-          <TouchableOpacity onPress={handleSettings} style={styles.heroIconBtn} activeOpacity={0.7}>
-            <Gear size={22} color="rgba(255,255,255,0.7)" weight="regular" />
+          <TouchableOpacity
+            onPress={handleSettings}
+            style={styles.heroIconBtn}
+            activeOpacity={0.7}
+            hitSlop={6}
+            accessibilityLabel="Settings"
+          >
+            <Gear size={22} color={colors.text.secondary} weight="regular" />
           </TouchableOpacity>
         </View>
 
         {/* Avatar + info */}
         <View style={styles.heroContent}>
           <Avatar uri={user?.photoURL} name={displayName} size="xl" />
-          <Text style={styles.heroName}>{displayName}</Text>
-          <Text style={styles.heroUsername}>@{username}</Text>
+          <Text style={[styles.heroName, { color: colors.text.primary }]}>{displayName}</Text>
+          <Text style={[styles.heroUsername, { color: colors.text.tertiary }]}>@{username}</Text>
           {tier !== 'free' && <Badge variant={tier} style={styles.heroBadge} />}
 
           {/* Stats row */}
@@ -165,24 +174,26 @@ export default function ProfileScreen() {
               { label: 'Following', value: profile?.followingCount ?? 0 },
               { label: 'Trips', value: allTrips.length },
             ].map(({ label, value }, i) => (
-              <View key={label} style={[styles.stat, i > 0 && styles.statDivider]}>
-                <Text style={styles.statValue}>{value}</Text>
-                <Text style={styles.statLabel}>{label}</Text>
+              <View
+                key={label}
+                style={[styles.stat, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.background.cardBorder }]}
+              >
+                <Text style={[styles.statValue, { color: colors.text.primary }]}>{value}</Text>
+                <Text style={[styles.statLabel, { color: colors.text.tertiary }]}>{label}</Text>
               </View>
             ))}
           </View>
 
-          {/* Edit profile */}
-          <TouchableOpacity
-            style={[styles.editBtn, { borderColor: 'rgba(255,255,255,0.2)' }]}
+          <Button
+            label="Edit profile"
+            variant="secondary"
+            size="sm"
+            icon={PencilSimple}
             onPress={openEditSheet}
-            activeOpacity={0.75}
-          >
-            <PencilSimple size={15} color="rgba(255,255,255,0.8)" weight="bold" />
-            <Text style={styles.editBtnText}>Edit Profile</Text>
-          </TouchableOpacity>
+            style={styles.editBtn}
+          />
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Tab bar */}
       <View style={[styles.tabBar, { borderBottomColor: colors.background.cardBorder }]}>
@@ -194,11 +205,9 @@ export default function ProfileScreen() {
           <TouchableOpacity
             key={id}
             onPress={() => handleTabPress(id)}
-            style={[
-              styles.tabItem,
-              activeTab === id && styles.tabItemActive,
-            ]}
+            style={styles.tabItem}
             activeOpacity={0.7}
+            accessibilityLabel={`${id} tab`}
           >
             <Icon
               size={20}
@@ -231,12 +240,11 @@ export default function ProfileScreen() {
                 styles.filterChip,
                 {
                   backgroundColor:
-                    tripFilter === f ? 'rgba(167,139,250,0.2)' : colors.background.card,
-                  borderColor:
-                    tripFilter === f ? colors.brand.purple : colors.background.cardBorder,
+                    tripFilter === f ? `${colors.brand.purple}1F` : colors.background.sunken,
                 },
               ]}
               activeOpacity={0.75}
+              accessibilityLabel={`${f} trips`}
             >
               <Text
                 style={[
@@ -261,7 +269,9 @@ export default function ProfileScreen() {
         <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
           {headerComponent}
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={colors.brand.purple} />
+            {[0, 1, 2].map((i) => (
+              <SkeletonCard key={i} height={230} radius={BorderRadius.xl} style={{ marginBottom: Spacing['3'] }} />
+            ))}
           </View>
         </View>
       );
@@ -277,21 +287,14 @@ export default function ProfileScreen() {
           ListHeaderComponent={headerComponent}
           ItemSeparatorComponent={() => <View style={{ height: Spacing['3'] }} />}
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <MapTrifold size={48} color={colors.text.tertiary} weight="duotone" />
-              <Text style={[styles.emptyTitle, { color: colors.text.secondary }]}>
-                {EMPTY_MESSAGES[tripFilter]}
-              </Text>
-              {tripFilter === 'Upcoming' && (
-                <TouchableOpacity
-                  style={[styles.emptyBtn, { backgroundColor: colors.brand.purple }]}
-                  onPress={() => router.push('/trip/new')}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.emptyBtnText}>Create a Trip</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+            <EmptyState
+              icon={MapTrifold}
+              title={EMPTY_COPY[tripFilter].title}
+              description={EMPTY_COPY[tripFilter].description}
+              actionLabel="Create a trip"
+              onAction={() => router.push('/trip/new')}
+              actionHaptic="light"
+            />
           }
           renderItem={({ item }) => (
             <TripCard
@@ -310,8 +313,10 @@ export default function ProfileScreen() {
       return (
         <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
           {headerComponent}
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator color={colors.brand.purple} />
+          <View style={styles.postGridSkeleton}>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <SkeletonCard key={i} width={POST_CELL} height={POST_CELL} radius={0} />
+            ))}
           </View>
         </View>
       );
@@ -327,26 +332,27 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: 100 }}
           ListHeaderComponent={headerComponent}
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <SquaresFour size={48} color={colors.text.tertiary} weight="duotone" />
-              <Text style={[styles.emptyTitle, { color: colors.text.secondary }]}>
-                No posts yet. Share your first travel moment!
-              </Text>
-            </View>
+            <EmptyState
+              icon={SquaresFour}
+              title="No posts yet"
+              description="Share your first travel moment."
+              actionLabel="Share a moment"
+              onAction={() => router.push('/add-to-feed')}
+              actionHaptic="light"
+            />
           }
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.postCell}
-              onPress={() => router.push(`/post/${item.id}`)}
+              style={[styles.postCell, { backgroundColor: colors.background.sunken }]}
+              onPress={() => handlePostPress(item.id)}
               activeOpacity={0.85}
             >
               {item.mediaUrl ? (
                 <Image source={{ uri: item.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
               ) : (
-                <LinearGradient
-                  colors={['rgba(167,139,250,0.3)', 'rgba(244,114,182,0.3)'] as [string, string]}
-                  style={StyleSheet.absoluteFill}
-                />
+                <View style={[StyleSheet.absoluteFill, styles.postCellFallback]}>
+                  <SquaresFour size={20} color={colors.text.disabled} weight="duotone" />
+                </View>
               )}
             </TouchableOpacity>
           )}
@@ -362,7 +368,9 @@ export default function ProfileScreen() {
       <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
         {headerComponent}
         <View style={styles.loadingWrap}>
-          <ActivityIndicator color={colors.brand.purple} />
+          {[0, 1, 2].map((i) => (
+            <SkeletonCard key={i} height={230} radius={BorderRadius.xl} style={{ marginBottom: Spacing['3'] }} />
+          ))}
         </View>
       </View>
     );
@@ -378,12 +386,15 @@ export default function ProfileScreen() {
         ListHeaderComponent={headerComponent}
         ItemSeparatorComponent={() => <View style={{ height: Spacing['3'] }} />}
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <BookmarkSimple size={48} color={colors.text.tertiary} weight="duotone" />
-            <Text style={[styles.emptyTitle, { color: colors.text.secondary }]}>
-              Save trips from your feed to find them here.
-            </Text>
-          </View>
+          <EmptyState
+            icon={BookmarkSimple}
+            title="No saved trips"
+            description="Save trips from your feed to find them here."
+            actionLabel="Explore trips"
+            actionIcon={Compass}
+            onAction={() => router.navigate('/(tabs)/explore')}
+            actionHaptic="light"
+          />
         }
         renderItem={({ item }) => (
           <TripCard
@@ -400,7 +411,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
 
-  heroGradient: {
+  hero: {
     paddingBottom: Spacing['5'],
   },
   heroActions: {
@@ -414,8 +425,6 @@ const styles = StyleSheet.create({
   heroIconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -427,13 +436,12 @@ const styles = StyleSheet.create({
   },
   heroName: {
     fontSize: FontSize.xl,
-    fontWeight: FontWeight.black,
-    color: '#ffffff',
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize.xl,
     marginTop: Spacing['3'],
   },
   heroUsername: {
     fontSize: FontSize.sm,
-    color: 'rgba(255,255,255,0.5)',
     marginBottom: Spacing['2'],
   },
   heroBadge: { marginBottom: Spacing['3'] },
@@ -441,46 +449,27 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     marginVertical: Spacing['4'],
-    gap: 0,
   },
   stat: {
     alignItems: 'center',
     paddingHorizontal: Spacing['6'],
   },
-  statDivider: {
-    borderLeftWidth: 1,
-    borderLeftColor: 'rgba(255,255,255,0.1)',
-  },
   statValue: {
     fontSize: FontSize.xl,
-    fontWeight: FontWeight.black,
-    color: '#ffffff',
+    fontWeight: FontWeight.semiBold,
   },
   statLabel: {
     fontSize: FontSize.xs,
-    color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
   },
 
   editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing['2'],
-    paddingHorizontal: Spacing['5'],
-    paddingVertical: Spacing['2'],
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
     marginBottom: Spacing['2'],
-  },
-  editBtnText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semiBold,
-    color: 'rgba(255,255,255,0.8)',
   },
 
   tabBar: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   tabItem: {
     flex: 1,
@@ -489,8 +478,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing['3'],
     gap: 4,
     position: 'relative',
+    minHeight: 44,
   },
-  tabItemActive: {},
   tabLabel: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.medium,
@@ -514,7 +503,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingVertical: Spacing['2'],
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
+    minHeight: 36,
+    justifyContent: 'center',
   },
   filterChipText: {
     fontSize: FontSize.sm,
@@ -522,38 +512,22 @@ const styles = StyleSheet.create({
   },
 
   loadingWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: Spacing['4'],
+    paddingTop: Spacing['3'],
   },
 
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: Spacing['10'],
-    paddingHorizontal: Spacing['8'],
-    gap: Spacing['3'],
-  },
-  emptyTitle: {
-    fontSize: FontSize.base,
-    textAlign: 'center',
-    lineHeight: FontSize.base * 1.5,
-  },
-  emptyBtn: {
-    marginTop: Spacing['2'],
-    paddingHorizontal: Spacing['6'],
-    paddingVertical: Spacing['3'],
-    borderRadius: BorderRadius.xl,
-  },
-  emptyBtnText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
-    color: '#ffffff',
+  postGridSkeleton: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
 
   postCell: {
     width: POST_CELL,
     height: POST_CELL,
-    backgroundColor: 'rgba(167,139,250,0.1)',
     overflow: 'hidden',
+  },
+  postCellFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

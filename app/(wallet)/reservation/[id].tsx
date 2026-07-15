@@ -9,19 +9,15 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useReservations } from '@/hooks/useReservations';
+import { RESERVATION_ICONS } from '@/constants/icons';
+import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { ReservationType } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-
-const TYPE_ICONS: Record<ReservationType, string> = {
-  hotel: '🏨',
-  airbnb: '🏡',
-  rental_car: '🚗',
-  restaurant: '🍽️',
-  activity: '🎯',
-};
 
 const TYPE_LABELS: Record<ReservationType, string> = {
   hotel: 'Hotel',
@@ -53,9 +49,15 @@ export default function ReservationDetailScreen() {
 
   const reservation = reservations.find((r) => r.id === id);
 
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  };
+
   const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
-      'Delete Reservation',
+      'Delete reservation',
       'Are you sure you want to delete this reservation?',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -86,8 +88,8 @@ export default function ReservationDetailScreen() {
             },
           ]}
         >
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
+            <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
           </TouchableOpacity>
           <View style={styles.titleGroup}>
             <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
@@ -104,6 +106,8 @@ export default function ReservationDetailScreen() {
     );
   }
 
+  const { Icon: TypeIcon, color: typeColor } = RESERVATION_ICONS[reservation.type];
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
       {/* Header */}
@@ -116,8 +120,8 @@ export default function ReservationDetailScreen() {
           },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
+          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text.primary }]}>Reservation</Text>
         <View style={styles.backButton} />
@@ -138,12 +142,12 @@ export default function ReservationDetailScreen() {
             },
           ]}
         >
-          <Text style={styles.typeIcon}>{TYPE_ICONS[reservation.type]}</Text>
+          <TypeIconBubble Icon={TypeIcon} color={typeColor} bubbleSize={64} iconSize={32} />
           <Text style={[styles.heroTitle, { color: colors.text.primary }]}>
             {reservation.title}
           </Text>
-          <View style={[styles.typeBadge, { backgroundColor: colors.background.cardBorder }]}>
-            <Text style={[styles.typeBadgeText, { color: colors.text.secondary }]}>
+          <View style={[styles.typeBadge, { backgroundColor: `${typeColor}1F` }]}>
+            <Text style={[styles.typeBadgeText, { color: typeColor }]}>
               {TYPE_LABELS[reservation.type]}
             </Text>
           </View>
@@ -187,7 +191,7 @@ export default function ReservationDetailScreen() {
           activeOpacity={0.8}
         >
           <Text style={[styles.deleteButtonText, { color: colors.semantic.error }]}>
-            Delete Reservation
+            Delete reservation
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -228,18 +232,15 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 44,
+    minHeight: 44,
     alignItems: 'flex-start',
     justifyContent: 'center',
-  },
-  backText: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
   starIcon: { width: 18, height: 18 },
   title: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semiBold,
   },
   scroll: {
     flex: 1,
@@ -251,9 +252,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing['3'],
     marginBottom: Spacing['4'],
-  },
-  typeIcon: {
-    fontSize: 48,
   },
   heroTitle: {
     fontSize: FontSize.xl,

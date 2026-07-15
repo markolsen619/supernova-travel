@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
 import { FontWeight } from '@/constants/typography';
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -30,6 +30,7 @@ const fontSizes: Record<AvatarSize, number> = {
 };
 
 export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
+  const { colors } = useTheme();
   const px = sizePx[size];
   const initials = name
     ? name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
@@ -45,32 +46,34 @@ export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
     return (
       <Image
         source={{ uri }}
-        style={[circleStyle, styles.image, style as ImageStyle]}
+        style={[
+          circleStyle,
+          // Neutral hairline, not a brand-purple ring — an avatar shows up in
+          // every list row across the app, and a colored border on all of
+          // them would be exactly the "brand as wallpaper" anti-pattern.
+          { borderWidth: 1, borderColor: colors.background.cardBorder },
+          style as ImageStyle,
+        ]}
       />
     );
   }
 
   return (
     <LinearGradient
-      colors={Colors.gradient.purplePink}
+      colors={colors.gradient.purplePink}
       style={[circleStyle, styles.gradient, style]}
     >
-      <Text style={[styles.initials, { fontSize: fontSizes[size] }]}>{initials}</Text>
+      <Text style={[styles.initials, { fontSize: fontSizes[size], color: colors.white }]}>{initials}</Text>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  image: {
-    borderWidth: 2,
-    borderColor: Colors.brand.purple,
-  },
   gradient: {
     alignItems: 'center',
     justifyContent: 'center',
   } as ViewStyle,
   initials: {
-    color: Colors.white,
     fontWeight: FontWeight.bold,
   },
 });

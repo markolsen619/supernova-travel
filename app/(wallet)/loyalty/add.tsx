@@ -13,21 +13,25 @@ import {
 import { useState, useCallback } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLoyaltyPrograms } from '@/hooks/useLoyaltyPrograms';
+import { LOYALTY_ICONS } from '@/constants/icons';
 import { LoyaltyUnit, LoyaltyTier, LoyaltyProgram } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
 type ProgramType = LoyaltyProgram['programType'];
 
-const PROGRAM_TYPES: { type: ProgramType; icon: string; label: string }[] = [
-  { type: 'airline', icon: '✈️', label: 'Airline' },
-  { type: 'hotel', icon: '🏨', label: 'Hotel' },
-  { type: 'car_rental', icon: '🚗', label: 'Car Rental' },
-  { type: 'credit_card', icon: '💳', label: 'Credit Card' },
-  { type: 'other', icon: '⭐', label: 'Other' },
+const PROGRAM_TYPES: { type: ProgramType; label: string }[] = [
+  { type: 'airline', label: 'Airline' },
+  { type: 'hotel', label: 'Hotel' },
+  { type: 'car_rental', label: 'Car rental' },
+  { type: 'credit_card', label: 'Credit card' },
+  { type: 'other', label: 'Other' },
 ];
 
 const UNITS: LoyaltyUnit[] = ['miles', 'points', 'nights', 'segments'];
@@ -107,6 +111,26 @@ export default function AddLoyaltyScreen() {
 
   const labelStyle = [styles.label, { color: colors.text.secondary }];
 
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
+
+  const handleSelectType = useCallback((t: ProgramType) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setProgramType(t);
+  }, []);
+
+  const handleSelectUnit = useCallback((u: LoyaltyUnit) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setUnit(u);
+  }, []);
+
+  const handleSelectTier = useCallback((t: LoyaltyTier) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTier(t);
+  }, []);
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background.primary }]}
@@ -122,12 +146,12 @@ export default function AddLoyaltyScreen() {
           },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
+          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <View style={styles.titleGroup}>
           <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
-          <Text style={[styles.title, { color: colors.text.primary }]}>Add Loyalty Program</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>Add loyalty program</Text>
         </View>
         <View style={styles.backButton} />
       </View>
@@ -139,7 +163,7 @@ export default function AddLoyaltyScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Program Name */}
-        <Text style={labelStyle}>Program Name</Text>
+        <Text style={labelStyle}>Program name</Text>
         <TextInput
           style={inputStyle}
           value={programName}
@@ -150,28 +174,30 @@ export default function AddLoyaltyScreen() {
         />
 
         {/* Program Type */}
-        <Text style={labelStyle}>Program Type</Text>
+        <Text style={labelStyle}>Program type</Text>
         <View style={styles.typeRow}>
-          {PROGRAM_TYPES.map(({ type, icon, label }) => {
+          {PROGRAM_TYPES.map(({ type, label }) => {
             const isSelected = programType === type;
+            const { Icon: TypeIcon, color: typeColor } = LOYALTY_ICONS[type];
             return (
               <TouchableOpacity
                 key={type}
-                onPress={() => setProgramType(type)}
+                onPress={() => handleSelectType(type)}
                 style={[
                   styles.typeButton,
                   {
-                    backgroundColor: isSelected ? colors.brand.purple : colors.background.card,
+                    backgroundColor: isSelected ? `${colors.brand.purple}1F` : colors.background.card,
                     borderColor: isSelected ? colors.brand.purple : colors.background.cardBorder,
                   },
                 ]}
                 activeOpacity={0.75}
+                accessibilityLabel={`${label} program`}
               >
-                <Text style={styles.typeIcon}>{icon}</Text>
+                <TypeIcon size={20} color={isSelected ? colors.brand.purple : typeColor} weight="duotone" />
                 <Text
                   style={[
                     styles.typeLabel,
-                    { color: isSelected ? '#ffffff' : colors.text.secondary },
+                    { color: isSelected ? colors.brand.purple : colors.text.secondary },
                   ]}
                 >
                   {label}
@@ -182,7 +208,7 @@ export default function AddLoyaltyScreen() {
         </View>
 
         {/* Member Number */}
-        <Text style={labelStyle}>Member Number (optional)</Text>
+        <Text style={labelStyle}>Member number (optional)</Text>
         <TextInput
           style={inputStyle}
           value={memberNumber}
@@ -212,11 +238,11 @@ export default function AddLoyaltyScreen() {
             return (
               <TouchableOpacity
                 key={u}
-                onPress={() => setUnit(u)}
+                onPress={() => handleSelectUnit(u)}
                 style={[
                   styles.optionButton,
                   {
-                    backgroundColor: isSelected ? colors.brand.purple : colors.background.card,
+                    backgroundColor: isSelected ? `${colors.brand.purple}1F` : colors.background.card,
                     borderColor: isSelected ? colors.brand.purple : colors.background.cardBorder,
                   },
                 ]}
@@ -225,7 +251,7 @@ export default function AddLoyaltyScreen() {
                 <Text
                   style={[
                     styles.optionLabel,
-                    { color: isSelected ? '#ffffff' : colors.text.secondary },
+                    { color: isSelected ? colors.brand.purple : colors.text.secondary },
                   ]}
                 >
                   {UNIT_LABELS[u]}
@@ -243,11 +269,11 @@ export default function AddLoyaltyScreen() {
             return (
               <TouchableOpacity
                 key={t}
-                onPress={() => setTier(t)}
+                onPress={() => handleSelectTier(t)}
                 style={[
                   styles.optionButton,
                   {
-                    backgroundColor: isSelected ? colors.brand.purple : colors.background.card,
+                    backgroundColor: isSelected ? `${colors.brand.purple}1F` : colors.background.card,
                     borderColor: isSelected ? colors.brand.purple : colors.background.cardBorder,
                   },
                 ]}
@@ -256,7 +282,7 @@ export default function AddLoyaltyScreen() {
                 <Text
                   style={[
                     styles.optionLabel,
-                    { color: isSelected ? '#ffffff' : colors.text.secondary },
+                    { color: isSelected ? colors.brand.purple : colors.text.secondary },
                   ]}
                 >
                   {TIER_LABELS[t]}
@@ -267,7 +293,7 @@ export default function AddLoyaltyScreen() {
         </View>
 
         {/* Expiry Date */}
-        <Text style={labelStyle}>Expiry Date (optional)</Text>
+        <Text style={labelStyle}>Expiry date (optional)</Text>
         <TextInput
           style={inputStyle}
           value={expiryDate}
@@ -279,19 +305,16 @@ export default function AddLoyaltyScreen() {
         />
 
         {/* Submit */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            { backgroundColor: colors.brand.purple, opacity: addProgram.isPending ? 0.7 : 1 },
-          ]}
+        <Button
+          label="Add loyalty program"
           onPress={handleSubmit}
+          loading={addProgram.isPending}
           disabled={addProgram.isPending}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.submitButtonText, { color: '#ffffff' }]}>
-            {addProgram.isPending ? 'Saving...' : 'Add Loyalty Program'}
-          </Text>
-        </TouchableOpacity>
+          variant="primary"
+          size="lg"
+          fullWidth
+          style={styles.submitButton}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -311,18 +334,15 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 44,
+    minHeight: 44,
     alignItems: 'flex-start',
     justifyContent: 'center',
-  },
-  backText: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
   starIcon: { width: 18, height: 18 },
   title: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semiBold,
   },
   scroll: {
     flex: 1,
@@ -348,14 +368,13 @@ const styles = StyleSheet.create({
   typeButton: {
     flex: 1,
     minWidth: '18%',
+    minHeight: 44,
     borderWidth: 1,
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing['3'],
     alignItems: 'center',
+    justifyContent: 'center',
     gap: Spacing['1'],
-  },
-  typeIcon: {
-    fontSize: 20,
   },
   typeLabel: {
     fontSize: FontSize.xs,
@@ -371,7 +390,9 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing['3'],
     paddingVertical: Spacing['2'],
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   optionLabel: {
     fontSize: FontSize.sm,
@@ -379,12 +400,5 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: Spacing['6'],
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing['4'],
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.bold,
   },
 });

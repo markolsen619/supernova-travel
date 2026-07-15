@@ -1,34 +1,38 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
-  Image,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Animated,
-  Pressable,
+  Image,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
-import { ACTIVITY_ICONS, VISIBILITY_ICONS } from '@/constants/icons';
-import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
+import { NestableScrollContainer } from 'react-native-draggable-flatlist';
+import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass } from 'phosphor-react-native';
+import { VISIBILITY_ICONS } from '@/constants/icons';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useTrip } from '@/hooks/useTrip';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { DayTimeline } from '@/components/trip/DayTimeline';
+import { ActivityFormSheet, type ActivityFormData } from '@/components/trip/ActivityFormSheet';
+import { AddStopSheet } from '@/components/trip/AddStopSheet';
+import { TripMapView } from '@/components/trip/TripMapView';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { ActivityType, TripActivity, TripDay } from '@/types';
+import { TripActivity, TripDay } from '@/types';
+import { enrichPlaceByQuery, enrichPlaceById, photoUrl } from '@/services/places/googlePlaces';
+import { usePlacesStore } from '@/stores/usePlacesStore';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -47,230 +51,43 @@ const STATUS_LABEL: Record<string, string> = {
   completed: 'Completed',
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  planning: '#fbbf24',
-  active: '#34d399',
-  completed: '#60a5fa',
+const VISIBILITY_LABEL: Record<string, string> = {
+  public: 'Public',
+  followers: 'Followers',
+  private: 'Private',
 };
 
-const ACTIVITY_TYPE_OPTIONS: ActivityType[] = [
-  'flight', 'hotel', 'restaurant', 'activity', 'transport', 'free',
-];
+// ─── Entrance motion (Fix 5) ──────────────────────────────────────────────────
+// Staggered fade + rise-in for each day section, house spring only (tension
+// 65 / friction 11) — no shimmer/timing curve. Runs once per mount.
+function AnimatedDaySection({
+  index,
+  style,
+  children,
+}: {
+  index: number;
+  style?: object;
+  children: React.ReactNode;
+}) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
 
-// ─── Add Activity Sheet ──────────────────────────────────────────────────────
-
-interface AddActivitySheetProps {
-  visible: boolean;
-  onClose: () => void;
-  onSubmit: (data: {
-    type: ActivityType;
-    title: string;
-    startTime: string | null;
-    notes: string;
-  }) => Promise<void>;
-}
-
-function AddActivitySheet({ visible, onClose, onSubmit }: AddActivitySheetProps) {
-  const { colors } = useTheme();
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const [type, setType] = useState<ActivityType>('activity');
-  const [title, setTitle] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.spring(slideAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible, slideAnim]);
-
-  function reset() {
-    setType('activity');
-    setTitle('');
-    setStartTime('');
-    setNotes('');
-  }
-
-  async function handleAdd() {
-    if (!title.trim()) return;
-    setSubmitting(true);
-    try {
-      await onSubmit({
-        type,
-        title: title.trim(),
-        startTime: startTime.trim() || null,
-        notes: notes.trim(),
-      });
-      reset();
-      onClose();
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function handleClose() {
-    reset();
-    onClose();
-  }
-
-  const translateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [400, 0],
-  });
+  useEffect(() => {
+    Animated.sequence([
+      Animated.delay(index * 70),
+      Animated.parallel([
+        Animated.spring(opacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
+        Animated.spring(translateY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+      ]),
+    ]).start();
+    // Runs once on mount only — day sections don't remount on reorder/edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={handleClose}
-      statusBarTranslucent
-    >
-      <KeyboardAvoidingView
-        style={styles.sheetOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <Pressable style={styles.sheetBackdrop} onPress={handleClose} />
-        <Animated.View
-          style={[
-            styles.sheetContainer,
-            {
-              backgroundColor: colors.background.elevated,
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          {/* Handle */}
-          <View style={[styles.sheetHandle, { backgroundColor: colors.background.cardBorder }]} />
-
-          <Text style={[styles.sheetTitle, { color: colors.text.primary }]}>Add Activity</Text>
-
-          {/* Type selector */}
-          <View style={styles.typeRow}>
-            {ACTIVITY_TYPE_OPTIONS.map((actType) => {
-              const { Icon, color } = ACTIVITY_ICONS[actType];
-              return (
-                <TouchableOpacity
-                  key={actType}
-                  onPress={() => setType(actType)}
-                  style={[
-                    styles.typeBtn,
-                    {
-                      backgroundColor:
-                        type === actType
-                          ? colors.brand.purple + '33'
-                          : colors.background.card,
-                      borderColor:
-                        type === actType
-                          ? colors.brand.purple
-                          : colors.background.cardBorder,
-                    },
-                  ]}
-                >
-                  <TypeIconBubble Icon={Icon} color={color} bubbleSize={28} iconSize={16} />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Title */}
-          <TextInput
-            style={[
-              styles.sheetInput,
-              {
-                color: colors.text.primary,
-                backgroundColor: colors.background.card,
-                borderColor: colors.background.cardBorder,
-              },
-            ]}
-            placeholder="Activity title *"
-            placeholderTextColor={colors.text.tertiary}
-            value={title}
-            onChangeText={setTitle}
-            autoFocus
-            returnKeyType="next"
-          />
-
-          {/* Start time */}
-          <TextInput
-            style={[
-              styles.sheetInput,
-              {
-                color: colors.text.primary,
-                backgroundColor: colors.background.card,
-                borderColor: colors.background.cardBorder,
-              },
-            ]}
-            placeholder="Start time (e.g. 14:30)"
-            placeholderTextColor={colors.text.tertiary}
-            value={startTime}
-            onChangeText={setStartTime}
-            keyboardType="numbers-and-punctuation"
-          />
-
-          {/* Notes */}
-          <TextInput
-            style={[
-              styles.sheetInput,
-              styles.sheetNotesInput,
-              {
-                color: colors.text.primary,
-                backgroundColor: colors.background.card,
-                borderColor: colors.background.cardBorder,
-              },
-            ]}
-            placeholder="Notes (optional)"
-            placeholderTextColor={colors.text.tertiary}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
-
-          {/* Add button */}
-          <TouchableOpacity
-            onPress={handleAdd}
-            disabled={!title.trim() || submitting}
-            style={[
-              styles.sheetAddBtn,
-              {
-                backgroundColor:
-                  title.trim() && !submitting
-                    ? colors.brand.purple
-                    : colors.background.cardBorder,
-              },
-            ]}
-            activeOpacity={0.8}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text
-                style={[
-                  styles.sheetAddBtnText,
-                  { color: title.trim() ? '#fff' : colors.text.tertiary },
-                ]}
-              >
-                Add Activity
-              </Text>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
+    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
   );
 }
 
@@ -284,56 +101,199 @@ export default function TripDetailScreen() {
   const currentUserUid = useAuthStore((s) => s.user?.uid ?? null);
 
   const { data: trip, isLoading } = useTrip(id ?? null);
-  const { addDay, addActivity } = useCreateTrip();
+  const {
+    addDay,
+    addActivity,
+    updateActivity,
+    deleteActivity,
+    reorderActivities,
+    moveActivityToDay,
+    deleteDay,
+    updateTrip,
+  } = useCreateTrip();
+  const setPlace = usePlacesStore((s) => s.setPlace);
+  const getPlace = usePlacesStore((s) => s.getPlace);
 
   // Collapsible description state
   const [descExpanded, setDescExpanded] = useState(false);
 
-  // Add-activity sheet state
-  const [sheetVisible, setSheetVisible] = useState(false);
+  // Lazy-grounding state (Part B) — id of the activity currently being resolved
+  const [resolvingActivityId, setResolvingActivityId] = useState<string | null>(null);
+
+  // Activity form sheet state (add + edit share one sheet — see ActivityFormSheet)
+  const [formVisible, setFormVisible] = useState(false);
+  const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [activeDay, setActiveDay] = useState<TripDay | null>(null);
+  const [editingActivity, setEditingActivity] = useState<TripActivity | null>(null);
+
+  // Add-stop (place search) sheet state — Phase 4 Part B
+  const [addStopDay, setAddStopDay] = useState<TripDay | null>(null);
+
+  // Map view state — Phase 4 Part C
+  const [viewMode, setViewMode] = useState<'timeline' | 'map'>('timeline');
+  const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Cover photo auto-resolve (Fix 1) ─────────────────────────────────────────
+  // A trip with no cover renders a blank header, which fails "photos lead."
+  // Backfill it from the destination's Google place — but only once, ever, per
+  // trip: cache-first (usePlacesStore), and on a cache miss the single Details
+  // call's result is written back to the trip doc via updateTrip so every future
+  // open of this trip (by anyone) is free. Only the owner can write the trip
+  // doc (Firestore rule), so a viewer opening an unresolved trip first just
+  // sees the placeholder until an owner opens it once.
+  const coverResolveAttempted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!trip || !isOwner) return;
+    if (trip.coverImageUrl !== null) return; // already resolved (real URL, or '' = "no photo found")
+    const placeId = trip.destination.placeId;
+    if (!placeId) return;
+    if (coverResolveAttempted.current === trip.id) return;
+    coverResolveAttempted.current = trip.id;
 
-  const handleAddActivity = useCallback((day: TripDay) => {
+    (async () => {
+      const cached = getPlace(placeId);
+      let photoNames = cached?.photoNames;
+
+      if (!photoNames) {
+        const enriched = await enrichPlaceById(placeId);
+        if (!enriched) {
+          // Transient failure (network/HTTP) — don't persist a sentinel, so
+          // the next time this trip is opened it tries again.
+          coverResolveAttempted.current = null;
+          return;
+        }
+        photoNames = enriched.photoNames;
+        setPlace({
+          placeId,
+          name: trip.destination.name,
+          address: '',
+          lat: trip.destination.lat ?? 0,
+          lng: trip.destination.lng ?? 0,
+          countryCode: trip.destination.countryCode,
+          tier: 'tier2',
+          ...enriched,
+        });
+      }
+
+      const url = photoNames?.[0] ? photoUrl(photoNames[0], 1200) : '';
+      await updateTrip(trip.id, { coverImageUrl: url });
+    })();
+  }, [trip, isOwner, getPlace, setPlace, updateTrip]);
+
+  // ── Handlers: add / edit activity ────────────────────────────────────────────
+
+  const handleOpenAddActivity = useCallback((day: TripDay) => {
+    setFormMode('add');
     setActiveDay(day);
-    setSheetVisible(true);
+    setEditingActivity(null);
+    setFormVisible(true);
   }, []);
 
-  const handleCloseSheet = useCallback(() => {
-    setSheetVisible(false);
+  const handleOpenEditActivity = useCallback(
+    (activity: TripActivity, dayId: string) => {
+      const day = trip?.days.find((d) => d.id === dayId) ?? null;
+      setFormMode('edit');
+      setActiveDay(day);
+      setEditingActivity(activity);
+      setFormVisible(true);
+    },
+    [trip],
+  );
+
+  const handleCloseForm = useCallback(() => {
+    setFormVisible(false);
     setActiveDay(null);
+    setEditingActivity(null);
   }, []);
 
-  const handleSubmitActivity = useCallback(
-    async (data: {
-      type: ActivityType;
-      title: string;
-      startTime: string | null;
-      notes: string;
-    }) => {
+  const handleSubmitActivityForm = useCallback(
+    async (data: ActivityFormData) => {
       if (!id || !activeDay) return;
+      if (formMode === 'edit' && editingActivity) {
+        await updateActivity(id, activeDay.id, editingActivity.id, {
+          type: data.type,
+          title: data.title,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          notes: data.notes,
+        });
+        return;
+      }
       await addActivity(id, activeDay.id, {
         type: data.type,
         title: data.title,
         startTime: data.startTime,
+        endTime: data.endTime,
         notes: data.notes,
         placeId: null,
         address: null,
         lat: null,
         lng: null,
-        endTime: null,
         durationMinutes: null,
         bookingRef: null,
         cost: null,
         currency: null,
         mediaUrls: [],
         createdAt: Timestamp.now(),
+        searchQuery: null, // manually created — nothing to lazily ground
       });
     },
-    [id, activeDay, addActivity],
+    [id, activeDay, formMode, editingActivity, addActivity, updateActivity],
+  );
+
+  const handleDeleteActivity = useCallback(async () => {
+    if (!id || !activeDay || !editingActivity) return;
+    await deleteActivity(id, activeDay.id, editingActivity.id);
+  }, [id, activeDay, editingActivity, deleteActivity]);
+
+  const handleMoveActivity = useCallback(
+    async (targetDayId: string) => {
+      if (!id || !activeDay || !editingActivity) return;
+      await moveActivityToDay(id, activeDay.id, targetDayId, editingActivity);
+    },
+    [id, activeDay, editingActivity, moveActivityToDay],
+  );
+
+  // ── Handlers: reorder / add stop / delete day ────────────────────────────────
+
+  const handleReorderActivities = useCallback(
+    (dayId: string, orderedActivities: TripActivity[]) => {
+      if (!id) return;
+      reorderActivities(id, dayId, orderedActivities);
+    },
+    [id, reorderActivities],
+  );
+
+  const handleOpenAddStop = useCallback((day: TripDay) => {
+    setAddStopDay(day);
+  }, []);
+
+  const handleCloseAddStop = useCallback(() => setAddStopDay(null), []);
+
+  const handleDeleteDay = useCallback(
+    (day: TripDay) => {
+      if (!id || !trip) return;
+      Alert.alert(
+        'Delete Day',
+        `Delete Day ${day.dayNumber} and all its activities? This can't be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              const remaining = trip.days
+                .filter((d) => d.id !== day.id)
+                .sort((a, b) => a.dayNumber - b.dayNumber);
+              deleteDay(id, day.id, remaining);
+            },
+          },
+        ],
+      );
+    },
+    [id, trip, deleteDay],
   );
 
   const handleAddDay = useCallback(async () => {
@@ -347,12 +307,102 @@ export default function TripDetailScreen() {
     });
   }, [id, trip, addDay]);
 
+  // ── Lazy grounding (Phase 3 Part B) ──────────────────────────────────────────
+  // Grounds one AI-generated stop — one Text Search, persisted so it's never
+  // resolved again. Shared by the timeline tap-to-locate AND the map's
+  // per-stop / "Locate all" actions (Phase 4 Part C) — one grounding path,
+  // not two.
+  const handleGroundActivity = useCallback(
+    async (activity: TripActivity, dayId: string) => {
+      if (!id || activity.placeId || !activity.searchQuery || resolvingActivityId) return;
+      setResolvingActivityId(activity.id);
+      try {
+        const resolved = await enrichPlaceByQuery(activity.searchQuery);
+        if (!resolved) {
+          console.error('[trip/[id]] could not ground activity:', activity.searchQuery);
+          return;
+        }
+        await updateActivity(id, dayId, activity.id, {
+          placeId: resolved.placeId,
+          address: resolved.address,
+          lat: resolved.lat,
+          lng: resolved.lng,
+        });
+        // Also warm the Search screen's place cache — if the user encounters
+        // this same place there later, it's already resolved (zero extra cost).
+        setPlace(resolved);
+      } catch (err) {
+        console.error('[trip/[id]] grounding failed:', err);
+      } finally {
+        setResolvingActivityId(null);
+      }
+    },
+    [id, resolvingActivityId, updateActivity, setPlace],
+  );
+
+  // Timeline tap: ungrounded → ground it in place; already-grounded → jump to
+  // the map, centered on its pin (Part C: "tapping an activity in the
+  // timeline flies to its pin"). Kept entirely owner-gated at the call site
+  // (DayTimeline's onActivityPress prop below) rather than only gating the
+  // grounding branch here — ActivityItem uses "is onPress wired at all" to
+  // decide whether to show the "Tap to find on map" hint (Part D), so if this
+  // were wired unconditionally, a viewer would see that hint on ungrounded
+  // stops again, just silently do nothing on tap instead of erroring. Both
+  // are a dead end; only fully omitting onPress for viewers avoids it.
+  const handleActivityPress = useCallback(
+    (activity: TripActivity, dayId: string) => {
+      if (activity.placeId) {
+        setFocusActivityId(activity.id);
+        setViewMode('map');
+        return;
+      }
+      handleGroundActivity(activity, dayId);
+    },
+    [handleGroundActivity],
+  );
+
   // ── Loading / empty states ─────────────────────────────────────────────────
 
   if (isLoading) {
     return (
-      <View style={[styles.centeredFull, { backgroundColor: colors.background.primary }]}>
-        <ActivityIndicator size="large" color={colors.brand.purple} />
+      <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.headerBtn, { top: insets.top + Spacing['2'], left: Spacing['4'] }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Go back"
+        >
+          <View style={styles.headerBtnCircle}>
+            <ArrowLeft size={18} color={colors.text.primary} weight="bold" />
+          </View>
+        </TouchableOpacity>
+        <SkeletonBlock height={HEADER_IMAGE_HEIGHT} radius={0} />
+        <View style={styles.titleBlock}>
+          <SkeletonBlock width={140} height={11} radius={4} />
+          <SkeletonBlock width={220} height={26} radius={6} style={{ marginTop: Spacing['3'] }} />
+        </View>
+        <View style={[styles.chipStripContent, { marginTop: Spacing['4'] }]}>
+          <SkeletonBlock width={110} height={32} radius={BorderRadius.full} />
+          <SkeletonBlock width={80} height={32} radius={BorderRadius.full} />
+          <SkeletonBlock width={70} height={32} radius={BorderRadius.full} />
+        </View>
+        <View style={styles.daysSection}>
+          {[0, 1].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.daySection,
+                i > 0 && { borderTopColor: colors.background.cardBorder, borderTopWidth: StyleSheet.hairlineWidth },
+              ]}
+            >
+              <SkeletonBlock width={90} height={16} radius={4} />
+              <View style={{ gap: Spacing['2'], marginTop: Spacing['3'] }}>
+                <SkeletonBlock height={52} radius={BorderRadius.md} />
+                <SkeletonBlock height={52} radius={BorderRadius.md} />
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
     );
   }
@@ -360,127 +410,188 @@ export default function TripDetailScreen() {
   if (!trip) {
     return (
       <View style={[styles.centeredFull, { backgroundColor: colors.background.primary }]}>
-        <Text style={[styles.notFoundText, { color: colors.text.secondary }]}>
-          Trip not found
-        </Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLinkBtn}>
-          <Text style={[styles.backLinkText, { color: colors.brand.purple }]}>Go back</Text>
-        </TouchableOpacity>
+        <EmptyState
+          icon={Compass}
+          title="Trip not found"
+          description="It may have been deleted, or you may not have access."
+          actionLabel="Go back"
+          onAction={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+          actionHaptic="none"
+        />
       </View>
     );
   }
 
   const sortedDays = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
   const hasDescription = Boolean(trip.description?.trim());
+  const dayCount = sortedDays.length;
+  const eyebrow = `${formatDateRange(trip.startDate, trip.endDate).toUpperCase()}${
+    dayCount > 0 ? ` · ${dayCount} DAY${dayCount === 1 ? '' : 'S'}` : ''
+  }`;
+
+  if (viewMode === 'map') {
+    return (
+      <TripMapView
+        tripTitle={trip.title}
+        days={sortedDays}
+        isOwner={isOwner}
+        resolvingActivityId={resolvingActivityId}
+        onLocateStop={handleGroundActivity}
+        focusActivityId={focusActivityId}
+        onBack={() => {
+          setViewMode('timeline');
+          setFocusActivityId(null);
+        }}
+      />
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
-      <ScrollView
+      <NestableScrollContainer
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ── 1. Header image area ── */}
+        {/* ── 1. Photo header — image only; title lives below in the content block ── */}
         <View style={styles.headerImageContainer}>
           {trip.coverImageUrl ? (
-            <Image
-              source={{ uri: trip.coverImageUrl }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
+            <>
+              <Image
+                source={{ uri: trip.coverImageUrl }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+              />
+              {/* Scrim: extra legibility margin for the header buttons over
+                  unpredictable photo content — the buttons themselves don't
+                  depend on it (see headerBtnCircle). */}
+              <LinearGradient
+                colors={['rgba(0,0,0,0.32)', 'rgba(0,0,0,0)']}
+                style={styles.headerScrim}
+                pointerEvents="none"
+              />
+              {/* Required Google attribution — every cover photo on this screen
+                  comes from a Google place (no manual-upload path exists). */}
+              <View style={styles.attributionPill}>
+                <Text style={styles.attributionText}>Photo: Google</Text>
+              </View>
+            </>
           ) : (
-            <LinearGradient
-              colors={colors.gradient.dark}
-              style={StyleSheet.absoluteFill}
-            />
+            // Warm neutral placeholder — never a blank bar. Names the place so
+            // it still reads as "this trip", not a generic empty box.
+            <View style={[StyleSheet.absoluteFill, styles.headerPlaceholder, { backgroundColor: colors.background.sunken }]}>
+              <MapTrifold size={30} color={colors.text.disabled} weight="duotone" />
+              <Text style={[styles.headerPlaceholderText, { color: colors.text.disabled }]} numberOfLines={1}>
+                {trip.destination.name}
+              </Text>
+            </View>
           )}
 
-          {/* Gradient overlay for title legibility */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.75)']}
-            style={styles.headerOverlay}
-          />
-
-          {/* Back button */}
+          {/* Back button — light-translucent circle + dark icon reads on both
+              a photo (aided by the scrim above) and the plain placeholder. */}
           <TouchableOpacity
-            onPress={() => router.back()}
-            style={[styles.headerBackBtn, { top: insets.top + Spacing['2'] }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.back();
+            }}
+            style={[styles.headerBtn, { top: insets.top + Spacing['2'], left: Spacing['4'] }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Go back"
           >
             <View style={styles.headerBtnCircle}>
-              <Text style={styles.headerBtnIcon}>←</Text>
+              <ArrowLeft size={18} color={colors.text.primary} weight="bold" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Map toggle — visible to everyone; owner-only actions are gated inside TripMapView */}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setViewMode('map');
+            }}
+            style={[
+              styles.headerBtn,
+              { top: insets.top + Spacing['2'], right: isOwner ? Spacing['4'] + 44 + Spacing['2'] : Spacing['4'] },
+            ]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Show trip map"
+          >
+            <View style={styles.headerBtnCircle}>
+              <MapTrifold size={18} color={colors.text.primary} weight="bold" />
             </View>
           </TouchableOpacity>
 
           {/* Edit button — owner only */}
           {isOwner && (
             <TouchableOpacity
-              onPress={() => router.push({ pathname: '/trip/edit', params: { id } })}
-              style={[styles.headerEditBtn, { top: insets.top + Spacing['2'] }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({ pathname: '/trip/edit', params: { id } });
+              }}
+              style={[styles.headerBtn, { top: insets.top + Spacing['2'], right: Spacing['4'] }]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Edit trip"
             >
               <View style={styles.headerBtnCircle}>
-                <Text style={styles.headerBtnIcon}>✏️</Text>
+                <PencilSimple size={16} color={colors.text.primary} weight="bold" />
               </View>
             </TouchableOpacity>
           )}
-
-          {/* Trip title overlay */}
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTripTitle} numberOfLines={2}>
-              {trip.title}
-            </Text>
-          </View>
         </View>
 
-        {/* ── 2. Meta strip ── */}
+        {/* ── 2. Title block — eyebrow + editorial title ── */}
+        <View style={styles.titleBlock}>
+          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{eyebrow}</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>{trip.title}</Text>
+        </View>
+
+        {/* ── 3. Chips: destination + status + visibility ── */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={[styles.metaStrip, { borderBottomColor: colors.background.cardBorder }]}
-          contentContainerStyle={styles.metaStripContent}
+          style={styles.chipStrip}
+          contentContainerStyle={styles.chipStripContent}
         >
-          {/* Destination */}
-          <View style={[styles.metaChip, { backgroundColor: colors.background.card }]}>
-            <Text style={[styles.metaChipText, { color: colors.text.primary }]}>
-              📍 {trip.destination.name}
+          <View style={[styles.chip, { backgroundColor: colors.background.sunken }]}>
+            <MapPin size={13} color={colors.text.secondary} weight="bold" />
+            <Text style={[styles.chipText, { color: colors.text.primary }]} numberOfLines={1}>
+              {trip.destination.name}
             </Text>
           </View>
 
-          {/* Date range */}
-          <View style={[styles.metaChip, { backgroundColor: colors.background.card }]}>
-            <Text style={[styles.metaChipText, { color: colors.text.primary }]}>
-              🗓 {formatDateRange(trip.startDate, trip.endDate)}
-            </Text>
-          </View>
-
-          {/* Status pill */}
           <View
             style={[
-              styles.metaChip,
-              { backgroundColor: (STATUS_COLOR[trip.status] ?? '#6b7280') + '26' },
+              styles.chip,
+              { backgroundColor: colors.status[trip.status]?.bg ?? colors.background.sunken },
             ]}
           >
             <Text
               style={[
-                styles.metaChipText,
-                { color: STATUS_COLOR[trip.status] ?? colors.text.secondary },
+                styles.chipText,
+                { color: colors.status[trip.status]?.text ?? colors.text.secondary },
               ]}
             >
               {STATUS_LABEL[trip.status] ?? trip.status}
             </Text>
           </View>
 
-          {/* Visibility */}
-          <View style={[styles.metaChip, { backgroundColor: colors.background.card }]}>
+          {/* Visibility — labeled like its sibling chips; an icon alone here
+              read as meaningless (nothing else in the row is icon-only). */}
+          <View style={[styles.chip, { backgroundColor: colors.background.sunken }]}>
             {(() => {
               const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[trip.visibility] ?? VISIBILITY_ICONS.public;
-              return <VIcon size={14} color={vColor} weight="duotone" />;
+              return <VIcon size={13} color={vColor} weight="duotone" />;
             })()}
+            <Text style={[styles.chipText, { color: colors.text.primary }]}>
+              {VISIBILITY_LABEL[trip.visibility] ?? trip.visibility}
+            </Text>
           </View>
         </ScrollView>
 
-        {/* ── 3. Description ── */}
+        {/* ── 4. Description ── */}
         {hasDescription && (
           <View style={styles.descriptionContainer}>
             <Text
@@ -490,103 +601,109 @@ export default function TripDetailScreen() {
               {trip.description}
             </Text>
             <TouchableOpacity
-              onPress={() => setDescExpanded((v) => !v)}
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setDescExpanded((v) => !v);
+              }}
+              // A bare 13px text line with no padding wrapper is ~17pt tall —
+              // hitSlop 4 landed at ~25pt, well short of the 44pt floor.
+              hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
             >
-              <Text style={[styles.readMoreText, { color: colors.brand.purple }]}>
+              <Text style={[styles.readMoreText, { color: colors.text.primary }]}>
                 {descExpanded ? 'Show less' : 'Read more'}
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* ── 4. Day timeline ── */}
+        {/* ── 5. Day sections — hairline-divided, not boxed cards ── */}
         <View style={styles.daysSection}>
           {sortedDays.length === 0 ? (
             isOwner ? (
-              /* No days — owner prompt */
-              <View
-                style={[
-                  styles.emptyDaysCard,
-                  {
-                    backgroundColor: colors.background.card,
-                    borderColor: colors.background.cardBorder,
-                  },
-                ]}
-              >
-                <Text style={[styles.emptyDaysEmoji]}>🗺️</Text>
-                <Text style={[styles.emptyDaysTitle, { color: colors.text.primary }]}>
-                  Start building your itinerary
-                </Text>
-                <Text style={[styles.emptyDaysSub, { color: colors.text.tertiary }]}>
-                  Add your first day to get started
-                </Text>
-                <TouchableOpacity
-                  onPress={handleAddDay}
-                  style={[styles.addFirstDayBtn, { backgroundColor: colors.brand.purple }]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.addFirstDayBtnText}>Add your first day</Text>
-                </TouchableOpacity>
-              </View>
+              <EmptyState
+                icon={MapTrifold}
+                title="Start your first day"
+                description="Add a day to begin planning your itinerary."
+                actionLabel="Add a day"
+                onAction={handleAddDay}
+              />
             ) : (
-              /* No days — viewer */
-              <View style={styles.emptyViewerContainer}>
-                <Text style={[styles.emptyViewerText, { color: colors.text.tertiary }]}>
-                  No itinerary yet
-                </Text>
-              </View>
+              <EmptyState icon={MapTrifold} title="No itinerary yet" />
             )
           ) : (
             <>
-              {sortedDays.map((day) => (
-                <View
+              {sortedDays.map((day, index) => (
+                <AnimatedDaySection
                   key={day.id}
+                  index={index}
                   style={[
-                    styles.dayCard,
-                    {
-                      backgroundColor: colors.background.card,
-                      borderColor: colors.background.cardBorder,
-                    },
+                    styles.daySection,
+                    index > 0 && { borderTopColor: colors.background.cardBorder, borderTopWidth: StyleSheet.hairlineWidth },
                   ]}
                 >
                   <DayTimeline
                     day={day}
                     editable={isOwner}
-                    onAddActivity={isOwner ? () => handleAddActivity(day) : undefined}
+                    onAddActivity={isOwner ? () => handleOpenAddActivity(day) : undefined}
+                    onAddStop={isOwner ? () => handleOpenAddStop(day) : undefined}
+                    onEditActivity={isOwner ? (activity) => handleOpenEditActivity(activity, day.id) : undefined}
+                    onActivityPress={isOwner ? handleActivityPress : undefined}
+                    onReorderActivities={isOwner ? handleReorderActivities : undefined}
+                    onDeleteDay={isOwner ? () => handleDeleteDay(day) : undefined}
+                    resolvingActivityId={resolvingActivityId}
                   />
-                </View>
+                </AnimatedDaySection>
               ))}
 
-              {/* ── 5. Add Day button — owner only ── */}
+              {/* ── 6. Add Day — tertiary text link, not a competing action ──
+                  Writes a day immediately (handleAddDay), so Medium — fired
+                  here rather than inside handleAddDay itself, since that
+                  handler is shared with the empty-days EmptyState action
+                  above, which already gets its haptic from Button. */}
               {isOwner && (
                 <TouchableOpacity
-                  onPress={handleAddDay}
-                  style={[
-                    styles.addDayBtn,
-                    {
-                      borderColor: colors.brand.purple + '66',
-                      backgroundColor: colors.brand.purple + '14',
-                    },
-                  ]}
-                  activeOpacity={0.75}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    handleAddDay();
+                  }}
+                  style={styles.addDayLink}
+                  activeOpacity={0.7}
+                  hitSlop={8}
                 >
-                  <Text style={[styles.addDayBtnText, { color: colors.brand.purple }]}>
-                    + Add Day
+                  <Plus size={14} color={colors.text.secondary} weight="bold" />
+                  <Text style={[styles.addDayLinkText, { color: colors.text.secondary }]}>
+                    Add day
                   </Text>
                 </TouchableOpacity>
               )}
             </>
           )}
         </View>
-      </ScrollView>
+      </NestableScrollContainer>
 
-      {/* ── Add Activity Sheet ── */}
-      <AddActivitySheet
-        visible={sheetVisible}
-        onClose={handleCloseSheet}
-        onSubmit={handleSubmitActivity}
+      {/* ── Add / Edit Activity Sheet ── */}
+      <ActivityFormSheet
+        visible={formVisible}
+        mode={formMode}
+        activity={editingActivity}
+        days={sortedDays}
+        currentDayId={activeDay?.id}
+        onClose={handleCloseForm}
+        onSubmit={handleSubmitActivityForm}
+        onDelete={formMode === 'edit' ? handleDeleteActivity : undefined}
+        onMoveToDay={formMode === 'edit' ? handleMoveActivity : undefined}
       />
+
+      {/* ── Add Stop Sheet (Part B — place search) ── */}
+      {addStopDay && id ? (
+        <AddStopSheet
+          visible={!!addStopDay}
+          tripId={id}
+          dayId={addStopDay.id}
+          dayNumber={addStopDay.dayNumber}
+          onClose={handleCloseAddStop}
+        />
+      ) : null}
     </View>
   );
 }
@@ -605,19 +722,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing['4'],
   },
-  notFoundText: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semiBold,
-  },
-  backLinkBtn: {
-    paddingVertical: Spacing['2'],
-    paddingHorizontal: Spacing['4'],
-  },
-  backLinkText: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semiBold,
-  },
-
   // ── Scroll ──
   scroll: {
     flex: 1,
@@ -626,214 +730,142 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['12'],
   },
 
-  // ── Header Image ──
+  // ── Header Image (photo only — no title overlay, see titleBlock) ──
   headerImageContainer: {
     height: HEADER_IMAGE_HEIGHT,
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#1a0a3a',
   },
-  headerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  headerBackBtn: {
+  headerBtn: {
     position: 'absolute',
-    left: Spacing['4'],
-    zIndex: 10,
-  },
-  headerEditBtn: {
-    position: 'absolute',
-    right: Spacing['4'],
     zIndex: 10,
   },
   headerBtnCircle: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    // Fixed light-translucent circle + dark icon (set at each call site via
+    // colors.text.primary) — legible over BOTH a photo (helped by the scrim
+    // above it) and the plain placeholder, unlike a fixed dark overlay which
+    // reads as a grey blob with no photo behind it.
+    backgroundColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  headerBtnIcon: {
-    fontSize: 18,
-    color: '#fff',
-  },
-  headerTitleContainer: {
+  headerScrim: {
     position: 'absolute',
-    bottom: Spacing['5'],
-    left: Spacing['4'],
-    right: Spacing['4'],
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 96,
   },
-  headerTripTitle: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.bold,
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.6)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+  headerPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing['2'],
+    paddingHorizontal: Spacing['8'],
+  },
+  headerPlaceholderText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+  },
+  attributionPill: {
+    position: 'absolute',
+    right: Spacing['3'],
+    bottom: Spacing['3'],
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing['2'],
+    paddingVertical: 3,
+  },
+  attributionText: {
+    fontSize: 10,
+    fontWeight: FontWeight.medium,
+    color: 'rgba(255,255,255,0.85)',
   },
 
-  // ── Meta Strip ──
-  metaStrip: {
-    borderBottomWidth: 1,
+  // ── Title block — the editorial signature: eyebrow above a big title ──
+  titleBlock: {
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['5'],
+    gap: Spacing['2'],
   },
-  metaStripContent: {
-    paddingHorizontal: Spacing['4'],
-    paddingVertical: Spacing['3'],
+  eyebrow: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.medium,
+    letterSpacing: 0.08 * FontSize.xs,
+    textTransform: 'uppercase',
+  },
+  title: {
+    fontSize: FontSize['2xl'],
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
+    lineHeight: FontSize['2xl'] * 1.15,
+  },
+
+  // ── Chip strip ──
+  chipStrip: {
+    marginTop: Spacing['4'],
+  },
+  chipStripContent: {
+    paddingHorizontal: Spacing['5'],
     gap: Spacing['2'],
     flexDirection: 'row',
     alignItems: 'center',
   },
-  metaChip: {
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['1'],
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing['3'],
-    paddingVertical: Spacing['1'],
+    paddingVertical: Spacing['2'],
   },
-  metaChipText: {
+  chipText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
   },
 
   // ── Description ──
   descriptionContainer: {
-    paddingHorizontal: Spacing['4'],
-    paddingTop: Spacing['4'],
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['5'],
     gap: Spacing['2'],
   },
   descriptionText: {
     fontSize: FontSize.base,
-    lineHeight: 22,
+    lineHeight: FontSize.base * 1.5,
   },
   readMoreText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semiBold,
   },
 
-  // ── Days Section ──
+  // ── Days Section — hairline-divided, not boxed cards ──
   daysSection: {
-    padding: Spacing['4'],
-    gap: Spacing['4'],
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['8'],
+    gap: Spacing['6'],
   },
-  dayCard: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    padding: Spacing['4'],
-  },
-
-  // ── No Days — owner ──
-  emptyDaysCard: {
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    padding: Spacing['8'],
-    alignItems: 'center',
-    gap: Spacing['2'],
-  },
-  emptyDaysEmoji: {
-    fontSize: 40,
-    marginBottom: Spacing['2'],
-  },
-  emptyDaysTitle: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semiBold,
-    textAlign: 'center',
-  },
-  emptyDaysSub: {
-    fontSize: FontSize.sm,
-    textAlign: 'center',
-  },
-  addFirstDayBtn: {
-    marginTop: Spacing['4'],
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing['6'],
-    paddingVertical: Spacing['3'],
-  },
-  addFirstDayBtnText: {
-    color: '#fff',
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semiBold,
+  daySection: {
+    paddingTop: Spacing['6'],
   },
 
-  // ── No Days — viewer ──
-  emptyViewerContainer: {
-    paddingVertical: Spacing['8'],
-    alignItems: 'center',
-  },
-  emptyViewerText: {
-    fontSize: FontSize.base,
-  },
-
-  // ── Add Day Button ──
-  addDayBtn: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing['4'],
-    alignItems: 'center',
-  },
-  addDayBtnText: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semiBold,
-  },
-
-  // ── Add Activity Sheet ──
-  sheetOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheetBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  sheetContainer: {
-    borderTopLeftRadius: BorderRadius['2xl'],
-    borderTopRightRadius: BorderRadius['2xl'],
-    padding: Spacing['6'],
-    paddingBottom: Spacing['8'],
-    gap: Spacing['3'],
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: Spacing['2'],
-  },
-  sheetTitle: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    marginBottom: Spacing['1'],
-  },
-  typeRow: {
+  // ── Add Day — tertiary text link ──
+  addDayLink: {
     flexDirection: 'row',
-    gap: Spacing['2'],
-  },
-  typeBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing['2'],
     alignItems: 'center',
-  },
-  sheetInput: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing['3'],
+    justifyContent: 'center',
+    gap: Spacing['1'],
     paddingVertical: Spacing['3'],
-    fontSize: FontSize.base,
   },
-  sheetNotesInput: {
-    minHeight: 72,
-    paddingTop: Spacing['3'],
-  },
-  sheetAddBtn: {
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing['4'],
-    alignItems: 'center',
-    marginTop: Spacing['2'],
-  },
-  sheetAddBtnText: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semiBold,
+  addDayLinkText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
   },
 });

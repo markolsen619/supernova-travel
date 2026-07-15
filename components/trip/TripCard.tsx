@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Timestamp } from 'firebase/firestore';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
-import { BorderRadius, Spacing, Shadow } from '@/constants/spacing';
+import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Avatar } from '@/components/ui/Avatar';
 import { Trip, TripStatus } from '@/types';
@@ -21,10 +22,16 @@ interface TripCardProps {
   style?: ViewStyle;
 }
 
-const STATUS_CONFIG: Record<TripStatus, { label: string; bg: string; text: string }> = {
-  planning: { label: 'Planning', bg: 'rgba(251,191,36,0.2)', text: '#fbbf24' },
-  active: { label: 'Active', bg: 'rgba(52,211,153,0.2)', text: '#34d399' },
-  completed: { label: 'Completed', bg: 'rgba(96,165,250,0.2)', text: '#60a5fa' },
+// This badge sits on the raw cover photo, not app chrome — a light-tint-on-
+// light-text pairing (the trip screen's colors.status tokens) assumes a
+// plain canvas behind it and can't guarantee contrast against an arbitrary
+// photo. Same "text over unpredictable media" problem as the feed overlay:
+// solid dark scrim + white text, color-coded with a small dot instead of a
+// tinted background.
+const STATUS_CONFIG: Record<TripStatus, { label: string; dot: string }> = {
+  planning: { label: 'Planning', dot: '#fbbf24' },
+  active: { label: 'Active', dot: '#34d399' },
+  completed: { label: 'Completed', dot: '#60a5fa' },
 };
 
 function formatDateRange(
@@ -43,15 +50,21 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
   const statusCfg = STATUS_CONFIG[trip.status] ?? STATUS_CONFIG.planning;
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
 
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  }, [onPress]);
+
   return (
-    <View style={[styles.shadowWrapper, style]}>
+    <View style={[styles.shadowWrapper, { shadowColor: colors.brand.purple }, style]}>
       <TouchableOpacity
-        onPress={onPress}
+        onPress={handlePress}
         activeOpacity={0.85}
         style={styles.wrapper}
+        accessibilityLabel={`Open trip to ${trip.destination.name}`}
       >
         {/* ── Cover image area ── */}
-        <View style={styles.imageContainer}>
+        <View style={[styles.imageContainer, { backgroundColor: colors.background.sunken }]}>
           {trip.coverImageUrl ? (
             <Image
               source={{ uri: trip.coverImageUrl }}
@@ -74,15 +87,9 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
           />
 
           {/* Status badge — top-right */}
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusCfg.bg },
-            ]}
-          >
-            <Text style={[styles.statusText, { color: statusCfg.text }]}>
-              {statusCfg.label}
-            </Text>
+          <View style={styles.statusBadge}>
+            <View style={[styles.statusDot, { backgroundColor: statusCfg.dot }]} />
+            <Text style={styles.statusText}>{statusCfg.label}</Text>
           </View>
         </View>
 
@@ -119,7 +126,10 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
 const styles = StyleSheet.create({
   shadowWrapper: {
     borderRadius: BorderRadius.xl,
-    ...Shadow.md,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   wrapper: {
     borderRadius: BorderRadius.xl,
@@ -127,20 +137,29 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     height: 160,
-    backgroundColor: 'rgba(167,139,250,0.15)',
   },
   statusBadge: {
     position: 'absolute',
     top: Spacing['2'],
     right: Spacing['2'],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     paddingHorizontal: Spacing['2'],
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusText: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.semiBold,
     letterSpacing: 0.3,
+    color: '#fff',
   },
   contentArea: {
     padding: Spacing['3'],

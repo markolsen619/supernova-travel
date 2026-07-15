@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { X, Sparkle } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { usePurchases } from '@/hooks/usePurchases';
@@ -22,6 +23,11 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { restorePurchases, isLoading } = usePurchases();
 
+  const handleClose = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
+
   const handleMonthlyPurchase = () => {
     Alert.alert('RevenueCat', 'Purchase flow requires EAS build');
   };
@@ -31,18 +37,14 @@ export default function PaywallScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={colors.gradient.dark}
-      style={styles.gradient}
-    >
       <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + Spacing['4'] }]}>
           <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
             Go Pro
           </Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-            <Text style={[styles.closeText, { color: colors.text.secondary }]}>✕</Text>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton} hitSlop={8} accessibilityLabel="Close">
+            <X size={20} color={colors.text.secondary} weight="bold" />
           </TouchableOpacity>
         </View>
 
@@ -50,9 +52,11 @@ export default function PaywallScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing['8'] }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Hero */}
+          {/* Hero — the one hit of brand gradient on this screen. */}
           <View style={styles.hero}>
-            <Text style={styles.heroEmoji}>✨</Text>
+            <View style={[styles.heroIconBubble, { backgroundColor: `${colors.brand.purple}1F` }]}>
+              <Sparkle size={30} color={colors.brand.purple} weight="duotone" />
+            </View>
             <Text style={[styles.heroTitle, { color: colors.text.primary }]}>
               Supernova Pro
             </Text>
@@ -76,10 +80,12 @@ export default function PaywallScreen() {
             </Text>
           </View>
 
-          {/* Purchase Buttons */}
+          {/* Purchase Buttons — both genuinely write a subscription, so both
+              are Medium regardless of visual weight (variant is about
+              hierarchy, not this haptic). */}
           <View style={styles.buttonStack}>
             <Button
-              label="Start Monthly Plan"
+              label="Start monthly plan"
               variant="primary"
               size="lg"
               fullWidth
@@ -87,10 +93,11 @@ export default function PaywallScreen() {
             />
             <View style={styles.buttonGap} />
             <Button
-              label="Start Annual Plan"
+              label="Start annual plan"
               variant="secondary"
               size="lg"
               fullWidth
+              haptic="medium"
               onPress={handleAnnualPurchase}
             />
           </View>
@@ -98,9 +105,10 @@ export default function PaywallScreen() {
           {/* Restore Purchases */}
           <View style={styles.restoreContainer}>
             <Button
-              label="Restore Purchases"
+              label="Restore purchases"
               variant="ghost"
               size="md"
+              haptic="medium"
               onPress={restorePurchases}
               loading={isLoading}
             />
@@ -112,14 +120,10 @@ export default function PaywallScreen() {
           </Text>
         </ScrollView>
       </View>
-    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
@@ -141,9 +145,6 @@ const styles = StyleSheet.create({
     bottom: Spacing['4'],
     padding: Spacing['2'],
   },
-  closeText: {
-    fontSize: FontSize.md,
-  },
   scrollContent: {
     paddingHorizontal: Spacing['5'],
   },
@@ -151,8 +152,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing['6'],
   },
-  heroEmoji: {
-    fontSize: 56,
+  heroIconBubble: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: Spacing['3'],
   },
   heroTitle: {

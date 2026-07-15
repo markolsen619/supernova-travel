@@ -4,6 +4,11 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  writeBatch,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -104,6 +109,105 @@ export function useCreateTrip() {
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
   }
 
+  /**
+   * "Add to trip" (Part D) needs a dayId to write an activity into, but a Trip
+   * from useTripList doesn't carry its days subcollection. Returns the trip's
+   * last existing day (by dayNumber), or creates Day 1 if it has none yet —
+   * keeps the picker flow simple (append to where the trip currently ends)
+   * without a day-picker UI in this phase.
+   */
+  async function getOrCreateLastDay(tripId: string): Promise<string> {
+    const daysQuery = query(
+      collection(db, 'trips', tripId, 'days'),
+      orderBy('dayNumber', 'desc'),
+      limit(1)
+    );
+    const snap = await getDocs(daysQuery);
+    if (!snap.empty) return snap.docs[0].id;
+    return addDay(tripId, { dayNumber: 1, date: null, title: '', notes: '' });
+  }
+
+  /**
+   * Persists a full drag-and-drop reorder of one day's activities. Rewrites
+   * every activity's `order` field with the same sparse spacing addActivity
+   * uses on create (idx * 1000), in one batch. A full rewrite — not midpoint
+   * insertion between neighbors — because a drag-end can move any item to any
+   * position in one gesture (not just insert a single new one), so there's no
+   * single "gap" to insert into; midpoint insertion also degrades over many
+   * edits as gaps get bisected into ever-smaller increments. A day realistically
+   * holds a handful of stops, so a full rewrite is at most a handful of writes.
+   */
+  async function reorderActivities(
+    tripId: string,
+    dayId: string,
+    orderedActivities: TripActivity[]
+  ): Promise<void> {
+    const batch = writeBatch(db);
+    orderedActivities.forEach((activity, idx) => {
+      const activityRef = doc(db, 'trips', tripId, 'days', dayId, 'activities', activity.id);
+      batch.update(activityRef, { order: idx * 1000 });
+    });
+    await batch.commit();
+    await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+  }
+
+  /**
+   * Moves an activity to a different day. Firestore has no native "move"
+   * across subcollections (dayId is part of the document path), so this
+   * creates a new doc in the target day — appended to the end via Date.now(),
+   * matching addActivity's own default — and deletes the original. The
+   * activity gets a new id; nothing outside this trip references TripActivity
+   * ids, so that's harmless.
+   */
+  async function moveActivityToDay(
+    tripId: string,
+    fromDayId: string,
+    toDayId: string,
+    activity: TripActivity
+  ): Promise<void> {
+    if (fromDayId === toDayId) return;
+    const { id, ...rest } = activity; // rest.order is overridden below
+    const targetCollection = collection(db, 'trips', tripId, 'days', toDayId, 'activities');
+    const sourceRef = doc(db, 'trips', tripId, 'days', fromDayId, 'activities', id);
+    const newActivityRef = doc(targetCollection);
+
+    const batch = writeBatch(db);
+    batch.set(newActivityRef, { ...rest, order: Date.now() });
+    batch.delete(sourceRef);
+    await batch.commit();
+    await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+  }
+
+  /**
+   * Deletes a day and all its activities, then renumbers the remaining days
+   * sequentially (1, 2, 3…) so dayNumber stays contiguous — the timeline UI
+   * assumes no gaps. Caller passes the remaining days already sorted with the
+   * deleted one excluded (it already has this list on hand for rendering).
+   */
+  async function deleteDay(
+    tripId: string,
+    dayId: string,
+    remainingDaysInOrder: TripDay[]
+  ): Promise<void> {
+    const activitiesSnap = await getDocs(
+      collection(db, 'trips', tripId, 'days', dayId, 'activities')
+    );
+
+    const batch = writeBatch(db);
+    activitiesSnap.docs.forEach((activityDoc) => batch.delete(activityDoc.ref));
+    batch.delete(doc(db, 'trips', tripId, 'days', dayId));
+
+    remainingDaysInOrder.forEach((day, idx) => {
+      const nextNumber = idx + 1;
+      if (day.dayNumber !== nextNumber) {
+        batch.update(doc(db, 'trips', tripId, 'days', day.id), { dayNumber: nextNumber });
+      }
+    });
+
+    await batch.commit();
+    await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+  }
+
   return {
     createTrip,
     updateTrip,
@@ -112,5 +216,9 @@ export function useCreateTrip() {
     addActivity,
     updateActivity,
     deleteActivity,
+    getOrCreateLastDay,
+    reorderActivities,
+    moveActivityToDay,
+    deleteDay,
   };
 }

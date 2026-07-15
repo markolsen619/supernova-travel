@@ -9,17 +9,36 @@ import {
   ScrollView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { X, Sparkle } from 'phosphor-react-native';
+import { useTheme } from '@/hooks/useTheme';
+import { Button } from '@/components/ui/Button';
 import { AiPromptForm } from '@/components/trip/AiPromptForm';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
-import { TravelStyle } from '@/types/ai';
-import { DarkColors } from '@/constants/colors';
+import { TravelStyle, TripPace } from '@/types/ai';
+import { useAiTripQuota } from '@/hooks/useAiTripQuota';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+
+function quotaLabel(
+  quota: { limit: number | null; remaining: number | null; resetsAt: string | null } | undefined,
+): string | null {
+  if (!quota) return null; // still loading — show nothing rather than a placeholder flash
+  if (quota.limit === null) return 'Unlimited AI trips';
+  if ((quota.remaining ?? 0) > 0) {
+    const n = quota.remaining ?? 0;
+    return `${n} free trip${n === 1 ? '' : 's'} left this week`;
+  }
+  const resetDate = quota.resetsAt
+    ? new Date(quota.resetsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : 'next week';
+  return `0 left this week — resets ${resetDate}`;
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AiGenerateScreen() {
+  const { colors } = useTheme();
   // Optional params when navigating from the Search tab's Places picker
   const params = useLocalSearchParams<{
     destination?: string;
@@ -32,14 +51,22 @@ export default function AiGenerateScreen() {
   const [placeId, setPlaceId] = useState<string | null>(params.placeId ?? null);
   const [durationDays, setDurationDays] = useState(7);
   const [travelStyle, setTravelStyle] = useState<TravelStyle>('adventure');
+  const [pace, setPace] = useState<TripPace>('moderate');
   const [mustSeeInput, setMustSeeInput] = useState('');
   const [preferences, setPreferences] = useState('');
+
+  const { data: quota } = useAiTripQuota();
 
   const handlePlaceSelect = useCallback((s: PlaceSelection) => {
     setPlaceId(s.placeId || null);
   }, []);
 
   const isValid = destination.trim().length > 0 && durationDays >= 1;
+
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
 
   const handleGenerate = () => {
     if (!isValid) return;
@@ -56,6 +83,7 @@ export default function AiGenerateScreen() {
         countryCode: countryCode.trim(),
         durationDays: String(durationDays),
         travelStyle,
+        pace,
         mustSee: JSON.stringify(mustSee),
         preferences,
         startDate: '',
@@ -65,37 +93,28 @@ export default function AiGenerateScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      {/* Background gradient */}
-      <LinearGradient
-        colors={DarkColors.gradient.dark}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Aurora accent */}
-      <LinearGradient
-        colors={['rgba(167,139,250,0.18)', 'rgba(244,114,182,0.1)', 'transparent']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.aurora}
-      />
-
+    <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={handleBack}
           style={styles.backBtn}
           activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityLabel="Close"
         >
-          <Text style={styles.backText}>✕</Text>
+          <X size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>AI Trip Generator</Text>
-          <Text style={styles.headerSubtitle}>✨ Powered by Gemini</Text>
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>AI trip generator</Text>
+          <View style={styles.headerSubtitleRow}>
+            <Sparkle size={12} color={colors.brand.purple} weight="duotone" />
+            <Text style={[styles.headerSubtitle, { color: colors.brand.purple }]}>Powered by Gemini</Text>
+          </View>
         </View>
 
-        {/* Spacer to balance the ✕ button */}
+        {/* Spacer to balance the close button */}
         <View style={styles.headerRight} />
       </View>
 
@@ -111,22 +130,30 @@ export default function AiGenerateScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionTitle}>Tell us about your dream trip</Text>
-          <Text style={styles.sectionSubtitle}>
-            Our AI will build a personalised itinerary for you in seconds.
+          <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>Tell us about your dream trip</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.text.secondary }]}>
+            Our AI will build a personalized itinerary for you in seconds.
           </Text>
+
+          {quotaLabel(quota) ? (
+            <View style={[styles.quotaBadge, { backgroundColor: `${colors.brand.purple}1F` }]}>
+              <Text style={[styles.quotaBadgeText, { color: colors.brand.purple }]}>{quotaLabel(quota)}</Text>
+            </View>
+          ) : null}
 
           <AiPromptForm
             destination={destination}
             countryCode={countryCode}
             durationDays={durationDays}
             travelStyle={travelStyle}
+            pace={pace}
             mustSeeInput={mustSeeInput}
             preferences={preferences}
             onDestinationChange={setDestination}
             onCountryCodeChange={setCountryCode}
             onDurationChange={setDurationDays}
             onTravelStyleChange={setTravelStyle}
+            onPaceChange={setPace}
             onMustSeeChange={setMustSeeInput}
             onPreferencesChange={setPreferences}
             destinationPlaceId={placeId}
@@ -135,23 +162,17 @@ export default function AiGenerateScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Footer CTA */}
-      <View style={styles.footer}>
-        <TouchableOpacity
+      {/* Footer CTA — the hero gradient moment of this flow. */}
+      <View style={[styles.footer, { borderTopColor: colors.background.cardBorder }]}>
+        <Button
+          label="Generate trip"
           onPress={handleGenerate}
           disabled={!isValid}
-          activeOpacity={0.8}
-          style={styles.generateBtnWrapper}
-        >
-          <LinearGradient
-            colors={DarkColors.gradient.purplePink}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.generateBtn, !isValid && styles.generateBtnDisabled]}
-          >
-            <Text style={styles.generateBtnText}>Generate Trip ✨</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          icon={Sparkle}
+          variant="hero"
+          size="lg"
+          fullWidth
+        />
       </View>
     </View>
   );
@@ -162,16 +183,8 @@ export default function AiGenerateScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: DarkColors.background.primary,
   },
   flex: { flex: 1 },
-  aurora: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 280,
-  },
 
   // Header
   header: {
@@ -183,27 +196,28 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['4'],
   },
   backBtn: {
-    minWidth: 40,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'flex-start',
-  },
-  backText: {
-    color: DarkColors.text.secondary,
-    fontSize: FontSize.lg,
+    justifyContent: 'center',
   },
   headerCenter: {
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: DarkColors.text.primary,
+    fontWeight: FontWeight.semiBold,
+  },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
   headerSubtitle: {
     fontSize: FontSize.sm,
-    color: DarkColors.brand.purple,
-    marginTop: 2,
   },
-  headerRight: { minWidth: 40 },
+  headerRight: { minWidth: 44 },
 
   // Scroll content
   scrollContent: {
@@ -214,15 +228,25 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
-    color: DarkColors.text.primary,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
     marginBottom: Spacing['2'],
   },
   sectionSubtitle: {
     fontSize: FontSize.base,
-    color: DarkColors.text.secondary,
     lineHeight: FontSize.base * 1.5,
-    marginBottom: Spacing['8'],
+    marginBottom: Spacing['5'],
+  },
+  quotaBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: BorderRadius.full,
+    paddingVertical: Spacing['1'],
+    paddingHorizontal: Spacing['3'],
+    marginBottom: Spacing['6'],
+  },
+  quotaBadgeText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semiBold,
   },
 
   // Footer
@@ -230,21 +254,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['6'],
     paddingBottom: Platform.OS === 'ios' ? 40 : Spacing['6'],
     paddingTop: Spacing['4'],
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-  },
-  generateBtnWrapper: { width: '100%' },
-  generateBtn: {
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing['4'],
-  },
-  generateBtnDisabled: { opacity: 0.4 },
-  generateBtnText: {
-    color: DarkColors.white,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 0.3,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

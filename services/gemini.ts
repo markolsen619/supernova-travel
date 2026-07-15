@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
-import { GenerateTripRequest } from '@/types/ai';
+import { GenerateTripRequest, AiTripQuota } from '@/types/ai';
 
 export async function callGenerateTrip(
   request: GenerateTripRequest
@@ -10,5 +10,11 @@ export async function callGenerateTrip(
     'generateTrip'
   );
   const result = await fn(request);
+  return result.data;
+}
+
+export async function callGetAiTripQuota(): Promise<AiTripQuota> {
+  const fn = httpsCallable<undefined, AiTripQuota>(functions, 'getAiTripQuota');
+  const result = await fn();
   return result.data;
 }

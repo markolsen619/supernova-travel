@@ -5,14 +5,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Animated,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { WarningCircle } from 'phosphor-react-native';
 import { FirebaseError } from 'firebase/app';
 import { AiGeneratingAnimation } from '@/components/trip/AiGeneratingAnimation';
 import { useAiGenerateTrip } from '@/hooks/useAiGenerateTrip';
 import { GenerateTripRequest } from '@/types/ai';
-import { DarkColors } from '@/constants/colors';
+import { DarkColors, LightColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -36,6 +39,7 @@ export default function AiGeneratingScreen() {
     countryCode: string;
     durationDays: string;
     travelStyle: string;
+    pace: string;
     mustSee: string;
     preferences: string;
     startDate: string;
@@ -48,6 +52,27 @@ export default function AiGeneratingScreen() {
   const [hasStarted, setHasStarted] = useState(false);
   const elapsedRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Light → dark transition (signature moment) ───────────────────────────
+  // The intake form is light chrome; this screen is the one deliberately-dark
+  // immersive moment it leads into. A hard cut would feel like a glitch, so
+  // this fades a light-canvas-colored overlay out while the content
+  // materializes (fade + scale) underneath, on mount only.
+  const overlayOpacity = useRef(new Animated.Value(1)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const contentScale = useRef(new Animated.Value(0.94)).current;
+
+  useEffect(() => {
+    Animated.timing(overlayOpacity, {
+      toValue: 0,
+      duration: 550,
+      useNativeDriver: true,
+    }).start();
+    Animated.parallel([
+      Animated.spring(contentOpacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
+      Animated.spring(contentScale, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   // Advance status messages on a ticker while generating
   const startStatusTicker = () => {
@@ -84,6 +109,7 @@ export default function AiGeneratingScreen() {
       countryCode: params.countryCode ?? '',
       durationDays: parseInt(params.durationDays ?? '7', 10),
       travelStyle: (params.travelStyle ?? 'adventure') as GenerateTripRequest['travelStyle'],
+      pace: (params.pace ?? 'moderate') as GenerateTripRequest['pace'],
       mustSee: (() => {
         try {
           return JSON.parse(params.mustSee ?? '[]') as string[];
@@ -133,12 +159,15 @@ export default function AiGeneratingScreen() {
         <LinearGradient colors={DarkColors.gradient.dark} style={StyleSheet.absoluteFill} />
 
         <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>⚠️</Text>
+          <WarningCircle size={44} color={DarkColors.semantic.error} weight="duotone" style={{ marginBottom: Spacing['5'] }} />
           <Text style={styles.errorTitle}>Generation failed</Text>
           <Text style={styles.errorMessage}>{message}</Text>
 
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.back();
+            }}
             style={styles.retryBtn}
             activeOpacity={0.8}
           >
@@ -148,16 +177,19 @@ export default function AiGeneratingScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.retryGradient}
             >
-              <Text style={styles.retryText}>Try Again</Text>
+              <Text style={styles.retryText}>Try again</Text>
             </LinearGradient>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.replace('/(tabs)');
+            }}
             style={styles.homeBtn}
             activeOpacity={0.7}
           >
-            <Text style={styles.homeBtnText}>Go Home</Text>
+            <Text style={styles.homeBtnText}>Go home</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -178,7 +210,12 @@ export default function AiGeneratingScreen() {
         style={styles.aurora}
       />
 
-      <View style={styles.content}>
+      <Animated.View
+        style={[
+          styles.content,
+          { opacity: contentOpacity, transform: [{ scale: contentScale }] },
+        ]}
+      >
         <Text style={styles.headline}>Creating your trip</Text>
         <Text style={styles.destination}>
           {params.destination || 'your destination'}
@@ -189,7 +226,17 @@ export default function AiGeneratingScreen() {
         <Text style={styles.footnote}>
           This usually takes 10–30 seconds. Hang tight!
         </Text>
-      </View>
+      </Animated.View>
+
+      {/* Fades out on mount, revealing the dark content — the deliberate
+          light→dark handoff from the (light) intake form. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: LightColors.background.primary, opacity: overlayOpacity },
+        ]}
+      />
     </View>
   );
 }
@@ -225,7 +272,8 @@ const styles = StyleSheet.create({
   },
   destination: {
     fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
     color: DarkColors.text.primary,
     textAlign: 'center',
     marginBottom: Spacing['6'],
@@ -245,13 +293,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing['8'],
   },
-  errorIcon: {
-    fontSize: 48,
-    marginBottom: Spacing['5'],
-  },
   errorTitle: {
     fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
     color: DarkColors.text.primary,
     marginBottom: Spacing['3'],
     textAlign: 'center',

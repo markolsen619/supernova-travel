@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import {
   doc,
   runTransaction,
@@ -40,6 +41,10 @@ function likeDocId(uid: string, postId: string) {
   return `${uid}_${postId}`;
 }
 
+// Every icon/text in this file sits on top of an arbitrary user photo or
+// video, not app chrome — white + shadow is the correct legibility pattern
+// here regardless of the app's light/dark theme (same reasoning as
+// Instagram/TikTok's overlay controls), so none of this reads from useTheme().
 export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: FeedActionsProps) {
   const router = useRouter();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
@@ -48,6 +53,7 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
 
   async function handleLike() {
     if (!uid) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const likeRef = doc(db, 'posts', post.id, 'likes', likeDocId(uid, post.id));
     const postRef = doc(db, 'posts', post.id);
     if (liked) {
@@ -69,21 +75,45 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
     }
   }
 
-  function handleShare() {
-    Alert.alert('Share', 'Sharing coming soon!');
-  }
+  const handleCommentPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onCommentPress();
+  }, [onCommentPress]);
 
-  const formatCount = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+  const handleShare = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert('Share', 'Sharing coming soon!');
+  }, []);
+
+  const handleToggleMute = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onToggleMute();
+  }, [onToggleMute]);
+
+  const handleAuthorPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/user/${post.authorUid}`);
+  }, [router, post.authorUid]);
 
   return (
     <>
       {/* Right action column */}
       <View style={styles.actionsColumn}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => router.push(`/user/${post.authorUid}`)}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={handleAuthorPress}
+          hitSlop={10}
+          accessibilityLabel={`View ${post.authorDisplayName}'s profile`}
+        >
           <Avatar uri={post.authorAvatarUrl} name={post.authorDisplayName} size="sm" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={handleLike}
+          hitSlop={10}
+          accessibilityLabel={liked ? 'Unlike' : 'Like'}
+        >
           <Heart
             size={28}
             color={liked ? '#f472b6' : 'rgba(255,255,255,0.9)'}
@@ -91,15 +121,30 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
           />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={onCommentPress}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={handleCommentPress}
+          hitSlop={10}
+          accessibilityLabel="Comment"
+        >
           <ChatCircle size={28} color="rgba(255,255,255,0.9)" weight="duotone" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={handleShare}
+          hitSlop={10}
+          accessibilityLabel="Share"
+        >
           <Export size={28} color="rgba(255,255,255,0.9)" weight="regular" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={onToggleMute}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={handleToggleMute}
+          hitSlop={10}
+          accessibilityLabel={isMuted ? 'Unmute' : 'Mute'}
+        >
           {isMuted
             ? <SpeakerSimpleX size={28} color="rgba(255,255,255,0.9)" weight="regular" />
             : <SpeakerSimpleHigh size={28} color="rgba(255,255,255,0.9)" weight="duotone" />
@@ -109,7 +154,7 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
 
       {/* Bottom caption area */}
       <View style={styles.captionArea}>
-        <TouchableOpacity onPress={() => router.push(`/user/${post.authorUid}`)}>
+        <TouchableOpacity onPress={handleAuthorPress} hitSlop={6}>
           <Text style={styles.authorName}>@{post.authorUsername}</Text>
         </TouchableOpacity>
         {!!post.caption && (

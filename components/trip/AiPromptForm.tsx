@@ -6,11 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { MapPin, MagnifyingGlass, X } from 'phosphor-react-native';
-import { TravelStyle } from '@/types/ai';
+import * as Haptics from 'expo-haptics';
+import { MapPin, MagnifyingGlass, X, Mountains, Diamond, Wallet, UsersThree, Bank, Minus, Plus } from 'phosphor-react-native';
+import { useTheme } from '@/hooks/useTheme';
+import { TravelStyle, TripPace } from '@/types/ai';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { DestinationPicker } from '@/components/ui/DestinationPicker';
-import { DarkColors } from '@/constants/colors';
+import type { PhosphorIcon } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -21,12 +23,14 @@ export interface AiPromptFormProps {
   countryCode: string;
   durationDays: number;
   travelStyle: TravelStyle;
+  pace: TripPace;
   mustSeeInput: string;
   preferences: string;
   onDestinationChange: (v: string) => void;
   onCountryCodeChange: (v: string) => void;
   onDurationChange: (v: number) => void;
   onTravelStyleChange: (v: TravelStyle) => void;
+  onPaceChange: (v: TripPace) => void;
   onMustSeeChange: (v: string) => void;
   onPreferencesChange: (v: string) => void;
   destinationPlaceId?: string | null;
@@ -35,16 +39,22 @@ export interface AiPromptFormProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TRAVEL_STYLES: { value: TravelStyle; label: string; emoji: string }[] = [
-  { value: 'adventure', label: 'Adventure', emoji: '🏔️' },
-  { value: 'luxury', label: 'Luxury', emoji: '💎' },
-  { value: 'budget', label: 'Budget', emoji: '💰' },
-  { value: 'family', label: 'Family', emoji: '👨‍👩‍👧' },
-  { value: 'cultural', label: 'Cultural', emoji: '🏛️' },
+const TRAVEL_STYLES: { value: TravelStyle; label: string; Icon: PhosphorIcon }[] = [
+  { value: 'adventure', label: 'Adventure', Icon: Mountains },
+  { value: 'luxury', label: 'Luxury', Icon: Diamond },
+  { value: 'budget', label: 'Budget', Icon: Wallet },
+  { value: 'family', label: 'Family', Icon: UsersThree },
+  { value: 'cultural', label: 'Cultural', Icon: Bank },
 ];
 
 const MIN_DAYS = 1;
 const MAX_DAYS = 14;
+
+const PACE_OPTIONS: { value: TripPace; label: string; hint: string }[] = [
+  { value: 'relaxed', label: 'Relaxed', hint: 'Fewer stops, more downtime' },
+  { value: 'moderate', label: 'Moderate', hint: 'A balanced day' },
+  { value: 'packed', label: 'Packed', hint: 'See as much as possible' },
+];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -53,25 +63,34 @@ export function AiPromptForm({
   countryCode,
   durationDays,
   travelStyle,
+  pace,
   mustSeeInput,
   preferences,
   onDestinationChange,
   onCountryCodeChange,
   onDurationChange,
   onTravelStyleChange,
+  onPaceChange,
   onMustSeeChange,
   onPreferencesChange,
   destinationPlaceId,
   onPlaceSelect,
 }: AiPromptFormProps) {
+  const { colors } = useTheme();
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const handleDecrement = () => {
-    if (durationDays > MIN_DAYS) onDurationChange(durationDays - 1);
+    if (durationDays > MIN_DAYS) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onDurationChange(durationDays - 1);
+    }
   };
 
   const handleIncrement = () => {
-    if (durationDays < MAX_DAYS) onDurationChange(durationDays + 1);
+    if (durationDays < MAX_DAYS) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onDurationChange(durationDays + 1);
+    }
   };
 
   const handleOpenPicker = useCallback(() => setPickerVisible(true), []);
@@ -88,10 +107,29 @@ export function AiPromptForm({
   );
 
   const handleClearPlace = useCallback(() => {
-    onPlaceSelect?.({ placeId: '', name: '', lat: null, lng: null, countryCode: null });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPlaceSelect?.({
+      placeId: '',
+      name: '',
+      lat: null,
+      lng: null,
+      countryCode: null,
+      primaryType: null,
+      viewport: null,
+    });
     onDestinationChange('');
     onCountryCodeChange('');
   }, [onPlaceSelect, onDestinationChange, onCountryCodeChange]);
+
+  const handleTravelStyleSelect = useCallback((v: TravelStyle) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onTravelStyleChange(v);
+  }, [onTravelStyleChange]);
+
+  const handlePaceSelect = useCallback((v: TripPace) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPaceChange(v);
+  }, [onPaceChange]);
 
   const isPlaceSelected = Boolean(destinationPlaceId);
 
@@ -99,28 +137,25 @@ export function AiPromptForm({
     <View style={styles.container}>
       {/* Destination */}
       <View style={styles.field}>
-        <Text style={styles.label}>Destination *</Text>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Destination *</Text>
 
         {isPlaceSelected ? (
-          <View style={styles.selectedRow}>
-            <MapPin size={16} color={DarkColors.brand.purple} weight="duotone" />
-            <Text style={styles.selectedText} numberOfLines={1}>{destination}</Text>
-            <TouchableOpacity onPress={handleClearPlace} activeOpacity={0.7} hitSlop={8}>
-              <X size={16} color={DarkColors.text.tertiary} weight="bold" />
+          <View style={[styles.selectedRow, { backgroundColor: `${colors.brand.purple}14`, borderColor: colors.brand.purple }]}>
+            <MapPin size={16} color={colors.brand.purple} weight="duotone" />
+            <Text style={[styles.selectedText, { color: colors.text.primary }]} numberOfLines={1}>{destination}</Text>
+            <TouchableOpacity onPress={handleClearPlace} activeOpacity={0.7} hitSlop={10} accessibilityLabel="Clear destination">
+              <X size={16} color={colors.text.tertiary} weight="bold" />
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
-            style={styles.pickerBtn}
+            style={[styles.pickerBtn, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
             onPress={handleOpenPicker}
             activeOpacity={0.7}
           >
-            <MagnifyingGlass size={16} color={DarkColors.text.tertiary} weight="regular" />
+            <MagnifyingGlass size={16} color={colors.text.tertiary} weight="regular" />
             <Text
-              style={[
-                styles.pickerBtnText,
-                destination ? styles.pickerBtnTextFilled : styles.pickerBtnPlaceholder,
-              ]}
+              style={[styles.pickerBtnText, { color: destination ? colors.text.primary : colors.text.tertiary }]}
               numberOfLines={1}
             >
               {destination || 'Search for a destination…'}
@@ -131,98 +166,142 @@ export function AiPromptForm({
 
       {/* Country Code — shown as editable; auto-filled from Places when selected */}
       <View style={styles.field}>
-        <Text style={styles.label}>Country Code (optional)</Text>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Country code (optional)</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
           value={countryCode}
           onChangeText={(v) => onCountryCodeChange(v.toUpperCase())}
           placeholder="e.g. JP"
-          placeholderTextColor={DarkColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           autoCapitalize="characters"
           autoCorrect={false}
           maxLength={2}
           returnKeyType="next"
         />
-        <Text style={styles.hint}>
+        <Text style={[styles.hint, { color: colors.text.tertiary }]}>
           {isPlaceSelected ? 'Auto-filled from Places — tap to override' : '2-letter ISO country code'}
         </Text>
       </View>
 
       {/* Duration */}
       <View style={styles.field}>
-        <Text style={styles.label}>Duration</Text>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Duration</Text>
         <View style={styles.durationRow}>
           <TouchableOpacity
-            style={[styles.durationBtn, durationDays <= MIN_DAYS && styles.durationBtnDisabled]}
+            style={[
+              styles.durationBtn,
+              { backgroundColor: `${colors.brand.purple}1F`, borderColor: colors.brand.purple },
+              durationDays <= MIN_DAYS && { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder },
+            ]}
             onPress={handleDecrement}
             activeOpacity={0.7}
             disabled={durationDays <= MIN_DAYS}
+            accessibilityLabel="Decrease duration"
           >
-            <Text style={styles.durationBtnText}>−</Text>
+            <Minus size={18} color={durationDays <= MIN_DAYS ? colors.text.disabled : colors.brand.purple} weight="bold" />
           </TouchableOpacity>
 
           <View style={styles.durationDisplay}>
-            <Text style={styles.durationValue}>{durationDays}</Text>
-            <Text style={styles.durationUnit}>{durationDays === 1 ? 'day' : 'days'}</Text>
+            <Text style={[styles.durationValue, { color: colors.text.primary }]}>{durationDays}</Text>
+            <Text style={[styles.durationUnit, { color: colors.text.secondary }]}>{durationDays === 1 ? 'day' : 'days'}</Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.durationBtn, durationDays >= MAX_DAYS && styles.durationBtnDisabled]}
+            style={[
+              styles.durationBtn,
+              { backgroundColor: `${colors.brand.purple}1F`, borderColor: colors.brand.purple },
+              durationDays >= MAX_DAYS && { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder },
+            ]}
             onPress={handleIncrement}
             activeOpacity={0.7}
             disabled={durationDays >= MAX_DAYS}
+            accessibilityLabel="Increase duration"
           >
-            <Text style={styles.durationBtnText}>+</Text>
+            <Plus size={18} color={durationDays >= MAX_DAYS ? colors.text.disabled : colors.brand.purple} weight="bold" />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Travel Style */}
       <View style={styles.field}>
-        <Text style={styles.label}>Travel Style</Text>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Travel style</Text>
         <View style={styles.styleGrid}>
-          {TRAVEL_STYLES.map((style) => (
-            <TouchableOpacity
-              key={style.value}
-              style={[styles.stylePill, travelStyle === style.value && styles.stylePillActive]}
-              onPress={() => onTravelStyleChange(style.value)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.styleEmoji}>{style.emoji}</Text>
-              <Text
-                style={[styles.styleLabel, travelStyle === style.value && styles.styleLabelActive]}
+          {TRAVEL_STYLES.map((option) => {
+            const active = travelStyle === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.stylePill,
+                  { backgroundColor: active ? `${colors.brand.purple}1F` : colors.background.card, borderColor: active ? colors.brand.purple : colors.background.cardBorder },
+                ]}
+                onPress={() => handleTravelStyleSelect(option.value)}
+                activeOpacity={0.7}
+                accessibilityLabel={`${option.label} travel style`}
               >
-                {style.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <option.Icon size={16} color={active ? colors.brand.purple : colors.text.secondary} weight={active ? 'duotone' : 'regular'} />
+                <Text style={[styles.styleLabel, { color: active ? colors.brand.purple : colors.text.secondary }]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
+      </View>
+
+      {/* Pace */}
+      <View style={styles.field}>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Pace</Text>
+        <View style={styles.styleGrid}>
+          {PACE_OPTIONS.map((option) => {
+            const active = pace === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.stylePill,
+                  { backgroundColor: active ? `${colors.brand.purple}1F` : colors.background.card, borderColor: active ? colors.brand.purple : colors.background.cardBorder },
+                ]}
+                onPress={() => handlePaceSelect(option.value)}
+                activeOpacity={0.7}
+                accessibilityLabel={`${option.label} pace`}
+              >
+                <Text style={[styles.styleLabel, { color: active ? colors.brand.purple : colors.text.secondary }]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={[styles.hint, { color: colors.text.tertiary }]}>
+          {PACE_OPTIONS.find((o) => o.value === pace)?.hint}
+        </Text>
       </View>
 
       {/* Must-See */}
       <View style={styles.field}>
-        <Text style={styles.label}>Must-See Places (optional)</Text>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Must-see places (optional)</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
           value={mustSeeInput}
           onChangeText={onMustSeeChange}
           placeholder="Eiffel Tower, Louvre Museum"
-          placeholderTextColor={DarkColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           autoCapitalize="words"
           returnKeyType="next"
         />
-        <Text style={styles.hint}>Comma-separated list of places you must visit</Text>
+        <Text style={[styles.hint, { color: colors.text.tertiary }]}>Comma-separated list of places you must visit</Text>
       </View>
 
       {/* Preferences */}
       <View style={styles.field}>
-        <Text style={styles.label}>Additional Preferences (optional)</Text>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Additional preferences (optional)</Text>
         <TextInput
-          style={[styles.input, styles.textarea]}
+          style={[styles.input, styles.textarea, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary }]}
           value={preferences}
           onChangeText={onPreferencesChange}
           placeholder="e.g. I love street food, prefer morning activities, no crowded tourist traps..."
-          placeholderTextColor={DarkColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           multiline
           numberOfLines={4}
           textAlignVertical="top"
@@ -248,21 +327,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
-    color: DarkColors.text.secondary,
     marginBottom: Spacing['2'],
   },
   hint: {
     fontSize: FontSize.xs,
-    color: DarkColors.text.tertiary,
     marginTop: Spacing['1'],
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
   },
   textarea: {
@@ -275,22 +349,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['3'],
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
+    minHeight: 44,
   },
   pickerBtnText: {
     flex: 1,
     fontSize: FontSize.base,
-    color: DarkColors.text.primary,
-  },
-  pickerBtnTextFilled: {
-    color: DarkColors.text.primary,
-  },
-  pickerBtnPlaceholder: {
-    color: DarkColors.text.tertiary,
   },
 
   // Selected destination chip
@@ -298,9 +364,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['3'],
-    backgroundColor: 'rgba(167,139,250,0.12)',
     borderWidth: 1,
-    borderColor: DarkColors.brand.purple,
     borderRadius: BorderRadius.lg,
     padding: Spacing['4'],
   },
@@ -308,7 +372,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
-    color: DarkColors.text.primary,
   },
 
   // Duration counter
@@ -321,21 +384,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(167,139,250,0.15)',
     borderWidth: 1,
-    borderColor: DarkColors.brand.purple,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  durationBtnDisabled: {
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  durationBtnText: {
-    fontSize: FontSize.xl,
-    color: DarkColors.brand.purple,
-    fontWeight: FontWeight.bold,
-    lineHeight: FontSize.xl * 1.2,
   },
   durationDisplay: {
     flex: 1,
@@ -346,16 +397,14 @@ const styles = StyleSheet.create({
   },
   durationValue: {
     fontSize: FontSize['3xl'],
-    fontWeight: FontWeight.black,
-    color: DarkColors.text.primary,
+    fontWeight: FontWeight.semiBold,
   },
   durationUnit: {
     fontSize: FontSize.base,
-    color: DarkColors.text.secondary,
     fontWeight: FontWeight.medium,
   },
 
-  // Travel style pills
+  // Travel style / pace pills
   styleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -368,19 +417,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing['2'],
     paddingHorizontal: Spacing['3'],
     borderRadius: BorderRadius.full,
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    minHeight: 36,
   },
-  stylePillActive: {
-    backgroundColor: 'rgba(167,139,250,0.2)',
-    borderColor: DarkColors.brand.purple,
-  },
-  styleEmoji: { fontSize: 16 },
   styleLabel: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
-    color: DarkColors.text.secondary,
   },
-  styleLabelActive: { color: DarkColors.brand.purple },
 });

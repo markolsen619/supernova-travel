@@ -7,7 +7,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { X, CaretRight } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useThemeStore, ThemeMode } from '@/stores/useThemeStore';
@@ -31,23 +32,29 @@ export default function SettingsScreen() {
 
   const capitalizedTier = tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : 'Free';
 
-  const handleClose = useCallback(() => router.back(), []);
-  const handleUpgrade = useCallback(() => router.push('/paywall'), []);
+  const handleClose = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
+  const handleUpgrade = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/paywall');
+  }, []);
   const handleSignOut = useCallback(() => auth.signOut(), []);
+  const handleThemeSelect = useCallback((value: ThemeMode) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMode(value);
+  }, [setMode]);
 
   return (
-    <LinearGradient
-      colors={colors.gradient.dark}
-      style={styles.gradient}
-    >
       <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + Spacing['4'] }]}>
           <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
             Settings
           </Text>
-          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-            <Text style={[styles.closeText, { color: colors.text.secondary }]}>✕</Text>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton} hitSlop={8} accessibilityLabel="Close">
+            <X size={20} color={colors.text.secondary} weight="bold" />
           </TouchableOpacity>
         </View>
 
@@ -68,7 +75,7 @@ export default function SettingsScreen() {
                   return (
                     <TouchableOpacity
                       key={option.value}
-                      onPress={() => setMode(option.value)}
+                      onPress={() => handleThemeSelect(option.value)}
                       style={[
                         styles.segmentOption,
                         isActive && { backgroundColor: colors.brand.purple },
@@ -113,10 +120,9 @@ export default function SettingsScreen() {
                   {capitalizedTier}
                 </Text>
                 {tier === 'free' && (
-                  <TouchableOpacity onPress={handleUpgrade}>
-                    <Text style={[styles.upgradeText, { color: colors.brand.purple }]}>
-                      {' '}Upgrade →
-                    </Text>
+                  <TouchableOpacity onPress={handleUpgrade} style={styles.upgradeRow} hitSlop={6}>
+                    <Text style={[styles.upgradeText, { color: colors.brand.purple }]}> Upgrade</Text>
+                    <CaretRight size={12} color={colors.brand.purple} weight="bold" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -134,11 +140,11 @@ export default function SettingsScreen() {
             </View>
             <TouchableOpacity style={[styles.row, { borderBottomColor: colors.background.cardBorder, borderBottomWidth: StyleSheet.hairlineWidth }]}>
               <Text style={[styles.rowLabel, { color: colors.text.primary }]}>Privacy Policy</Text>
-              <Text style={[styles.rowValue, { color: colors.text.secondary }]}>→</Text>
+              <CaretRight size={16} color={colors.text.tertiary} weight="bold" />
             </TouchableOpacity>
             <TouchableOpacity style={[styles.row, { borderBottomColor: colors.background.cardBorder }]}>
               <Text style={[styles.rowLabel, { color: colors.text.primary }]}>Terms of Service</Text>
-              <Text style={[styles.rowValue, { color: colors.text.secondary }]}>→</Text>
+              <CaretRight size={16} color={colors.text.tertiary} weight="bold" />
             </TouchableOpacity>
           </View>
 
@@ -148,7 +154,7 @@ export default function SettingsScreen() {
           </Text>
           <View style={styles.dangerSection}>
             <Button
-              label="Sign Out"
+              label="Sign out"
               variant="danger"
               size="lg"
               fullWidth
@@ -157,14 +163,10 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </View>
-    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
@@ -186,9 +188,6 @@ const styles = StyleSheet.create({
     top: undefined,
     bottom: Spacing['4'],
     padding: Spacing['2'],
-  },
-  closeText: {
-    fontSize: FontSize.md,
   },
   scrollContent: {
     paddingHorizontal: Spacing['5'],
@@ -225,6 +224,11 @@ const styles = StyleSheet.create({
   subscriptionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  upgradeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
   upgradeText: {
     fontSize: FontSize.base,

@@ -18,7 +18,7 @@ export function TypeIconBubble({ Icon, color, bubbleSize = 36, iconSize = 20 }: 
         {
           width: bubbleSize,
           height: bubbleSize,
-          backgroundColor: `${color}26`,
+          backgroundColor: `${color}1A`,
         },
       ]}
     >

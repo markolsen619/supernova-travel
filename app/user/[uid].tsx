@@ -14,9 +14,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
+import { MapPin, Bag, ArrowLeft } from 'phosphor-react-native';
+import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/hooks/useTheme';
 import { usePublicProfile } from '@/hooks/usePublicProfile';
@@ -30,7 +31,6 @@ import { SavedGrid } from '@/components/profile/SavedGrid';
 import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import * as Haptics from 'expo-haptics';
 
 type ProfileTab = 'Posts' | 'Trips' | 'Saved';
 const PROFILE_TABS: ProfileTab[] = ['Posts', 'Trips', 'Saved'];
@@ -52,8 +52,9 @@ export default function UserProfileScreen() {
     ? trips
     : trips.filter((t) => t.visibility === 'public');
 
+  // No manual haptic here — Button's variant="primary" default (medium)
+  // covers it; a second call here would double-buzz.
   const handleFollow = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     follow.mutate();
   }, [follow]);
 
@@ -70,6 +71,7 @@ export default function UserProfileScreen() {
   }, []);
 
   const handleWalletPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(wallet)/boarding-passes');
   }, []);
 
@@ -80,14 +82,20 @@ export default function UserProfileScreen() {
     [],
   );
 
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
+
+  const handleTabPress = useCallback((tab: ProfileTab) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveProfileTab(tab);
+  }, []);
+
   // ── Loading state ─────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
-        <LinearGradient
-          colors={colors.gradient.dark as [string, string]}
-          style={StyleSheet.absoluteFill}
-        />
         <ActivityIndicator color={colors.brand.purple} size="large" />
       </View>
     );
@@ -97,10 +105,6 @@ export default function UserProfileScreen() {
   if (!profile) {
     return (
       <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
-        <LinearGradient
-          colors={colors.gradient.dark as [string, string]}
-          style={StyleSheet.absoluteFill}
-        />
         <Text style={{ color: colors.text.secondary, fontSize: FontSize.md }}>
           User not found.
         </Text>
@@ -111,22 +115,16 @@ export default function UserProfileScreen() {
   // ── Full profile ──────────────────────────────────────────────────────────
   return (
     <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
-      <LinearGradient
-        colors={colors.gradient.dark as [string, string]}
-        style={StyleSheet.absoluteFill}
-      />
-
       {/* Back button row — outside ScrollView so it stays fixed */}
       <View style={[styles.backRow, { paddingTop: insets.top + Spacing['2'] }]}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={handleBack}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          style={styles.backBtn}
         >
-          <Text style={{ color: colors.text.secondary, fontSize: FontSize.md }}>
-            {'< Back'}
-          </Text>
+          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         {/* Right spacer for visual balance */}
         <View style={styles.backSpacer} />
@@ -164,11 +162,12 @@ export default function UserProfileScreen() {
           )}
 
           {!!profile.location && (
-            <Text
-              style={{ color: colors.text.tertiary, fontSize: FontSize.xs, marginTop: Spacing['1'] }}
-            >
-              {'📍'} {profile.location}
-            </Text>
+            <View style={[styles.locationRow, { marginTop: Spacing['1'] }]}>
+              <MapPin size={12} color={colors.text.tertiary} weight="bold" />
+              <Text style={{ color: colors.text.tertiary, fontSize: FontSize.xs }}>
+                {profile.location}
+              </Text>
+            </View>
           )}
         </View>
 
@@ -217,15 +216,16 @@ export default function UserProfileScreen() {
               }}
             >
               <Button
-                label="Edit Profile"
+                label="Edit profile"
                 variant="secondary"
                 size="md"
                 onPress={handleEditProfileOpen}
               />
               <Button
-                label="🧳 Wallet"
+                label="Wallet"
                 variant="secondary"
                 size="md"
+                icon={Bag}
                 onPress={handleWalletPress}
               />
             </View>
@@ -251,7 +251,7 @@ export default function UserProfileScreen() {
           {PROFILE_TABS.map((tab) => (
             <TouchableOpacity
               key={tab}
-              onPress={() => setActiveProfileTab(tab)}
+              onPress={() => handleTabPress(tab)}
               style={[
                 styles.tabPill,
                 {
@@ -315,6 +315,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['2'],
   },
+  backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
   backSpacer: {
     width: 60,
   },
@@ -330,8 +336,14 @@ const styles = StyleSheet.create({
   },
   displayName: {
     fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
     marginTop: Spacing['2'],
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   bio: {
     fontSize: FontSize.sm,

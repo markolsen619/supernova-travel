@@ -10,10 +10,13 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -97,6 +100,11 @@ export default function AddBoardingPassScreen() {
 
   const labelStyle = [styles.label, { color: colors.text.secondary }];
 
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background.primary }]}
@@ -112,12 +120,12 @@ export default function AddBoardingPassScreen() {
           },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
+          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <View style={styles.titleGroup}>
           <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
-          <Text style={[styles.title, { color: colors.text.primary }]}>Add Boarding Pass</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>Add boarding pass</Text>
         </View>
         <View style={styles.backButton} />
       </View>
@@ -140,7 +148,7 @@ export default function AddBoardingPassScreen() {
         />
 
         {/* Flight Number */}
-        <Text style={labelStyle}>Flight Number</Text>
+        <Text style={labelStyle}>Flight number</Text>
         <TextInput
           style={inputStyle}
           value={form.flightNumber}
@@ -165,7 +173,7 @@ export default function AddBoardingPassScreen() {
             />
           </View>
           <View style={styles.rowItem}>
-            <Text style={labelStyle}>Origin City</Text>
+            <Text style={labelStyle}>Origin city</Text>
             <TextInput
               style={inputStyle}
               value={form.originCity}
@@ -192,7 +200,7 @@ export default function AddBoardingPassScreen() {
             />
           </View>
           <View style={styles.rowItem}>
-            <Text style={labelStyle}>Destination City</Text>
+            <Text style={labelStyle}>Destination city</Text>
             <TextInput
               style={inputStyle}
               value={form.destinationCity}
@@ -205,7 +213,7 @@ export default function AddBoardingPassScreen() {
         </View>
 
         {/* Departure time */}
-        <Text style={labelStyle}>Departure Time</Text>
+        <Text style={labelStyle}>Departure time</Text>
         <TextInput
           style={inputStyle}
           value={form.departureTime}
@@ -243,19 +251,16 @@ export default function AddBoardingPassScreen() {
         </View>
 
         {/* Submit */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            { backgroundColor: colors.brand.purple, opacity: addPass.isPending ? 0.7 : 1 },
-          ]}
+        <Button
+          label="Add boarding pass"
           onPress={handleSubmit}
+          loading={addPass.isPending}
           disabled={addPass.isPending}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.submitButtonText, { color: '#ffffff' }]}>
-            {addPass.isPending ? 'Saving...' : 'Add Boarding Pass'}
-          </Text>
-        </TouchableOpacity>
+          variant="primary"
+          size="lg"
+          fullWidth
+          style={styles.submitButton}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -275,18 +280,15 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 44,
+    minHeight: 44,
     alignItems: 'flex-start',
     justifyContent: 'center',
-  },
-  backText: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
   starIcon: { width: 18, height: 18 },
   title: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semiBold,
   },
   scroll: {
     flex: 1,
@@ -313,12 +315,5 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: Spacing['6'],
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing['4'],
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.bold,
   },
 });

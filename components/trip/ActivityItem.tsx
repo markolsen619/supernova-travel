@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
-import { PencilSimple } from 'phosphor-react-native';
+import * as Haptics from 'expo-haptics';
+import { PencilSimple, MapPinLine } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -17,25 +19,60 @@ interface ActivityItemProps {
   activity: TripActivity;
   onPress?: () => void;
   onEdit?: () => void;
+  /** Long-press to pick up this row for drag-to-reorder (see DayTimeline). */
+  onLongPress?: () => void;
   showEdit?: boolean;
+  /** True while this specific activity's AI stop is being lazily grounded. */
+  isResolving?: boolean;
+  /** True while this row is the one currently being dragged. */
+  isDragging?: boolean;
 }
 
 export function ActivityItem({
   activity,
   onPress,
   onEdit,
+  onLongPress,
   showEdit = false,
+  isResolving = false,
+  isDragging = false,
 }: ActivityItemProps) {
   const { colors } = useTheme();
   const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
-  const subtitle = activity.address ?? activity.notes ?? '';
+  // An AI-generated stop not yet resolved to a real Google place — tapping it
+  // triggers lazy grounding (see trip/[id].tsx). Only hinted when onPress is
+  // actually wired: DayTimeline only passes onActivityPress for the trip
+  // owner (Firestore only allows the persisting write for owner/collaborator),
+  // so a viewer never sees an affordance that would silently fail on tap.
+  const isUngrounded = !activity.placeId && !!activity.searchQuery && !!onPress;
+  const subtitle = isResolving
+    ? 'Finding on map…'
+    : isUngrounded
+      ? 'Tap to find on map'
+      : (activity.address ?? activity.notes ?? '');
+
+  // Both branches this can lead to (ground-in-place, jump-to-map-pin) read
+  // as selection/navigation, not a write the user is consciously making —
+  // Light per the haptics rule. Found unwired during this pass's audit.
+  const handlePress = useCallback(() => {
+    if (!onPress) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  }, [onPress]);
+
+  const handleEdit = useCallback(() => {
+    if (!onEdit) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onEdit();
+  }, [onEdit]);
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={onPress ? handlePress : undefined}
+      onLongPress={onLongPress}
       activeOpacity={onPress ? 0.75 : 1}
-      disabled={!onPress}
-      style={styles.container}
+      disabled={!onPress || isResolving}
+      style={[styles.container, isDragging && styles.dragging]}
     >
       <View style={[styles.row, { backgroundColor: colors.background.card }]}>
         {/* Left border accent */}
@@ -66,21 +103,34 @@ export function ActivityItem({
             {activity.title}
           </Text>
           {subtitle ? (
-            <Text
-              style={[styles.subtitle, { color: colors.text.tertiary }]}
-              numberOfLines={1}
-            >
-              {subtitle}
-            </Text>
+            <View style={styles.subtitleRow}>
+              {isUngrounded && !isResolving ? (
+                <MapPinLine size={11} color={colors.brand.purple} weight="bold" />
+              ) : null}
+              <Text
+                style={[
+                  styles.subtitle,
+                  { color: isUngrounded ? colors.brand.purple : colors.text.tertiary },
+                ]}
+                numberOfLines={1}
+              >
+                {subtitle}
+              </Text>
+            </View>
           ) : null}
         </View>
 
-        {/* Edit button */}
-        {showEdit && onEdit ? (
+        {/* Resolving spinner / edit button */}
+        {isResolving ? (
+          <View style={styles.editBtn}>
+            <ActivityIndicator size="small" color={colors.brand.purple} />
+          </View>
+        ) : showEdit && onEdit ? (
           <TouchableOpacity
-            onPress={onEdit}
+            onPress={handleEdit}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.editBtn}
+            accessibilityLabel="Edit activity"
           >
             <PencilSimple size={14} color={colors.text.tertiary} weight="regular" />
           </TouchableOpacity>
@@ -92,6 +142,10 @@ export function ActivityItem({
 
 const styles = StyleSheet.create({
   container: {},
+  dragging: {
+    opacity: 0.85,
+    transform: [{ scale: 1.02 }],
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -131,9 +185,15 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semiBold,
     marginBottom: 2,
   },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   subtitle: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.regular,
+    flexShrink: 1,
   },
   editBtn: {
     paddingHorizontal: Spacing['3'],

@@ -1,14 +1,21 @@
-// Brand palette is shared across both themes
+// Brand palette — shared across light/dark chrome. Per the light-editorial
+// direction (see CLAUDE.md "UI/UX Design Philosophy" + .claude/skills/supernova-design),
+// this is a jewel against neutrals, not wallpaper: the star mark, active/selected
+// states, and at most one hero CTA per flow.
 const brand = {
-  purple: '#a78bfa',
-  purpleLight: '#c4b5fd',
-  purpleDark: '#7c3aed',
-  pink: '#f472b6',
-  pinkLight: '#f9a8d4',
+  purple: '#7F77DD',
+  purpleLight: '#A6A0E8',
+  purpleDark: '#5F56C7',
+  pink: '#D4537E',
+  pinkLight: '#E28FA9',
+  // Not respecified by the redesign brief — kept as-is.
   blue: '#60a5fa',
   blueLight: '#93c5fd',
 };
 
+// Semantic/type icon colors (ACTIVITY_ICONS, RESERVATION_ICONS in constants/icons.ts
+// embed these hexes directly and are unaffected by this file). Not respecified by
+// the redesign brief — kept as-is; both read fine as icon colors on light or dark.
 const accent = {
   teal: '#34d399',
   tealDark: '#059669',
@@ -16,44 +23,57 @@ const accent = {
   amberDark: '#d97706',
 };
 
-const semantic = {
-  success: '#34d399',
-  warning: '#fbbf24',
-  error: '#f87171',
-  info: '#60a5fa',
-};
-
-const tier = {
-  free: 'rgba(255, 255, 255, 0.2)',
-  pro: '#fbbf24',
-  business: '#a78bfa',
-};
-
 export const DarkColors = {
+  // Immersive-only palette (Mapbox globe/trip map, splash, AI-generating).
+  // Never selected via the light/dark/system theme toggle — these screens
+  // import DarkColors directly per Architecture Rule 3.
   background: {
-    primary: '#0a0a1a',
-    secondary: '#0d0d1f',
-    elevated: '#1a0a3a',
-    card: 'rgba(255, 255, 255, 0.05)',
-    cardBorder: 'rgba(255, 255, 255, 0.1)',
+    primary: '#0B0A12',    // void
+    secondary: '#12101A',
+    elevated: '#171422',
+    card: 'rgba(255, 255, 255, 0.06)',
+    cardBorder: '#26232E', // hairline
+    sunken: '#171422',
   },
   brand,
   accent,
+  action: {
+    primary: '#7F77DD',
+    primaryText: '#ffffff',
+  },
   gradient: {
-    aurora: ['#a78bfa', '#f472b6', '#60a5fa'] as [string, string, string],
-    purplePink: ['#a78bfa', '#f472b6'] as [string, string],
-    bluePurple: ['#60a5fa', '#a78bfa'] as [string, string],
-    dark: ['#0a0a1a', '#1a0a3a'] as [string, string],
-    card: ['rgba(167,139,250,0.1)', 'rgba(244,114,182,0.05)'] as [string, string],
+    aurora: [brand.purple, brand.pink, brand.blue] as [string, string, string],
+    purplePink: [brand.purple, brand.pink] as [string, string],
+    bluePurple: [brand.blue, brand.purple] as [string, string],
+    dark: ['#0B0A12', '#171422'] as [string, string],
+    card: ['rgba(127,119,221,0.12)', 'rgba(212,83,126,0.06)'] as [string, string],
   },
   text: {
-    primary: '#ffffff',
-    secondary: 'rgba(255, 255, 255, 0.7)',
-    tertiary: 'rgba(255, 255, 255, 0.4)',
-    inverse: '#0a0a1a',
+    primary: '#F5F3F9',
+    secondary: '#9C95AD',
+    tertiary: 'rgba(245, 243, 249, 0.4)',
+    disabled: 'rgba(245, 243, 249, 0.25)',
+    inverse: '#ffffff',
   },
-  semantic,
-  tier,
+  semantic: {
+    success: '#34d399',
+    warning: '#fbbf24',
+    error: '#f87171',
+    info: '#60a5fa',
+  },
+  tier: {
+    free: 'rgba(255, 255, 255, 0.2)',
+    pro: '#fbbf24',
+    business: brand.purple,
+  },
+  // Trip status chips (trip/[id].tsx). Same bright-hue-on-translucent-tint
+  // pattern the old inline STATUS_COLOR map used — dark screens don't render
+  // these today, kept only for type parity with LightColors.status below.
+  status: {
+    planning: { text: accent.amber, bg: 'rgba(251, 191, 36, 0.16)' },
+    active: { text: accent.teal, bg: 'rgba(52, 211, 153, 0.16)' },
+    completed: { text: brand.blue, bg: 'rgba(96, 165, 250, 0.16)' },
+  },
   transparent: 'transparent',
   white: '#ffffff',
   black: '#000000',
@@ -63,33 +83,58 @@ export const DarkColors = {
 };
 
 export const LightColors = {
+  // Default palette — all app chrome except the immersive exceptions above.
+  // Warm neutrals, deliberately not clinical white.
   background: {
-    primary: '#fafafa',
-    secondary: '#f1f0f7',
-    elevated: '#ede9ff',
-    card: 'rgba(0, 0, 0, 0.04)',
-    cardBorder: 'rgba(0, 0, 0, 0.08)',
+    primary: '#FBF9F5',   // canvas
+    secondary: '#F0EAE0',
+    elevated: '#FFFFFF',
+    card: '#FFFFFF',      // surface
+    cardBorder: '#E5DDD2', // hairline — use with StyleSheet.hairlineWidth / 0.5px
+    sunken: '#F0EAE0',    // chips, inset areas
   },
   brand,
   accent,
+  action: {
+    primary: '#1F1C19',
+    primaryText: '#FBF9F5',
+  },
   gradient: {
-    aurora: ['#a78bfa', '#f472b6', '#60a5fa'] as [string, string, string],
-    purplePink: ['#a78bfa', '#f472b6'] as [string, string],
-    bluePurple: ['#60a5fa', '#a78bfa'] as [string, string],
-    dark: ['#fafafa', '#ede9ff'] as [string, string],
-    card: ['rgba(167,139,250,0.12)', 'rgba(244,114,182,0.06)'] as [string, string],
+    aurora: [brand.purple, brand.pink, brand.blue] as [string, string, string],
+    purplePink: [brand.purple, brand.pink] as [string, string],
+    bluePurple: [brand.blue, brand.purple] as [string, string],
+    dark: ['#FBF9F5', '#F0EAE0'] as [string, string],
+    card: ['rgba(127,119,221,0.08)', 'rgba(212,83,126,0.04)'] as [string, string],
   },
   text: {
-    primary: '#0a0a1a',
-    secondary: 'rgba(10, 10, 26, 0.65)',
-    tertiary: 'rgba(10, 10, 26, 0.4)',
-    inverse: '#ffffff',
+    primary: '#1F1C19',
+    secondary: '#6B6157',
+    tertiary: '#9A8F82',
+    disabled: '#C4B8A8',
+    inverse: '#FBF9F5', // text color for branded (purple) surfaces
   },
-  semantic,
+  // Not given explicit light-mode values by the redesign brief — darkened from
+  // the dark-theme tones for ≥4.5:1 contrast on the #FBF9F5 canvas (skill's
+  // accessibility floor). Standard, well-tested tones, not arbitrary picks.
+  semantic: {
+    success: '#16A34A',
+    warning: '#D97706',
+    error: '#DC2626',
+    info: '#2563EB',
+  },
+  // Unused anywhere in the app today — kept for API completeness.
   tier: {
-    free: 'rgba(10, 10, 26, 0.15)',
-    pro: '#d97706',
-    business: '#7c3aed',
+    free: 'rgba(31, 28, 25, 0.1)',
+    pro: '#D97706',
+    business: brand.purple,
+  },
+  // Trip status chips (trip/[id].tsx) — dark text on a light tint, same
+  // pattern as the activity-type icon bubbles, tuned for ≥4.5:1 contrast
+  // (WCAG-computed): planning 6.37:1, active 6.49:1, completed 7.15:1.
+  status: {
+    planning: { text: '#92400E', bg: '#FEF3C7' },
+    active: { text: '#166534', bg: '#DCFCE7' },
+    completed: { text: '#1E40AF', bg: '#DBEAFE' },
   },
   transparent: 'transparent',
   white: '#ffffff',
@@ -101,5 +146,9 @@ export const LightColors = {
 
 export type ThemeColors = typeof DarkColors;
 
-// Backward-compat: existing imports of Colors still work (dark theme)
-export const Colors = DarkColors;
+// Backward-compat alias, now pointed at LightColors. Its original 4 call
+// sites (Button, Badge, Avatar, (auth)/_layout) were all migrated to
+// useTheme() over the course of the light-editorial rollout, so as of this
+// repoint there are zero consumers left (verified via repo-wide grep) — this
+// export is kept only in case older code or a future screen reaches for it.
+export const Colors = LightColors;

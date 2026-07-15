@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '@/hooks/useTheme';
+import * as Haptics from 'expo-haptics';
+import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Avatar } from '@/components/ui/Avatar';
@@ -17,14 +18,23 @@ function formatFollowers(count: number): string {
   return `${count} followers`;
 }
 
+// Only ever rendered inside search.tsx's bottom sheet, floating over the
+// always-dark globe (Architecture Rule 3 exception) — hardcoded DarkColors,
+// not useTheme(), so it doesn't flip light if the app theme does.
 export function UserResult({ user, onPress }: UserResultProps) {
-  const { colors } = useTheme();
+  const colors = DarkColors;
+
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  }, [onPress]);
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={handlePress}
       activeOpacity={0.7}
       style={[styles.row, { borderBottomColor: colors.background.cardBorder }]}
+      accessibilityLabel={`View ${user.displayName}'s profile`}
     >
       <Avatar size="sm" uri={user.avatarUrl} name={user.displayName} />
 

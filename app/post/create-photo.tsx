@@ -15,16 +15,17 @@ import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { MapPin, Images, X } from 'phosphor-react-native';
+import { useTheme } from '@/hooks/useTheme';
+import { Button } from '@/components/ui/Button';
 import { useCreatePost } from '@/hooks/useCreatePost';
-import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
 const MAX_PHOTOS = 10;
 
 export default function CreatePhotoScreen() {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { createPhotoPost, isUploading, uploadProgress } = useCreatePost();
 
@@ -45,7 +46,13 @@ export default function CreatePhotoScreen() {
   }, []);
 
   const removePhoto = useCallback((index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedUris((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
   }, []);
 
   const handlePost = useCallback(async () => {
@@ -67,27 +74,22 @@ export default function CreatePhotoScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: colors.background.primary }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <LinearGradient
-        colors={['#020208', '#07031a'] as [string, string]}
-        style={StyleSheet.absoluteFill}
-      />
-
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.headerBack}>Cancel</Text>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing['2'], borderBottomColor: colors.background.cardBorder }]}>
+        <TouchableOpacity style={styles.headerBtn} onPress={handleBack} activeOpacity={0.7}>
+          <Text style={[styles.headerBack, { color: colors.text.secondary }]}>Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Post</Text>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>New post</Text>
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={handlePost}
           disabled={!canPost}
           activeOpacity={0.7}
         >
-          <Text style={[styles.headerPost, !canPost && styles.headerPostDisabled]}>Post</Text>
+          <Text style={[styles.headerPost, { color: canPost ? colors.brand.purple : colors.text.disabled }]}>Post</Text>
         </TouchableOpacity>
       </View>
 
@@ -98,15 +100,16 @@ export default function CreatePhotoScreen() {
         showsVerticalScrollIndicator={false}
       >
         {selectedUris.length === 0 ? (
-          /* Empty state — tap to pick */
-          <TouchableOpacity style={styles.emptyPicker} onPress={pickImages} activeOpacity={0.8}>
-            <LinearGradient
-              colors={['rgba(167,139,250,0.12)', 'rgba(244,114,182,0.08)'] as [string, string]}
-              style={StyleSheet.absoluteFill}
-            />
-            <Images size={48} color="#a78bfa" weight="duotone" />
-            <Text style={styles.emptyPickerTitle}>Select Photos</Text>
-            <Text style={styles.emptyPickerSub}>Choose up to {MAX_PHOTOS} photos</Text>
+          /* Empty state — tap to pick. Dashed border is correct here: this
+             IS a dropzone, the one hard-rule-sanctioned use. */
+          <TouchableOpacity
+            style={[styles.emptyPicker, { backgroundColor: colors.background.sunken, borderColor: colors.brand.purple }]}
+            onPress={pickImages}
+            activeOpacity={0.8}
+          >
+            <Images size={48} color={colors.brand.purple} weight="duotone" />
+            <Text style={[styles.emptyPickerTitle, { color: colors.text.primary }]}>Select photos</Text>
+            <Text style={[styles.emptyPickerSub, { color: colors.text.secondary }]}>Choose up to {MAX_PHOTOS} photos</Text>
           </TouchableOpacity>
         ) : (
           /* Photo grid */
@@ -114,13 +117,14 @@ export default function CreatePhotoScreen() {
             {selectedUris.map((uri, index) => (
               <View key={`${uri}-${index}`} style={styles.photoSlot}>
                 <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
-                <View style={styles.orderBadge}>
+                <View style={[styles.orderBadge, { backgroundColor: colors.brand.purple }]}>
                   <Text style={styles.orderBadgeText}>{index + 1}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.removeBtn}
                   onPress={() => removePhoto(index)}
                   hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+                  accessibilityLabel={`Remove photo ${index + 1}`}
                 >
                   <X size={12} color="#fff" weight="bold" />
                 </TouchableOpacity>
@@ -128,25 +132,29 @@ export default function CreatePhotoScreen() {
             ))}
 
             {selectedUris.length < MAX_PHOTOS && (
-              <TouchableOpacity style={styles.addMoreBtn} onPress={pickImages} activeOpacity={0.75}>
-                <Images size={24} color={DarkColors.text.secondary} weight="duotone" />
-                <Text style={styles.addMoreText}>Add more</Text>
+              <TouchableOpacity
+                style={[styles.addMoreBtn, { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder }]}
+                onPress={pickImages}
+                activeOpacity={0.75}
+              >
+                <Images size={24} color={colors.text.secondary} weight="duotone" />
+                <Text style={[styles.addMoreText, { color: colors.text.secondary }]}>Add more</Text>
               </TouchableOpacity>
             )}
           </View>
         )}
 
         {selectedUris.length > 0 && (
-          <Text style={styles.photoCount}>
+          <Text style={[styles.photoCount, { color: colors.text.tertiary }]}>
             {selectedUris.length} / {MAX_PHOTOS} photo{selectedUris.length !== 1 ? 's' : ''}
           </Text>
         )}
 
         {/* Caption */}
         <TextInput
-          style={styles.captionInput}
+          style={[styles.captionInput, { color: colors.text.primary, borderBottomColor: colors.background.cardBorder }]}
           placeholder="Write a caption…"
-          placeholderTextColor={DarkColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           value={caption}
           onChangeText={setCaption}
           multiline
@@ -154,12 +162,12 @@ export default function CreatePhotoScreen() {
         />
 
         {/* Place name */}
-        <View style={styles.placeRow}>
-          <MapPin size={18} color={DarkColors.text.secondary} weight="duotone" />
+        <View style={[styles.placeRow, { borderBottomColor: colors.background.cardBorder }]}>
+          <MapPin size={18} color={colors.text.secondary} weight="duotone" />
           <TextInput
-            style={styles.placeInput}
+            style={[styles.placeInput, { color: colors.text.primary }]}
             placeholder="Add a place…"
-            placeholderTextColor={DarkColors.text.tertiary}
+            placeholderTextColor={colors.text.tertiary}
             value={placeName}
             onChangeText={setPlaceName}
             returnKeyType="done"
@@ -168,34 +176,22 @@ export default function CreatePhotoScreen() {
 
         {/* Upload progress */}
         {isUploading && (
-          <View style={styles.progressTrack}>
-            <LinearGradient
-              colors={['#a78bfa', '#f472b6'] as [string, string]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.progressFill, { width: `${uploadProgress}%` }]}
-            />
+          <View style={[styles.progressTrack, { backgroundColor: colors.background.sunken }]}>
+            <View style={[styles.progressFill, { width: `${uploadProgress}%`, backgroundColor: colors.brand.purple }]} />
           </View>
         )}
 
-        {/* Post button */}
-        <TouchableOpacity
-          style={[styles.postButton, !canPost && styles.postButtonDisabled]}
+        {/* Post button — the one hero moment of this flow. */}
+        <Button
+          label={isUploading ? `Uploading… ${uploadProgress}%` : 'Post'}
           onPress={handlePost}
           disabled={!canPost}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={canPost ? (['#a78bfa', '#f472b6'] as [string, string]) : (['#2a2a3a', '#2a2a3a'] as [string, string])}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.postButtonGradient}
-          >
-            <Text style={styles.postButtonText}>
-              {isUploading ? `Uploading… ${uploadProgress}%` : 'Post'}
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          loading={false}
+          variant="hero"
+          size="lg"
+          fullWidth
+          style={styles.postButton}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -206,7 +202,6 @@ const THUMB_SIZE = 100;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#020208',
   },
   header: {
     flexDirection: 'row',
@@ -215,29 +210,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['3'],
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   headerBtn: {
     minWidth: 60,
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: Spacing['2'],
   },
   headerBack: {
     fontSize: FontSize.base,
-    color: DarkColors.text.secondary,
   },
   headerTitle: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: DarkColors.text.primary,
+    fontWeight: FontWeight.semiBold,
   },
   headerPost: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
-    color: '#a78bfa',
     textAlign: 'right',
-  },
-  headerPostDisabled: {
-    color: DarkColors.text.tertiary,
   },
   scroll: { flex: 1 },
   scrollContent: {
@@ -247,8 +237,7 @@ const styles = StyleSheet.create({
     margin: Spacing['5'],
     height: 200,
     borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.25)',
+    borderWidth: 1.5,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -257,12 +246,10 @@ const styles = StyleSheet.create({
   },
   emptyPickerTitle: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: DarkColors.text.primary,
+    fontWeight: FontWeight.semiBold,
   },
   emptyPickerSub: {
     fontSize: FontSize.sm,
-    color: DarkColors.text.secondary,
   },
   photoGrid: {
     flexDirection: 'row',
@@ -287,7 +274,6 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#a78bfa',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -303,7 +289,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -312,25 +298,20 @@ const styles = StyleSheet.create({
     height: THUMB_SIZE,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   addMoreText: {
     fontSize: FontSize.xs,
-    color: DarkColors.text.secondary,
   },
   photoCount: {
     fontSize: FontSize.xs,
-    color: DarkColors.text.tertiary,
     paddingHorizontal: Spacing['5'],
     marginBottom: Spacing['2'],
   },
   captionInput: {
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
     paddingHorizontal: Spacing['5'],
     paddingTop: Spacing['4'],
@@ -338,7 +319,6 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   placeRow: {
     flexDirection: 'row',
@@ -347,16 +327,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing['3'],
     gap: Spacing['2'],
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   placeInput: {
     flex: 1,
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
   },
   progressTrack: {
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     marginHorizontal: Spacing['5'],
     marginTop: Spacing['4'],
     borderRadius: BorderRadius.full,
@@ -369,17 +346,5 @@ const styles = StyleSheet.create({
   postButton: {
     marginHorizontal: Spacing['5'],
     marginTop: Spacing['5'],
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-  },
-  postButtonDisabled: { opacity: 0.5 },
-  postButtonGradient: {
-    paddingVertical: Spacing['4'],
-    alignItems: 'center',
-  },
-  postButtonText: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: '#fff',
   },
 });

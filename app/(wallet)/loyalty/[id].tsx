@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLoyaltyPrograms } from '@/hooks/useLoyaltyPrograms';
 import { LoyaltyCard } from '@/components/wallet/LoyaltyCard';
@@ -41,9 +43,15 @@ export default function LoyaltyDetailScreen() {
 
   const program = loyaltyPrograms.find((p) => p.id === id);
 
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  };
+
   const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
-      'Delete Loyalty Program',
+      'Delete loyalty program',
       'Are you sure you want to delete this loyalty program?',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -71,12 +79,12 @@ export default function LoyaltyDetailScreen() {
             { paddingTop: insets.top + Spacing['4'], borderBottomColor: colors.background.cardBorder },
           ]}
         >
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
+            <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
           </TouchableOpacity>
           <View style={styles.titleGroup}>
             <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
-            <Text style={[styles.title, { color: colors.text.primary }]}>Loyalty Program</Text>
+            <Text style={[styles.title, { color: colors.text.primary }]}>Loyalty program</Text>
           </View>
           <View style={styles.backButton} />
         </View>
@@ -101,10 +109,10 @@ export default function LoyaltyDetailScreen() {
           },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={[styles.backText, { color: colors.brand.purple }]}>←</Text>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
+          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text.primary }]}>Loyalty Program</Text>
+        <Text style={[styles.title, { color: colors.text.primary }]}>Loyalty program</Text>
         <View style={styles.backButton} />
       </View>
 
@@ -178,7 +186,7 @@ export default function LoyaltyDetailScreen() {
           activeOpacity={0.8}
         >
           <Text style={[styles.deleteButtonText, { color: colors.semantic.error }]}>
-            Delete Loyalty Program
+            Delete loyalty program
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -200,18 +208,15 @@ const styles = StyleSheet.create({
   },
   backButton: {
     width: 44,
+    minHeight: 44,
     alignItems: 'flex-start',
     justifyContent: 'center',
-  },
-  backText: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
   },
   titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
   starIcon: { width: 18, height: 18 },
   title: {
     fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.semiBold,
   },
   scroll: {
     flex: 1,
