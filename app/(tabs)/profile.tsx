@@ -75,9 +75,13 @@ async function fetchUserPosts(uid: string): Promise<PostDoc[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PostDoc));
 }
 
-async function fetchSavedTrips(uid: string): Promise<Trip[]> {
+/** Saved entries are trip snapshots, or post-shaped records (feed bookmarks)
+ * carrying savedType/postId — see hooks/useSavePost.ts. */
+type SavedItem = Trip & { savedType?: 'post'; postId?: string };
+
+async function fetchSavedTrips(uid: string): Promise<SavedItem[]> {
   const snap = await getDocs(collection(db, 'users', uid, 'savedTrips'));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SavedItem));
 }
 
 export default function ProfileScreen() {
@@ -404,7 +408,13 @@ function ProfileScreenContent() {
         renderItem={({ item }) => (
           <TripCard
             trip={item}
-            onPress={() => router.push(`/trip/${item.id}`)}
+            onPress={() =>
+              router.push(
+                item.savedType === 'post' && item.postId
+                  ? `/post/${item.postId}`
+                  : `/trip/${item.id}`,
+              )
+            }
           />
         )}
       />

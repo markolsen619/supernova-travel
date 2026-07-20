@@ -64,8 +64,10 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl }: TripCardPro
     active: colors.accent.teal,
     completed: colors.brand.blue,
   };
-  const statusLabel = STATUS_LABELS[trip.status] ?? STATUS_LABELS.planning;
-  const statusDot = statusDots[trip.status] ?? statusDots.planning;
+  // Saved-post records (feed bookmarks) omit status — a photo moment has no
+  // planning lifecycle, so no badge at all beats a wrong one.
+  const statusLabel = trip.status ? STATUS_LABELS[trip.status] ?? STATUS_LABELS.planning : null;
+  const statusDot = trip.status ? statusDots[trip.status] ?? statusDots.planning : null;
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
 
   const handlePress = useCallback(() => {
@@ -108,10 +110,12 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl }: TripCardPro
 
           {/* Status badge — top-right. Solid dark pill, not a tint: it must
               stay legible over bright and dark photos alike. */}
-          <View style={styles.statusBadge}>
-            <View style={[styles.statusDot, { backgroundColor: statusDot }]} />
-            <Text style={styles.statusText}>{statusLabel}</Text>
-          </View>
+          {statusLabel && statusDot ? (
+            <View style={styles.statusBadge}>
+              <View style={[styles.statusDot, { backgroundColor: statusDot }]} />
+              <Text style={styles.statusText}>{statusLabel}</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* ── Content area ── */}

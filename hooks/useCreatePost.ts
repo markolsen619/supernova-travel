@@ -72,7 +72,7 @@ export function useCreatePost() {
       const docRef = await addDoc(collection(db, 'posts'), {
         authorUid: user.uid,
         authorDisplayName: profile?.displayName ?? user.displayName ?? 'Traveler',
-        authorUsername: profile?.username ?? user.uid,
+        authorUsername: profile?.username ?? '',
         authorAvatarUrl: profile?.avatarUrl ?? null,
         caption: input.caption.trim(),
         mediaType: 'photo',
@@ -112,7 +112,7 @@ export function useCreatePost() {
       const docRef = await addDoc(collection(db, 'posts'), {
         authorUid: user.uid,
         authorDisplayName: profile?.displayName ?? user.displayName ?? 'Traveler',
-        authorUsername: profile?.username ?? user.uid,
+        authorUsername: profile?.username ?? '',
         authorAvatarUrl: profile?.avatarUrl ?? null,
         caption: caption.trim(),
         mediaType: 'trip',

@@ -243,9 +243,13 @@ export default function PostDetailScreen() {
                 <Text style={[styles.authorName, { color: colors.text.primary }]}>
                   {post.authorDisplayName}
                 </Text>
-                <Text style={[styles.authorHandle, { color: colors.text.tertiary }]}>
-                  @{post.authorUsername}
-                </Text>
+                {/* Old posts denormalized the uid into authorUsername — never
+                    show a raw uid as a handle */}
+                {post.authorUsername && post.authorUsername !== post.authorUid ? (
+                  <Text style={[styles.authorHandle, { color: colors.text.tertiary }]}>
+                    @{post.authorUsername}
+                  </Text>
+                ) : null}
               </View>
             </TouchableOpacity>
             {editing ? (

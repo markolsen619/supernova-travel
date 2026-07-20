@@ -39,7 +39,21 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if resource.data.visibility == 'public' || isAuthed();
       allow create: if isAuthed() && request.auth.uid == request.resource.data.authorUid;
-      allow update, delete: if isAuthed() && request.auth.uid == resource.data.authorUid;
+      // Authors may update anything; anyone signed in may bump ONLY the
+      // denormalized like counter (the like transaction maintains it).
+      allow update: if isAuthed() && (
+        request.auth.uid == resource.data.authorUid
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
+      );
+      allow delete: if isAuthed() && request.auth.uid == resource.data.authorUid;
+
+      // One like per user — doc ID is `${uid}_${postId}`, payload carries uid
+      match /likes/{likeId} {
+        allow read: if isAuthed();
+        allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
+        allow update: if false;
+        allow delete: if isAuthed() && resource.data.uid == request.auth.uid;
+      }
 
       match /comments/{commentId} {
         allow read: if isAuthed();

@@ -68,7 +68,6 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
 export function FeedCard({ post, isActive }: FeedCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
-  const [isMuted, setIsMuted] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
 
   const handleCommentPress = useCallback(() => {
@@ -83,7 +82,7 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
     <View style={styles.container}>
       {/* Media layer */}
       {post.mediaType === 'video' ? (
-        <VideoPlayer uri={post.mediaUrl} shouldPlay={isActive} isMuted={isMuted} />
+        <VideoPlayer uri={post.mediaUrl} shouldPlay={isActive} isMuted={false} />
       ) : isMultiPhoto ? (
         <ScrollView
           horizontal
@@ -149,12 +148,7 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
       )}
 
       {/* Overlaid controls */}
-      <FeedActions
-        post={post}
-        isMuted={isMuted}
-        onToggleMute={() => setIsMuted((m) => !m)}
-        onCommentPress={handleCommentPress}
-      />
+      <FeedActions post={post} onCommentPress={handleCommentPress} />
     </View>
   );
 }

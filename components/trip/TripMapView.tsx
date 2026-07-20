@@ -14,6 +14,7 @@ import { ArrowLeft, MapPinLine, X } from 'phosphor-react-native';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
+import { lightPresetForNow } from '@/services/mapLighting';
 import { ACTIVITY_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { TripDay, TripActivity } from '@/types';
@@ -192,8 +193,11 @@ export function TripMapView({
         style={StyleSheet.absoluteFill}
         styleURL={STANDARD_STYLE}
         projection="mercator"
-        logoEnabled={false}
-        attributionEnabled={false}
+        // Mapbox ToS requires the wordmark + attribution on-map
+        logoEnabled
+        logoPosition={{ bottom: 24, left: 8 }}
+        attributionEnabled
+        attributionPosition={{ bottom: 24, right: 8 }}
         compassEnabled={false}
         scaleBarEnabled={false}
       >
@@ -201,7 +205,9 @@ export function TripMapView({
           id="basemap"
           existing
           config={{
-            lightPreset: 'night',
+            // Real time-of-day lighting — computed at mount; a trip map view
+            // is short-lived enough that it doesn't need live updates.
+            lightPreset: lightPresetForNow(),
             showPointOfInterestLabels: true,
             showLandmarkIcons: true,
             show3dBuildings: true,

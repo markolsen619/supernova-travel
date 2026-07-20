@@ -19,7 +19,7 @@ import {
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MagnifyingGlass, X, Compass, WarningCircle } from 'phosphor-react-native';
 import { DarkColors } from '@/constants/colors';
@@ -28,6 +28,7 @@ import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutoc
 import { useFlyTo } from '@/hooks/useFlyTo';
 import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
 import { enrichPoiByNameAndCoords, placeFromSelection, zoomForPlaceType } from '@/services/places/googlePlaces';
+import { lightPresetForNow, type LightPreset } from '@/services/mapLighting';
 import { extractPoiFromFeatures } from '@/services/places/poiTapBridge';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { UserResult } from '@/components/search/UserResult';
@@ -67,6 +68,17 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('Places');
   const [enriching, setEnriching] = useState(false);
+
+  // Standard's lighting follows the actual time of day — recomputed whenever
+  // the tab regains focus, so a session left open across dusk catches up.
+  // The floating chrome stays the fixed dark treatment (self-contained dark
+  // surfaces with light text), which reads over all four presets.
+  const [lightPreset, setLightPreset] = useState<LightPreset>(() => lightPresetForNow());
+  useFocusEffect(
+    useCallback(() => {
+      setLightPreset(lightPresetForNow());
+    }, []),
+  );
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -337,8 +349,12 @@ export default function SearchScreen() {
         styleURL={STANDARD_STYLE}
         projection="globe"
         onPress={handleMapPress}
-        logoEnabled={false}
-        attributionEnabled={false}
+        // Mapbox ToS requires the wordmark + attribution on-map — kept small
+        // and tucked above the tab bar.
+        logoEnabled
+        logoPosition={{ bottom: 88, left: 8 }}
+        attributionEnabled
+        attributionPosition={{ bottom: 88, right: 8 }}
         compassEnabled={false}
         scaleBarEnabled={false}
       >
@@ -346,7 +362,7 @@ export default function SearchScreen() {
           id="basemap"
           existing
           config={{
-            lightPreset: 'night',
+            lightPreset,
             showPointOfInterestLabels: true,
             showLandmarkIcons: true,
             show3dBuildings: true,

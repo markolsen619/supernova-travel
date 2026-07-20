@@ -22,9 +22,13 @@ import { TripCard } from '@/components/trip/TripCard';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Trip } from '@/types';
 
-async function fetchSavedTrips(uid: string): Promise<Trip[]> {
+/** Saved entries are trip snapshots, or post-shaped records (feed bookmarks)
+ * carrying savedType/postId — see hooks/useSavePost.ts. */
+type SavedItem = Trip & { savedType?: 'post'; postId?: string };
+
+async function fetchSavedTrips(uid: string): Promise<SavedItem[]> {
   const snap = await getDocs(collection(db, 'users', uid, 'savedTrips'));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Trip));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as SavedItem));
 }
 
 interface SavedGridProps {
@@ -78,8 +82,18 @@ export function SavedGrid({ uid }: SavedGridProps) {
 
   return (
     <View style={styles.list}>
-      {savedTrips.map((trip) => (
-        <TripCard key={trip.id} trip={trip} onPress={() => router.push(`/trip/${trip.id}`)} />
+      {savedTrips.map((item) => (
+        <TripCard
+          key={item.id}
+          trip={item}
+          onPress={() =>
+            router.push(
+              item.savedType === 'post' && item.postId
+                ? `/post/${item.postId}`
+                : `/trip/${item.id}`,
+            )
+          }
+        />
       ))}
     </View>
   );

@@ -71,11 +71,10 @@ export default function FeedScreen() {
   return (
     <ScreenEntrance>
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
-      {/* Header — icons stay a fixed light-circle/dark-icon treatment so
-          they're legible whether they're floating over a photo or, during
-          loading/empty, the plain light canvas (same reasoning as the trip
-          header's Fix 4). The dark scrim behind them only renders when a
-          card is actually there to need it. */}
+      {/* Header — bare white icons straight on the photo (the header's own
+          scrim keeps them legible over bright media); over the light
+          empty/loading canvas the scrim is absent, so they flip to dark.
+          Touch targets stay 44pt via the wrapper even without the circles. */}
       <View style={[styles.header, { paddingTop: insets.top }]} pointerEvents="box-none">
         {hasContent && (
           <LinearGradient
@@ -89,11 +88,10 @@ export default function FeedScreen() {
           style={styles.headerBtn}
           onPress={handleAddPress}
           activeOpacity={0.7}
+          hitSlop={6}
           accessibilityLabel="Share a moment"
         >
-          <View style={styles.headerBtnCircle}>
-            <Plus size={20} color={colors.text.primary} weight="bold" />
-          </View>
+          <Plus size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -108,11 +106,10 @@ export default function FeedScreen() {
           style={styles.headerBtn}
           onPress={handleNotificationsPress}
           activeOpacity={0.7}
+          hitSlop={6}
           accessibilityLabel="Notifications"
         >
-          <View style={styles.headerBtnCircle}>
-            <Heart size={20} color={colors.text.primary} weight="bold" />
-          </View>
+          <Heart size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
         </TouchableOpacity>
       </View>
 
@@ -177,21 +174,6 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerBtnCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    // Fixed light-translucent circle, independent of theme — legible over
-    // both a photo (aided by the header's own scrim) and the plain canvas.
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.18,
-    shadowRadius: 3,
-    elevation: 2,
   },
   headerCenter: {
     flex: 1,
