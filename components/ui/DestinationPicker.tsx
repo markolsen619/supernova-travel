@@ -121,7 +121,7 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
       return (
         <View style={styles.empty}>
           <MapPin size={40} color={colors.text.disabled} weight="duotone" />
-          <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>No results for "{query}"</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>No results for &ldquo;{query}&rdquo;</Text>
           <Text style={[styles.emptyBody, { color: colors.text.secondary }]}>Try a different search term.</Text>
         </View>
       );
@@ -132,7 +132,6 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
           data={suggestions}
           renderItem={renderSuggestion}
           keyExtractor={(item) => item.placeId}
-          estimatedItemSize={72}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
         />

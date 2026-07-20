@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AirplaneTilt } from 'phosphor-react-native';
 import { BoardingPass, BoardingPassStatus } from '@/types';
+import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -43,6 +44,11 @@ function formatDepartureTime(isoString: string): string {
 
 export function BoardingPassCard({ pass, onPress }: BoardingPassCardProps) {
   const statusColor = STATUS_COLORS[pass.status];
+  // The card itself is always-dark (physical-object skeuomorph), but the
+  // side notches fake holes punched through it — they must match whatever
+  // themed background the card is sitting on or the illusion breaks.
+  const { colors } = useTheme();
+  const notchColor = colors.background.primary;
 
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.wrapper}>
@@ -99,9 +105,9 @@ export function BoardingPassCard({ pass, onPress }: BoardingPassCardProps) {
 
         {/* Dashed separator */}
         <View style={styles.separatorRow}>
-          <View style={styles.notch} />
+          <View style={[styles.notch, { backgroundColor: notchColor }]} />
           <View style={styles.dashedSeparator} />
-          <View style={[styles.notch, styles.notchRight]} />
+          <View style={[styles.notch, styles.notchRight, { backgroundColor: notchColor }]} />
         </View>
 
         {/* Bottom strip */}
@@ -240,7 +246,6 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#0a0a1a',
     marginLeft: -7,
   },
   notchRight: {

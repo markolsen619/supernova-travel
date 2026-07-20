@@ -14,8 +14,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { TAB_ICONS } from '@/constants/icons';
 import { TAB_BAR_HEIGHT } from '@/constants/layout';
-
-const SPRING = { damping: 18, stiffness: 220, mass: 0.8, useNativeDriver: true } as const;
+import { SPRING } from '@/constants/motion';
 
 const TABS = [
   { name: 'index',   label: 'Feed'    },

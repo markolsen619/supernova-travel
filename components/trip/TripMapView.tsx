@@ -323,7 +323,7 @@ export function TripMapView({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a1a' },
+  container: { flex: 1, backgroundColor: DarkColors.background.primary },
 
   header: {
     position: 'absolute',

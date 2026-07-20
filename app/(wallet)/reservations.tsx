@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -13,11 +12,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Plus, CalendarBlank } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { useReservations } from '@/hooks/useReservations';
 import { ReservationCard } from '@/components/wallet/ReservationCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing } from '@/constants/spacing';
+import { Spacing, BorderRadius } from '@/constants/spacing';
 
 export default function ReservationsScreen() {
   const insets = useSafeAreaInsets();
@@ -50,7 +51,7 @@ export default function ReservationsScreen() {
           <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <View style={styles.titleGroup}>
-          <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
+          <StarMark size={18} />
           <Text style={[styles.title, { color: colors.text.primary }]}>Reservations</Text>
         </View>
         <TouchableOpacity onPress={handleAdd} style={styles.addButton} accessibilityLabel="Add reservation">
@@ -60,8 +61,10 @@ export default function ReservationsScreen() {
 
       {/* Content */}
       {isLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.brand.purple} size="large" />
+        <View style={{ paddingHorizontal: Spacing['5'], paddingTop: Spacing['5'], gap: Spacing['4'] }}>
+          {[0, 1, 2].map((i) => (
+            <SkeletonCard key={i} height={120} radius={BorderRadius.xl} />
+          ))}
         </View>
       ) : reservations.length === 0 ? (
         <EmptyState

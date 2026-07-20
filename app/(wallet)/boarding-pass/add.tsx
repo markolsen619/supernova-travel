@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
@@ -59,7 +60,7 @@ export default function AddBoardingPassScreen() {
 
   const handleSubmit = () => {
     if (!form.airline.trim() || !form.flightNumber.trim() || !form.origin.trim() || !form.destination.trim()) {
-      Alert.alert('Missing Fields', 'Please fill in airline, flight number, origin, and destination.');
+      Alert.alert('Missing details', 'Fill in airline, flight number, origin, and destination.');
       return;
     }
     if (!user?.uid) {
@@ -84,7 +85,7 @@ export default function AddBoardingPassScreen() {
       },
       {
         onSuccess: () => router.back(),
-        onError: () => Alert.alert('Error', 'Failed to save boarding pass. Please try again.'),
+        onError: () => Alert.alert('Save failed', 'The pass didn\'t save. Try again.'),
       },
     );
   };
@@ -124,7 +125,7 @@ export default function AddBoardingPassScreen() {
           <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <View style={styles.titleGroup}>
-          <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
+          <StarMark size={18} />
           <Text style={[styles.title, { color: colors.text.primary }]}>Add boarding pass</Text>
         </View>
         <View style={styles.backButton} />

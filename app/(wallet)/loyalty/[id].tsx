@@ -10,8 +10,10 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft } from 'phosphor-react-native';
+import { ArrowLeft, Medal } from 'phosphor-react-native';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { useLoyaltyPrograms } from '@/hooks/useLoyaltyPrograms';
 import { LoyaltyCard } from '@/components/wallet/LoyaltyCard';
 import { PointsBalance } from '@/components/wallet/PointsBalance';
@@ -21,8 +23,8 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 const PROGRAM_TYPE_LABELS: Record<string, string> = {
   airline: 'Airline',
   hotel: 'Hotel',
-  car_rental: 'Car Rental',
-  credit_card: 'Credit Card',
+  car_rental: 'Car rental',
+  credit_card: 'Credit card',
   other: 'Other',
 };
 
@@ -83,15 +85,20 @@ export default function LoyaltyDetailScreen() {
             <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
           </TouchableOpacity>
           <View style={styles.titleGroup}>
-            <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
+            <StarMark size={18} />
             <Text style={[styles.title, { color: colors.text.primary }]}>Loyalty program</Text>
           </View>
           <View style={styles.backButton} />
         </View>
         <View style={styles.centered}>
-          <Text style={[styles.notFoundText, { color: colors.text.tertiary }]}>
-            Loyalty program not found.
-          </Text>
+          <EmptyState
+            icon={Medal}
+            title="This program isn't here"
+            description="It may have been removed or the link is out of date."
+            actionLabel="Back to wallet"
+            onAction={handleBack}
+            actionHaptic="none"
+          />
         </View>
       </View>
     );
@@ -156,7 +163,7 @@ export default function LoyaltyDetailScreen() {
 
           {program.memberNumber ? (
             <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: colors.text.tertiary }]}>Member Number</Text>
+              <Text style={[styles.detailLabel, { color: colors.text.tertiary }]}>Member number</Text>
               <Text style={[styles.detailValue, { color: colors.text.primary }]}>
                 {program.memberNumber}
               </Text>

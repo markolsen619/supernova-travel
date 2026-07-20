@@ -20,6 +20,7 @@ import { ACTIVITY_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 import { ActivityType, TripActivity, TripDay } from '@/types';
 
 const ACTIVITY_TYPE_OPTIONS: ActivityType[] = [
@@ -96,9 +97,7 @@ export function ActivityFormSheet({
     if (visible) {
       Animated.spring(slideAnim, {
         toValue: 1,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
+        ...SPRING,
       }).start();
     } else {
       Animated.timing(slideAnim, {

@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
+import { MapPin } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -20,6 +21,13 @@ interface TripCardProps {
   trip: Trip;
   onPress: () => void;
   style?: ViewStyle;
+  /**
+   * Destination-level photo to show when the trip has no cover of its own —
+   * harvested by the caller from data already in memory (e.g. a sibling
+   * trip's persisted coverImageUrl). Must never be resolved on render:
+   * rendering a TripCard can never trigger a Places API call.
+   */
+  fallbackCoverUrl?: string | null;
 }
 
 // This badge sits on the raw cover photo, not app chrome — a light-tint-on-
@@ -28,10 +36,10 @@ interface TripCardProps {
 // photo. Same "text over unpredictable media" problem as the feed overlay:
 // solid dark scrim + white text, color-coded with a small dot instead of a
 // tinted background.
-const STATUS_CONFIG: Record<TripStatus, { label: string; dot: string }> = {
-  planning: { label: 'Planning', dot: '#fbbf24' },
-  active: { label: 'Active', dot: '#34d399' },
-  completed: { label: 'Completed', dot: '#60a5fa' },
+const STATUS_LABELS: Record<TripStatus, string> = {
+  planning: 'Planning',
+  active: 'Active',
+  completed: 'Completed',
 };
 
 function formatDateRange(
@@ -45,9 +53,19 @@ function formatDateRange(
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-export function TripCard({ trip, onPress, style }: TripCardProps) {
+export function TripCard({ trip, onPress, style, fallbackCoverUrl }: TripCardProps) {
   const { colors } = useTheme();
-  const statusCfg = STATUS_CONFIG[trip.status] ?? STATUS_CONFIG.planning;
+  const coverUrl = trip.coverImageUrl || fallbackCoverUrl || null;
+  // Dot hues come from the shared accent/brand tokens (identical in both
+  // themes) — the dot sits on the photo's dark scrim, so it needs the
+  // bright variants, not the light-theme semantic tones.
+  const statusDots: Record<TripStatus, string> = {
+    planning: colors.accent.amber,
+    active: colors.accent.teal,
+    completed: colors.brand.blue,
+  };
+  const statusLabel = STATUS_LABELS[trip.status] ?? STATUS_LABELS.planning;
+  const statusDot = statusDots[trip.status] ?? statusDots.planning;
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
 
   const handlePress = useCallback(() => {
@@ -65,31 +83,34 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
       >
         {/* ── Cover image area ── */}
         <View style={[styles.imageContainer, { backgroundColor: colors.background.sunken }]}>
-          {trip.coverImageUrl ? (
-            <Image
-              source={{ uri: trip.coverImageUrl }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
+          {coverUrl ? (
+            <>
+              <Image
+                source={{ uri: coverUrl }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+              />
+              {/* Bottom-up dark fade for text readability over the photo */}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+              />
+            </>
           ) : (
-            <LinearGradient
-              colors={colors.gradient.card}
-              style={StyleSheet.absoluteFill}
-            />
+            // Warm intentional placeholder — sunken tint + duotone mark, with
+            // the destination name carried by the content area below.
+            <View style={styles.placeholderCenter}>
+              <MapPin size={28} color={colors.text.disabled} weight="duotone" />
+            </View>
           )}
 
-          {/* Bottom-up dark fade for text readability */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.6)']}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-          />
-
-          {/* Status badge — top-right */}
+          {/* Status badge — top-right. Solid dark pill, not a tint: it must
+              stay legible over bright and dark photos alike. */}
           <View style={styles.statusBadge}>
-            <View style={[styles.statusDot, { backgroundColor: statusCfg.dot }]} />
-            <Text style={styles.statusText}>{statusCfg.label}</Text>
+            <View style={[styles.statusDot, { backgroundColor: statusDot }]} />
+            <Text style={styles.statusText}>{statusLabel}</Text>
           </View>
         </View>
 
@@ -137,6 +158,11 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     height: 160,
+  },
+  placeholderCenter: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statusBadge: {
     position: 'absolute',

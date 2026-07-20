@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 
 interface SecondaryOption {
   Icon: PhosphorIcon;
@@ -51,6 +52,7 @@ export default function CreateScreen() {
   ];
 
   return (
+    <ScreenEntrance>
     <View style={[styles.container, { backgroundColor: colors.background.primary, paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>NEW TRIP</Text>
@@ -100,6 +102,7 @@ export default function CreateScreen() {
         </View>
       </View>
     </View>
+    </ScreenEntrance>
   );
 }
 

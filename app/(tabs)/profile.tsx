@@ -22,6 +22,7 @@ import {
   Compass,
 } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTripList } from '@/hooks/useTripList';
@@ -31,6 +32,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { TripCard } from '@/components/trip/TripCard';
 import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -79,6 +81,14 @@ async function fetchSavedTrips(uid: string): Promise<Trip[]> {
 }
 
 export default function ProfileScreen() {
+  return (
+    <ScreenEntrance>
+      <ProfileScreenContent />
+    </ScreenEntrance>
+  );
+}
+
+function ProfileScreenContent() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user, tier } = useAuthStore();
@@ -90,7 +100,7 @@ export default function ProfileScreen() {
 
   const uid = user?.uid ?? null;
   const displayName = profile?.displayName ?? user?.displayName ?? 'Explorer';
-  const username = displayName.toLowerCase().replace(/\s+/g, '_');
+  const username = profile?.username ?? '';
 
   const { data: allTrips = [], isLoading: tripsLoading } = useTripList(uid);
   const filteredTrips = allTrips.filter((t) => t.status === TRIP_STATUS_MAP[tripFilter]);
@@ -144,11 +154,7 @@ export default function ProfileScreen() {
       <View style={[styles.hero, { paddingTop: insets.top, backgroundColor: colors.background.primary }]}>
         {/* Top actions */}
         <View style={styles.heroActions}>
-          <Image
-            source={require('@/assets/images/SupernovaStar.png')}
-            style={styles.heroStar}
-            resizeMode="contain"
-          />
+          <StarMark size={36} />
           <TouchableOpacity
             onPress={handleSettings}
             style={styles.heroIconBtn}
@@ -162,9 +168,11 @@ export default function ProfileScreen() {
 
         {/* Avatar + info */}
         <View style={styles.heroContent}>
-          <Avatar uri={user?.photoURL} name={displayName} size="xl" />
+          <Avatar uri={profile?.avatarUrl ?? user?.photoURL} name={displayName} size="xl" />
           <Text style={[styles.heroName, { color: colors.text.primary }]}>{displayName}</Text>
-          <Text style={[styles.heroUsername, { color: colors.text.tertiary }]}>@{username}</Text>
+          {username ? (
+            <Text style={[styles.heroUsername, { color: colors.text.tertiary }]}>@{username}</Text>
+          ) : null}
           {tier !== 'free' && <Badge variant={tier} style={styles.heroBadge} />}
 
           {/* Stats row */}
@@ -282,7 +290,6 @@ export default function ProfileScreen() {
         <FlashList
           data={filteredTrips}
           keyExtractor={(t) => t.id}
-          estimatedItemSize={230}
           contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingBottom: 100 }}
           ListHeaderComponent={headerComponent}
           ItemSeparatorComponent={() => <View style={{ height: Spacing['3'] }} />}
@@ -327,7 +334,6 @@ export default function ProfileScreen() {
         <FlashList
           data={posts}
           keyExtractor={(p) => p.id}
-          estimatedItemSize={POST_CELL}
           numColumns={3}
           contentContainerStyle={{ paddingBottom: 100 }}
           ListHeaderComponent={headerComponent}
@@ -381,7 +387,6 @@ export default function ProfileScreen() {
       <FlashList
         data={savedTrips}
         keyExtractor={(t) => t.id}
-        estimatedItemSize={230}
         contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingBottom: 100 }}
         ListHeaderComponent={headerComponent}
         ItemSeparatorComponent={() => <View style={{ height: Spacing['3'] }} />}

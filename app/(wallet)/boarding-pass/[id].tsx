@@ -12,13 +12,16 @@ import { useRef } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft } from 'phosphor-react-native';
+import { ArrowLeft, AirplaneTilt } from 'phosphor-react-native';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { BoardingPassCard } from '@/components/wallet/BoardingPassCard';
 import { BarcodeDisplay } from '@/components/wallet/BarcodeDisplay';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 import type { BoardingPass } from '@/types';
 
 const CARD_HEIGHT = 200;
@@ -33,9 +36,7 @@ function FlippableCard({ pass }: { pass: BoardingPass }) {
     isFlipped.current = !isFlipped.current;
     Animated.spring(flipValue, {
       toValue: isFlipped.current ? 1 : 0,
-      useNativeDriver: true,
-      damping: 15,
-      stiffness: 100,
+      ...SPRING,
     }).start();
   };
 
@@ -126,15 +127,20 @@ export default function BoardingPassDetailScreen() {
             <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
           </TouchableOpacity>
           <View style={styles.titleGroup}>
-            <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
+            <StarMark size={18} />
             <Text style={[styles.title, { color: colors.text.primary }]}>Boarding pass</Text>
           </View>
           <View style={styles.backButton} />
         </View>
         <View style={styles.centered}>
-          <Text style={[styles.notFoundText, { color: colors.text.tertiary }]}>
-            Boarding pass not found.
-          </Text>
+          <EmptyState
+            icon={AirplaneTilt}
+            title="This pass isn't here"
+            description="It may have been deleted or the link is out of date."
+            actionLabel="Back to wallet"
+            onAction={handleBack}
+            actionHaptic="none"
+          />
         </View>
       </View>
     );

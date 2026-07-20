@@ -1,13 +1,3 @@
-import { Platform } from 'react-native';
-
-export const FontFamily = {
-  regular: Platform.select({ ios: 'System', android: 'Roboto', default: 'System' }),
-  medium: Platform.select({ ios: 'System', android: 'Roboto', default: 'System' }),
-  semiBold: Platform.select({ ios: 'System', android: 'Roboto', default: 'System' }),
-  bold: Platform.select({ ios: 'System', android: 'Roboto', default: 'System' }),
-  extraBold: Platform.select({ ios: 'System', android: 'Roboto', default: 'System' }),
-} as const;
-
 export const FontWeight = {
   regular: '400' as const,
   medium: '500' as const,

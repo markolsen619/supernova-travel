@@ -18,14 +18,14 @@ export default function ForgotPasswordScreen() {
   const [error, setError] = useState('');
 
   const handleReset = async () => {
-    if (!email) { setError('Please enter your email.'); return; }
+    if (!email) { setError('Enter your email to reset your password.'); return; }
     setLoading(true);
     setError('');
     try {
       await sendPasswordResetEmail(auth, email.trim());
       setSent(true);
     } catch {
-      setError('Could not send reset email. Please check the address and try again.');
+      setError('The reset email didn\'t send. Check the address and try again.');
     } finally {
       setLoading(false);
     }

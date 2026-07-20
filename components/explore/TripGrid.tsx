@@ -15,9 +15,15 @@ const ITEM_WIDTH =
 interface TripGridProps {
   trips: Trip[];
   onTripPress: (tripId: string) => void;
+  /**
+   * placeId → destination photo URL, harvested by the caller from trips
+   * already in memory. Display-only fallback for coverless trips — never a
+   * resolution path.
+   */
+  destinationPhotos?: ReadonlyMap<string, string>;
 }
 
-export function TripGrid({ trips, onTripPress }: TripGridProps) {
+export function TripGrid({ trips, onTripPress, destinationPhotos }: TripGridProps) {
   const { colors } = useTheme();
 
   const renderItem = useCallback(
@@ -27,10 +33,15 @@ export function TripGrid({ trips, onTripPress }: TripGridProps) {
           trip={item}
           onPress={() => onTripPress(item.id)}
           style={{ width: ITEM_WIDTH }}
+          fallbackCoverUrl={
+            item.destination.placeId
+              ? destinationPhotos?.get(item.destination.placeId) ?? null
+              : null
+          }
         />
       </View>
     ),
-    [onTripPress],
+    [onTripPress, destinationPhotos],
   );
 
   const keyExtractor = useCallback((item: Trip) => item.id, []);

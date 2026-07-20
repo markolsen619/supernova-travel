@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLoyaltyPrograms } from '@/hooks/useLoyaltyPrograms';
@@ -68,11 +69,11 @@ export default function AddLoyaltyScreen() {
 
   const handleSubmit = useCallback(() => {
     if (!programName.trim()) {
-      Alert.alert('Missing Fields', 'Please enter a program name.');
+      Alert.alert('Missing details', 'Enter a program name to save it.');
       return;
     }
     if (!balanceText.trim() || isNaN(Number(balanceText))) {
-      Alert.alert('Invalid Balance', 'Please enter a valid balance number.');
+      Alert.alert('Invalid balance', 'Enter the balance as a number.');
       return;
     }
     if (!uid) {
@@ -95,7 +96,7 @@ export default function AddLoyaltyScreen() {
       },
       {
         onSuccess: () => router.back(),
-        onError: () => Alert.alert('Error', 'Failed to save loyalty program. Please try again.'),
+        onError: () => Alert.alert('Save failed', 'The program didn\'t save. Try again.'),
       },
     );
   }, [programName, programType, memberNumber, balanceText, unit, tier, expiryDate, uid, addProgram]);
@@ -150,7 +151,7 @@ export default function AddLoyaltyScreen() {
           <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <View style={styles.titleGroup}>
-          <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
+          <StarMark size={18} />
           <Text style={[styles.title, { color: colors.text.primary }]}>Add loyalty program</Text>
         </View>
         <View style={styles.backButton} />

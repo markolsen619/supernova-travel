@@ -5,7 +5,7 @@ import { GenerateTripRequest, GeneratedTrip } from './types';
 import { FREE_TIER_WEEKLY_AI_TRIP_LIMIT, getWeeklyQuotaKey } from './quotaUtils';
 
 export const generateTrip = functions.https.onCall(
-  { region: 'us-central1', enforceAppCheck: false },
+  { region: 'us-central1', enforceAppCheck: false, timeoutSeconds: 180 },
   async (request) => {
     // 1. Auth check
     if (!request.auth) {
@@ -43,7 +43,7 @@ export const generateTrip = functions.https.onCall(
     }
 
     const genAI = new GoogleGenerativeAI(geminiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = buildPrompt(data);
     const result = await model.generateContent(prompt);

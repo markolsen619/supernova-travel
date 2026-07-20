@@ -22,6 +22,7 @@ import { PlaceResult } from '@/components/search/PlaceResult';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -60,18 +61,14 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
   const showPreview = useCallback(() => {
     Animated.spring(slideAnim, {
       toValue: 0,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
+      ...SPRING,
     }).start();
   }, [slideAnim]);
 
   const hidePreview = useCallback(() => {
     Animated.spring(slideAnim, {
       toValue: SCREEN_HEIGHT,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
+      ...SPRING,
     }).start(() => setPreviewPlace(null));
   }, [slideAnim]);
 
@@ -165,7 +162,7 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
         ) : error ? (
           <View style={styles.centered}>
             <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>
-              Search failed. Please try again.
+              Search failed. Check your connection and try again.
             </Text>
           </View>
         ) : query.trim().length < 2 ? (

@@ -12,11 +12,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { MapPin, Bag, ArrowLeft } from 'phosphor-react-native';
+import { MapPin, Bag, ArrowLeft, UserCircle } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -25,6 +24,8 @@ import { useFollow } from '@/hooks/useFollow';
 import { useTripList } from '@/hooks/useTripList';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonBlock, SkeletonText } from '@/components/ui/Skeleton';
 import { PostsGrid } from '@/components/profile/PostsGrid';
 import { TripsGrid } from '@/components/profile/TripsGrid';
 import { SavedGrid } from '@/components/profile/SavedGrid';
@@ -92,11 +93,16 @@ export default function UserProfileScreen() {
     setActiveProfileTab(tab);
   }, []);
 
-  // ── Loading state ─────────────────────────────────────────────────────────
+  // ── Loading state — mirrors the loaded layout so nothing jumps ────────────
   if (isLoading) {
     return (
-      <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
-        <ActivityIndicator color={colors.brand.purple} size="large" />
+      <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
+        <View style={[styles.skeletonWrap, { paddingTop: insets.top + Spacing['12'] }]}>
+          <SkeletonBlock width={88} height={88} radius={44} />
+          <SkeletonText width="50%" size="lg" style={{ marginTop: Spacing['4'] }} />
+          <SkeletonText width="30%" size="sm" style={{ marginTop: Spacing['2'] }} />
+          <SkeletonBlock width="100%" height={64} radius={BorderRadius.lg} style={{ marginTop: Spacing['6'] }} />
+        </View>
       </View>
     );
   }
@@ -105,9 +111,14 @@ export default function UserProfileScreen() {
   if (!profile) {
     return (
       <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
-        <Text style={{ color: colors.text.secondary, fontSize: FontSize.md }}>
-          User not found.
-        </Text>
+        <EmptyState
+          icon={UserCircle}
+          title="This profile isn't available"
+          description="The account may have been removed or the link is out of date."
+          actionLabel="Go back"
+          onAction={() => router.back()}
+          actionHaptic="light"
+        />
       </View>
     );
   }
@@ -306,6 +317,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  skeletonWrap: {
+    alignItems: 'center',
+    paddingHorizontal: Spacing['6'],
   },
   backRow: {
     flexDirection: 'row',

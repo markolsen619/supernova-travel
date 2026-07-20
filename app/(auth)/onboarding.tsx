@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/Button';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 
 type PhosphorIcon = typeof Globe;
 
@@ -95,9 +96,9 @@ function DotItem({ active }: { active: boolean }) {
   useEffect(() => {
     Animated.spring(width, {
       toValue: active ? 24 : 8,
+      ...SPRING,
+      // width is a layout prop — the native driver can't animate it
       useNativeDriver: false,
-      stiffness: 220,
-      damping: 20,
     }).start();
   }, [active, width]);
 
@@ -168,7 +169,11 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0a0a1a', '#1a0a3a', '#0a0a1a']}
+        colors={[
+          DarkColors.background.primary,
+          DarkColors.background.elevated,
+          DarkColors.background.primary,
+        ]}
         style={StyleSheet.absoluteFill}
       />
       {/* Secondary aurora glow */}

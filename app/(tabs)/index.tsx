@@ -16,16 +16,13 @@ import * as Haptics from 'expo-haptics';
 import { FeedCard } from '@/components/feed/FeedCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { useFeed } from '@/hooks/useFeed';
 import { useTheme } from '@/hooks/useTheme';
 import { Post } from '@/types';
 import { Spacing } from '@/constants/spacing';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-
-function overrideItemLayout(layout: { size: number }) {
-  layout.size = SCREEN_HEIGHT;
-}
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
@@ -72,6 +69,7 @@ export default function FeedScreen() {
   }, [router]);
 
   return (
+    <ScreenEntrance>
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
       {/* Header — icons stay a fixed light-circle/dark-icon treatment so
           they're legible whether they're floating over a photo or, during
@@ -124,8 +122,8 @@ export default function FeedScreen() {
         <View style={styles.emptyContainer}>
           <EmptyState
             icon={AirplaneTilt}
-            title="Nothing here yet"
-            description="Be the first to share a travel moment."
+            title="Your feed starts here"
+            description="Follow travelers or share your first moment."
             actionLabel="Share a moment"
             onAction={handleAddPress}
             actionHaptic="none"
@@ -139,8 +137,6 @@ export default function FeedScreen() {
             <FeedCard post={item} isActive={index === activeIndex} />
           )}
           pagingEnabled
-          estimatedItemSize={SCREEN_HEIGHT}
-          overrideItemLayout={overrideItemLayout}
           showsVerticalScrollIndicator={false}
           decelerationRate="fast"
           viewabilityConfig={viewabilityConfig.current}
@@ -157,6 +153,7 @@ export default function FeedScreen() {
         />
       )}
     </View>
+    </ScreenEntrance>
   );
 }
 

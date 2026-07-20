@@ -20,10 +20,12 @@ import { CaretLeft, Eye, EyeSlash, CalendarBlank } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { auth, db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -39,8 +41,8 @@ export default function SignUpScreen() {
     Animated.sequence([
       Animated.delay(120),
       Animated.parallel([
-        Animated.spring(contentOpacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
-        Animated.spring(contentTranslateY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+        Animated.spring(contentOpacity, { toValue: 1, ...SPRING }),
+        Animated.spring(contentTranslateY, { toValue: 0, ...SPRING }),
       ]),
     ]).start();
   }, []);
@@ -69,7 +71,7 @@ export default function SignUpScreen() {
 
   const handleSignUp = useCallback(async () => {
     if (!displayName.trim() || !email.trim() || !password || !dob) {
-      setError('Please fill in all fields.');
+      setError('Fill in all fields to continue.');
       return;
     }
     if (isUnder13(dob)) {
@@ -102,7 +104,7 @@ export default function SignUpScreen() {
       setError(
         e.code === 'auth/email-already-in-use'
           ? 'An account with this email already exists.'
-          : 'Sign up failed. Please try again.',
+          : 'Sign up failed. Try again in a moment.',
       );
     } finally {
       setLoading(false);
@@ -150,11 +152,7 @@ export default function SignUpScreen() {
         </TouchableOpacity>
 
         {/* Brand — the star mark's own gradient art is the one hit of brand color on this screen. */}
-        <Image
-          source={require('@/assets/images/SupernovaStar.png')}
-          style={styles.star}
-          resizeMode="contain"
-        />
+        <StarMark size={78} style={styles.star} />
         <Text style={[styles.title, { color: colors.text.primary }]}>Join Supernova</Text>
         <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Start exploring the universe of travel</Text>
 

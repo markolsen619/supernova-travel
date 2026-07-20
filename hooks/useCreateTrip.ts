@@ -61,9 +61,25 @@ export function useCreateTrip() {
   }
 
   async function deleteTrip(tripId: string): Promise<void> {
-    const tripRef = doc(db, 'trips', tripId);
-    await deleteDoc(tripRef);
+    // Firestore doesn't cascade subcollection deletes — orphaned days and
+    // activities would linger (invisible, but billed and unreachable). Batch
+    // them ahead of the trip doc so a mid-delete failure leaves the trip
+    // itself intact and retryable.
+    const daysSnap = await getDocs(collection(db, 'trips', tripId, 'days'));
+    const batch = writeBatch(db);
+    for (const dayDoc of daysSnap.docs) {
+      const activitiesSnap = await getDocs(
+        collection(db, 'trips', tripId, 'days', dayDoc.id, 'activities'),
+      );
+      activitiesSnap.docs.forEach((activityDoc) => batch.delete(activityDoc.ref));
+      batch.delete(dayDoc.ref);
+    }
+    batch.delete(doc(db, 'trips', tripId));
+    await batch.commit();
+
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+    await queryClient.invalidateQueries({ queryKey: ['trips'] });
+    await queryClient.invalidateQueries({ queryKey: ['publicTrips'] });
   }
 
   async function addDay(

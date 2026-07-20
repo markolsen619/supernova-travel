@@ -18,6 +18,7 @@ import { GenerateTripRequest } from '@/types/ai';
 import { DarkColors, LightColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 
 // ─── Status messages ──────────────────────────────────────────────────────────
 
@@ -69,8 +70,8 @@ export default function AiGeneratingScreen() {
       useNativeDriver: true,
     }).start();
     Animated.parallel([
-      Animated.spring(contentOpacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
-      Animated.spring(contentScale, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
+      Animated.spring(contentOpacity, { toValue: 1, ...SPRING }),
+      Animated.spring(contentScale, { toValue: 1, ...SPRING }),
     ]).start();
   }, []);
 
@@ -138,7 +139,9 @@ export default function AiGeneratingScreen() {
     return () => {
       stopStatusTicker();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps — intentionally run once on mount
+    // Intentionally run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Error state ────────────────────────────────────────────────────────────
 
@@ -152,7 +155,7 @@ export default function AiGeneratingScreen() {
     const message =
       error instanceof Error
         ? error.message
-        : 'Something went wrong. Please try again.';
+        : 'Something went wrong. Try again in a moment.';
 
     return (
       <View style={styles.screen}>
@@ -224,7 +227,7 @@ export default function AiGeneratingScreen() {
         <AiGeneratingAnimation status={STATUS_MESSAGES[statusIndex]} />
 
         <Text style={styles.footnote}>
-          This usually takes 10–30 seconds. Hang tight!
+          This can take a minute or two. Hang tight.
         </Text>
       </Animated.View>
 

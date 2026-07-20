@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '@/services/firebase';
 import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUserStore } from '@/stores/useUserStore';
 import { useTheme } from '@/hooks/useTheme';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
@@ -68,13 +69,17 @@ function AppStack() {
         <Stack.Screen name="trip/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/ai-generate" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="trip/ai-generating" options={{ presentation: 'modal' }} />
+        {/* gestureEnabled: false — swiping this away mid-generation would
+            orphan the in-flight request with no way back to its result */}
+        <Stack.Screen name="trip/ai-generating" options={{ presentation: 'modal', gestureEnabled: false }} />
         <Stack.Screen name="post/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="post/create-photo" options={{ presentation: 'modal' }} />
         <Stack.Screen name="post/create-trip" options={{ presentation: 'modal' }} />
         <Stack.Screen name="user/[uid]" />
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
         <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="add-to-feed" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="notifications" />
         <Stack.Screen name="(wallet)" />
       </Stack>
     </>
@@ -92,13 +97,28 @@ export default function RootLayout() {
       if (firebaseUser) {
         const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (snap.exists()) {
-          setTier(snap.data().tier ?? 'free');
+          const data = snap.data();
+          setTier(data.tier ?? 'free');
+          // Hydrate the cached profile — EditProfileSheet, post authoring,
+          // and the profile header all read from this store.
+          useUserStore.getState().setProfile({
+            uid: firebaseUser.uid,
+            displayName: data.displayName ?? firebaseUser.displayName ?? '',
+            username: data.username ?? '',
+            avatarUrl: data.avatarUrl ?? null,
+            bio: data.bio ?? '',
+            location: data.location ?? '',
+            followersCount: data.followersCount ?? 0,
+            followingCount: data.followingCount ?? 0,
+            createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+          });
         }
         registerPushToken(firebaseUser.uid);
         configureRevenueCat(firebaseUser.uid);
         const onboardingDone = await AsyncStorage.getItem('onboarding_complete');
         router.replace(onboardingDone ? '/(tabs)' : '/(auth)/onboarding');
       } else {
+        useUserStore.getState().setProfile(null);
         router.replace('/(auth)/welcome');
       }
       setInitialized(true);

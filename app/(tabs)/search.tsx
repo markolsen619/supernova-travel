@@ -35,6 +35,7 @@ import { TripResult } from '@/components/search/TripResult';
 import { PlaceResult } from '@/components/search/PlaceResult';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 import type * as GeoJSON from 'geojson';
 
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
@@ -98,18 +99,14 @@ export default function SearchScreen() {
   const showSheet = useCallback(() => {
     Animated.spring(slideAnim, {
       toValue: 0,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
+      ...SPRING,
     }).start();
   }, [slideAnim]);
 
   const hideSheet = useCallback(() => {
     Animated.spring(slideAnim, {
       toValue: SCREEN_HEIGHT,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
+      ...SPRING,
     }).start();
   }, [slideAnim]);
 

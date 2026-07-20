@@ -66,7 +66,7 @@ export default function CreatePhotoScreen() {
       });
       router.navigate('/');
     } catch (e: unknown) {
-      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.');
+      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Check your connection and try again.');
     }
   }, [selectedUris, isUploading, caption, placeName, createPhotoPost]);
 
@@ -297,8 +297,7 @@ const styles = StyleSheet.create({
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderStyle: 'dashed',
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,

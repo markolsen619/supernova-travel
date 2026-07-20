@@ -186,7 +186,7 @@ export function AddToTripSheet({ visible, place, onClose, colors: colorsOverride
         ) : (
           <View style={styles.emptyWrap}>
             <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>
-              You don't have any trips yet — create one above.
+              You don&apos;t have any trips yet — create one above.
             </Text>
           </View>
         )}

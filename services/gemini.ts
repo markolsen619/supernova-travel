@@ -7,7 +7,8 @@ export async function callGenerateTrip(
 ): Promise<{ tripId: string }> {
   const fn = httpsCallable<GenerateTripRequest, { tripId: string }>(
     functions,
-    'generateTrip'
+    'generateTrip',
+    { timeout: 180000 }
   );
   const result = await fn(request);
   return result.data;

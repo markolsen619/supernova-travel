@@ -2,9 +2,10 @@ import { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, ArrowLeft } from 'phosphor-react-native';
+import { Bell, ArrowLeft, Compass } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
@@ -28,11 +29,15 @@ export default function NotificationsScreen() {
       </View>
 
       <View style={styles.empty}>
-        <Bell size={48} color={colors.text.disabled} weight="duotone" />
-        <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>No activity yet</Text>
-        <Text style={[styles.emptyBody, { color: colors.text.secondary }]}>
-          Likes, comments, and messages from other travelers will appear here.
-        </Text>
+        <EmptyState
+          icon={Bell}
+          title="Your activity lives here"
+          description="Likes, comments, and messages from other travelers will appear here."
+          actionLabel="Find travelers to follow"
+          actionIcon={Compass}
+          onAction={() => router.navigate('/(tabs)/explore')}
+          actionHaptic="light"
+        />
       </View>
     </View>
   );

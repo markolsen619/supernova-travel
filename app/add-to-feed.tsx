@@ -1,14 +1,14 @@
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Camera, MapTrifold } from 'phosphor-react-native';
+import { X, Camera, MapTrifold } from 'phosphor-react-native';
 import type { PhosphorIcon } from '@/constants/icons';
-import { StarField } from '@/components/animations/StarField';
-import { DarkColors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
+import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+
 interface PostOption {
   Icon: PhosphorIcon;
   iconColor: string;
@@ -18,142 +18,146 @@ interface PostOption {
 }
 
 export default function AddToFeedScreen() {
-  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+
+  const handleClose = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  }, []);
 
   const options: PostOption[] = [
     {
       Icon: Camera,
-      iconColor: '#f472b6',
-      title: 'Post a Photo',
+      iconColor: colors.brand.pink,
+      title: 'Post a photo',
       description: 'Share a travel moment with your followers',
       onPress: () => router.push('/post/create-photo'),
     },
     {
       Icon: MapTrifold,
-      iconColor: '#60a5fa',
-      title: 'Share a Trip',
+      iconColor: colors.brand.blue,
+      title: 'Share a trip',
       description: 'Feature one of your trips on the feed',
       onPress: () => router.push('/post/create-trip'),
     },
   ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={['#020208', '#07031a'] as [string, string]}
-        style={StyleSheet.absoluteFill}
-      />
-      <StarField starCount={80} />
-
+    <ScreenEntrance>
+    <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Add to Feed</Text>
-        <Image
-          source={require('@/assets/images/SupernovaStar.png')}
-          style={styles.headerLogo}
-          resizeMode="contain"
-        />
-      </View>
-
-      <Text style={styles.subtitle}>What would you like to share?</Text>
-
-      <View style={styles.cardsWrapper}>
-        <View style={styles.options}>
-          {options.map((opt) => (
-            <TouchableOpacity
-              key={opt.title}
-              style={styles.optionCard}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); opt.onPress(); }}
-              activeOpacity={0.75}
-            >
-              <View style={styles.optionRow}>
-                <opt.Icon size={32} color={opt.iconColor} weight="duotone" />
-                <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>{opt.title}</Text>
-                  <Text style={styles.optionDesc}>{opt.description}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.topBarSide} />
+        <View style={styles.topBarSide}>
+          <TouchableOpacity
+            onPress={handleClose}
+            style={styles.closeBtn}
+            accessibilityLabel="Close"
+          >
+            <X size={20} color={colors.text.secondary} weight="bold" />
+          </TouchableOpacity>
         </View>
       </View>
+
+      <View style={styles.header}>
+        <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>SHARE</Text>
+        <Text style={[styles.title, { color: colors.text.primary }]}>Add to feed</Text>
+        <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
+          What would you like to share?
+        </Text>
+      </View>
+
+      <View style={styles.options}>
+        {options.map((opt) => (
+          <TouchableOpacity
+            key={opt.title}
+            style={[
+              styles.optionCard,
+              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+            ]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); opt.onPress(); }}
+            activeOpacity={0.75}
+            accessibilityLabel={opt.title}
+          >
+            <View style={[styles.optionIconBubble, { backgroundColor: `${opt.iconColor}1A` }]}>
+              <opt.Icon size={26} color={opt.iconColor} weight="duotone" />
+            </View>
+            <View style={styles.optionText}>
+              <Text style={[styles.optionTitle, { color: colors.text.primary }]}>{opt.title}</Text>
+              <Text style={[styles.optionDesc, { color: colors.text.secondary }]}>{opt.description}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
+    </ScreenEntrance>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#020208',
   },
   topBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing['6'],
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing['5'],
     paddingTop: Spacing['4'],
-    paddingBottom: Spacing['2'],
   },
-  backBtn: {
+  topBarSide: {
     width: 44,
-    height: 64,
+    alignItems: 'flex-end',
+  },
+  closeBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  backText: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: '#a78bfa',
+  header: {
+    paddingHorizontal: Spacing['6'],
+    paddingBottom: Spacing['5'],
+    gap: Spacing['1'],
   },
-  headerLogo: {
-    width: 64,
-    height: 64,
+  eyebrow: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.medium,
+    letterSpacing: 0.08 * FontSize.xs,
   },
   title: {
-    flex: 1,
     fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.black,
-    color: DarkColors.text.primary,
-    textAlign: 'center',
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: -0.02 * FontSize['2xl'],
   },
   subtitle: {
-    fontSize: FontSize.sm,
-    color: DarkColors.text.secondary,
-    textAlign: 'center',
-    paddingHorizontal: Spacing['6'],
-    marginBottom: Spacing['2'],
-  },
-  cardsWrapper: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    paddingHorizontal: Spacing['6'],
-    paddingTop: Spacing['6'],
+    fontSize: FontSize.base,
+    marginTop: Spacing['1'],
   },
   options: {
+    paddingHorizontal: Spacing['6'],
     gap: Spacing['3'],
   },
   optionCard: {
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-    padding: Spacing['5'],
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['4'],
+    borderRadius: BorderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: Spacing['5'],
+  },
+  optionIconBubble: {
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   optionText: { flex: 1 },
   optionTitle: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: DarkColors.text.primary,
+    fontWeight: FontWeight.semiBold,
     marginBottom: 2,
   },
   optionDesc: {
     fontSize: FontSize.sm,
-    color: DarkColors.text.secondary,
   },
 });

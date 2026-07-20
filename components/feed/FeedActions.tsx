@@ -4,7 +4,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -80,10 +80,17 @@ export function FeedActions({ post, isMuted, onToggleMute, onCommentPress }: Fee
     onCommentPress();
   }, [onCommentPress]);
 
-  const handleShare = useCallback(() => {
+  const handleShare = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert('Share', 'Sharing coming soon!');
-  }, []);
+    const placePart = post.placeName ? ` from ${post.placeName}` : '';
+    try {
+      await Share.share({
+        message: `${post.authorDisplayName}'s travel moment${placePart} on Supernova${post.caption ? ` — "${post.caption}"` : ''}`,
+      });
+    } catch {
+      // User dismissed the sheet — nothing to handle
+    }
+  }, [post.authorDisplayName, post.placeName, post.caption]);
 
   const handleToggleMute = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

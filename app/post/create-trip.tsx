@@ -6,8 +6,6 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -16,12 +14,16 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FlashList } from '@shopify/flash-list';
 import { MapTrifold, CheckCircle } from 'phosphor-react-native';
 import { useCreatePost } from '@/hooks/useCreatePost';
 import { useTripList } from '@/hooks/useTripList';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useTheme } from '@/hooks/useTheme';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonListRow } from '@/components/ui/Skeleton';
 import { Trip } from '@/types';
-import { DarkColors } from '@/constants/colors';
+import { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -36,38 +38,47 @@ interface TripRowProps {
   trip: Trip;
   selected: boolean;
   onPress: (trip: Trip) => void;
+  colors: ThemeColors;
 }
 
-function TripRow({ trip, selected, onPress }: TripRowProps) {
+function TripRow({ trip, selected, onPress, colors }: TripRowProps) {
   const dateRange = formatDateRange(trip);
   return (
     <TouchableOpacity
-      style={[styles.tripRow, selected && styles.tripRowSelected]}
+      style={[
+        styles.tripRow,
+        {
+          backgroundColor: colors.background.card,
+          borderColor: selected ? colors.brand.purple : colors.background.cardBorder,
+        },
+      ]}
       onPress={() => onPress(trip)}
       activeOpacity={0.75}
     >
       {trip.coverImageUrl ? (
         <Image source={{ uri: trip.coverImageUrl }} style={styles.tripThumb} resizeMode="cover" />
       ) : (
-        <LinearGradient
-          colors={['#a78bfa', '#f472b6'] as [string, string]}
-          style={styles.tripThumb}
-        />
+        <LinearGradient colors={colors.gradient.purplePink} style={styles.tripThumb} />
       )}
       <View style={styles.tripInfo}>
-        <Text style={styles.tripTitle} numberOfLines={1}>{trip.title}</Text>
-        <Text style={styles.tripDestination} numberOfLines={1}>{trip.destination.name}</Text>
-        {dateRange && <Text style={styles.tripDates}>{dateRange}</Text>}
+        <Text style={[styles.tripTitle, { color: colors.text.primary }]} numberOfLines={1}>
+          {trip.title}
+        </Text>
+        <Text style={[styles.tripDestination, { color: colors.text.secondary }]} numberOfLines={1}>
+          {trip.destination.name}
+        </Text>
+        {dateRange && (
+          <Text style={[styles.tripDates, { color: colors.text.tertiary }]}>{dateRange}</Text>
+        )}
       </View>
-      {selected && (
-        <CheckCircle size={22} color="#a78bfa" weight="duotone" />
-      )}
+      {selected && <CheckCircle size={22} color={colors.brand.purple} weight="duotone" />}
     </TouchableOpacity>
   );
 }
 
 export default function CreateTripPostScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
   const { createTripPost, isUploading } = useCreatePost();
   const { data: trips, isLoading } = useTripList(uid);
@@ -87,7 +98,7 @@ export default function CreateTripPostScreen() {
       await createTripPost({ trip: selectedTrip, caption });
       router.navigate('/');
     } catch (e: unknown) {
-      Alert.alert('Share failed', e instanceof Error ? e.message : 'Please try again.');
+      Alert.alert('Share failed', e instanceof Error ? e.message : 'Check your connection and try again.');
     }
   }, [selectedTrip, isUploading, caption, createTripPost]);
 
@@ -95,54 +106,51 @@ export default function CreateTripPostScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: colors.background.primary }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <LinearGradient
-        colors={['#020208', '#07031a'] as [string, string]}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}>
+      {/* Header — Cancel is the only header action; the footer button is the
+          screen's one primary action */}
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + Spacing['2'], borderBottomColor: colors.background.cardBorder },
+        ]}
+      >
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={() => router.back()}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
           activeOpacity={0.7}
         >
-          <Text style={styles.headerBack}>Cancel</Text>
+          <Text style={[styles.headerBack, { color: colors.text.secondary }]}>Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Share a Trip</Text>
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={handleShare}
-          disabled={!canShare}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.headerShare, !canShare && styles.headerShareDisabled]}>Share</Text>
-        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Share a trip</Text>
+        <View style={styles.headerBtn} />
       </View>
 
       {/* Trip list */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color="#a78bfa" />
+          {[0, 1, 2, 3].map((i) => (
+            <SkeletonListRow key={i} />
+          ))}
         </View>
       ) : !trips || trips.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <MapTrifold size={48} color={DarkColors.text.tertiary} weight="duotone" />
-          <Text style={styles.emptyTitle}>No trips yet</Text>
-          <Text style={styles.emptyBody}>Create a trip first, then share it to the feed.</Text>
-          <TouchableOpacity
-            style={styles.createTripBtn}
-            onPress={() => router.replace('/trip/new')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.createTripBtnText}>Create a Trip</Text>
-          </TouchableOpacity>
+          <EmptyState
+            icon={MapTrifold}
+            title="Share your first trip"
+            description="Create a trip, then feature it on the feed."
+            actionLabel="Create a trip"
+            onAction={() => router.replace('/trip/new')}
+            actionHaptic="light"
+          />
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={trips}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -150,19 +158,28 @@ export default function CreateTripPostScreen() {
               trip={item}
               selected={selectedTrip?.id === item.id}
               onPress={handleSelectTrip}
+              colors={colors}
             />
           )}
-          style={styles.list}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
-            <Text style={styles.sectionHeader}>Your Trips</Text>
+            <Text style={[styles.sectionHeader, { color: colors.text.tertiary }]}>
+              YOUR TRIPS
+            </Text>
           }
           ListFooterComponent={
             <View style={styles.captionSection}>
               <TextInput
-                style={styles.captionInput}
+                style={[
+                  styles.captionInput,
+                  {
+                    backgroundColor: colors.background.card,
+                    borderColor: colors.background.cardBorder,
+                    color: colors.text.primary,
+                  },
+                ]}
                 placeholder="Say something about this trip…"
-                placeholderTextColor={DarkColors.text.tertiary}
+                placeholderTextColor={colors.text.tertiary}
                 value={caption}
                 onChangeText={setCaption}
                 multiline
@@ -170,21 +187,18 @@ export default function CreateTripPostScreen() {
               />
 
               <TouchableOpacity
-                style={[styles.shareButton, !canShare && styles.shareButtonDisabled]}
+                style={[
+                  styles.shareButton,
+                  { backgroundColor: colors.action.primary },
+                  !canShare && styles.shareButtonDisabled,
+                ]}
                 onPress={handleShare}
                 disabled={!canShare}
                 activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={canShare ? (['#a78bfa', '#f472b6'] as [string, string]) : (['#333', '#333'] as [string, string])}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.shareButtonGradient}
-                >
-                  <Text style={styles.shareButtonText}>
-                    {isUploading ? 'Sharing…' : 'Share Trip'}
-                  </Text>
-                </LinearGradient>
+                <Text style={[styles.shareButtonText, { color: colors.action.primaryText }]}>
+                  {isUploading ? 'Sharing…' : 'Share trip'}
+                </Text>
               </TouchableOpacity>
             </View>
           }
@@ -199,7 +213,6 @@ export default function CreateTripPostScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#020208',
   },
   header: {
     flexDirection: 'row',
@@ -208,7 +221,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['3'],
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   headerBtn: {
     minWidth: 60,
@@ -216,67 +228,27 @@ const styles = StyleSheet.create({
   },
   headerBack: {
     fontSize: FontSize.base,
-    color: DarkColors.text.secondary,
   },
   headerTitle: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: DarkColors.text.primary,
-  },
-  headerShare: {
-    fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
-    color: '#a78bfa',
-    textAlign: 'right',
-  },
-  headerShareDisabled: {
-    color: DarkColors.text.tertiary,
   },
   loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['5'],
+    gap: Spacing['3'],
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing['8'],
-    gap: Spacing['3'],
   },
-  emptyTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: DarkColors.text.primary,
-  },
-  emptyBody: {
-    fontSize: FontSize.base,
-    color: DarkColors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  createTripBtn: {
-    marginTop: Spacing['2'],
-    paddingHorizontal: Spacing['6'],
-    paddingVertical: Spacing['3'],
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: '#a78bfa',
-  },
-  createTripBtnText: {
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.semiBold,
-    color: '#a78bfa',
-  },
-  list: { flex: 1 },
   listContent: {
     paddingBottom: Spacing['10'],
   },
   sectionHeader: {
     fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    color: DarkColors.text.tertiary,
-    letterSpacing: 1,
+    fontWeight: FontWeight.medium,
+    letterSpacing: 0.08 * FontSize.xs,
     textTransform: 'uppercase',
     paddingHorizontal: Spacing['5'],
     paddingTop: Spacing['5'],
@@ -291,13 +263,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     marginHorizontal: Spacing['4'],
     marginBottom: Spacing['2'],
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  tripRowSelected: {
-    borderColor: '#a78bfa',
-    backgroundColor: 'rgba(167,139,250,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   tripThumb: {
     width: 52,
@@ -311,15 +277,12 @@ const styles = StyleSheet.create({
   tripTitle: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
-    color: DarkColors.text.primary,
   },
   tripDestination: {
     fontSize: FontSize.sm,
-    color: DarkColors.text.secondary,
   },
   tripDates: {
     fontSize: FontSize.xs,
-    color: DarkColors.text.tertiary,
   },
   captionSection: {
     paddingHorizontal: Spacing['5'],
@@ -327,30 +290,23 @@ const styles = StyleSheet.create({
     gap: Spacing['4'],
   },
   captionInput: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
     padding: Spacing['4'],
-    color: DarkColors.text.primary,
     fontSize: FontSize.base,
     minHeight: 100,
     textAlignVertical: 'top',
   },
   shareButton: {
-    borderRadius: BorderRadius.xl,
-    overflow: 'hidden',
-  },
-  shareButtonDisabled: {
-    opacity: 0.5,
-  },
-  shareButtonGradient: {
+    borderRadius: BorderRadius.full,
     paddingVertical: Spacing['4'],
     alignItems: 'center',
   },
+  shareButtonDisabled: {
+    opacity: 0.4,
+  },
   shareButtonText: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
-    color: '#fff',
+    fontWeight: FontWeight.semiBold,
   },
 });

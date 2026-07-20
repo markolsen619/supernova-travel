@@ -25,11 +25,13 @@ import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { DayTimeline } from '@/components/trip/DayTimeline';
 import { ActivityFormSheet, type ActivityFormData } from '@/components/trip/ActivityFormSheet';
 import { AddStopSheet } from '@/components/trip/AddStopSheet';
+import { EditTripSheet } from '@/components/trip/EditTripSheet';
 import { TripMapView } from '@/components/trip/TripMapView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 import { TripActivity, TripDay } from '@/types';
 import { enrichPlaceByQuery, enrichPlaceById, photoUrl } from '@/services/places/googlePlaces';
 import { usePlacesStore } from '@/stores/usePlacesStore';
@@ -76,8 +78,8 @@ function AnimatedDaySection({
     Animated.sequence([
       Animated.delay(index * 70),
       Animated.parallel([
-        Animated.spring(opacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
-        Animated.spring(translateY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+        Animated.spring(opacity, { toValue: 1, ...SPRING }),
+        Animated.spring(translateY, { toValue: 0, ...SPRING }),
       ]),
     ]).start();
     // Runs once on mount only — day sections don't remount on reorder/edit.
@@ -132,6 +134,9 @@ export default function TripDetailScreen() {
   // Map view state — Phase 4 Part C
   const [viewMode, setViewMode] = useState<'timeline' | 'map'>('timeline');
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
+
+  // Owner-only trip edit/delete sheet
+  const [editTripVisible, setEditTripVisible] = useState(false);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
 
@@ -524,19 +529,20 @@ export default function TripDetailScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Edit button — owner only */}
+          {/* Owner-only trip editing — the map toggle above already reserves
+              this slot's width when isOwner. */}
           {isOwner && (
             <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: '/trip/edit', params: { id } });
+                setEditTripVisible(true);
               }}
               style={[styles.headerBtn, { top: insets.top + Spacing['2'], right: Spacing['4'] }]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityLabel="Edit trip"
             >
               <View style={styles.headerBtnCircle}>
-                <PencilSimple size={16} color={colors.text.primary} weight="bold" />
+                <PencilSimple size={18} color={colors.text.primary} weight="bold" />
               </View>
             </TouchableOpacity>
           )}
@@ -702,6 +708,19 @@ export default function TripDetailScreen() {
           dayId={addStopDay.id}
           dayNumber={addStopDay.dayNumber}
           onClose={handleCloseAddStop}
+        />
+      ) : null}
+
+      {/* ── Edit / delete trip (owner only) ── */}
+      {isOwner && trip ? (
+        <EditTripSheet
+          visible={editTripVisible}
+          trip={trip}
+          onClose={() => setEditTripVisible(false)}
+          onDeleted={() => {
+            setEditTripVisible(false);
+            router.back();
+          }}
         />
       ) : null}
     </View>

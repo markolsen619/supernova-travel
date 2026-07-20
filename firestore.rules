@@ -94,6 +94,17 @@ service cloud.firestore {
       }
     }
 
+    // Username claims — doc ID is the lowercase username, payload is the
+    // owning uid. Uniqueness is enforced structurally: a claim can only be
+    // created (never updated), so taking over an existing username fails at
+    // the rules layer even inside a transaction.
+    match /usernames/{username} {
+      allow read: if isAuthed();
+      allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAuthed() && resource.data.uid == request.auth.uid;
+    }
+
     // Follows
     match /follows/{docId} {
       allow read: if isAuthed();

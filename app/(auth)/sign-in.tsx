@@ -17,10 +17,12 @@ import * as Haptics from 'expo-haptics';
 import { CaretLeft, Eye, EyeSlash } from 'phosphor-react-native';
 import { auth } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { SPRING } from '@/constants/motion';
 
 export default function SignInScreen() {
   const { colors } = useTheme();
@@ -37,8 +39,8 @@ export default function SignInScreen() {
     Animated.sequence([
       Animated.delay(120),
       Animated.parallel([
-        Animated.spring(contentOpacity, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }),
-        Animated.spring(contentTranslateY, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+        Animated.spring(contentOpacity, { toValue: 1, ...SPRING }),
+        Animated.spring(contentTranslateY, { toValue: 0, ...SPRING }),
       ]),
     ]).start();
   }, []);
@@ -52,13 +54,13 @@ export default function SignInScreen() {
   const [error, setError] = useState('');
 
   const handleSignIn = useCallback(async () => {
-    if (!email || !password) { setError('Please fill in all fields.'); return; }
+    if (!email || !password) { setError('Fill in all fields to continue.'); return; }
     setLoading(true);
     setError('');
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (e: any) {
-      setError(e.code === 'auth/invalid-credential' ? 'Invalid email or password.' : 'Sign in failed. Please try again.');
+      setError(e.code === 'auth/invalid-credential' ? 'Invalid email or password.' : 'Sign in failed. Try again in a moment.');
     } finally {
       setLoading(false);
     }
@@ -88,11 +90,7 @@ export default function SignInScreen() {
         </TouchableOpacity>
 
         {/* Brand — the star mark's own gradient art is the one hit of brand color on this screen. */}
-        <Image
-          source={require('@/assets/images/SupernovaStar.png')}
-          style={styles.star}
-          resizeMode="contain"
-        />
+        <StarMark size={78} style={styles.star} />
         <Text style={[styles.title, { color: colors.text.primary }]}>Welcome back</Text>
         <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Sign in to continue your journey</Text>
 
@@ -184,7 +182,7 @@ export default function SignInScreen() {
         />
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.text.secondary }]}>Don't have an account? </Text>
+          <Text style={[styles.footerText, { color: colors.text.secondary }]}>Don&apos;t have an account? </Text>
           <Link href="/(auth)/sign-up" asChild>
             <TouchableOpacity
               activeOpacity={0.7}

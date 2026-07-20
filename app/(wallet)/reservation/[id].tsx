@@ -10,8 +10,10 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft } from 'phosphor-react-native';
+import { ArrowLeft, CalendarX } from 'phosphor-react-native';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/hooks/useTheme';
+import { StarMark } from '@/components/ui/StarMark';
 import { useReservations } from '@/hooks/useReservations';
 import { RESERVATION_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
@@ -22,7 +24,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 const TYPE_LABELS: Record<ReservationType, string> = {
   hotel: 'Hotel',
   airbnb: 'Airbnb',
-  rental_car: 'Rental Car',
+  rental_car: 'Rental car',
   restaurant: 'Restaurant',
   activity: 'Activity',
 };
@@ -92,15 +94,20 @@ export default function ReservationDetailScreen() {
             <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
           </TouchableOpacity>
           <View style={styles.titleGroup}>
-            <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.starIcon} resizeMode="contain" />
+            <StarMark size={18} />
             <Text style={[styles.title, { color: colors.text.primary }]}>Reservation</Text>
           </View>
           <View style={styles.backButton} />
         </View>
         <View style={styles.centered}>
-          <Text style={[styles.notFoundText, { color: colors.text.tertiary }]}>
-            Reservation not found.
-          </Text>
+          <EmptyState
+            icon={CalendarX}
+            title="This reservation isn't here"
+            description="It may have been deleted or the link is out of date."
+            actionLabel="Back to wallet"
+            onAction={handleBack}
+            actionHaptic="none"
+          />
         </View>
       </View>
     );
@@ -164,17 +171,17 @@ export default function ReservationDetailScreen() {
           ]}
         >
           <DetailRow
-            label="Confirmation Code"
+            label="Confirmation code"
             value={reservation.confirmationCode}
             valueStyle={{ color: colors.brand.purple, fontWeight: FontWeight.bold }}
             colors={colors}
             borderColor={colors.background.cardBorder}
           />
           {reservation.checkIn ? (
-            <DetailRow label="Check-In" value={formatDate(reservation.checkIn)} colors={colors} borderColor={colors.background.cardBorder} />
+            <DetailRow label="Check-in" value={formatDate(reservation.checkIn)} colors={colors} borderColor={colors.background.cardBorder} />
           ) : null}
           {reservation.checkOut ? (
-            <DetailRow label="Check-Out" value={formatDate(reservation.checkOut)} colors={colors} borderColor={colors.background.cardBorder} />
+            <DetailRow label="Check-out" value={formatDate(reservation.checkOut)} colors={colors} borderColor={colors.background.cardBorder} />
           ) : null}
           {reservation.address ? (
             <DetailRow label="Address" value={reservation.address} colors={colors} borderColor={colors.background.cardBorder} />
