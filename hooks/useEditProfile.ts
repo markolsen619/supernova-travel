@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
   doc,
-  getDoc,
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -11,20 +10,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { auth, db, storage } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
+import { checkUsernameAvailability, validateUsernameFormat } from '@/services/usernames';
 
-// Lowercase letters, digits, underscore and dot; 3–20 chars. Mirrors the
-// claim-doc ID format in firestore.rules (`usernames/{username}`).
-export const USERNAME_PATTERN = /^[a-z0-9_.]{3,20}$/;
-
-export function validateUsernameFormat(username: string): string | null {
-  if (username.length === 0) return null; // empty = "keep none", validated at save if required
-  if (username.length < 3) return 'At least 3 characters.';
-  if (username.length > 20) return 'At most 20 characters.';
-  if (!USERNAME_PATTERN.test(username)) {
-    return 'Lowercase letters, numbers, dots, and underscores only.';
-  }
-  return null;
-}
+export { validateUsernameFormat, USERNAME_PATTERN } from '@/services/usernames';
 
 export interface SaveProfileInput {
   displayName: string;
@@ -55,8 +43,7 @@ export function useEditProfile() {
   const checkUsernameAvailable = useCallback(
     async (username: string): Promise<boolean> => {
       if (!user) return false;
-      const snap = await getDoc(doc(db, 'usernames', username));
-      return !snap.exists() || snap.data().uid === user.uid;
+      return checkUsernameAvailability(username, user.uid);
     },
     [user],
   );

@@ -11,6 +11,7 @@ import {
   ScrollView,
   Modal,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
@@ -26,6 +27,7 @@ import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
+import { checkUsernameAvailability, claimUsername, validateUsernameFormat } from '@/services/usernames';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -48,16 +50,42 @@ export default function SignUpScreen() {
   }, []);
 
   const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [dob, setDob] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
+  const [usernameFocused, setUsernameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleUsernameChange = useCallback((raw: string) => {
+    const value = raw.toLowerCase().replace(/\s/g, '');
+    setUsername(value);
+    setError('');
+    if (usernameCheckTimer.current) clearTimeout(usernameCheckTimer.current);
+
+    const formatError = validateUsernameFormat(value);
+    if (formatError || !value) {
+      setUsernameError(formatError);
+      setUsernameChecking(false);
+      return;
+    }
+    setUsernameChecking(true);
+    setUsernameError(null);
+    usernameCheckTimer.current = setTimeout(async () => {
+      const available = await checkUsernameAvailability(value);
+      setUsernameChecking(false);
+      setUsernameError(available ? null : 'That username is taken.');
+    }, 500);
+  }, []);
 
   const maxDobDate = new Date();
   maxDobDate.setFullYear(maxDobDate.getFullYear() - 13);
@@ -70,10 +98,16 @@ export default function SignUpScreen() {
   }, []);
 
   const handleSignUp = useCallback(async () => {
-    if (!displayName.trim() || !email.trim() || !password || !dob) {
+    if (!displayName.trim() || !username.trim() || !email.trim() || !password || !dob) {
       setError('Fill in all fields to continue.');
       return;
     }
+    const formatError = validateUsernameFormat(username);
+    if (formatError) {
+      setUsernameError(formatError);
+      return;
+    }
+    if (usernameError || usernameChecking) return;
     if (isUnder13(dob)) {
       setError('You must be 13 or older to use Supernova.');
       return;
@@ -87,8 +121,20 @@ export default function SignUpScreen() {
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await updateProfile(user, { displayName: displayName.trim() });
+
+      // Claim the username now that we're authenticated (the claims
+      // collection requires auth to write). This is a rare race, not a
+      // pre-check failure — availability was already confirmed live above —
+      // so on the off chance someone else claimed it in the last few
+      // seconds, don't strand the new account: finish sign-up with no
+      // username rather than fail the whole flow. It can be set from Edit
+      // profile afterward, where the same check runs again.
+      const claimResult = await claimUsername(user.uid, username, '');
+      const claimedUsername = claimResult === 'ok' ? username : '';
+
       await setDoc(doc(db, 'users', user.uid), {
         displayName: displayName.trim(),
+        username: claimedUsername,
         avatarUrl: null,
         bio: '',
         location: '',
@@ -109,7 +155,7 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [displayName, email, password, dob, isUnder13]);
+  }, [displayName, username, usernameError, usernameChecking, email, password, dob, isUnder13]);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -181,6 +227,43 @@ export default function SignUpScreen() {
             autoCorrect={false}
             returnKeyType="next"
           />
+        </View>
+
+        {/* Username */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Username</Text>
+          <View
+            style={[
+              styles.input,
+              styles.usernameRow,
+              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+              usernameFocused && { borderColor: colors.brand.purple },
+              usernameError && { borderColor: colors.semantic.error },
+            ]}
+          >
+            <Text style={[styles.atSign, { color: colors.text.tertiary }]}>@</Text>
+            <TextInput
+              style={[styles.usernameInput, { color: colors.text.primary }]}
+              value={username}
+              onChangeText={handleUsernameChange}
+              onFocus={() => setUsernameFocused(true)}
+              onBlur={() => setUsernameFocused(false)}
+              placeholder="username"
+              placeholderTextColor={colors.text.tertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={20}
+              returnKeyType="next"
+            />
+            {usernameChecking && <ActivityIndicator size="small" color={colors.text.tertiary} />}
+          </View>
+          {usernameError ? (
+            <Text style={[styles.fieldError, { color: colors.semantic.error }]}>{usernameError}</Text>
+          ) : (
+            <Text style={[styles.fieldHint, { color: colors.text.tertiary }]}>
+              Lowercase letters, numbers, dots, and underscores.
+            </Text>
+          )}
         </View>
 
         {/* Email */}
@@ -272,6 +355,7 @@ export default function SignUpScreen() {
           label="Create account"
           onPress={handleSignUp}
           loading={loading}
+          disabled={usernameChecking || !!usernameError}
           fullWidth
           size="lg"
           style={styles.cta}
@@ -362,6 +446,11 @@ const styles = StyleSheet.create({
   },
   dobRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'] },
   dobText: { fontSize: FontSize.base, flex: 1 },
+  usernameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['1'], paddingVertical: 0 },
+  atSign: { fontSize: FontSize.base },
+  usernameInput: { flex: 1, fontSize: FontSize.base, paddingVertical: Spacing['3'] },
+  fieldError: { fontSize: FontSize.xs, marginTop: Spacing['2'] },
+  fieldHint: { fontSize: FontSize.xs, marginTop: Spacing['2'] },
   inputRow: { flexDirection: 'row', gap: Spacing['2'] },
   inputFlex: { flex: 1 },
   eyeBtn: {

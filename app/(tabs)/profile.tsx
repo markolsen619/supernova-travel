@@ -176,7 +176,13 @@ function ProfileScreenContent() {
           <Text style={[styles.heroName, { color: colors.text.primary }]}>{displayName}</Text>
           {username ? (
             <Text style={[styles.heroUsername, { color: colors.text.tertiary }]}>@{username}</Text>
-          ) : null}
+          ) : (
+            // Backfill nudge — accounts created before usernames existed
+            // (sign-up now captures one) land here until they set one.
+            <TouchableOpacity onPress={openEditSheet} hitSlop={6} style={styles.claimUsernameRow}>
+              <Text style={[styles.heroUsername, { color: colors.brand.purple }]}>Choose a username</Text>
+            </TouchableOpacity>
+          )}
           {tier !== 'free' && <Badge variant={tier} style={styles.heroBadge} />}
 
           {/* Stats row */}
@@ -458,6 +464,10 @@ const styles = StyleSheet.create({
   heroUsername: {
     fontSize: FontSize.sm,
     marginBottom: Spacing['2'],
+  },
+  claimUsernameRow: {
+    minHeight: 20,
+    justifyContent: 'center',
   },
   heroBadge: { marginBottom: Spacing['3'] },
 

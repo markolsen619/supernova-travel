@@ -14,7 +14,12 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isAuthed();
       allow create: if isOwner(uid);
-      allow update: if isOwner(uid);
+      // Owner may update any field EXCEPT tier — tier is set server-side only
+      // (the RevenueCat webhook's syncTier Cloud Function, Admin SDK, which
+      // bypasses these rules entirely). Without this carve-out a client could
+      // self-upgrade by writing users/{ownUid}.tier directly.
+      allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tier']);
       allow delete: if false; // deleteUserData Cloud Function only
 
       // Personalized feed — written exclusively by Cloud Functions (Admin SDK)
@@ -112,8 +117,14 @@ service cloud.firestore {
     // owning uid. Uniqueness is enforced structurally: a claim can only be
     // created (never updated), so taking over an existing username fails at
     // the rules layer even inside a transaction.
+    //
+    // Read is PUBLIC (not gated by isAuthed()) deliberately: usernames are
+    // public handles by design (shown on posts/profiles to everyone), and
+    // sign-up needs to check availability before an account — and therefore
+    // an auth session — exists. The doc body is just {uid}, no more exposed
+    // than a public profile already is.
     match /usernames/{username} {
-      allow read: if isAuthed();
+      allow read: if true;
       allow create: if isAuthed() && request.resource.data.uid == request.auth.uid;
       allow update: if false;
       allow delete: if isAuthed() && resource.data.uid == request.auth.uid;
