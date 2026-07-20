@@ -56,7 +56,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0B0A12"
+          "backgroundColor": "#0B0A12",
+          "image": "./assets/images/SupernovaStar.png",
+          "imageWidth": 120
         }
       ],
       [
