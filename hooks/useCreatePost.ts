@@ -71,7 +71,7 @@ export function useCreatePost() {
 
       const docRef = await addDoc(collection(db, 'posts'), {
         authorUid: user.uid,
-        authorDisplayName: profile?.displayName ?? user.displayName ?? 'Traveler',
+        authorDisplayName: profile?.fullName ?? user.displayName ?? 'Traveler',
         authorUsername: profile?.username ?? '',
         authorAvatarUrl: profile?.avatarUrl ?? null,
         caption: input.caption.trim(),
@@ -111,7 +111,7 @@ export function useCreatePost() {
 
       const docRef = await addDoc(collection(db, 'posts'), {
         authorUid: user.uid,
-        authorDisplayName: profile?.displayName ?? user.displayName ?? 'Traveler',
+        authorDisplayName: profile?.fullName ?? user.displayName ?? 'Traveler',
         authorUsername: profile?.username ?? '',
         authorAvatarUrl: profile?.avatarUrl ?? null,
         caption: caption.trim(),

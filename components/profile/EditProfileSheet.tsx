@@ -2,7 +2,7 @@
  * components/profile/EditProfileSheet.tsx
  *
  * Page-sheet modal for editing the user's profile: photo, username (unique,
- * claimed via the `usernames` collection), display name, bio, and location.
+ * claimed via the `usernames` collection), full name, bio, and location.
  * Validation is inline under each field — no alerts.
  */
 
@@ -45,7 +45,7 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
   const { pickAndUploadAvatar, saveProfile, checkUsernameAvailable, uploadingAvatar, saving } =
     useEditProfile();
 
-  const [displayName, setDisplayName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
@@ -60,7 +60,7 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
   // Re-seed fields whenever the modal opens
   useEffect(() => {
     if (visible) {
-      setDisplayName(profile?.displayName ?? user?.displayName ?? '');
+      setFullName(profile?.fullName ?? user?.displayName ?? '');
       setUsername(profile?.username ?? '');
       setBio(profile?.bio ?? '');
       setLocation(profile?.location ?? '');
@@ -105,21 +105,21 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
 
   const handleSave = useCallback(async () => {
     if (saving || uploadingAvatar) return;
-    if (!displayName.trim()) {
-      setNameError('Add a display name.');
+    if (!fullName.trim()) {
+      setNameError('Add your full name.');
       return;
     }
     if (usernameError || usernameChecking) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaveError(null);
-    const error = await saveProfile({ displayName, username, bio, location });
+    const error = await saveProfile({ fullName, username, bio, location });
     if (error) {
       if (error === 'That username is taken.') setUsernameError(error);
       else setSaveError(error);
       return;
     }
     onClose();
-  }, [saving, uploadingAvatar, displayName, username, bio, location, usernameError, usernameChecking, saveProfile, onClose]);
+  }, [saving, uploadingAvatar, fullName, username, bio, location, usernameError, usernameChecking, saveProfile, onClose]);
 
   const handleClose = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -177,7 +177,7 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
               >
                 <Avatar
                   uri={profile?.avatarUrl ?? user?.photoURL}
-                  name={displayName || 'You'}
+                  name={fullName || 'You'}
                   size="xl"
                 />
                 <View style={[styles.cameraBubble, { backgroundColor: colors.text.primary, borderColor: colors.background.primary }]}>
@@ -200,13 +200,13 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
 
             {/* Form */}
             <View style={styles.form}>
-              {/* Display name */}
+              {/* Full name */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: colors.text.secondary }]}>Display name</Text>
+                <Text style={[styles.label, { color: colors.text.secondary }]}>Full name</Text>
                 <TextInput
-                  value={displayName}
-                  onChangeText={(t) => { setDisplayName(t); setNameError(null); }}
-                  placeholder="Your name"
+                  value={fullName}
+                  onChangeText={(t) => { setFullName(t); setNameError(null); }}
+                  placeholder="Your full name"
                   placeholderTextColor={colors.text.tertiary}
                   style={[styles.input, fieldStyle, nameError ? { borderColor: colors.semantic.error } : null]}
                   returnKeyType="next"

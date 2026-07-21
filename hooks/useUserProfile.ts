@@ -7,10 +7,11 @@ async function fetchUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, 'users', uid));
   if (!snap.exists()) return null;
   const data = snap.data();
+  const fullName: string = data.fullName ?? data.displayName ?? '';
   return {
     uid: snap.id,
-    displayName: data.displayName ?? '',
-    username: data.username ?? data.displayName?.toLowerCase().replace(/\s+/g, '') ?? '',
+    fullName,
+    username: data.username ?? fullName.toLowerCase().replace(/\s+/g, '') ?? '',
     avatarUrl: data.avatarUrl ?? null,
     bio: data.bio ?? '',
     location: data.location ?? '',

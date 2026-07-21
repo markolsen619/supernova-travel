@@ -15,7 +15,7 @@ import { checkUsernameAvailability, validateUsernameFormat } from '@/services/us
 export { validateUsernameFormat, USERNAME_PATTERN } from '@/services/usernames';
 
 export interface SaveProfileInput {
-  displayName: string;
+  fullName: string;
   username: string;
   bio: string;
   location: string;
@@ -110,8 +110,8 @@ export function useEditProfile() {
   const saveProfile = useCallback(
     async (input: SaveProfileInput): Promise<string | null> => {
       if (!user) return 'Sign in to edit your profile.';
-      const displayName = input.displayName.trim();
-      if (!displayName) return 'Add a display name.';
+      const fullName = input.fullName.trim();
+      if (!fullName) return 'Add your full name.';
 
       const newUsername = input.username.trim().toLowerCase();
       const oldUsername = profile?.username ?? '';
@@ -140,7 +140,7 @@ export function useEditProfile() {
           }
 
           tx.update(userRef, {
-            displayName,
+            fullName,
             username: newUsername || oldUsername,
             bio: input.bio.trim(),
             location: input.location.trim(),
@@ -148,13 +148,15 @@ export function useEditProfile() {
           });
         });
 
-        if (auth.currentUser && auth.currentUser.displayName !== displayName) {
-          await updateAuthProfile(auth.currentUser, { displayName });
+        // Firebase Auth's own profile field is still literally named
+        // `displayName` — that's Firebase's API surface, not our schema.
+        if (auth.currentUser && auth.currentUser.displayName !== fullName) {
+          await updateAuthProfile(auth.currentUser, { displayName: fullName });
         }
         if (profile) {
           setProfile({
             ...profile,
-            displayName,
+            fullName,
             username: newUsername || oldUsername,
             bio: input.bio.trim(),
             location: input.location.trim(),

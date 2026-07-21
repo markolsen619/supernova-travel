@@ -14,10 +14,11 @@ async function fetchUserSuggestions(): Promise<UserProfile[]> {
   const snap = await getDocs(q);
   return snap.docs.map((doc) => {
     const data = doc.data();
+    const fullName: string = data.fullName ?? data.displayName ?? '';
     return {
       uid: doc.id,
-      displayName: data.displayName ?? '',
-      username: data.username ?? data.displayName?.toLowerCase().replace(/\s+/g, '') ?? '',
+      fullName,
+      username: data.username ?? fullName.toLowerCase().replace(/\s+/g, '') ?? '',
       avatarUrl: data.avatarUrl ?? null,
       bio: data.bio ?? '',
       location: data.location ?? '',

@@ -49,19 +49,23 @@ export default function SignUpScreen() {
     ]).start();
   }, []);
 
-  const [displayName, setDisplayName] = useState('');
+  const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [dob, setDob] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
   const [usernameFocused, setUsernameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
   const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,6 +91,21 @@ export default function SignUpScreen() {
     }, 500);
   }, []);
 
+  const handleConfirmPasswordChange = useCallback((value: string) => {
+    setConfirmPassword(value);
+    setError('');
+  }, []);
+
+  // Live match check once both fields have content — avoids nagging while
+  // the user is still mid-type on either field.
+  useEffect(() => {
+    if (!confirmPassword) {
+      setConfirmPasswordError(null);
+      return;
+    }
+    setConfirmPasswordError(password === confirmPassword ? null : "Passwords don't match.");
+  }, [password, confirmPassword]);
+
   const maxDobDate = new Date();
   maxDobDate.setFullYear(maxDobDate.getFullYear() - 13);
 
@@ -98,7 +117,7 @@ export default function SignUpScreen() {
   }, []);
 
   const handleSignUp = useCallback(async () => {
-    if (!displayName.trim() || !username.trim() || !email.trim() || !password || !dob) {
+    if (!fullName.trim() || !username.trim() || !email.trim() || !password || !confirmPassword || !dob) {
       setError('Fill in all fields to continue.');
       return;
     }
@@ -116,11 +135,17 @@ export default function SignUpScreen() {
       setError('Password must be at least 8 characters.');
       return;
     }
+    if (password !== confirmPassword) {
+      setConfirmPasswordError("Passwords don't match.");
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
-      await updateProfile(user, { displayName: displayName.trim() });
+      // Firebase Auth's own profile field is literally named `displayName`
+      // — that's Firebase's API surface, not our Firestore schema.
+      await updateProfile(user, { displayName: fullName.trim() });
 
       // Claim the username now that we're authenticated (the claims
       // collection requires auth to write). This is a rare race, not a
@@ -133,7 +158,7 @@ export default function SignUpScreen() {
       const claimedUsername = claimResult === 'ok' ? username : '';
 
       await setDoc(doc(db, 'users', user.uid), {
-        displayName: displayName.trim(),
+        fullName: fullName.trim(),
         username: claimedUsername,
         avatarUrl: null,
         bio: '',
@@ -155,7 +180,7 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [displayName, username, usernameError, usernameChecking, email, password, dob, isUnder13]);
+  }, [fullName, username, usernameError, usernameChecking, email, password, confirmPassword, dob, isUnder13]);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -208,20 +233,20 @@ export default function SignUpScreen() {
           </View>
         ) : null}
 
-        {/* Display Name */}
+        {/* Full name */}
         <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.text.secondary }]}>Display name</Text>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Full name</Text>
           <TextInput
             style={[
               styles.input,
               { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary },
               nameFocused && { borderColor: colors.brand.purple },
             ]}
-            value={displayName}
-            onChangeText={setDisplayName}
+            value={fullName}
+            onChangeText={setFullName}
             onFocus={() => setNameFocused(true)}
             onBlur={() => setNameFocused(false)}
-            placeholder="Your travel name"
+            placeholder="Your full name"
             placeholderTextColor={colors.text.tertiary}
             autoCapitalize="words"
             autoCorrect={false}
@@ -350,12 +375,58 @@ export default function SignUpScreen() {
           </View>
         </View>
 
+        {/* Confirm password */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Confirm password</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[
+                styles.input,
+                styles.inputFlex,
+                { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder, color: colors.text.primary },
+                confirmPasswordFocused && { borderColor: colors.brand.purple },
+                confirmPasswordError && { borderColor: colors.semantic.error },
+              ]}
+              value={confirmPassword}
+              onChangeText={handleConfirmPasswordChange}
+              onFocus={() => setConfirmPasswordFocused(true)}
+              onBlur={() => setConfirmPasswordFocused(false)}
+              placeholder="Re-enter your password"
+              placeholderTextColor={colors.text.tertiary}
+              secureTextEntry={!showConfirmPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleSignUp}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowConfirmPassword((v) => !v);
+              }}
+              style={[
+                styles.eyeBtn,
+                { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+                confirmPasswordFocused && { borderColor: colors.brand.purple },
+              ]}
+              activeOpacity={0.7}
+              hitSlop={8}
+              accessibilityLabel={showConfirmPassword ? 'Hide password' : 'Show password'}
+            >
+              {showConfirmPassword
+                ? <EyeSlash size={20} color={colors.text.tertiary} weight="regular" />
+                : <Eye size={20} color={colors.text.tertiary} weight="regular" />}
+            </TouchableOpacity>
+          </View>
+          {confirmPasswordError ? (
+            <Text style={[styles.fieldError, { color: colors.semantic.error }]}>{confirmPasswordError}</Text>
+          ) : null}
+        </View>
+
         {/* Not the hero gradient — that's reserved for the star mark above. */}
         <Button
           label="Create account"
           onPress={handleSignUp}
           loading={loading}
-          disabled={usernameChecking || !!usernameError}
+          disabled={usernameChecking || !!usernameError || !!confirmPasswordError}
           fullWidth
           size="lg"
           style={styles.cta}

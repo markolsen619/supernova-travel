@@ -171,7 +171,7 @@ export default function PostDetailScreen() {
     try {
       await addDoc(collection(db, 'posts', id, 'comments'), {
         authorUid: uid,
-        authorDisplayName: currentUser?.displayName ?? 'Traveler',
+        authorDisplayName: currentUser?.fullName ?? 'Traveler',
         authorAvatarUrl: currentUser?.avatarUrl ?? null,
         text: commentText.trim(),
         createdAt: serverTimestamp(),
@@ -368,7 +368,7 @@ export default function PostDetailScreen() {
       >
         <Avatar
           uri={currentUser?.avatarUrl ?? null}
-          name={currentUser?.displayName ?? ''}
+          name={currentUser?.fullName ?? ''}
           size="xs"
         />
         <TextInput

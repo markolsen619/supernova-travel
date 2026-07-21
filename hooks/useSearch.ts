@@ -41,7 +41,16 @@ export function useSearch(searchText: string): {
         }),
       ]);
       return {
-        users: usersResult.hits.map((h: Hit<UserProfile>) => ({ ...h, uid: h.objectID })),
+        // Algolia hits typed loosely for `fullName`: records indexed before
+        // the displayName→fullName rename only have the legacy attribute
+        // until syncUserToAlgolia next fires for that user (profile edit
+        // self-heals it, same pattern as the username backfill) — fall back
+        // here so search never shows a blank name in the meantime.
+        users: usersResult.hits.map((h: Hit<UserProfile> & { displayName?: string }) => ({
+          ...h,
+          uid: h.objectID,
+          fullName: h.fullName ?? h.displayName ?? '',
+        })),
         trips: tripsResult.hits.map((h: Hit<Trip>) => ({ ...h, id: h.objectID })),
       };
     },

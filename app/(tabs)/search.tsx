@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -69,16 +69,31 @@ export default function SearchScreen() {
   const [activeTab, setActiveTab] = useState<Tab>('Places');
   const [enriching, setEnriching] = useState(false);
 
-  // Standard's lighting follows the actual time of day — recomputed whenever
-  // the tab regains focus, so a session left open across dusk catches up.
-  // The floating chrome stays the fixed dark treatment (self-contained dark
-  // surfaces with light text), which reads over all four presets.
+  // Standard's lighting follows the actual time of day. Recomputed three
+  // ways, deliberately redundant: on mount (a plain useEffect, NOT just the
+  // useState initializer — React preserves local state across Fast Refresh,
+  // so an initializer-only value can survive stale indefinitely through
+  // however many JS reloads happen during a dev session), on tab focus (a
+  // session left on another tab across a preset boundary catches up), and
+  // on a 10-minute interval (a session left sitting on this tab catches up
+  // too, without needing to leave and return). The floating chrome stays
+  // the fixed dark treatment (self-contained dark surfaces with light
+  // text), which reads over all four presets.
   const [lightPreset, setLightPreset] = useState<LightPreset>(() => lightPresetForNow());
+  useEffect(() => {
+    setLightPreset(lightPresetForNow());
+    const interval = setInterval(() => setLightPreset(lightPresetForNow()), 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
   useFocusEffect(
     useCallback(() => {
       setLightPreset(lightPresetForNow());
     }, []),
   );
+
+  const handleMapLoadingError = useCallback(() => {
+    console.error('[SearchMap] Mapbox Standard style failed to load — check EXPO_PUBLIC_MAPBOX_TOKEN and network.');
+  }, []);
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -195,12 +210,21 @@ export default function SearchScreen() {
       const { screenPointX, screenPointY } = feature.properties;
       const [tapLng, tapLat] = feature.geometry.coordinates;
 
+      // Logged unconditionally (not just on a POI hit) — distinguishes "the
+      // tap never registered" from "it registered but found no POI feature
+      // at that point" (e.g. zoomed too far out for Standard to render POI
+      // labels), which previously looked identical from the outside.
+      console.log('[Map tap]', { screenPointX, screenPointY, tapLat, tapLng, hasRef: !!mapRef.current });
+
       const collection = await mapRef.current?.queryRenderedFeaturesAtPoint([
         screenPointX,
         screenPointY,
       ]);
       const poi = extractPoiFromFeatures(collection, tapLat, tapLng);
-      if (!poi) return;
+      if (!poi) {
+        console.log('[Map tap] no POI feature at this point —', collection?.features?.length ?? 0, 'features found');
+        return;
+      }
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       console.log('[POI tap]', poi.name, poi.lat, poi.lng);
@@ -349,6 +373,7 @@ export default function SearchScreen() {
         styleURL={STANDARD_STYLE}
         projection="globe"
         onPress={handleMapPress}
+        onMapLoadingError={handleMapLoadingError}
         // Mapbox ToS requires the wordmark + attribution on-map — kept small
         // and tucked above the tab bar.
         logoEnabled

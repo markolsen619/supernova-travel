@@ -22,7 +22,7 @@ import {
   Compass,
 } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { StarMark } from '@/components/ui/StarMark';
+import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTripList } from '@/hooks/useTripList';
@@ -103,7 +103,7 @@ function ProfileScreenContent() {
   const [editSheetVisible, setEditSheetVisible] = useState(false);
 
   const uid = user?.uid ?? null;
-  const displayName = profile?.displayName ?? user?.displayName ?? 'Explorer';
+  const fullName = profile?.fullName ?? user?.displayName ?? 'Explorer';
   const username = profile?.username ?? '';
 
   const { data: allTrips = [], isLoading: tripsLoading } = useTripList(uid);
@@ -158,7 +158,7 @@ function ProfileScreenContent() {
       <View style={[styles.hero, { paddingTop: insets.top, backgroundColor: colors.background.primary }]}>
         {/* Top actions */}
         <View style={styles.heroActions}>
-          <StarMark size={36} />
+          <ScreenHeaderStar />
           <TouchableOpacity
             onPress={handleSettings}
             style={styles.heroIconBtn}
@@ -172,17 +172,13 @@ function ProfileScreenContent() {
 
         {/* Avatar + info */}
         <View style={styles.heroContent}>
-          <Avatar uri={profile?.avatarUrl ?? user?.photoURL} name={displayName} size="xl" />
-          <Text style={[styles.heroName, { color: colors.text.primary }]}>{displayName}</Text>
+          <Avatar uri={profile?.avatarUrl ?? user?.photoURL} name={fullName} size="xl" />
+          <Text style={[styles.heroName, { color: colors.text.primary }]}>{fullName}</Text>
+          {/* Every account now has a username (captured at sign-up, or set
+              via the Edit profile button below) — no separate nudge needed. */}
           {username ? (
             <Text style={[styles.heroUsername, { color: colors.text.tertiary }]}>@{username}</Text>
-          ) : (
-            // Backfill nudge — accounts created before usernames existed
-            // (sign-up now captures one) land here until they set one.
-            <TouchableOpacity onPress={openEditSheet} hitSlop={6} style={styles.claimUsernameRow}>
-              <Text style={[styles.heroUsername, { color: colors.brand.purple }]}>Choose a username</Text>
-            </TouchableOpacity>
-          )}
+          ) : null}
           {tier !== 'free' && <Badge variant={tier} style={styles.heroBadge} />}
 
           {/* Stats row */}
@@ -442,7 +438,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['5'],
     paddingVertical: Spacing['3'],
   },
-  heroStar: { width: 28, height: 28 },
   heroIconBtn: {
     width: 36,
     height: 36,
@@ -464,10 +459,6 @@ const styles = StyleSheet.create({
   heroUsername: {
     fontSize: FontSize.sm,
     marginBottom: Spacing['2'],
-  },
-  claimUsernameRow: {
-    minHeight: 20,
-    justifyContent: 'center',
   },
   heroBadge: { marginBottom: Spacing['3'] },
 

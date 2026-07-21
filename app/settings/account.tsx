@@ -44,7 +44,7 @@ export default function AccountSettingsScreen() {
         <Text style={[styles.sectionHeader, { color: colors.text.tertiary }]}>BASICS</Text>
         <View style={[styles.section, { borderColor: colors.background.cardBorder }]}>
           <SettingsRow label="Email" value={user?.email ?? 'Not set'} showDivider />
-          <SettingsRow label="Display name" value={profile?.displayName ?? user?.displayName ?? 'Not set'} showDivider />
+          <SettingsRow label="Full name" value={profile?.fullName ?? user?.displayName ?? 'Not set'} showDivider />
           <SettingsRow label="Username" value={profile?.username ? `@${profile.username}` : 'Not set'} showDivider />
           <SettingsRow label="Plan" value={capitalizedTier} showDivider={!!memberSince} />
           {memberSince ? <SettingsRow label="Member since" value={memberSince} /> : null}

@@ -34,16 +34,16 @@ export function UserResult({ user, onPress }: UserResultProps) {
       onPress={handlePress}
       activeOpacity={0.7}
       style={[styles.row, { borderBottomColor: colors.background.cardBorder }]}
-      accessibilityLabel={`View ${user.displayName}'s profile`}
+      accessibilityLabel={`View ${user.fullName}'s profile`}
     >
-      <Avatar size="sm" uri={user.avatarUrl} name={user.displayName} />
+      <Avatar size="sm" uri={user.avatarUrl} name={user.fullName} />
 
       <View style={styles.center}>
         <Text
           style={[styles.displayName, { color: colors.text.primary }]}
           numberOfLines={1}
         >
-          {user.displayName}
+          {user.fullName}
         </Text>
         <Text
           style={[styles.username, { color: colors.text.tertiary }]}

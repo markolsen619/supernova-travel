@@ -148,7 +148,7 @@ export default function UserProfileScreen() {
       >
         {/* Avatar + name block */}
         <View style={styles.avatarBlock}>
-          <Avatar uri={profile.avatarUrl} name={profile.displayName} size="xl" />
+          <Avatar uri={profile.avatarUrl} name={profile.fullName} size="xl" />
 
           <Text
             style={[
@@ -156,7 +156,7 @@ export default function UserProfileScreen() {
               { color: colors.text.primary },
             ]}
           >
-            {profile.displayName}
+            {profile.fullName}
           </Text>
 
           <Text style={{ color: colors.text.tertiary, fontSize: FontSize.sm }}>

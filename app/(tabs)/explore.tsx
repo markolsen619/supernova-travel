@@ -16,7 +16,7 @@ import { UserSuggestion } from '@/components/explore/UserSuggestion';
 import { TripGrid } from '@/components/explore/TripGrid';
 import { SkeletonCard, SkeletonListRow } from '@/components/ui/Skeleton';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
-import { StarMark } from '@/components/ui/StarMark';
+import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Trip } from '@/types';
@@ -128,7 +128,7 @@ export default function ExploreScreen() {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <StarMark size={36} style={styles.starIcon} />
+            <ScreenHeaderStar />
             <Text style={[styles.title, { color: colors.text.primary }]}>
               Explore
             </Text>
@@ -251,7 +251,6 @@ const styles = StyleSheet.create({
     gap: Spacing['2'],
     marginBottom: Spacing['1'],
   },
-  starIcon: { width: 36, height: 36 },
   title: {
     fontSize: FontSize['2xl'],
     fontWeight: FontWeight.semiBold,

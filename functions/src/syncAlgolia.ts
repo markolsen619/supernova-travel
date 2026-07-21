@@ -64,7 +64,9 @@ export const syncUserToAlgolia = onDocumentWritten('users/{uid}', async (event) 
   const data = after.data()!;
   await algoliaRequest('PUT', 'users', uid, {
     objectID: uid,
-    displayName: data.displayName ?? '',
+    // fullName is the current field; displayName is read as a fallback for
+    // docs written before the rename (self-heals next time this fires).
+    fullName: data.fullName ?? data.displayName ?? '',
     username: data.username ?? '',
     avatarUrl: data.avatarUrl ?? null,
     followersCount: data.followersCount ?? 0,

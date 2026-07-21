@@ -5,7 +5,14 @@ export type ThemeMode = 'dark' | 'light' | 'system';
 
 export interface UserProfile {
   uid: string;
-  displayName: string;
+  /** The person's real name (e.g. "Mark Olsen") — distinct from `username`,
+   * their unique @handle. Firestore field is `fullName`; older docs may only
+   * have the legacy `displayName` field, so every read site that builds a
+   * UserProfile applies a `fullName ?? displayName` fallback at the source
+   * (see app/_layout.tsx, hooks/useUserProfile.ts, hooks/useExplore.ts,
+   * hooks/useSearch.ts) — this type itself only ever carries the clean
+   * `fullName`, so nothing downstream needs to know the legacy name exists. */
+  fullName: string;
   username: string;
   avatarUrl: string | null;
   bio: string;

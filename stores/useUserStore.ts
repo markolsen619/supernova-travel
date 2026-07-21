@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 interface UserProfile {
   uid: string;
-  displayName: string;
+  fullName: string;
   username: string;
   avatarUrl: string | null;
   bio: string;

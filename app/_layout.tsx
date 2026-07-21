@@ -103,7 +103,9 @@ export default function RootLayout() {
           // and the profile header all read from this store.
           useUserStore.getState().setProfile({
             uid: firebaseUser.uid,
-            displayName: data.displayName ?? firebaseUser.displayName ?? '',
+            // fullName is the current field; displayName is the pre-rename
+            // name still on file for accounts that haven't been re-saved.
+            fullName: data.fullName ?? data.displayName ?? firebaseUser.displayName ?? '',
             username: data.username ?? '',
             avatarUrl: data.avatarUrl ?? null,
             bio: data.bio ?? '',

@@ -50,16 +50,16 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
       onPress={handleRowPress}
       activeOpacity={0.7}
       style={[styles.container, { borderBottomColor: colors.background.cardBorder }]}
-      accessibilityLabel={`View ${user.displayName}'s profile`}
+      accessibilityLabel={`View ${user.fullName}'s profile`}
     >
-      <Avatar uri={user.avatarUrl} name={user.displayName} size="md" />
+      <Avatar uri={user.avatarUrl} name={user.fullName} size="md" />
 
       <View style={styles.info}>
         <Text
           style={[styles.displayName, { color: colors.text.primary }]}
           numberOfLines={1}
         >
-          {user.displayName}
+          {user.fullName}
         </Text>
         <Text
           style={[styles.username, { color: colors.text.tertiary }]}
