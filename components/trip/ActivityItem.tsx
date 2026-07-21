@@ -26,6 +26,8 @@ interface ActivityItemProps {
   isResolving?: boolean;
   /** True while this row is the one currently being dragged. */
   isDragging?: boolean;
+  /** True briefly after arriving here via "View in timeline" from the map. */
+  isHighlighted?: boolean;
 }
 
 export function ActivityItem({
@@ -36,6 +38,7 @@ export function ActivityItem({
   showEdit = false,
   isResolving = false,
   isDragging = false,
+  isHighlighted = false,
 }: ActivityItemProps) {
   const { colors } = useTheme();
   const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
@@ -74,7 +77,13 @@ export function ActivityItem({
       disabled={!onPress || isResolving}
       style={[styles.container, isDragging && styles.dragging]}
     >
-      <View style={[styles.row, { backgroundColor: colors.background.card }]}>
+      <View
+        style={[
+          styles.row,
+          { backgroundColor: colors.background.card },
+          isHighlighted && { backgroundColor: `${colors.brand.purple}1F`, borderWidth: 1, borderColor: colors.brand.purple },
+        ]}
+      >
         {/* Left border accent */}
         <View style={[styles.accentBorder, { backgroundColor: accentColor }]} />
 

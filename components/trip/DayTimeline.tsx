@@ -31,6 +31,8 @@ interface DayTimelineProps {
   onDeleteDay?: () => void;
   /** Activity id currently being lazily resolved, if any. */
   resolvingActivityId?: string | null;
+  /** Activity id to briefly highlight — set after "View in timeline" from the map. */
+  highlightActivityId?: string | null;
   editable?: boolean;
 }
 
@@ -54,6 +56,7 @@ export function DayTimeline({
   onReorderActivities,
   onDeleteDay,
   resolvingActivityId = null,
+  highlightActivityId = null,
   editable = false,
 }: DayTimelineProps) {
   const { colors } = useTheme();
@@ -106,6 +109,7 @@ export function DayTimeline({
             showEdit={editable}
             isResolving={resolvingActivityId === item.id}
             isDragging={isActive}
+            isHighlighted={highlightActivityId === item.id}
           />
           {!isLast && (
             <View style={[styles.connector, { backgroundColor: colors.background.cardBorder }]} />
@@ -122,6 +126,7 @@ export function DayTimeline({
       canDrag,
       editable,
       resolvingActivityId,
+      highlightActivityId,
       colors.background.cardBorder,
     ],
   );

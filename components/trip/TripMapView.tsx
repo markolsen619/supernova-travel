@@ -1,22 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Dimensions } from 'react-native';
 import {
   MapView,
   Camera,
   StyleImport,
   ShapeSource,
   CircleLayer,
+  SymbolLayer,
   LineLayer,
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, X } from 'phosphor-react-native';
+import { ArrowLeft, MapPinLine, ListBullets, X } from 'phosphor-react-native';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
+import { usePoiTapResolver } from '@/hooks/usePoiTapResolver';
+import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { lightPresetForNow } from '@/services/mapLighting';
+import { placeToTripActivity } from '@/services/places/googlePlaces';
+import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import { ACTIVITY_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
+import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
+import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
+import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -24,6 +32,10 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
 const INITIAL_ZOOM = 1.5;
 const INITIAL_COORDS: [number, number] = [0, 20];
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
+type ScreenPointPayload = { screenPointX: number; screenPointY: number };
 
 // Distinguishes each day's route line — separate from ACTIVITY_ICONS, which
 // colors the pins by activity TYPE instead.
@@ -34,6 +46,8 @@ interface GroundedStop {
   dayId: string;
   dayNumber: number;
   dayColor: string;
+  /** 1-based position within its own day — what the pin's number shows. */
+  stopNumber: number;
   lat: number;
   lng: number;
 }
@@ -49,15 +63,18 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
   const ungrounded: UngroundedStop[] = [];
   days.forEach((day, dayIndex) => {
     const dayColor = DAY_ROUTE_COLORS[dayIndex % DAY_ROUTE_COLORS.length];
+    let stopNumber = 0;
     [...day.activities]
       .sort((a, b) => a.order - b.order)
       .forEach((activity) => {
         if (activity.placeId && activity.lat != null && activity.lng != null) {
+          stopNumber += 1;
           grounded.push({
             activity,
             dayId: day.id,
             dayNumber: day.dayNumber,
             dayColor,
+            stopNumber,
             lat: activity.lat,
             lng: activity.lng,
           });
@@ -70,6 +87,7 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
 }
 
 interface TripMapViewProps {
+  tripId: string;
   tripTitle: string;
   days: TripDay[];
   isOwner: boolean;
@@ -79,16 +97,20 @@ interface TripMapViewProps {
   onLocateStop: (activity: TripActivity, dayId: string) => Promise<void>;
   /** An activity to fly straight to on open — set when arriving here via "show on map" from the timeline. */
   focusActivityId?: string | null;
+  /** Switches back to the timeline, scrolled to and highlighting this activity. */
+  onViewInTimeline?: (activityId: string) => void;
   onBack: () => void;
 }
 
 export function TripMapView({
+  tripId,
   tripTitle,
   days,
   isOwner,
   resolvingActivityId,
   onLocateStop,
   focusActivityId,
+  onViewInTimeline,
   onBack,
 }: TripMapViewProps) {
   // Always-dark immersive screen (Architecture Rule 3) — the trip map is
@@ -97,8 +119,26 @@ export function TripMapView({
   const colors = DarkColors;
   const insets = useSafeAreaInsets();
   const { cameraRef, flyTo, flyToBounds } = useFlyTo();
+  const mapRef = useRef<InstanceType<typeof MapView>>(null);
   const [selected, setSelected] = useState<GroundedStop | null>(null);
   const [locatingAll, setLocatingAll] = useState(false);
+
+  // ── Add-from-map (TM-1a) ────────────────────────────────────────────────
+  const { addDay, addActivity } = useCreateTrip();
+  const { enriching: resolvingPoi, resolvePoiTap } = usePoiTapResolver();
+  const [tappedPlace, setTappedPlace] = useState<EnrichedPlace | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [dayPickerVisible, setDayPickerVisible] = useState(false);
+  const [pendingPlace, setPendingPlace] = useState<EnrichedPlace | null>(null);
+  const poiSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
+  const showPoiSheet = useCallback(() => {
+    Animated.spring(poiSlideAnim, { toValue: 0, ...SPRING }).start();
+  }, [poiSlideAnim]);
+
+  const hidePoiSheet = useCallback(() => {
+    Animated.spring(poiSlideAnim, { toValue: SCREEN_HEIGHT, ...SPRING }).start(() => setTappedPlace(null));
+  }, [poiSlideAnim]);
 
   const { grounded, ungrounded } = useMemo(() => collectStops(days), [days]);
 
@@ -111,6 +151,7 @@ export function TripMapView({
         properties: {
           activityId: stop.activity.id,
           color: ACTIVITY_ICONS[stop.activity.type].color,
+          stopNumber: stop.stopNumber,
         },
       })),
     }),
@@ -129,6 +170,10 @@ export function TripMapView({
       if (stops.length < 2) return;
       features.push({
         type: 'Feature',
+        // A straight/great-circle connector between stops in order — a
+        // routed path (turn-by-turn along real roads) would need a
+        // directions API call per day, which is a real cost decision, not
+        // made here. Worth revisiting as a separate, deliberate choice.
         geometry: { type: 'LineString', coordinates: stops.map((s) => [s.lng, s.lat]) },
         properties: { color: stops[0].dayColor },
       });
@@ -161,17 +206,157 @@ export function TripMapView({
     return () => clearTimeout(timer);
   }, [grounded, focusActivityId]);
 
-  const handlePinPress = useCallback(
-    (event: { features: GeoJSON.Feature[] }) => {
-      const activityId = event.features[0]?.properties?.activityId as string | undefined;
-      const stop = grounded.find((s) => s.activity.id === activityId);
-      if (!stop) return;
+  // A trip stop and an ambient Standard POI can occupy the same spot on
+  // screen — Standard's own POI label for a place we've already added
+  // doesn't disappear just because we drew our own pin on top of it. Near a
+  // known stop, the trip's stop must win: the same real place should never
+  // render as two different cards. "Near" is decided two ways, cheapest
+  // first:
+  const OWN_PIN_PROXIMITY_PX = 28; // pin circleRadius(11) * 2 + finger/label slop
+
+  const findOwnStopNearTap = useCallback(
+    async (
+      screenPointX: number,
+      screenPointY: number,
+      collection: GeoJSON.FeatureCollection | undefined,
+    ): Promise<GroundedStop | undefined> => {
+      // 1. Exact hit — the tap landed directly on our own circle/number
+      //    feature (only our features carry `activityId`).
+      const ownFeature = collection?.features?.find((f) => f.properties?.activityId);
+      if (ownFeature) {
+        return grounded.find((s) => s.activity.id === (ownFeature.properties?.activityId as string));
+      }
+      if (grounded.length === 0 || !mapRef.current) return undefined;
+
+      // 2. Near miss — project every stop to its current screen position
+      //    (no network call, just the map's own coordinate transform) and
+      //    check Euclidean pixel distance. Catches a slightly-off tap, or
+      //    Standard rendering its own POI label a few px from where we
+      //    placed the pin.
+      const projected = await Promise.all(
+        grounded.map(async (stop) => ({
+          stop,
+          point: await mapRef.current!.getPointInView([stop.lng, stop.lat]),
+        })),
+      );
+      let closest: { stop: GroundedStop; distance: number } | null = null;
+      for (const { stop, point } of projected) {
+        const dx = point[0] - screenPointX;
+        const dy = point[1] - screenPointY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (!closest || distance < closest.distance) closest = { stop, distance };
+      }
+      return closest && closest.distance <= OWN_PIN_PROXIMITY_PX ? closest.stop : undefined;
+    },
+    [grounded],
+  );
+
+  const selectOwnStop = useCallback(
+    (stop: GroundedStop) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setSelected(stop);
+      setTappedPlace(null);
       flyTo(stop.lng, stop.lat, 15.5);
     },
-    [grounded, flyTo],
+    [flyTo],
   );
+
+  // Single unified tap handler for the whole map: query whatever's rendered
+  // at the tap point and decide what it is. Deliberately ONE handler (not a
+  // ShapeSource-level onPress for our pins PLUS a separate MapView-level
+  // onPress for ambient POIs) — with two competing handlers, the same tap
+  // could fire both, double-handling it.
+  const handleMapPress = useCallback(
+    async (feature: GeoJSON.Feature<GeoJSON.Point, ScreenPointPayload>) => {
+      const { screenPointX, screenPointY } = feature.properties;
+      const collection = await mapRef.current?.queryRenderedFeaturesAtPoint([screenPointX, screenPointY]);
+
+      const nearbyOwnStop = await findOwnStopNearTap(screenPointX, screenPointY, collection);
+      if (nearbyOwnStop) {
+        selectOwnStop(nearbyOwnStop);
+        return;
+      }
+
+      // Ambient Standard POI → resolve via Google, offer to add. Owner-only:
+      // a non-owner can't write an activity anyway, so there's no reason to
+      // spend a Places call resolving one for them.
+      if (!isOwner) return;
+      const resolved = await resolvePoiTap(mapRef, feature);
+      if (!resolved) return;
+
+      // Neither the exact-feature nor pixel-proximity check caught it, but
+      // the place Google resolved to might STILL be one of the trip's
+      // existing stops (its rendered label can sit further from our pin
+      // than the threshold covers). This costs nothing extra — resolvePoiTap
+      // already ran once, cache-first, same as any other tap — it's purely
+      // a local identity check against stops already in memory, preferred
+      // over pixel distance whenever it's available.
+      const matchingStop = grounded.find((s) => s.activity.placeId === resolved.placeId);
+      if (matchingStop) {
+        selectOwnStop(matchingStop);
+        return;
+      }
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelected(null);
+      setTappedPlace(resolved);
+      showPoiSheet();
+    },
+    [grounded, findOwnStopNearTap, selectOwnStop, isOwner, resolvePoiTap, showPoiSheet],
+  );
+
+  const writeActivity = useCallback(
+    async (place: EnrichedPlace, dayId: string) => {
+      setAdding(true);
+      try {
+        await addActivity(tripId, dayId, placeToTripActivity(place));
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } catch (err) {
+        console.error('[TripMapView] add from map failed:', err);
+      } finally {
+        setAdding(false);
+      }
+    },
+    [tripId, addActivity],
+  );
+
+  const handleAddToTripFromMap = useCallback(
+    async (place: EnrichedPlace) => {
+      if (adding) return;
+      if (days.length === 0) {
+        const dayId = await addDay(tripId, { dayNumber: 1, date: null, title: '', notes: '' });
+        await writeActivity(place, dayId);
+        hidePoiSheet();
+        return;
+      }
+      if (days.length === 1) {
+        await writeActivity(place, days[0].id);
+        hidePoiSheet();
+        return;
+      }
+      // Multiple days — the map shows the whole trip at once, so unlike
+      // AddStopSheet (scoped to one day already) we need to ask.
+      setPendingPlace(place);
+      setDayPickerVisible(true);
+    },
+    [adding, days, tripId, addDay, writeActivity, hidePoiSheet],
+  );
+
+  const handleDayPicked = useCallback(
+    async (dayId: string) => {
+      if (!pendingPlace) return;
+      await writeActivity(pendingPlace, dayId);
+      setDayPickerVisible(false);
+      setPendingPlace(null);
+      hidePoiSheet();
+    },
+    [pendingPlace, writeActivity, hidePoiSheet],
+  );
+
+  const handleCloseDayPicker = useCallback(() => {
+    setDayPickerVisible(false);
+    setPendingPlace(null);
+  }, []);
 
   const handleLocateAll = useCallback(async () => {
     if (locatingAll) return;
@@ -187,12 +372,20 @@ export function TripMapView({
     }
   }, [ungrounded, onLocateStop, locatingAll]);
 
+  const handleViewInTimeline = useCallback(() => {
+    if (!selected || !onViewInTimeline) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onViewInTimeline(selected.activity.id);
+  }, [selected, onViewInTimeline]);
+
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={StyleSheet.absoluteFill}
         styleURL={STANDARD_STYLE}
         projection="mercator"
+        onPress={handleMapPress}
         // Mapbox ToS requires the wordmark + attribution on-map
         logoEnabled
         logoPosition={{ bottom: 24, left: 8 }}
@@ -238,14 +431,29 @@ export function TripMapView({
         )}
 
         {pointsCollection.features.length > 0 && (
-          <ShapeSource id="trip-stops" shape={pointsCollection} onPress={handlePinPress}>
+          <ShapeSource id="trip-stops" shape={pointsCollection}>
             <CircleLayer
               id="trip-stops-circle"
               style={{
-                circleRadius: 9,
+                circleRadius: 11,
                 circleColor: ['get', 'color'],
                 circleStrokeWidth: 2,
                 circleStrokeColor: '#ffffff',
+              }}
+            />
+            {/* Order-within-day number, stacked on the circle — a dark halo
+                keeps white text legible regardless of the circle's activity-
+                type fill color (blue/pink/teal/amber all pass through here). */}
+            <SymbolLayer
+              id="trip-stops-number"
+              style={{
+                textField: ['to-string', ['get', 'stopNumber']],
+                textSize: 11,
+                textColor: '#ffffff',
+                textHaloColor: 'rgba(0,0,0,0.55)',
+                textHaloWidth: 1,
+                textAllowOverlap: true,
+                textIgnorePlacement: true,
               }}
             />
           </ShapeSource>
@@ -267,12 +475,21 @@ export function TripMapView({
           <Text style={[styles.emptyText, { color: colors.text.secondary }]}>
             {ungrounded.length > 0
               ? 'No stops located yet — locate them below to see them here.'
-              : 'This trip has no stops yet.'}
+              : isOwner
+                ? 'Tap a place on the map to add your first stop.'
+                : 'This trip has no stops yet.'}
           </Text>
         </View>
       )}
 
-      {/* Selected stop card */}
+      {/* Resolving an ambient POI tap */}
+      {resolvingPoi && (
+        <View style={[styles.enrichingBadge, { backgroundColor: 'rgba(11,10,18,0.85)' }]}>
+          <ActivityIndicator size="small" color="#ffffff" />
+        </View>
+      )}
+
+      {/* Selected stop card — one of OUR OWN pins */}
       {selected && (
         <View
           style={[
@@ -291,14 +508,40 @@ export function TripMapView({
               {selected.activity.title}
             </Text>
             <Text style={[styles.selectedSubtitle, { color: colors.text.tertiary }]} numberOfLines={1}>
-              Day {selected.dayNumber}{selected.activity.address ? ` · ${selected.activity.address}` : ''}
+              Day {selected.dayNumber} · Stop {selected.stopNumber}{selected.activity.address ? ` · ${selected.activity.address}` : ''}
             </Text>
           </View>
+          {onViewInTimeline ? (
+            <TouchableOpacity onPress={handleViewInTimeline} hitSlop={8} style={styles.viewInTimelineBtn} accessibilityLabel="View in timeline">
+              <ListBullets size={18} color={colors.brand.purple} weight="bold" />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}>
             <X size={16} color={colors.text.tertiary} weight="bold" />
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Newly-tapped ambient POI — Google detail card, "Add to trip" */}
+      {tappedPlace && (
+        <PlaceDetailSheet
+          place={tappedPlace}
+          slideAnim={poiSlideAnim}
+          bottomInset={insets.bottom}
+          onDismiss={hidePoiSheet}
+          onAddToTrip={handleAddToTripFromMap}
+          addToTripLabel={adding ? 'Adding…' : 'Add to trip'}
+          colors={colors}
+        />
+      )}
+
+      <DayPickerSheet
+        visible={dayPickerVisible}
+        days={days}
+        onSelect={handleDayPicked}
+        onClose={handleCloseDayPicker}
+        colors={colors}
+      />
 
       {/* Ungrounded stops — on-demand locate only, never automatic */}
       {ungrounded.length > 0 && isOwner && (
@@ -373,6 +616,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  enrichingBadge: {
+    position: 'absolute',
+    top: '50%',
+    alignSelf: 'center',
+    borderRadius: 20,
+    padding: Spacing['3'],
+    zIndex: 20,
+  },
+
   selectedCard: {
     position: 'absolute',
     left: Spacing['4'],
@@ -386,6 +638,7 @@ const styles = StyleSheet.create({
   selectedTextBlock: { flex: 1 },
   selectedTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },
   selectedSubtitle: { fontSize: FontSize.xs, marginTop: 2 },
+  viewInTimelineBtn: { padding: Spacing['1'] },
 
   ungroundedPanel: {
     position: 'absolute',

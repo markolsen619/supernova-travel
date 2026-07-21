@@ -65,10 +65,12 @@ const VISIBILITY_LABEL: Record<string, string> = {
 function AnimatedDaySection({
   index,
   style,
+  onLayout,
   children,
 }: {
   index: number;
   style?: object;
+  onLayout?: (event: import('react-native').LayoutChangeEvent) => void;
   children: React.ReactNode;
 }) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -87,7 +89,7 @@ function AnimatedDaySection({
   }, []);
 
   return (
-    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>
+    <Animated.View style={[style, { opacity, transform: [{ translateY }] }]} onLayout={onLayout}>
       {children}
     </Animated.View>
   );
@@ -134,6 +136,15 @@ export default function TripDetailScreen() {
   // Map view state — Phase 4 Part C
   const [viewMode, setViewMode] = useState<'timeline' | 'map'>('timeline');
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
+
+  // Map → timeline bridge (TM-1c): "View in timeline" on a map pin scrolls
+  // to and briefly highlights the matching row. dayLayoutY is populated by
+  // each day section's onLayout as it renders — an approximate scroll
+  // target (top of the day, not the exact row), which is enough to find it
+  // at a glance since the highlight itself pinpoints the specific row.
+  const [highlightActivityId, setHighlightActivityId] = useState<string | null>(null);
+  const scrollRef = useRef<React.ElementRef<typeof NestableScrollContainer>>(null);
+  const dayLayoutY = useRef<Record<string, number>>({});
 
   // Owner-only trip edit/delete sheet
   const [editTripVisible, setEditTripVisible] = useState(false);
@@ -366,6 +377,33 @@ export default function TripDetailScreen() {
     [handleGroundActivity],
   );
 
+  // Map's "View in timeline" (TM-1c) — switch back to the timeline and
+  // queue a highlight; the scroll itself happens in the effect below, once
+  // the timeline has actually mounted and each day section has reported its
+  // layout position.
+  const handleViewInTimeline = useCallback((activityId: string) => {
+    setViewMode('timeline');
+    setFocusActivityId(null);
+    setHighlightActivityId(activityId);
+  }, []);
+
+  useEffect(() => {
+    if (viewMode !== 'timeline' || !highlightActivityId || !trip) return;
+    const day = trip.days.find((d) => d.activities.some((a) => a.id === highlightActivityId));
+    if (!day) return;
+    const scrollTimer = setTimeout(() => {
+      const y = dayLayoutY.current[day.id];
+      if (y != null) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - Spacing['4']), animated: true });
+      }
+    }, 150);
+    const clearTimer = setTimeout(() => setHighlightActivityId(null), 2200);
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [viewMode, highlightActivityId, trip]);
+
   // ── Loading / empty states ─────────────────────────────────────────────────
 
   if (isLoading) {
@@ -440,12 +478,14 @@ export default function TripDetailScreen() {
   if (viewMode === 'map') {
     return (
       <TripMapView
+        tripId={trip.id}
         tripTitle={trip.title}
         days={sortedDays}
         isOwner={isOwner}
         resolvingActivityId={resolvingActivityId}
         onLocateStop={handleGroundActivity}
         focusActivityId={focusActivityId}
+        onViewInTimeline={handleViewInTimeline}
         onBack={() => {
           setViewMode('timeline');
           setFocusActivityId(null);
@@ -457,6 +497,7 @@ export default function TripDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
       <NestableScrollContainer
+        ref={scrollRef}
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -646,6 +687,7 @@ export default function TripDetailScreen() {
                     styles.daySection,
                     index > 0 && { borderTopColor: colors.background.cardBorder, borderTopWidth: StyleSheet.hairlineWidth },
                   ]}
+                  onLayout={(e) => { dayLayoutY.current[day.id] = e.nativeEvent.layout.y; }}
                 >
                   <DayTimeline
                     day={day}
@@ -657,6 +699,7 @@ export default function TripDetailScreen() {
                     onReorderActivities={isOwner ? handleReorderActivities : undefined}
                     onDeleteDay={isOwner ? () => handleDeleteDay(day) : undefined}
                     resolvingActivityId={resolvingActivityId}
+                    highlightActivityId={highlightActivityId}
                   />
                 </AnimatedDaySection>
               ))}
