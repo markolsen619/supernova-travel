@@ -156,12 +156,16 @@ export function PlaceDetailSheet({
     <View style={[styles.content, { paddingBottom: bottomInset + Spacing['4'] }]}>
       <View style={styles.handle} />
 
-      {/* Place identity row */}
+      {/* Place identity row — the "ABOUT THIS PLACE" eyebrow deliberately
+          mirrors JournalSheet's "YOUR VISIT" one: Google's public place data
+          vs. the owner's personal photos/note are two different things, and
+          this is the one visual cue guaranteed to appear on both sheets. */}
       <View style={styles.header}>
         <View style={styles.iconBubble}>
           <MapPin size={22} color={colors.brand.purple} weight="duotone" />
         </View>
         <View style={styles.textBlock}>
+          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>ABOUT THIS PLACE</Text>
           <Text style={[styles.name, { color: colors.text.primary }]} numberOfLines={1}>
             {displayPlace.name}
           </Text>
@@ -337,6 +341,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textBlock: { flex: 1 },
+  eyebrow: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: 0.08 * FontSize.xs,
+    marginBottom: 2,
+  },
   name: { fontSize: FontSize.lg, fontWeight: FontWeight.bold },
   typeLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.semiBold, marginTop: 2 },
   secondary: { fontSize: FontSize.sm, marginTop: -Spacing['2'] },

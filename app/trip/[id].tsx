@@ -15,8 +15,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
+import { DarkColors } from '@/constants/colors';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -26,6 +27,8 @@ import { DayTimeline } from '@/components/trip/DayTimeline';
 import { ActivityFormSheet, type ActivityFormData } from '@/components/trip/ActivityFormSheet';
 import { AddStopSheet } from '@/components/trip/AddStopSheet';
 import { EditTripSheet } from '@/components/trip/EditTripSheet';
+import { JournalSheet } from '@/components/trip/JournalSheet';
+import { TripRecapSheet } from '@/components/trip/TripRecapSheet';
 import { TripMapView } from '@/components/trip/TripMapView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -150,6 +153,12 @@ export default function TripDetailScreen() {
   // Owner-only trip edit/delete sheet
   const [editTripVisible, setEditTripVisible] = useState(false);
 
+  // TM-3: journal sheet for a visited stop — reachable from both the
+  // timeline and the map, so it's owned here and rendered in both branches.
+  const [journalActivity, setJournalActivity] = useState<{ activity: TripActivity; dayId: string } | null>(null);
+  // TM-3d: trip recap
+  const [recapVisible, setRecapVisible] = useState(false);
+
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
 
   // TM-2b: "current" is derived, never stored — the first not-yet-visited
@@ -164,6 +173,12 @@ export default function TripDetailScreen() {
       if (next) return next.id;
     }
     return null; // every stop visited, or no stops yet
+  }, [trip]);
+
+  // TM-3d: gates the "Recap" chip — no point offering an empty story.
+  const visitedCount = useMemo(() => {
+    if (!trip) return 0;
+    return trip.days.reduce((n, d) => n + d.activities.filter((a) => a.visited).length, 0);
   }, [trip]);
 
   // ── Cover photo auto-resolve (Fix 1) ─────────────────────────────────────────
@@ -384,6 +399,13 @@ export default function TripDetailScreen() {
   // are a dead end; only fully omitting onPress for viewers avoids it.
   const handleActivityPress = useCallback(
     (activity: TripActivity, dayId: string) => {
+      // TM-3c: a visited, grounded stop opens its journal ("your visit")
+      // instead of jumping to the map — that's now the more useful default
+      // once there's something personal to see there.
+      if (activity.visited && activity.placeId) {
+        setJournalActivity({ activity, dayId });
+        return;
+      }
       if (activity.placeId) {
         setFocusActivityId(activity.id);
         setViewMode('map');
@@ -393,6 +415,10 @@ export default function TripDetailScreen() {
     },
     [handleGroundActivity],
   );
+
+  const handleOpenJournal = useCallback((activity: TripActivity, dayId: string) => {
+    setJournalActivity({ activity, dayId });
+  }, []);
 
   // TM-2b: manual visited toggle — shared by the timeline row and the map's
   // selected-stop card, same as grounding (handleGroundActivity) above.
@@ -504,22 +530,36 @@ export default function TripDetailScreen() {
 
   if (viewMode === 'map') {
     return (
-      <TripMapView
-        tripId={trip.id}
-        tripTitle={trip.title}
-        days={sortedDays}
-        isOwner={isOwner}
-        resolvingActivityId={resolvingActivityId}
-        onLocateStop={handleGroundActivity}
-        focusActivityId={focusActivityId}
-        onViewInTimeline={handleViewInTimeline}
-        onToggleVisited={isOwner ? handleToggleVisited : undefined}
-        currentActivityId={currentActivityId}
-        onBack={() => {
-          setViewMode('timeline');
-          setFocusActivityId(null);
-        }}
-      />
+      <>
+        <TripMapView
+          tripId={trip.id}
+          tripTitle={trip.title}
+          days={sortedDays}
+          isOwner={isOwner}
+          resolvingActivityId={resolvingActivityId}
+          onLocateStop={handleGroundActivity}
+          focusActivityId={focusActivityId}
+          onViewInTimeline={handleViewInTimeline}
+          onToggleVisited={isOwner ? handleToggleVisited : undefined}
+          onOpenJournal={handleOpenJournal}
+          currentActivityId={currentActivityId}
+          onBack={() => {
+            setViewMode('timeline');
+            setFocusActivityId(null);
+          }}
+        />
+        {journalActivity ? (
+          <JournalSheet
+            visible
+            tripId={trip.id}
+            dayId={journalActivity.dayId}
+            activity={journalActivity.activity}
+            isOwner={isOwner}
+            onClose={() => setJournalActivity(null)}
+            colors={DarkColors}
+          />
+        ) : null}
+      </>
     );
   }
 
@@ -665,6 +705,21 @@ export default function TripDetailScreen() {
               {VISIBILITY_LABEL[trip.visibility] ?? trip.visibility}
             </Text>
           </View>
+
+          {/* TM-3d — only worth surfacing once there's a story to tell */}
+          {visitedCount > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setRecapVisible(true);
+              }}
+              style={[styles.chip, { backgroundColor: `${colors.brand.purple}1A` }]}
+              accessibilityLabel="View trip recap"
+            >
+              <Camera size={13} color={colors.brand.purple} weight="duotone" />
+              <Text style={[styles.chipText, { color: colors.brand.purple }]}>Recap</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
         {/* ── 4. Description ── */}
@@ -797,6 +852,29 @@ export default function TripDetailScreen() {
           }}
         />
       ) : null}
+
+      {/* ── Journal for a visited stop (TM-3) ── */}
+      {journalActivity ? (
+        <JournalSheet
+          visible
+          tripId={trip.id}
+          dayId={journalActivity.dayId}
+          activity={journalActivity.activity}
+          isOwner={isOwner}
+          onClose={() => setJournalActivity(null)}
+        />
+      ) : null}
+
+      {/* ── Trip recap (TM-3d) ── */}
+      <TripRecapSheet
+        visible={recapVisible}
+        trip={trip}
+        onClose={() => setRecapVisible(false)}
+        onViewOnMap={() => {
+          setRecapVisible(false);
+          setViewMode('map');
+        }}
+      />
     </View>
   );
 }

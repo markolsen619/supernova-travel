@@ -109,6 +109,17 @@ service cloud.firestore {
         match /activities/{activityId} {
           allow read: if canReadTrip();
           allow create, update, delete: if canWriteTrip();
+
+          // Journal (TM-3) — note + photo refs for a visited stop, a fixed
+          // single doc (no multiple entries). Read follows the trip's own
+          // visibility via canReadTrip() — owner always, a non-owner only
+          // once the trip is public/followers/collaborator-shared; not a
+          // separate "published" flag. Write is OWNER-ONLY, deliberately
+          // narrower than canWriteTrip() (which also allows collaborators).
+          match /journal/{entryId} {
+            allow read: if canReadTrip();
+            allow write: if isAuthed() && isOwner(parentTrip().data.authorUid);
+          }
         }
       }
     }

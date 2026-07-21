@@ -11,7 +11,7 @@ import {
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, ListBullets, X } from 'phosphor-react-native';
+import { ArrowLeft, MapPinLine, ListBullets, Notebook, X } from 'phosphor-react-native';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -103,6 +103,8 @@ interface TripMapViewProps {
   onViewInTimeline?: (activityId: string) => void;
   /** Manual visited toggle (TM-2b) — omit for viewers. */
   onToggleVisited?: (activity: TripActivity, dayId: string) => void;
+  /** Opens the journal ("your visit") for a visited stop (TM-3c). */
+  onOpenJournal?: (activity: TripActivity, dayId: string) => void;
   /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
   currentActivityId?: string | null;
   onBack: () => void;
@@ -118,6 +120,7 @@ export function TripMapView({
   focusActivityId,
   onViewInTimeline,
   onToggleVisited,
+  onOpenJournal,
   currentActivityId,
   onBack,
 }: TripMapViewProps) {
@@ -398,6 +401,12 @@ export function TripMapView({
     onViewInTimeline(selected.activity.id);
   }, [selected, onViewInTimeline]);
 
+  const handleOpenJournal = useCallback(() => {
+    if (!selected || !onOpenJournal) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onOpenJournal(selected.activity, selected.dayId);
+  }, [selected, onOpenJournal]);
+
   const handleToggleSelectedVisited = onToggleVisited && selected
     ? () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -554,6 +563,13 @@ export function TripMapView({
               {selected.activity.address ? ` · ${selected.activity.address}` : ''}
             </Text>
           </View>
+          {/* Journal only applies to a VISITED stop — per TM-3b, a planned
+              stop has nothing to journal yet. */}
+          {onOpenJournal && selected.activity.visited ? (
+            <TouchableOpacity onPress={handleOpenJournal} hitSlop={8} style={styles.viewInTimelineBtn} accessibilityLabel="View journal">
+              <Notebook size={18} color={colors.brand.purple} weight="bold" />
+            </TouchableOpacity>
+          ) : null}
           {onViewInTimeline ? (
             <TouchableOpacity onPress={handleViewInTimeline} hitSlop={8} style={styles.viewInTimelineBtn} accessibilityLabel="View in timeline">
               <ListBullets size={18} color={colors.brand.purple} weight="bold" />

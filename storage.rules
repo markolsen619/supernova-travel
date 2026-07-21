@@ -13,6 +13,17 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Trip journal photos (TM-3) — read is public like posts/profile_photos:
+    // the actual privacy gate is discoverability of the URL, enforced by the
+    // Firestore journal subcollection's own rule (owner, or non-owner only
+    // once the trip is shared). Write stays owner-only, matching that rule.
+    match /journal_photos/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size <= 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
     // Place photos — max 5 MB, images only
     match /places/{placeId}/{allPaths=**} {
       allow read: if true;
