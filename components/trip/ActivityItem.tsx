@@ -13,7 +13,7 @@ import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { TripActivity } from '@/types';
 import { ACTIVITY_ICONS } from '@/constants/icons';
-import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
+import { StopStateBubble } from '@/components/trip/StopStateBubble';
 
 interface ActivityItemProps {
   activity: TripActivity;
@@ -21,6 +21,8 @@ interface ActivityItemProps {
   onEdit?: () => void;
   /** Long-press to pick up this row for drag-to-reorder (see DayTimeline). */
   onLongPress?: () => void;
+  /** Tap the icon bubble to toggle visited (TM-2b) — omit for viewers. */
+  onToggleVisited?: () => void;
   showEdit?: boolean;
   /** True while this specific activity's AI stop is being lazily grounded. */
   isResolving?: boolean;
@@ -28,6 +30,8 @@ interface ActivityItemProps {
   isDragging?: boolean;
   /** True briefly after arriving here via "View in timeline" from the map. */
   isHighlighted?: boolean;
+  /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
+  isCurrent?: boolean;
 }
 
 export function ActivityItem({
@@ -35,10 +39,12 @@ export function ActivityItem({
   onPress,
   onEdit,
   onLongPress,
+  onToggleVisited,
   showEdit = false,
   isResolving = false,
   isDragging = false,
   isHighlighted = false,
+  isCurrent = false,
 }: ActivityItemProps) {
   const { colors } = useTheme();
   const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
@@ -69,6 +75,15 @@ export function ActivityItem({
     onEdit();
   }, [onEdit]);
 
+  // A write the user is consciously making, not just navigating — Medium,
+  // matching every other persisted toggle in the app.
+  const handleToggleVisited = onToggleVisited
+    ? () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onToggleVisited();
+      }
+    : undefined;
+
   return (
     <TouchableOpacity
       onPress={onPress ? handlePress : undefined}
@@ -98,9 +113,18 @@ export function ActivityItem({
           )}
         </View>
 
-        {/* Icon bubble */}
+        {/* Icon bubble doubles as the visited toggle when editable — see
+            StopStateBubble for the three states (planned/current/visited),
+            shared with the map's selected-stop card. */}
         <View style={styles.iconWrapper}>
-          <TypeIconBubble Icon={Icon} color={accentColor} bubbleSize={36} iconSize={20} />
+          <StopStateBubble
+            Icon={Icon}
+            color={accentColor}
+            visited={activity.visited}
+            isCurrent={isCurrent}
+            onToggle={handleToggleVisited}
+            surfaceColor={colors.background.card}
+          />
         </View>
 
         {/* Content */}

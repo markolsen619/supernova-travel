@@ -128,6 +128,8 @@ export const generateTrip = functions.https.onCall(
           order: idx * 1000,
           createdAt: now,
           searchQuery: act.searchQuery,
+          visited: false,
+          visitedAt: null,
         });
       });
     }

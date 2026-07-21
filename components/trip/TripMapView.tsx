@@ -21,7 +21,7 @@ import { lightPresetForNow } from '@/services/mapLighting';
 import { placeToTripActivity } from '@/services/places/googlePlaces';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import { ACTIVITY_ICONS } from '@/constants/icons';
-import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
+import { StopStateBubble } from '@/components/trip/StopStateBubble';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { SPRING } from '@/constants/motion';
@@ -48,6 +48,7 @@ interface GroundedStop {
   dayColor: string;
   /** 1-based position within its own day — what the pin's number shows. */
   stopNumber: number;
+  visited: boolean;
   lat: number;
   lng: number;
 }
@@ -75,6 +76,7 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
             dayNumber: day.dayNumber,
             dayColor,
             stopNumber,
+            visited: activity.visited,
             lat: activity.lat,
             lng: activity.lng,
           });
@@ -99,6 +101,10 @@ interface TripMapViewProps {
   focusActivityId?: string | null;
   /** Switches back to the timeline, scrolled to and highlighting this activity. */
   onViewInTimeline?: (activityId: string) => void;
+  /** Manual visited toggle (TM-2b) — omit for viewers. */
+  onToggleVisited?: (activity: TripActivity, dayId: string) => void;
+  /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
+  currentActivityId?: string | null;
   onBack: () => void;
 }
 
@@ -111,6 +117,8 @@ export function TripMapView({
   onLocateStop,
   focusActivityId,
   onViewInTimeline,
+  onToggleVisited,
+  currentActivityId,
   onBack,
 }: TripMapViewProps) {
   // Always-dark immersive screen (Architecture Rule 3) — the trip map is
@@ -152,12 +160,22 @@ export function TripMapView({
           activityId: stop.activity.id,
           color: ACTIVITY_ICONS[stop.activity.type].color,
           stopNumber: stop.stopNumber,
+          visited: stop.visited,
+          isCurrent: stop.activity.id === currentActivityId,
         },
       })),
     }),
-    [grounded],
+    [grounded, currentActivityId],
   );
 
+  // TM-2c: the signature "how far along" view — each day's path is broken
+  // into per-segment pieces (not one polyline per day) so the line itself
+  // can flip from traveled to upcoming exactly where the journey currently
+  // stands. A segment counts as traveled only when BOTH its endpoints are
+  // visited; touching even one not-yet-visited stop makes it upcoming. Still
+  // a straight connector between consecutive stops — a real routed path
+  // (roads, turn-by-turn) would need a directions-API call per day, a cost
+  // decision this doesn't make.
   const routesCollection: GeoJSON.FeatureCollection = useMemo(() => {
     const byDay = new Map<string, GroundedStop[]>();
     grounded.forEach((stop) => {
@@ -167,16 +185,18 @@ export function TripMapView({
     });
     const features: GeoJSON.Feature[] = [];
     byDay.forEach((stops) => {
-      if (stops.length < 2) return;
-      features.push({
-        type: 'Feature',
-        // A straight/great-circle connector between stops in order — a
-        // routed path (turn-by-turn along real roads) would need a
-        // directions API call per day, which is a real cost decision, not
-        // made here. Worth revisiting as a separate, deliberate choice.
-        geometry: { type: 'LineString', coordinates: stops.map((s) => [s.lng, s.lat]) },
-        properties: { color: stops[0].dayColor },
-      });
+      for (let i = 0; i < stops.length - 1; i++) {
+        const a = stops[i];
+        const b = stops[i + 1];
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [[a.lng, a.lat], [b.lng, b.lat]] },
+          properties: {
+            color: a.dayColor,
+            segmentType: a.visited && b.visited ? 'traveled' : 'upcoming',
+          },
+        });
+      }
     });
     return { type: 'FeatureCollection', features };
   }, [grounded]);
@@ -378,6 +398,13 @@ export function TripMapView({
     onViewInTimeline(selected.activity.id);
   }, [selected, onViewInTimeline]);
 
+  const handleToggleSelectedVisited = onToggleVisited && selected
+    ? () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onToggleVisited(selected.activity, selected.dayId);
+      }
+    : undefined;
+
   return (
     <View style={styles.container}>
       <MapView
@@ -417,12 +444,20 @@ export function TripMapView({
             to Standard's own POI layers and never raw unresolved Google data. */}
         {routesCollection.features.length > 0 && (
           <ShapeSource id="trip-routes" shape={routesCollection}>
+            {/* Traveled: solid, full-strength — the "how far along" line.
+                Upcoming: dashed and lower-opacity, but the SAME day color
+                (not a separate muted palette) so it's still legible over
+                both a bright "day" preset and the dark "night" one — the
+                dash pattern itself, not opacity alone, carries the "not yet"
+                meaning. One LineLayer, data-driven on segmentType, so the
+                boundary between the two never has to be manually tracked. */}
             <LineLayer
               id="trip-routes-line"
               style={{
                 lineColor: ['get', 'color'],
-                lineWidth: 3,
-                lineOpacity: 0.75,
+                lineWidth: ['case', ['==', ['get', 'segmentType'], 'traveled'], 3.5, 2.5],
+                lineOpacity: ['case', ['==', ['get', 'segmentType'], 'traveled'], 0.9, 0.55],
+                lineDasharray: ['case', ['==', ['get', 'segmentType'], 'traveled'], ['literal', [1, 0]], ['literal', [2, 2]]],
                 lineCap: 'round',
                 lineJoin: 'round',
               }}
@@ -432,18 +467,22 @@ export function TripMapView({
 
         {pointsCollection.features.length > 0 && (
           <ShapeSource id="trip-stops" shape={pointsCollection}>
+            {/* Three pin states (TM-2b): planned = hollow (colored stroke,
+                transparent fill); current = hollow + a wider white ring —
+                "next up"; visited = solid fill, matching the timeline row's
+                filled treatment. */}
             <CircleLayer
               id="trip-stops-circle"
               style={{
-                circleRadius: 11,
-                circleColor: ['get', 'color'],
-                circleStrokeWidth: 2,
-                circleStrokeColor: '#ffffff',
+                circleRadius: ['case', ['get', 'isCurrent'], 13, 11],
+                circleColor: ['case', ['get', 'visited'], ['get', 'color'], 'rgba(0,0,0,0)'],
+                circleStrokeWidth: ['case', ['get', 'isCurrent'], 3, ['get', 'visited'], 2, 2.5],
+                circleStrokeColor: ['case', ['get', 'visited'], '#ffffff', ['get', 'isCurrent'], '#ffffff', ['get', 'color']],
               }}
             />
             {/* Order-within-day number, stacked on the circle — a dark halo
-                keeps white text legible regardless of the circle's activity-
-                type fill color (blue/pink/teal/amber all pass through here). */}
+                keeps white text legible regardless of fill/stroke color or
+                whether the pin is hollow (planned) or filled (visited). */}
             <SymbolLayer
               id="trip-stops-number"
               style={{
@@ -497,18 +536,22 @@ export function TripMapView({
             { backgroundColor: colors.background.elevated, bottom: insets.bottom + (ungrounded.length > 0 && isOwner ? 96 : Spacing['4']) },
           ]}
         >
-          <TypeIconBubble
+          <StopStateBubble
             Icon={ACTIVITY_ICONS[selected.activity.type].Icon}
             color={ACTIVITY_ICONS[selected.activity.type].color}
-            bubbleSize={36}
-            iconSize={20}
+            visited={selected.activity.visited}
+            isCurrent={selected.activity.id === currentActivityId}
+            onToggle={handleToggleSelectedVisited}
+            surfaceColor={colors.background.elevated}
           />
           <View style={styles.selectedTextBlock}>
             <Text style={[styles.selectedTitle, { color: colors.text.primary }]} numberOfLines={1}>
               {selected.activity.title}
             </Text>
             <Text style={[styles.selectedSubtitle, { color: colors.text.tertiary }]} numberOfLines={1}>
-              Day {selected.dayNumber} · Stop {selected.stopNumber}{selected.activity.address ? ` · ${selected.activity.address}` : ''}
+              Day {selected.dayNumber} · Stop {selected.stopNumber}
+              {selected.activity.visited ? ' · Visited' : ''}
+              {selected.activity.address ? ` · ${selected.activity.address}` : ''}
             </Text>
           </View>
           {onViewInTimeline ? (

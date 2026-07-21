@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
 import { db, auth } from '@/services/firebase';
-import { TripDay, TripActivity, CreateTripInput, UpdateTripInput } from '@/types';
+import { TripDay, TripActivity, TripWithDays, CreateTripInput, UpdateTripInput } from '@/types';
 
 export function useCreateTrip() {
   const queryClient = useQueryClient();
@@ -113,6 +113,54 @@ export function useCreateTrip() {
     const activityRef = doc(db, 'trips', tripId, 'days', dayId, 'activities', activityId);
     await updateDoc(activityRef, { ...data });
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+  }
+
+  /**
+   * TM-2b: manual visited toggle — no GPS, just this tap. Patches the
+   * `['trip', tripId]` cache directly (not a dedicated local boolean)
+   * before the write resolves: the timeline row and the map pin both read
+   * that same query, so one optimistic patch keeps them in lockstep with
+   * no divergent state, instead of two components separately guessing at
+   * the same fact. Reverted on failure.
+   */
+  async function toggleVisited(
+    tripId: string,
+    dayId: string,
+    activityId: string,
+    visited: boolean
+  ): Promise<void> {
+    const activityRef = doc(db, 'trips', tripId, 'days', dayId, 'activities', activityId);
+    const queryKey = ['trip', tripId];
+    const previous = queryClient.getQueryData<TripWithDays | null>(queryKey);
+
+    queryClient.setQueryData<TripWithDays | null>(queryKey, (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        days: old.days.map((day) =>
+          day.id !== dayId
+            ? day
+            : {
+                ...day,
+                activities: day.activities.map((a) =>
+                  a.id !== activityId ? a : { ...a, visited, visitedAt: visited ? Timestamp.now() : null }
+                ),
+              }
+        ),
+      };
+    });
+
+    try {
+      await updateDoc(activityRef, {
+        visited,
+        visitedAt: visited ? serverTimestamp() : null,
+      });
+    } catch (err) {
+      queryClient.setQueryData(queryKey, previous);
+      throw err;
+    } finally {
+      await queryClient.invalidateQueries({ queryKey });
+    }
   }
 
   async function deleteActivity(
@@ -231,6 +279,7 @@ export function useCreateTrip() {
     addDay,
     addActivity,
     updateActivity,
+    toggleVisited,
     deleteActivity,
     getOrCreateLastDay,
     reorderActivities,

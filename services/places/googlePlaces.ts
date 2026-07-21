@@ -319,5 +319,7 @@ export function placeToTripActivity(place: EnrichedPlace): Omit<TripActivity, 'i
     mediaUrls: [],
     createdAt: Timestamp.now(),
     searchQuery: null, // already grounded — came from a resolved EnrichedPlace
+    visited: false,
+    visitedAt: null,
   };
 }

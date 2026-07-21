@@ -25,6 +25,8 @@ interface DayTimelineProps {
   onEditActivity?: (activity: TripActivity) => void;
   /** Fired when an activity row is tapped — used to lazily ground AI-generated stops. */
   onActivityPress?: (activity: TripActivity, dayId: string) => void;
+  /** Fired when the icon bubble is tapped — toggles manual visited tracking (TM-2b). */
+  onToggleVisited?: (activity: TripActivity, dayId: string) => void;
   /** Fired once, on drop, with the full new order — never during the drag itself. */
   onReorderActivities?: (dayId: string, orderedActivities: TripActivity[]) => void;
   /** Owner-only: delete this whole day. */
@@ -33,6 +35,8 @@ interface DayTimelineProps {
   resolvingActivityId?: string | null;
   /** Activity id to briefly highlight — set after "View in timeline" from the map. */
   highlightActivityId?: string | null;
+  /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
+  currentActivityId?: string | null;
   editable?: boolean;
 }
 
@@ -53,10 +57,12 @@ export function DayTimeline({
   onAddStop,
   onEditActivity,
   onActivityPress,
+  onToggleVisited,
   onReorderActivities,
   onDeleteDay,
   resolvingActivityId = null,
   highlightActivityId = null,
+  currentActivityId = null,
   editable = false,
 }: DayTimelineProps) {
   const { colors } = useTheme();
@@ -67,6 +73,10 @@ export function DayTimeline({
   const handleActivityPress = useCallback(
     (activity: TripActivity) => onActivityPress?.(activity, day.id),
     [onActivityPress, day.id],
+  );
+  const handleToggleVisited = useCallback(
+    (activity: TripActivity) => onToggleVisited?.(activity, day.id),
+    [onToggleVisited, day.id],
   );
   const sorted = [...day.activities].sort((a, b) => a.order - b.order);
   const hasActivities = sorted.length > 0;
@@ -106,10 +116,12 @@ export function DayTimeline({
             onPress={onActivityPress ? () => handleActivityPress(item) : undefined}
             onEdit={onEditActivity ? () => handleEditActivity(item) : undefined}
             onLongPress={canDrag ? drag : undefined}
+            onToggleVisited={onToggleVisited ? () => handleToggleVisited(item) : undefined}
             showEdit={editable}
             isResolving={resolvingActivityId === item.id}
             isDragging={isActive}
             isHighlighted={highlightActivityId === item.id}
+            isCurrent={currentActivityId === item.id}
           />
           {!isLast && (
             <View style={[styles.connector, { backgroundColor: colors.background.cardBorder }]} />
@@ -123,10 +135,13 @@ export function DayTimeline({
       handleActivityPress,
       onEditActivity,
       handleEditActivity,
+      onToggleVisited,
+      handleToggleVisited,
       canDrag,
       editable,
       resolvingActivityId,
       highlightActivityId,
+      currentActivityId,
       colors.background.cardBorder,
     ],
   );

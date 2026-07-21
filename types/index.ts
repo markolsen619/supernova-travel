@@ -124,6 +124,17 @@ export interface TripActivity {
    * manually-created or already-grounded activities.
    */
   searchQuery: string | null;
+  /**
+   * Manual visited-tracking (TM-2) — no GPS, set only by the owner tapping
+   * "Mark visited". `visitedAt` is reset to null (not omitted) on unvisit,
+   * so every activity has a consistent shape to query/derive from later —
+   * a future feed post can be built directly from
+   * `trip.days[].activities[].filter(a => a.visited)` (title, mediaUrls,
+   * placeId/lat/lng, notes-as-caption) with no migration, since tracking
+   * lives on the same document the feed would read.
+   */
+  visited: boolean;
+  visitedAt: Timestamp | null;
 }
 
 export interface TripDay {

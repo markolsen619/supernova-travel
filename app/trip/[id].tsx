@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -109,6 +109,7 @@ export default function TripDetailScreen() {
     addDay,
     addActivity,
     updateActivity,
+    toggleVisited,
     deleteActivity,
     reorderActivities,
     moveActivityToDay,
@@ -150,6 +151,20 @@ export default function TripDetailScreen() {
   const [editTripVisible, setEditTripVisible] = useState(false);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
+
+  // TM-2b: "current" is derived, never stored — the first not-yet-visited
+  // activity in day/order sequence, only while the trip is actually active.
+  // Recomputing this on every trip change is cheap and keeps it always
+  // correct with zero extra writes to keep in sync.
+  const currentActivityId = useMemo(() => {
+    if (!trip || trip.status !== 'active') return null;
+    const sortedDaysForCurrent = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
+    for (const day of sortedDaysForCurrent) {
+      const next = [...day.activities].sort((a, b) => a.order - b.order).find((a) => !a.visited);
+      if (next) return next.id;
+    }
+    return null; // every stop visited, or no stops yet
+  }, [trip]);
 
   // ── Cover photo auto-resolve (Fix 1) ─────────────────────────────────────────
   // A trip with no cover renders a blank header, which fails "photos lead."
@@ -243,6 +258,8 @@ export default function TripDetailScreen() {
         startTime: data.startTime,
         endTime: data.endTime,
         notes: data.notes,
+        visited: false,
+        visitedAt: null,
         placeId: null,
         address: null,
         lat: null,
@@ -377,6 +394,16 @@ export default function TripDetailScreen() {
     [handleGroundActivity],
   );
 
+  // TM-2b: manual visited toggle — shared by the timeline row and the map's
+  // selected-stop card, same as grounding (handleGroundActivity) above.
+  const handleToggleVisited = useCallback(
+    (activity: TripActivity, dayId: string) => {
+      if (!id) return;
+      toggleVisited(id, dayId, activity.id, !activity.visited);
+    },
+    [id, toggleVisited],
+  );
+
   // Map's "View in timeline" (TM-1c) — switch back to the timeline and
   // queue a highlight; the scroll itself happens in the effect below, once
   // the timeline has actually mounted and each day section has reported its
@@ -486,6 +513,8 @@ export default function TripDetailScreen() {
         onLocateStop={handleGroundActivity}
         focusActivityId={focusActivityId}
         onViewInTimeline={handleViewInTimeline}
+        onToggleVisited={isOwner ? handleToggleVisited : undefined}
+        currentActivityId={currentActivityId}
         onBack={() => {
           setViewMode('timeline');
           setFocusActivityId(null);
@@ -696,10 +725,12 @@ export default function TripDetailScreen() {
                     onAddStop={isOwner ? () => handleOpenAddStop(day) : undefined}
                     onEditActivity={isOwner ? (activity) => handleOpenEditActivity(activity, day.id) : undefined}
                     onActivityPress={isOwner ? handleActivityPress : undefined}
+                    onToggleVisited={isOwner ? handleToggleVisited : undefined}
                     onReorderActivities={isOwner ? handleReorderActivities : undefined}
                     onDeleteDay={isOwner ? () => handleDeleteDay(day) : undefined}
                     resolvingActivityId={resolvingActivityId}
                     highlightActivityId={highlightActivityId}
+                    currentActivityId={currentActivityId}
                   />
                 </AnimatedDaySection>
               ))}
