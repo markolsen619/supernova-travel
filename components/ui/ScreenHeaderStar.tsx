@@ -7,7 +7,7 @@ import { StarMark } from '@/components/ui/StarMark';
  * `size={N}` literal typed independently on each screen — so the two marks
  * can't silently drift apart again the way they did before.
  */
-export const HEADER_STAR_SIZE = 40;
+export const HEADER_STAR_SIZE = 70;
 
 export function ScreenHeaderStar({ style }: { style?: StyleProp<ImageStyle> }) {
   return <StarMark size={HEADER_STAR_SIZE} style={style} />;
