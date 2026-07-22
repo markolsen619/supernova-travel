@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
@@ -26,6 +26,8 @@ import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTripList } from '@/hooks/useTripList';
+import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
+import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { db } from '@/services/firebase';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -106,7 +108,41 @@ function ProfileScreenContent() {
   const fullName = profile?.fullName ?? user?.displayName ?? 'Explorer';
   const username = profile?.username ?? '';
 
-  const { data: allTrips = [], isLoading: tripsLoading } = useTripList(uid);
+  const { data: allTrips = [], isLoading: tripsLoading, refetch: refetchTrips } = useTripList(uid);
+
+  // TanStack's staleTime keeps this list from refetching on every tab
+  // switch — right, most of the time. But the cover/author backfill below
+  // writes in the background, and a 2-minute-stale list would sit there
+  // looking unfixed until that window lapses. Refetching on focus (not on
+  // every render) means returning to this tab always shows the latest,
+  // without turning every mount into a network call.
+  useFocusEffect(
+    useCallback(() => {
+      refetchTrips();
+    }, [refetchTrips]),
+  );
+
+  // Backfill missing cover photos across every one of your trips (Upcoming/
+  // Current/Past alike), not just the one you happen to open — every trip
+  // here is already yours (useTripList filters by authorUid), so isOwner is
+  // always true. Sequential, not parallel: courteous to the Places API
+  // budget the same way the trip map's "Locate all" is, just without a
+  // confirmation prompt since this is a silent, one-time backfill identical
+  // in spirit to the one that already ran on trip-detail open.
+  const { resolveCover } = useTripCoverResolver();
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      for (const trip of allTrips) {
+        if (cancelled) return;
+        if (trip.coverImageUrl !== null) continue;
+        await resolveCover(trip, true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [allTrips, resolveCover]);
   const filteredTrips = allTrips.filter((t) => t.status === TRIP_STATUS_MAP[tripFilter]);
 
   const { data: posts = [], isLoading: postsLoading } = useQuery({
@@ -122,6 +158,12 @@ function ProfileScreenContent() {
     enabled: !!uid && activeTab === 'Saved',
     staleTime: 2 * 60 * 1000,
   });
+  // Saved trips can belong to anyone (post-shaped bookmarks carry no
+  // authorUid at all — filtered out here) — one batched lookup instead of
+  // a fetch per card.
+  const { data: savedAuthorProfiles = {} } = useAuthorProfiles(
+    savedTrips.map((t) => t.authorUid).filter((id): id is string => !!id),
+  );
 
   const handleTabPress = useCallback((tab: ProfileTab) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -313,6 +355,10 @@ function ProfileScreenContent() {
             <TripCard
               trip={item}
               onPress={() => router.push(`/trip/${item.id}`)}
+              // Every trip in this list is yours — useTripList filters by
+              // authorUid — so the author is always the profile owner, no
+              // batch lookup needed.
+              author={{ name: fullName, avatarUrl: profile?.avatarUrl ?? null }}
             />
           )}
         />
@@ -417,6 +463,7 @@ function ProfileScreenContent() {
                   : `/trip/${item.id}`,
               )
             }
+            author={savedAuthorProfiles[item.authorUid] ?? null}
           />
         )}
       />

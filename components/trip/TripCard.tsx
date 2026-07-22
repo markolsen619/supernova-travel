@@ -28,6 +28,15 @@ interface TripCardProps {
    * rendering a TripCard can never trigger a Places API call.
    */
   fallbackCoverUrl?: string | null;
+  /**
+   * The trip's actual author — a `Trip` only stores `authorUid`, so every
+   * caller resolves this from data already in memory (the viewer's own
+   * cached profile for their own trips, or a batched author lookup for
+   * other people's) and passes it down. Must never be resolved on render:
+   * rendering a TripCard can never trigger a profile fetch. Omitting it
+   * renders the row's loading state, not a fake "traveler" placeholder.
+   */
+  author?: { name: string; avatarUrl: string | null } | null;
 }
 
 // This badge sits on the raw cover photo, not app chrome — a light-tint-on-
@@ -53,7 +62,7 @@ function formatDateRange(
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-export function TripCard({ trip, onPress, style, fallbackCoverUrl }: TripCardProps) {
+export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: TripCardProps) {
   const { colors } = useTheme();
   const coverUrl = trip.coverImageUrl || fallbackCoverUrl || null;
   // Dot hues come from the shared accent/brand tokens (identical in both
@@ -135,13 +144,16 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl }: TripCardPro
             </Text>
           ) : null}
 
-          {/* Author row */}
-          <View style={styles.authorRow}>
-            <Avatar size="xs" />
-            <Text style={[styles.authorText, { color: colors.text.tertiary }]}>
-              by traveler
-            </Text>
-          </View>
+          {/* Author row — omitted rather than guessed when unresolved; see
+              the `author` prop doc for why. */}
+          {author ? (
+            <View style={styles.authorRow}>
+              <Avatar size="xs" uri={author.avatarUrl} name={author.name} />
+              <Text style={[styles.authorText, { color: colors.text.tertiary }]} numberOfLines={1}>
+                {author.name}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     </View>

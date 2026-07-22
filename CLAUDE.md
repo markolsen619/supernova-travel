@@ -149,7 +149,9 @@ All functions use Firebase Functions v2.
 | `useFollow(uid)` | `{ follow, unfollow }` mutations |
 | `useTripList(uid)` | TanStack Query result for user's trips (also exports `usePublicTrips`) |
 | `useTrip(id)` | Single trip query with nested days/activities |
-| `useCreateTrip` | Create trip mutation |
+| `useCreateTrip` | Create/update/delete trip + day/activity mutations. `updateTrip()` invalidates `['trip', id]`, `['trips']`, and `['publicTrips']` (prefix match) so a silent backfill (e.g. `useTripCoverResolver`) shows up in every list view, not just the trip's own detail query |
+| `useTripCoverResolver` | `{ resolveCover(trip, isOwner) }` — owner-only, silent, once-ever backfill of a trip's `coverImageUrl` from Google Places. For AI-generated trips (destination is a name only, no `placeId`) it grounds the destination first via `enrichPlaceByQuery`, same lazy-grounding call used for AI activity stops, then resolves the photo. Called from `trip/[id].tsx` (on open) and `profile.tsx` (across the whole trip list, sequentially, on mount) |
+| `useAuthorProfiles(uids)` | Batched `users/{uid}` lookup (`documentId() in [...]`, chunked to 30) → `Record<uid, {name, avatarUrl}>`. Feeds `TripCard`'s `author` prop for lists spanning multiple authors (Saved tab, Explore, public profile) — profile's own Trips tab skips this and uses the already-loaded own profile directly |
 | `useAiGenerateTrip` | AI generation mutation; redirects to `/paywall` on quota exceeded |
 | `useBoardingPasses` | `{ boardingPasses, isLoading, addPass, deletePass }` |
 | `useReservations` | `{ reservations, isLoading, addReservation, deleteReservation }` |
@@ -187,7 +189,7 @@ Free tier: 1 AI-generated trip per week (enforced server-side via `usage_quotas`
 | `LoyaltyProgram` | programType, programName, memberNumber, balance, unit, tier, expiryDate, isManual |
 | `LoyaltyUnit` | `'miles' \| 'points' \| 'nights' \| 'segments'` |
 | `LoyaltyTier` | `'standard' \| 'silver' \| 'gold' \| 'platinum' \| 'diamond'` |
-| `CreateTripInput` / `UpdateTripInput` | mutation input shapes |
+| `CreateTripInput` / `UpdateTripInput` | mutation input shapes. `UpdateTripInput.destination` (optional) exists specifically so `useTripCoverResolver` can persist a grounded placeId/lat/lng/countryCode back onto an AI trip whose destination started as a name only |
 
 `types/ai.ts` — AI generation types:
 - `TravelStyle`: `'adventure' | 'luxury' | 'budget' | 'family' | 'cultural'`
@@ -221,7 +223,7 @@ Feed components in `components/feed/`:
 - `VideoPlayer` — video playback; uses `expo-av`
 
 Trip components in `components/trip/`:
-- `TripCard` — trip preview card for grids and lists
+- `TripCard` — trip preview card for grids and lists. `author?: {name, avatarUrl}` and `fallbackCoverUrl?` are both resolved by the caller and passed in — the card itself never fetches on render (a profile fetch or Places call inside a list-cell render would be a cost/perf footgun). Omit `author` to show no author row at all rather than a fake "Traveler" placeholder
 - `DayTimeline` — day-by-day itinerary timeline visualization
 - `ActivityItem` — individual activity row (uses `ACTIVITY_ICONS` for type icon + color)
 - `AiPromptForm` — AI generation form: destination, dates, travel style (`TravelStyle`), must-see, free-text preferences
@@ -236,7 +238,7 @@ Wallet components in `components/wallet/`:
 
 Profile components in `components/profile/`:
 - `EditProfileSheet` — RN `Modal` (`pageSheet`) for editing display name, bio, location
-- `PostsGrid`, `TripsGrid`, `SavedGrid` — profile tab content (Posts/Saved are placeholders)
+- `PostsGrid`, `TripsGrid`, `SavedGrid` — profile tab content, used by both the public profile (`app/user/[uid].tsx`) and (for Trips) the owner's own profile tab. `SavedGrid` renders real data only for your own profile (`users/{uid}/savedTrips` is owner-only per Firestore rules) — an honest "private" state otherwise. `TripsGrid` is a thin wrapper around `components/explore/TripGrid`
 
 Search components in `components/search/`:
 - `UserResult` — user search result item

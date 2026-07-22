@@ -172,7 +172,11 @@ export default function SearchScreen() {
     clearPlacesQuery();
     setSelectedPlace(null);
     hideSheet();
-  }, [clearPlacesQuery, hideSheet, setSelectedPlace]);
+    // Clearing the search is the map's "reset" gesture — fly back out to the
+    // wide globe view rather than leaving the camera wherever the last
+    // search happened to land it.
+    flyTo(INITIAL_COORDS[0], INITIAL_COORDS[1], INITIAL_ZOOM);
+  }, [clearPlacesQuery, hideSheet, setSelectedPlace, flyTo]);
 
   const handleTabPress = useCallback((tab: Tab) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

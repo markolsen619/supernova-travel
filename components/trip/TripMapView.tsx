@@ -11,7 +11,7 @@ import {
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, ListBullets, Notebook, X } from 'phosphor-react-native';
+import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight } from 'phosphor-react-native';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -97,6 +97,10 @@ interface TripMapViewProps {
   resolvingActivityId: string | null;
   /** Grounds one stop — same underlying logic as the timeline's tap-to-locate. */
   onLocateStop: (activity: TripActivity, dayId: string) => Promise<void>;
+  /** Activities whose grounding search already came back empty this session
+   * — "Locate all" skips these rather than re-billing a search it already
+   * knows will fail. */
+  unresolvedActivityIds?: Set<string>;
   /** An activity to fly straight to on open — set when arriving here via "show on map" from the timeline. */
   focusActivityId?: string | null;
   /** Switches back to the timeline, scrolled to and highlighting this activity. */
@@ -117,6 +121,7 @@ export function TripMapView({
   isOwner,
   resolvingActivityId,
   onLocateStop,
+  unresolvedActivityIds,
   focusActivityId,
   onViewInTimeline,
   onToggleVisited,
@@ -152,6 +157,14 @@ export function TripMapView({
   }, [poiSlideAnim]);
 
   const { grounded, ungrounded } = useMemo(() => collectStops(days), [days]);
+  // Split what "Locate all" can still usefully try from what already came
+  // back empty this session — the banner acts on the former and quietly
+  // informs on the latter, instead of one count that looks stuck forever.
+  const pendingUngrounded = useMemo(
+    () => ungrounded.filter((u) => !unresolvedActivityIds?.has(u.activity.id)),
+    [ungrounded, unresolvedActivityIds],
+  );
+  const failedUngrounded = ungrounded.length - pendingUngrounded.length;
 
   const pointsCollection: GeoJSON.FeatureCollection = useMemo(
     () => ({
@@ -228,6 +241,29 @@ export function TripMapView({
     }, 300);
     return () => clearTimeout(timer);
   }, [grounded, focusActivityId]);
+
+  // Day-cycling (arriving at a stop via "show on map" or a pin tap should
+  // let you step through the REST of that day without leaving the map) —
+  // derived fresh from the selected stop's own dayId + grounded's existing
+  // stopNumber order, not separately tracked state.
+  const dayStops = useMemo(() => {
+    if (!selected) return [];
+    return grounded
+      .filter((s) => s.dayId === selected.dayId)
+      .sort((a, b) => a.stopNumber - b.stopNumber);
+  }, [grounded, selected]);
+  const dayStopIndex = selected ? dayStops.findIndex((s) => s.activity.id === selected.activity.id) : -1;
+
+  const goToDayStop = useCallback(
+    (index: number) => {
+      const stop = dayStops[index];
+      if (!stop) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      flyTo(stop.lng, stop.lat, 15.5);
+      setSelected(stop);
+    },
+    [dayStops, flyTo],
+  );
 
   // A trip stop and an ambient Standard POI can occupy the same spot on
   // screen — Standard's own POI label for a place we've already added
@@ -387,13 +423,13 @@ export function TripMapView({
     try {
       // Sequential, not parallel — this is an explicit bulk action the user
       // opted into, but there's no reason to burst N Text Searches at once.
-      for (const stop of ungrounded) {
+      for (const stop of pendingUngrounded) {
         await onLocateStop(stop.activity, stop.dayId);
       }
     } finally {
       setLocatingAll(false);
     }
-  }, [ungrounded, onLocateStop, locatingAll]);
+  }, [pendingUngrounded, onLocateStop, locatingAll]);
 
   const handleViewInTimeline = useCallback(() => {
     if (!selected || !onViewInTimeline) return;
@@ -545,39 +581,70 @@ export function TripMapView({
             { backgroundColor: colors.background.elevated, bottom: insets.bottom + (ungrounded.length > 0 && isOwner ? 96 : Spacing['4']) },
           ]}
         >
-          <StopStateBubble
-            Icon={ACTIVITY_ICONS[selected.activity.type].Icon}
-            color={ACTIVITY_ICONS[selected.activity.type].color}
-            visited={selected.activity.visited}
-            isCurrent={selected.activity.id === currentActivityId}
-            onToggle={handleToggleSelectedVisited}
-            surfaceColor={colors.background.elevated}
-          />
-          <View style={styles.selectedTextBlock}>
-            <Text style={[styles.selectedTitle, { color: colors.text.primary }]} numberOfLines={1}>
-              {selected.activity.title}
-            </Text>
-            <Text style={[styles.selectedSubtitle, { color: colors.text.tertiary }]} numberOfLines={1}>
-              Day {selected.dayNumber} · Stop {selected.stopNumber}
-              {selected.activity.visited ? ' · Visited' : ''}
-              {selected.activity.address ? ` · ${selected.activity.address}` : ''}
-            </Text>
+          {/* Day-cycling — only surfaces once there's something to cycle
+              through, so a single-stop day looks exactly as it did before. */}
+          {dayStops.length > 1 && (
+            <View style={[styles.dayNavRow, { borderBottomColor: colors.background.cardBorder }]}>
+              <TouchableOpacity
+                onPress={() => goToDayStop(dayStopIndex - 1)}
+                disabled={dayStopIndex <= 0}
+                hitSlop={8}
+                accessibilityLabel="Previous stop today"
+              >
+                <CaretLeft size={16} color={dayStopIndex <= 0 ? colors.text.disabled : colors.text.secondary} weight="bold" />
+              </TouchableOpacity>
+              <Text style={[styles.dayNavText, { color: colors.text.tertiary }]}>
+                Stop {dayStopIndex + 1} of {dayStops.length} today
+              </Text>
+              <TouchableOpacity
+                onPress={() => goToDayStop(dayStopIndex + 1)}
+                disabled={dayStopIndex >= dayStops.length - 1}
+                hitSlop={8}
+                accessibilityLabel="Next stop today"
+              >
+                <CaretRight
+                  size={16}
+                  color={dayStopIndex >= dayStops.length - 1 ? colors.text.disabled : colors.text.secondary}
+                  weight="bold"
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={styles.selectedCardRow}>
+            <StopStateBubble
+              Icon={ACTIVITY_ICONS[selected.activity.type].Icon}
+              color={ACTIVITY_ICONS[selected.activity.type].color}
+              visited={selected.activity.visited}
+              isCurrent={selected.activity.id === currentActivityId}
+              onToggle={handleToggleSelectedVisited}
+              surfaceColor={colors.background.elevated}
+            />
+            <View style={styles.selectedTextBlock}>
+              <Text style={[styles.selectedTitle, { color: colors.text.primary }]} numberOfLines={1}>
+                {selected.activity.title}
+              </Text>
+              <Text style={[styles.selectedSubtitle, { color: colors.text.tertiary }]} numberOfLines={1}>
+                Day {selected.dayNumber} · Stop {selected.stopNumber}
+                {selected.activity.visited ? ' · Visited' : ''}
+                {selected.activity.address ? ` · ${selected.activity.address}` : ''}
+              </Text>
+            </View>
+            {/* Journal only applies to a VISITED stop — per TM-3b, a planned
+                stop has nothing to journal yet. */}
+            {onOpenJournal && selected.activity.visited ? (
+              <TouchableOpacity onPress={handleOpenJournal} hitSlop={8} style={styles.viewInTimelineBtn} accessibilityLabel="View journal">
+                <Notebook size={18} color={colors.brand.purple} weight="bold" />
+              </TouchableOpacity>
+            ) : null}
+            {onViewInTimeline ? (
+              <TouchableOpacity onPress={handleViewInTimeline} hitSlop={8} style={styles.viewInTimelineBtn} accessibilityLabel="View in timeline">
+                <ListBullets size={18} color={colors.brand.purple} weight="bold" />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}>
+              <X size={16} color={colors.text.tertiary} weight="bold" />
+            </TouchableOpacity>
           </View>
-          {/* Journal only applies to a VISITED stop — per TM-3b, a planned
-              stop has nothing to journal yet. */}
-          {onOpenJournal && selected.activity.visited ? (
-            <TouchableOpacity onPress={handleOpenJournal} hitSlop={8} style={styles.viewInTimelineBtn} accessibilityLabel="View journal">
-              <Notebook size={18} color={colors.brand.purple} weight="bold" />
-            </TouchableOpacity>
-          ) : null}
-          {onViewInTimeline ? (
-            <TouchableOpacity onPress={handleViewInTimeline} hitSlop={8} style={styles.viewInTimelineBtn} accessibilityLabel="View in timeline">
-              <ListBullets size={18} color={colors.brand.purple} weight="bold" />
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}>
-            <X size={16} color={colors.text.tertiary} weight="bold" />
-          </TouchableOpacity>
         </View>
       )}
 
@@ -602,14 +669,18 @@ export function TripMapView({
         colors={colors}
       />
 
-      {/* Ungrounded stops — on-demand locate only, never automatic */}
-      {ungrounded.length > 0 && isOwner && (
+      {/* Ungrounded stops — on-demand locate only, never automatic. Two
+          states: stops we haven't tried yet (actionable) vs. stops that
+          already came back with no match this session (informational only —
+          re-pressing "Locate all" would just silently fail again, which is
+          what previously made this banner feel stuck). */}
+      {pendingUngrounded.length > 0 && isOwner && (
         <View
           style={[styles.ungroundedPanel, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}
         >
           <MapPinLine size={16} color={colors.text.tertiary} weight="bold" />
           <Text style={[styles.ungroundedText, { color: colors.text.secondary }]}>
-            {ungrounded.length} stop{ungrounded.length === 1 ? '' : 's'} not yet located
+            {pendingUngrounded.length} stop{pendingUngrounded.length === 1 ? " isn't" : "s aren't"} on the map yet
           </Text>
           <TouchableOpacity
             onPress={handleLocateAll}
@@ -619,11 +690,20 @@ export function TripMapView({
             {locatingAll ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Text style={styles.locateAllBtnText}>
-                Locate all ({ungrounded.length} search{ungrounded.length === 1 ? '' : 'es'})
-              </Text>
+              <Text style={styles.locateAllBtnText}>Locate all</Text>
             )}
           </TouchableOpacity>
+        </View>
+      )}
+      {pendingUngrounded.length === 0 && failedUngrounded > 0 && isOwner && (
+        <View
+          style={[styles.ungroundedPanel, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}
+        >
+          <MapPinLine size={16} color={colors.text.disabled} weight="bold" />
+          <Text style={[styles.ungroundedText, { color: colors.text.tertiary }]}>
+            {failedUngrounded} stop{failedUngrounded === 1 ? '' : 's'} couldn&apos;t be matched to a place — edit
+            {failedUngrounded === 1 ? ' it' : ' them'} from the day&apos;s list to fix the name
+          </Text>
         </View>
       )}
     </View>
@@ -688,11 +768,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: Spacing['4'],
     right: Spacing['4'],
+    borderRadius: BorderRadius.lg,
+    padding: Spacing['3'],
+  },
+  dayNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing['3'],
+    paddingBottom: Spacing['2'],
+    marginBottom: Spacing['2'],
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  dayNavText: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
+  selectedCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['3'],
-    borderRadius: BorderRadius.lg,
-    padding: Spacing['3'],
   },
   selectedTextBlock: { flex: 1 },
   selectedTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },

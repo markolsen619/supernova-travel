@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useExplore } from '@/hooks/useExplore';
+import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { TrendingCard } from '@/components/explore/TrendingCard';
 import { UserSuggestion } from '@/components/explore/UserSuggestion';
 import { TripGrid } from '@/components/explore/TripGrid';
@@ -94,6 +95,8 @@ export default function ExploreScreen() {
     }
     return map;
   }, [trips]);
+
+  const { data: authorProfiles = {} } = useAuthorProfiles(trips.map((t) => t.authorUid));
 
   const latestTripsShowGooglePhotos = useMemo(
     () =>
@@ -195,6 +198,7 @@ export default function ExploreScreen() {
                 trips={trips}
                 onTripPress={handleTripPress}
                 destinationPhotos={destinationPhotos}
+                authorProfiles={authorProfiles}
               />
               {latestTripsShowGooglePhotos && (
                 <Text style={[styles.attribution, { color: colors.text.tertiary }]}>

@@ -166,6 +166,7 @@ export interface UpdateTripInput {
   title?: string;
   description?: string;
   coverImageUrl?: string | null;
+  destination?: Trip['destination'];
   visibility?: TripVisibility;
   tags?: string[];
   startDate?: Date | null;

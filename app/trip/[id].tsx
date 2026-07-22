@@ -36,8 +36,9 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 import { TripActivity, TripDay } from '@/types';
-import { enrichPlaceByQuery, enrichPlaceById, photoUrl } from '@/services/places/googlePlaces';
+import { enrichPlaceByQuery } from '@/services/places/googlePlaces';
 import { usePlacesStore } from '@/stores/usePlacesStore';
+import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -117,16 +118,20 @@ export default function TripDetailScreen() {
     reorderActivities,
     moveActivityToDay,
     deleteDay,
-    updateTrip,
   } = useCreateTrip();
   const setPlace = usePlacesStore((s) => s.setPlace);
-  const getPlace = usePlacesStore((s) => s.getPlace);
+  const { resolveCover } = useTripCoverResolver();
 
   // Collapsible description state
   const [descExpanded, setDescExpanded] = useState(false);
 
   // Lazy-grounding state (Part B) — id of the activity currently being resolved
   const [resolvingActivityId, setResolvingActivityId] = useState<string | null>(null);
+  // Activities whose grounding search came back with no match this session —
+  // lets the map's bulk "Locate all" skip re-billing a Text Search for a
+  // stop it already knows won't resolve, without blocking a deliberate
+  // individual retry (tapping that stop directly still tries again).
+  const [unresolvedActivityIds, setUnresolvedActivityIds] = useState<Set<string>>(new Set());
 
   // Activity form sheet state (add + edit share one sheet — see ActivityFormSheet)
   const [formVisible, setFormVisible] = useState(false);
@@ -183,50 +188,15 @@ export default function TripDetailScreen() {
 
   // ── Cover photo auto-resolve (Fix 1) ─────────────────────────────────────────
   // A trip with no cover renders a blank header, which fails "photos lead."
-  // Backfill it from the destination's Google place — but only once, ever, per
-  // trip: cache-first (usePlacesStore), and on a cache miss the single Details
-  // call's result is written back to the trip doc via updateTrip so every future
-  // open of this trip (by anyone) is free. Only the owner can write the trip
-  // doc (Firestore rule), so a viewer opening an unresolved trip first just
-  // sees the placeholder until an owner opens it once.
-  const coverResolveAttempted = useRef<string | null>(null);
+  // Backfill it from the destination's Google place — including grounding
+  // the destination itself first for AI-generated trips, which only ever
+  // carry a name (see useTripCoverResolver). Owner-only (Firestore rule), so
+  // a viewer opening an unresolved trip first just sees the placeholder
+  // until an owner opens it once.
   useEffect(() => {
-    if (!trip || !isOwner) return;
-    if (trip.coverImageUrl !== null) return; // already resolved (real URL, or '' = "no photo found")
-    const placeId = trip.destination.placeId;
-    if (!placeId) return;
-    if (coverResolveAttempted.current === trip.id) return;
-    coverResolveAttempted.current = trip.id;
-
-    (async () => {
-      const cached = getPlace(placeId);
-      let photoNames = cached?.photoNames;
-
-      if (!photoNames) {
-        const enriched = await enrichPlaceById(placeId);
-        if (!enriched) {
-          // Transient failure (network/HTTP) — don't persist a sentinel, so
-          // the next time this trip is opened it tries again.
-          coverResolveAttempted.current = null;
-          return;
-        }
-        photoNames = enriched.photoNames;
-        setPlace({
-          placeId,
-          name: trip.destination.name,
-          address: '',
-          lat: trip.destination.lat ?? 0,
-          lng: trip.destination.lng ?? 0,
-          countryCode: trip.destination.countryCode,
-          tier: 'tier2',
-          ...enriched,
-        });
-      }
-
-      const url = photoNames?.[0] ? photoUrl(photoNames[0], 1200) : '';
-      await updateTrip(trip.id, { coverImageUrl: url });
-    })();
-  }, [trip, isOwner, getPlace, setPlace, updateTrip]);
+    if (!trip) return;
+    resolveCover(trip, isOwner);
+  }, [trip, isOwner, resolveCover]);
 
   // ── Handlers: add / edit activity ────────────────────────────────────────────
 
@@ -368,6 +338,7 @@ export default function TripDetailScreen() {
         const resolved = await enrichPlaceByQuery(activity.searchQuery);
         if (!resolved) {
           console.error('[trip/[id]] could not ground activity:', activity.searchQuery);
+          setUnresolvedActivityIds((prev) => new Set(prev).add(activity.id));
           return;
         }
         await updateActivity(id, dayId, activity.id, {
@@ -379,6 +350,12 @@ export default function TripDetailScreen() {
         // Also warm the Search screen's place cache — if the user encounters
         // this same place there later, it's already resolved (zero extra cost).
         setPlace(resolved);
+        setUnresolvedActivityIds((prev) => {
+          if (!prev.has(activity.id)) return prev;
+          const next = new Set(prev);
+          next.delete(activity.id);
+          return next;
+        });
       } catch (err) {
         console.error('[trip/[id]] grounding failed:', err);
       } finally {
@@ -538,6 +515,7 @@ export default function TripDetailScreen() {
           isOwner={isOwner}
           resolvingActivityId={resolvingActivityId}
           onLocateStop={handleGroundActivity}
+          unresolvedActivityIds={unresolvedActivityIds}
           focusActivityId={focusActivityId}
           onViewInTimeline={handleViewInTimeline}
           onToggleVisited={isOwner ? handleToggleVisited : undefined}

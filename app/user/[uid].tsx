@@ -5,7 +5,7 @@
  * Navigated to via router.push('/user/<uid>') — not part of the tab bar.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,13 @@ export default function UserProfileScreen() {
   const publicTrips = isOwnProfile
     ? trips
     : trips.filter((t) => t.visibility === 'public');
+
+  // Every trip on this screen belongs to this one profile — no batch lookup
+  // needed, just this already-loaded profile keyed by its own uid.
+  const authorProfiles = useMemo(
+    () => (uid && profile ? { [uid]: { name: profile.fullName, avatarUrl: profile.avatarUrl } } : {}),
+    [uid, profile],
+  );
 
   // No manual haptic here — Button's variant="primary" default (medium)
   // covers it; a second call here would double-buzz.
@@ -297,7 +304,7 @@ export default function UserProfileScreen() {
         {/* Tab content */}
         {activeProfileTab === 'Posts' && <PostsGrid uid={uid ?? ''} />}
         {activeProfileTab === 'Trips' && (
-          <TripsGrid trips={publicTrips} onTripPress={handleTripPress} />
+          <TripsGrid trips={publicTrips} onTripPress={handleTripPress} authorProfiles={authorProfiles} />
         )}
         {activeProfileTab === 'Saved' && <SavedGrid uid={uid ?? ''} />}
       </ScrollView>

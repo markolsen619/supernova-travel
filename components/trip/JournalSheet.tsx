@@ -21,6 +21,7 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { BlurView } from 'expo-blur';
@@ -38,6 +39,10 @@ import type { TripActivity } from '@/types';
 
 const NOTE_MAX = 280;
 const PHOTO_SIZE = 108;
+// A resolved pixel cap, not a percentage `maxHeight` — Yoga can't
+// auto-measure a `maxHeight`-only (undefined-height) node when its
+// descendants include a BlurView wrapping a FlashList (see sheetWrap).
+const SHEET_HEIGHT = Dimensions.get('window').height * 0.75;
 
 interface JournalSheetProps {
   visible: boolean;
@@ -142,6 +147,7 @@ export function JournalSheet({ visible, tripId, dayId, activity, isOwner, onClos
           {(photoUrls.length > 0 || isOwner) && (
             <FlashList
               horizontal
+              style={styles.photoList}
               data={isOwner && photoUrls.length < MAX_JOURNAL_PHOTOS ? [...photoUrls, '__add__'] : photoUrls}
               keyExtractor={(item, i) => (item === '__add__' ? 'add' : `${item}-${i}`)}
               showsHorizontalScrollIndicator={false}
@@ -253,7 +259,12 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheetWrap: {
-    maxHeight: '75%',
+    // A resolved `height`, not `maxHeight` — with a BlurView wrapping a
+    // FlashList descendant, Yoga can't complete an auto-measured
+    // (maxHeight-only, no explicit height) layout pass on this node; it
+    // never resolves a size and the whole sheet renders blank. See
+    // SHEET_HEIGHT above.
+    height: SHEET_HEIGHT,
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
     overflow: 'hidden',
@@ -262,6 +273,11 @@ const styles = StyleSheet.create({
   androidBg: { backgroundColor: 'rgba(10,10,26,0.97)' },
 
   content: { padding: Spacing['5'], gap: Spacing['3'] },
+  // Horizontal FlashList needs an explicit height on `style` (not just
+  // `contentContainerStyle`) to self-measure — without it, it can't report
+  // a size, which stalls layout for this whole auto-height sheet and the
+  // Modal renders as an empty backdrop with no visible content at all.
+  photoList: { height: PHOTO_SIZE },
   handle: {
     width: 36,
     height: 4,

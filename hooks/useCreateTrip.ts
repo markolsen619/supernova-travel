@@ -58,6 +58,12 @@ export function useCreateTrip() {
       updatedAt: serverTimestamp(),
     });
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+    // Prefix match (no uid) — also catches ['trips', uid] (profile's own
+    // list) and ['publicTrips'], so a silent backfill (cover photo,
+    // destination grounding) shows up in list views immediately, not just
+    // on the single trip's own detail query.
+    await queryClient.invalidateQueries({ queryKey: ['trips'] });
+    await queryClient.invalidateQueries({ queryKey: ['publicTrips'] });
   }
 
   async function deleteTrip(tripId: string): Promise<void> {

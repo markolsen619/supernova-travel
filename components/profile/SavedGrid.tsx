@@ -16,6 +16,7 @@ import { BookmarkSimple, LockSimple, Compass } from 'phosphor-react-native';
 
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { TripCard } from '@/components/trip/TripCard';
@@ -45,6 +46,9 @@ export function SavedGrid({ uid }: SavedGridProps) {
     enabled: isOwn,
     staleTime: 2 * 60 * 1000,
   });
+  const { data: authorProfiles = {} } = useAuthorProfiles(
+    savedTrips.map((t) => t.authorUid).filter((id): id is string => !!id),
+  );
 
   if (!isOwn) {
     return (
@@ -93,6 +97,7 @@ export function SavedGrid({ uid }: SavedGridProps) {
                 : `/trip/${item.id}`,
             )
           }
+          author={authorProfiles[item.authorUid] ?? null}
         />
       ))}
     </View>

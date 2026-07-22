@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { FlatList, View, StyleSheet, Dimensions } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { TripCard } from '@/components/trip/TripCard';
+import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
 import { Spacing } from '@/constants/spacing';
 import { Trip } from '@/types';
 
@@ -21,9 +22,12 @@ interface TripGridProps {
    * resolution path.
    */
   destinationPhotos?: ReadonlyMap<string, string>;
+  /** authorUid → {name, avatarUrl}, batch-fetched by the caller (these trips
+   * span multiple authors) — see hooks/useAuthorProfiles. */
+  authorProfiles?: Record<string, AuthorInfo>;
 }
 
-export function TripGrid({ trips, onTripPress, destinationPhotos }: TripGridProps) {
+export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles }: TripGridProps) {
   const { colors } = useTheme();
 
   const renderItem = useCallback(
@@ -38,10 +42,11 @@ export function TripGrid({ trips, onTripPress, destinationPhotos }: TripGridProp
               ? destinationPhotos?.get(item.destination.placeId) ?? null
               : null
           }
+          author={authorProfiles?.[item.authorUid] ?? null}
         />
       </View>
     ),
-    [onTripPress, destinationPhotos],
+    [onTripPress, destinationPhotos, authorProfiles],
   );
 
   const keyExtractor = useCallback((item: Trip) => item.id, []);
