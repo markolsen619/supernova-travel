@@ -41,7 +41,7 @@
       ]
     },
     {
-      "collectionGroup": "conversations",
+      "collectionGroup": "dmThreads",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
