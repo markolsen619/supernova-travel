@@ -19,6 +19,7 @@ import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { useFeed } from '@/hooks/useFeed';
 import { useTheme } from '@/hooks/useTheme';
+import { useHasUnreadActivity } from '@/hooks/useUnreadActivity';
 import { Post } from '@/types';
 import { Spacing } from '@/constants/spacing';
 
@@ -31,6 +32,7 @@ export default function FeedScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
+  const { data: hasUnread = false } = useHasUnreadActivity();
 
   const posts: Post[] = data?.pages.flatMap((p) => p.posts) ?? [];
   // The fixed header sits on top of whatever's behind it — almost always a
@@ -109,7 +111,10 @@ export default function FeedScreen() {
           hitSlop={6}
           accessibilityLabel="Notifications"
         >
-          <Heart size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
+          <View>
+            <Heart size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
+            {hasUnread && <View style={styles.unreadBadge} />}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -191,5 +196,16 @@ const styles = StyleSheet.create({
   footerLoader: {
     padding: Spacing['5'],
     alignItems: 'center',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -1,
+    right: -1,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#f472b6',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.3)',
   },
 });
