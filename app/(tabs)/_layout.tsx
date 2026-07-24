@@ -168,7 +168,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   createWrapper: {
-    marginBottom: 10,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.5,
     shadowRadius: 10,
