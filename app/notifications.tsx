@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -168,6 +168,7 @@ export default function NotificationsScreen() {
                 {timeAgo(item.createdAt.toDate())}
               </Text>
             </View>
+            {item.postCoverUrl ? <Image source={{ uri: item.postCoverUrl }} style={styles.postThumb} /> : null}
           </TouchableOpacity>
         );
       }
@@ -191,6 +192,7 @@ export default function NotificationsScreen() {
                 {timeAgo(item.createdAt.toDate())}
               </Text>
             </View>
+            {item.postCoverUrl ? <Image source={{ uri: item.postCoverUrl }} style={styles.postThumb} /> : null}
           </TouchableOpacity>
         );
       }
@@ -325,6 +327,11 @@ export default function NotificationsScreen() {
                     {item.lastMessageText ?? 'Say hello'}
                   </Text>
                 </View>
+                {item.lastMessageAt && (
+                  <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                    {timeAgo(item.lastMessageAt.toDate())}
+                  </Text>
+                )}
                 {item.unread && <View style={[styles.unreadDot, { backgroundColor: colors.brand.purple }]} />}
               </TouchableOpacity>
             );
@@ -380,6 +387,7 @@ const styles = StyleSheet.create({
   rowBody: { fontSize: FontSize.sm, lineHeight: FontSize.sm * 1.4 },
   rowBold: { fontWeight: FontWeight.semiBold },
   rowTime: { fontSize: FontSize.xs },
+  postThumb: { width: 40, height: 40, borderRadius: BorderRadius.sm },
   resultText: { fontSize: FontSize.xs, marginTop: Spacing['1'] },
   actionRow: { flexDirection: 'row', gap: Spacing['2'], marginTop: Spacing['2'] },
   acceptBtn: {

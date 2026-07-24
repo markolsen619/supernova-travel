@@ -128,6 +128,7 @@ export default function DmThreadScreen() {
           placeholderTextColor={colors.text.tertiary}
           style={[styles.input, { color: colors.text.primary, backgroundColor: colors.background.sunken }]}
           multiline
+          maxLength={4000}
         />
         <TouchableOpacity
           onPress={handleSend}
