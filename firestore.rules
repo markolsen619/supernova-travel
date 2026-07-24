@@ -268,7 +268,10 @@ service cloud.firestore {
       // this out (instead of a map field on the thread doc) avoids two
       // participants needing shared write access to the same parent doc.
       match /reads/{uid} {
-        allow read, write: if isOwner(uid);
+        function thread() {
+          return get(/databases/$(database)/documents/dmThreads/$(threadId));
+        }
+        allow read, write: if isOwner(uid) && request.auth.uid in thread().data.participants;
       }
     }
 
