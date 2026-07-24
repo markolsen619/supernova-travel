@@ -10,6 +10,14 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
+    // `follows` doc ID is `${followerUid}_${followeeUid}` (see useFollow.ts).
+    // "followers"-visibility content must actually check this graph — just
+    // requiring isAuthed() lets any signed-in stranger read it.
+    function isFollowerOf(authorUid) {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + authorUid));
+    }
+
     // Users collection
     match /users/{uid} {
       allow read: if isAuthed();
@@ -45,10 +53,18 @@ service cloud.firestore {
       allow read: if resource.data.visibility == 'public' || isAuthed();
       allow create: if isAuthed() && request.auth.uid == request.resource.data.authorUid;
       // Authors may update anything; anyone signed in may bump ONLY the
-      // denormalized like counter (the like transaction maintains it).
+      // denormalized like counter, and only by exactly +1/-1 per write (the
+      // like transaction maintains it) — hasOnly() alone would let any
+      // signed-in user set likesCount to an arbitrary value.
       allow update: if isAuthed() && (
         request.auth.uid == resource.data.authorUid
-        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
+          && (
+            request.resource.data.likesCount == resource.data.likesCount + 1
+            || request.resource.data.likesCount == resource.data.likesCount - 1
+          )
+        )
       );
       allow delete: if isAuthed() && request.auth.uid == resource.data.authorUid;
 
@@ -72,7 +88,7 @@ service cloud.firestore {
       function canRead() {
         return resource.data.visibility == 'public'
           || isOwner(resource.data.authorUid)
-          || (resource.data.visibility == 'followers' && isAuthed())
+          || (resource.data.visibility == 'followers' && isFollowerOf(resource.data.authorUid))
           || request.auth.uid in resource.data.collaborators;
       }
 
@@ -92,7 +108,7 @@ service cloud.firestore {
         function canReadTrip() {
           return parentTrip().data.visibility == 'public'
             || isOwner(parentTrip().data.authorUid)
-            || (parentTrip().data.visibility == 'followers' && isAuthed())
+            || (parentTrip().data.visibility == 'followers' && isFollowerOf(parentTrip().data.authorUid))
             || request.auth.uid in parentTrip().data.collaborators;
         }
         function canWriteTrip() {
@@ -153,7 +169,7 @@ service cloud.firestore {
         function canReadTrip() {
           return parentTrip().data.visibility == 'public'
             || isOwner(parentTrip().data.authorUid)
-            || (parentTrip().data.visibility == 'followers' && isAuthed())
+            || (parentTrip().data.visibility == 'followers' && isFollowerOf(parentTrip().data.authorUid))
             || request.auth.uid in parentTrip().data.collaborators;
         }
         function canWriteTrip() {
@@ -177,7 +193,7 @@ service cloud.firestore {
         function canReadTrip() {
           return parentTrip().data.visibility == 'public'
             || isOwner(parentTrip().data.authorUid)
-            || (parentTrip().data.visibility == 'followers' && isAuthed())
+            || (parentTrip().data.visibility == 'followers' && isFollowerOf(parentTrip().data.authorUid))
             || request.auth.uid in parentTrip().data.collaborators;
         }
         function canWriteTrip() {
