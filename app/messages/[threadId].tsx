@@ -54,7 +54,7 @@ export default function DmThreadScreen() {
           queryClient.invalidateQueries({ queryKey: ['dmThreads'] });
           queryClient.invalidateQueries({ queryKey: ['hasUnreadActivity'] });
         },
-      );
+      ).catch(() => {});
     }, [threadId, myUid, queryClient]),
   );
 
@@ -72,8 +72,11 @@ export default function DmThreadScreen() {
   const handleSend = useCallback(() => {
     if (!text.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    sendMessage(text);
+    const toSend = text;
     setText('');
+    sendMessage(toSend).catch(() => {
+      setText(toSend); // revert — the message wasn't actually sent
+    });
   }, [text, sendMessage]);
 
   return (
