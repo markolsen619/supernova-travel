@@ -1,13 +1,19 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, ArrowLeft, Compass, Check, X } from 'phosphor-react-native';
+import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
-import { useNotifications } from '@/hooks/useNotifications';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useNotifications, useMarkNotificationsRead } from '@/hooks/useNotifications';
 import { useRespondToInvite } from '@/hooks/useTripInvites';
+import { useDmThreads } from '@/hooks/useDmThreads';
+import { useMarkMessagesSeen } from '@/hooks/useUnreadActivity';
+import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
+import { FriendPickerSheet } from '@/components/messages/FriendPickerSheet';
+import { formatGroupName } from '@/utils/dm';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonListRow } from '@/components/ui/Skeleton';
@@ -37,6 +43,47 @@ export default function NotificationsScreen() {
   // false rule doesn't allow), so this is purely a UI state flip pending the
   // next real fetch.
   const [handled, setHandled] = useState<Record<string, 'accepted' | 'declined'>>({});
+
+  const [tab, setTab] = useState<'Activity' | 'Messages'>('Activity');
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const myUid = useAuthStore((s) => s.user?.uid ?? '');
+  const markRead = useMarkNotificationsRead();
+  const { data: threads = [], isLoading: threadsLoading } = useDmThreads();
+  const markMessagesSeen = useMarkMessagesSeen();
+
+  const allOtherUids = Array.from(
+    new Set(threads.flatMap((t) => t.participants.filter((uid) => uid !== myUid))),
+  );
+  const { data: profiles = {} } = useAuthorProfiles(allOtherUids);
+
+  // Batch-mark unread notifications read once they've actually loaded and
+  // been shown, not on every render.
+  useEffect(() => {
+    if (tab === 'Activity' && notifications.some((n) => !n.read)) {
+      markRead.mutate();
+    }
+  }, [tab, notifications]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (tab === 'Messages') {
+      markMessagesSeen.mutate();
+    }
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleThreadPress = useCallback((threadId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/messages/${threadId}`);
+  }, []);
+
+  const handleOpenPicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPickerVisible(true);
+  }, []);
+
+  const handleThreadCreated = useCallback((threadId: string) => {
+    setPickerVisible(false);
+    router.push(`/messages/${threadId}`);
+  }, []);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -102,6 +149,52 @@ export default function NotificationsScreen() {
         );
       }
 
+      if (item.type === 'post_like') {
+        return (
+          <TouchableOpacity
+            style={[styles.row, { borderColor: colors.background.cardBorder }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push(`/post/${item.postId}`);
+            }}
+            activeOpacity={0.7}
+          >
+            <Avatar uri={item.likerAvatarUrl} name={item.likerName} size="sm" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]}>
+                <Text style={styles.rowBold}>{item.likerName}</Text> liked your post
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+
+      if (item.type === 'post_comment') {
+        return (
+          <TouchableOpacity
+            style={[styles.row, { borderColor: colors.background.cardBorder }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push(`/post/${item.postId}`);
+            }}
+            activeOpacity={0.7}
+          >
+            <Avatar uri={item.commenterAvatarUrl} name={item.commenterName} size="sm" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]}>
+                <Text style={styles.rowBold}>{item.commenterName}</Text> commented: {item.commentText}
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+
       // trip_invite_accepted
       return (
         <TouchableOpacity
@@ -134,33 +227,112 @@ export default function NotificationsScreen() {
           <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text.primary }]}>Activity</Text>
-        <View style={styles.backBtn} />
+        {tab === 'Messages' ? (
+          <TouchableOpacity onPress={handleOpenPicker} style={styles.backBtn} hitSlop={8} accessibilityLabel="New message">
+            <Plus size={20} color={colors.text.primary} weight="bold" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.backBtn} />
+        )}
       </View>
 
-      {isLoading ? (
+      <View style={styles.tabRow}>
+        {(['Activity', 'Messages'] as const).map((t) => (
+          <TouchableOpacity
+            key={t}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setTab(t);
+            }}
+            style={[
+              styles.tabPill,
+              {
+                backgroundColor: tab === t ? colors.brand.purple + '1A' : 'transparent',
+                borderColor: tab === t ? colors.brand.purple : colors.background.cardBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.tabPillText, { color: tab === t ? colors.brand.purple : colors.text.tertiary }]}>
+              {t}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {tab === 'Activity' ? (
+        isLoading ? (
+          <View style={styles.list}>
+            {[0, 1, 2].map((i) => <SkeletonListRow key={i} />)}
+          </View>
+        ) : notifications.length === 0 ? (
+          <View style={styles.empty}>
+            <EmptyState
+              icon={Bell}
+              title="Your activity lives here"
+              description="Likes, comments, and trip invites from other travelers will appear here."
+              actionLabel="Find travelers to follow"
+              actionIcon={Compass}
+              onAction={() => router.navigate('/(tabs)/explore')}
+              actionHaptic="light"
+            />
+          </View>
+        ) : (
+          <FlashList
+            data={notifications}
+            keyExtractor={(n) => n.id}
+            renderItem={renderItem}
+            contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingBottom: insets.bottom + Spacing['6'] }}
+          />
+        )
+      ) : threadsLoading ? (
         <View style={styles.list}>
           {[0, 1, 2].map((i) => <SkeletonListRow key={i} />)}
         </View>
-      ) : notifications.length === 0 ? (
+      ) : threads.length === 0 ? (
         <View style={styles.empty}>
           <EmptyState
-            icon={Bell}
-            title="Your activity lives here"
-            description="Trip invites and updates from other travelers will appear here."
-            actionLabel="Find travelers to follow"
-            actionIcon={Compass}
-            onAction={() => router.navigate('/(tabs)/explore')}
+            icon={ChatCircleDots}
+            title="No messages yet"
+            description="Start a conversation with a friend who follows you back."
+            actionLabel="New message"
+            onAction={handleOpenPicker}
             actionHaptic="light"
           />
         </View>
       ) : (
         <FlashList
-          data={notifications}
-          keyExtractor={(n) => n.id}
-          renderItem={renderItem}
+          data={threads}
+          keyExtractor={(t) => t.id}
           contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingBottom: insets.bottom + Spacing['6'] }}
+          renderItem={({ item }) => {
+            const otherUids = item.participants.filter((uid) => uid !== myUid);
+            const name =
+              item.type === 'direct'
+                ? profiles[otherUids[0]]?.name ?? 'Traveler'
+                : formatGroupName(otherUids.map((uid) => profiles[uid]?.name ?? 'Traveler'));
+            return (
+              <TouchableOpacity
+                style={[styles.row, { borderColor: colors.background.cardBorder }]}
+                onPress={() => handleThreadPress(item.id)}
+                activeOpacity={0.7}
+              >
+                <Avatar uri={item.type === 'direct' ? profiles[otherUids[0]]?.avatarUrl : null} name={name} size="sm" />
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowBody, { color: colors.text.primary, fontWeight: item.unread ? FontWeight.bold : FontWeight.regular }]} numberOfLines={1}>
+                    {name}
+                  </Text>
+                  <Text style={[styles.rowTime, { color: colors.text.tertiary }]} numberOfLines={1}>
+                    {item.lastMessageText ?? 'Say hello'}
+                  </Text>
+                </View>
+                {item.unread && <View style={[styles.unreadDot, { backgroundColor: colors.brand.purple }]} />}
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
+
+      <FriendPickerSheet visible={pickerVisible} onClose={() => setPickerVisible(false)} onCreated={handleThreadCreated} />
     </View>
   );
 }
@@ -228,4 +400,26 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   declineText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  tabRow: {
+    flexDirection: 'row',
+    gap: Spacing['2'],
+    paddingHorizontal: Spacing['4'],
+    paddingVertical: Spacing['3'],
+  },
+  tabPill: {
+    paddingHorizontal: Spacing['4'],
+    paddingVertical: Spacing['2'],
+    borderRadius: BorderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  tabPillText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semiBold,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    alignSelf: 'center',
+  },
 });
