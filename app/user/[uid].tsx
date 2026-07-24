@@ -15,13 +15,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { MapPin, Bag, ArrowLeft, UserCircle } from 'phosphor-react-native';
+import { MapPin, Bag, ArrowLeft, UserCircle, ChatCircleDots } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/hooks/useTheme';
 import { usePublicProfile } from '@/hooks/usePublicProfile';
 import { useFollow } from '@/hooks/useFollow';
 import { useTripList } from '@/hooks/useTripList';
+import { useIsFriend } from '@/hooks/useIsFriend';
+import { useCreateDmThread } from '@/hooks/useDmThreads';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -44,6 +46,8 @@ export default function UserProfileScreen() {
   const { profile, isLoading, isFollowing, isOwnProfile } = usePublicProfile(uid ?? null);
   const { follow, unfollow } = useFollow(uid ?? '');
   const { data: trips = [] } = useTripList(uid ?? null);
+  const { data: isFriend = false } = useIsFriend(uid ?? null);
+  const createThread = useCreateDmThread();
 
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>('Trips');
   const [editVisible, setEditVisible] = useState(false);
@@ -69,6 +73,14 @@ export default function UserProfileScreen() {
   const handleUnfollow = useCallback(() => {
     unfollow.mutate();
   }, [unfollow]);
+
+  const handleMessage = useCallback(() => {
+    if (!uid) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    createThread.mutate([uid], {
+      onSuccess: (result) => router.push(`/messages/${result.threadId}`),
+    });
+  }, [uid, createThread]);
 
   const handleEditProfileOpen = useCallback(() => {
     setEditVisible(true);
@@ -247,20 +259,17 @@ export default function UserProfileScreen() {
                 onPress={handleWalletPress}
               />
             </View>
-          ) : isFollowing ? (
-            <Button
-              label="Following"
-              variant="secondary"
-              size="md"
-              onPress={handleUnfollow}
-            />
           ) : (
-            <Button
-              label="Follow"
-              variant="primary"
-              size="md"
-              onPress={handleFollow}
-            />
+            <View style={{ flexDirection: 'row', gap: Spacing['3'], justifyContent: 'center' }}>
+              {isFollowing ? (
+                <Button label="Following" variant="secondary" size="md" onPress={handleUnfollow} />
+              ) : (
+                <Button label="Follow" variant="primary" size="md" onPress={handleFollow} />
+              )}
+              {isFriend && (
+                <Button label="Message" variant="secondary" size="md" icon={ChatCircleDots} onPress={handleMessage} />
+              )}
+            </View>
           )}
         </View>
 
