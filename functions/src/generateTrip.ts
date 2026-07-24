@@ -79,6 +79,8 @@ export const generateTrip = functions.https.onCall(
       endDate: data.endDate ? admin.firestore.Timestamp.fromDate(new Date(data.endDate)) : null,
       visibility: 'private' as const,
       collaborators: [],
+      budgetAmount: null,
+      budgetCurrency: null,
       isAiGenerated: true,
       status: 'planning' as const,
       tags: [],

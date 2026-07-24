@@ -79,6 +79,11 @@ export interface Trip {
   startDate: Timestamp | null;
   endDate: Timestamp | null;
   visibility: TripVisibility;
+  /** uids of accepted trip invitees — see TripInvite. Only ever written by
+   * the `respondToTripInvite` Cloud Function (arrayUnion on accept), never
+   * directly by the client. Firestore rules already gate every trip
+   * subcollection's read/write on membership here, so accepting an invite
+   * is what grants access to the itinerary, budget, and packing list alike. */
   collaborators: string[];
   isAiGenerated: boolean;
   status: TripStatus;
@@ -87,11 +92,108 @@ export interface Trip {
   savesCount: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  /** Set once via EditTripSheet or the budget screen's own prompt — null
+   * until the owner sets one. A single currency for the whole trip (see
+   * Expense — v1 doesn't support mixed-currency expenses). */
+  budgetAmount: number | null;
+  budgetCurrency: string | null;
 }
 
 export interface Follow {
   followerUid: string;
   followeeUid: string;
+  createdAt: Timestamp;
+}
+
+// ── Trip invites & notifications ────────────────────────────────────────────
+
+export type TripInviteStatus = 'pending' | 'accepted' | 'declined';
+
+/** `trips/{tripId}/invites/{inviteeUid}` — doc ID is the invitee's own uid,
+ * so a re-invite structurally overwrites rather than duplicating. Written
+ * only by the `inviteToTrip`/`respondToTripInvite` Cloud Functions (Admin
+ * SDK) — accepting mutates the parent trip's `collaborators[]`, which a
+ * client-side rule can't safely allow a non-collaborator to do themselves. */
+export interface TripInvite {
+  id: string; // == inviteeUid
+  inviterUid: string;
+  status: TripInviteStatus;
+  createdAt: Timestamp;
+  respondedAt: Timestamp | null;
+}
+
+/** `users/{uid}/notifications/{autoId}` — discriminated union so future
+ * notification types (likes, comments, follows) slot in without a
+ * migration. Written only by Cloud Functions (Admin SDK); see
+ * firestore.rules `notifications` write: false. */
+export interface TripInviteNotification {
+  id: string;
+  type: 'trip_invite';
+  tripId: string;
+  tripTitle: string;
+  inviterUid: string;
+  inviterName: string;
+  inviterAvatarUrl: string | null;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
+export interface TripInviteAcceptedNotification {
+  id: string;
+  type: 'trip_invite_accepted';
+  tripId: string;
+  tripTitle: string;
+  accepterUid: string;
+  accepterName: string;
+  accepterAvatarUrl: string | null;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
+export type AppNotification = TripInviteNotification | TripInviteAcceptedNotification;
+
+// ── Budget & expenses ───────────────────────────────────────────────────────
+
+export type ExpenseCategory = 'food' | 'lodging' | 'transport' | 'activities' | 'shopping' | 'other';
+
+/** `trips/{tripId}/expenses/{expenseId}` — a shared ledger, not a payment
+ * rail: this tracks who paid and who the cost should split among, it never
+ * moves money. Any collaborator can add/edit/delete, same trust model as
+ * splitting a real bill together (firestore.rules mirrors `days`). */
+export interface Expense {
+  id: string;
+  title: string;
+  amount: number;
+  category: ExpenseCategory;
+  /** uid of whoever actually paid. */
+  paidByUid: string;
+  /** uids the cost splits evenly among (v1: equal split only) — usually
+   * every current trip member, but editable per-expense (e.g. a solo
+   * activity only one person did). */
+  splitAmongUids: string[];
+  createdByUid: string;
+  createdAt: Timestamp;
+}
+
+// ── Packing list ────────────────────────────────────────────────────────────
+
+/** `trips/{tripId}/packingItems/{itemId}` — generated once from
+ * services/packingTemplates.ts on first open (owner-gated, mirrors
+ * useTripCoverResolver's silent-once-owner-only precedent), then editable by
+ * any collaborator. Being a collaborator IS the "share this list" mechanism
+ * — same as expenses and the itinerary itself, no separate share action. */
+export interface PackingItem {
+  id: string;
+  label: string;
+  /** Free-text category key (e.g. "Essentials", "Beach gear") — not an enum,
+   * since services/packingTemplates.ts's category set can grow without a
+   * type/rules change, and a manually-added item can invent its own. */
+  category: string;
+  checked: boolean;
+  /** false for generated-template items, true for anything the user typed
+   * in themselves — display-only distinction, not access control. */
+  isCustom: boolean;
+  addedByUid: string;
   createdAt: Timestamp;
 }
 
@@ -172,6 +274,8 @@ export interface UpdateTripInput {
   startDate?: Date | null;
   endDate?: Date | null;
   status?: TripStatus;
+  budgetAmount?: number | null;
+  budgetCurrency?: string | null;
 }
 
 // ── Wallet ──────────────────────────────────────────────────────────────────

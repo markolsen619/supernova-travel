@@ -36,6 +36,8 @@ export function useCreateTrip() {
       isAiGenerated: data.isAiGenerated,
       status: 'planning',
       collaborators: [],
+      budgetAmount: null,
+      budgetCurrency: null,
       likesCount: 0,
       savesCount: 0,
       createdAt: serverTimestamp(),

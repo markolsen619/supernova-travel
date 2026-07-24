@@ -122,6 +122,74 @@ service cloud.firestore {
           }
         }
       }
+
+      // Trip invites (request/accept) — doc ID is the invitee's uid.
+      // Write is Cloud-Functions-only: accepting has to mutate the parent
+      // trip's collaborators[], which a client-side rule can't safely let a
+      // non-collaborator do to themselves, so both send and respond go
+      // through inviteToTrip/respondToTripInvite (Admin SDK).
+      match /invites/{inviteeUid} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        function canWriteTrip() {
+          return isAuthed() && (
+            isOwner(parentTrip().data.authorUid)
+            || request.auth.uid in parentTrip().data.collaborators
+          );
+        }
+
+        allow read: if isAuthed() && (inviteeUid == request.auth.uid || canWriteTrip());
+        allow write: if false;
+      }
+
+      // Shared expense ledger — tracks who paid and who a cost splits among,
+      // never moves real money. Same trust model as `days`: any collaborator
+      // can add/edit/delete, same as splitting a real bill together.
+      match /expenses/{expenseId} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        function canReadTrip() {
+          return parentTrip().data.visibility == 'public'
+            || isOwner(parentTrip().data.authorUid)
+            || (parentTrip().data.visibility == 'followers' && isAuthed())
+            || request.auth.uid in parentTrip().data.collaborators;
+        }
+        function canWriteTrip() {
+          return isAuthed() && (
+            isOwner(parentTrip().data.authorUid)
+            || request.auth.uid in parentTrip().data.collaborators
+          );
+        }
+
+        allow read: if canReadTrip();
+        allow create, update, delete: if canWriteTrip();
+      }
+
+      // Packing list — generated once (owner-gated, client-side) then
+      // editable by any collaborator, same trust model as `days`/`expenses`.
+      // Being a collaborator IS the "share this list" mechanism.
+      match /packingItems/{itemId} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        function canReadTrip() {
+          return parentTrip().data.visibility == 'public'
+            || isOwner(parentTrip().data.authorUid)
+            || (parentTrip().data.visibility == 'followers' && isAuthed())
+            || request.auth.uid in parentTrip().data.collaborators;
+        }
+        function canWriteTrip() {
+          return isAuthed() && (
+            isOwner(parentTrip().data.authorUid)
+            || request.auth.uid in parentTrip().data.collaborators
+          );
+        }
+
+        allow read: if canReadTrip();
+        allow create, update, delete: if canWriteTrip();
+      }
     }
 
     // Username claims — doc ID is the lowercase username, payload is the

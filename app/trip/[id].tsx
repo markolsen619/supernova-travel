@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors } from '@/constants/colors';
 
@@ -29,9 +29,11 @@ import { AddStopSheet } from '@/components/trip/AddStopSheet';
 import { EditTripSheet } from '@/components/trip/EditTripSheet';
 import { JournalSheet } from '@/components/trip/JournalSheet';
 import { TripRecapSheet } from '@/components/trip/TripRecapSheet';
+import { InviteFriendsSheet } from '@/components/trip/InviteFriendsSheet';
 import { TripMapView } from '@/components/trip/TripMapView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Avatar } from '@/components/ui/Avatar';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
@@ -39,6 +41,7 @@ import { TripActivity, TripDay } from '@/types';
 import { enrichPlaceByQuery } from '@/services/places/googlePlaces';
 import { usePlacesStore } from '@/stores/usePlacesStore';
 import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
+import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -122,6 +125,14 @@ export default function TripDetailScreen() {
   const setPlace = usePlacesStore((s) => s.setPlace);
   const { resolveCover } = useTripCoverResolver();
 
+  // Who's on this trip — author + accepted collaborators. Only fetched once
+  // there's actually a trip; the picker itself batches this same lookup.
+  const memberUids = useMemo(
+    () => (trip ? [trip.authorUid, ...trip.collaborators] : []),
+    [trip],
+  );
+  const { data: memberProfiles = {} } = useAuthorProfiles(memberUids);
+
   // Collapsible description state
   const [descExpanded, setDescExpanded] = useState(false);
 
@@ -163,8 +174,11 @@ export default function TripDetailScreen() {
   const [journalActivity, setJournalActivity] = useState<{ activity: TripActivity; dayId: string } | null>(null);
   // TM-3d: trip recap
   const [recapVisible, setRecapVisible] = useState(false);
+  // Invite friends (request/accept) — owner or existing collaborator only
+  const [inviteVisible, setInviteVisible] = useState(false);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
+  const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
 
   // TM-2b: "current" is derived, never stored — the first not-yet-visited
   // activity in day/order sequence, only while the trip is actually active.
@@ -642,6 +656,27 @@ export default function TripDetailScreen() {
           <Text style={[styles.title, { color: colors.text.primary }]}>{trip.title}</Text>
         </View>
 
+        {/* Trip members — only worth a row once someone besides the owner
+            has actually accepted; an author-only stack of one isn't news. */}
+        {trip.collaborators.length > 0 && (
+          <View style={styles.membersRow}>
+            {memberUids.slice(0, 5).map((uid, i) => (
+              <View
+                key={uid}
+                style={[
+                  styles.memberAvatar,
+                  { marginLeft: i === 0 ? 0 : -Spacing['2'], borderColor: colors.background.primary },
+                ]}
+              >
+                <Avatar uri={memberProfiles[uid]?.avatarUrl ?? null} name={memberProfiles[uid]?.name} size="xs" />
+              </View>
+            ))}
+            <Text style={[styles.membersText, { color: colors.text.tertiary }]}>
+              {memberUids.length} on this trip
+            </Text>
+          </View>
+        )}
+
         {/* ── 3. Chips: destination + status + visibility ── */}
         <ScrollView
           horizontal
@@ -683,6 +718,60 @@ export default function TripDetailScreen() {
               {VISIBILITY_LABEL[trip.visibility] ?? trip.visibility}
             </Text>
           </View>
+
+          {/* Invite friends — owner or existing collaborator only; request/
+              accept, not instant-add, so this only ever opens a picker. */}
+          {(isOwner || isCollaborator) && (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setInviteVisible(true);
+              }}
+              style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              accessibilityLabel="Invite friends"
+            >
+              <UsersThree size={13} color={colors.text.secondary} weight="duotone" />
+              <Text style={[styles.chipText, { color: colors.text.primary }]}>Invite</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Budget — shows live progress once a budget's been set, plain
+              label until then; either way it's just a shortcut to trip/budget. */}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/trip/budget', params: { id: trip.id } });
+            }}
+            style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            accessibilityLabel="Trip budget"
+          >
+            <Wallet size={13} color={colors.text.secondary} weight="duotone" />
+            <Text style={[styles.chipText, { color: colors.text.primary }]}>
+              {trip.budgetAmount != null
+                ? new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: trip.budgetCurrency ?? 'USD',
+                    maximumFractionDigits: 0,
+                  }).format(trip.budgetAmount)
+                : 'Budget'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Packing list */}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/trip/packing', params: { id: trip.id } });
+            }}
+            style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            accessibilityLabel="Packing list"
+          >
+            <Backpack size={13} color={colors.text.secondary} weight="duotone" />
+            <Text style={[styles.chipText, { color: colors.text.primary }]}>Packing</Text>
+          </TouchableOpacity>
 
           {/* TM-3d — only worth surfacing once there's a story to tell */}
           {visitedCount > 0 && (
@@ -853,6 +942,14 @@ export default function TripDetailScreen() {
           setViewMode('map');
         }}
       />
+
+      {/* ── Invite friends (request/accept) ── */}
+      <InviteFriendsSheet
+        visible={inviteVisible}
+        tripId={trip.id}
+        collaborators={memberUids}
+        onClose={() => setInviteVisible(false)}
+      />
     </View>
   );
 }
@@ -955,6 +1052,23 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semiBold,
     letterSpacing: -0.02 * FontSize['2xl'],
     lineHeight: FontSize['2xl'] * 1.15,
+  },
+
+  membersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing['5'],
+    marginTop: Spacing['3'],
+    gap: Spacing['2'],
+  },
+  memberAvatar: {
+    borderRadius: 999,
+    borderWidth: 2,
+  },
+  membersText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.medium,
+    marginLeft: Spacing['1'],
   },
 
   // ── Chip strip ──

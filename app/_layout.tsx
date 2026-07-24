@@ -69,6 +69,8 @@ function AppStack() {
         <Stack.Screen name="trip/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/ai-generate" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="trip/budget" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="trip/packing" options={{ presentation: 'modal' }} />
         {/* gestureEnabled: false — swiping this away mid-generation would
             orphan the in-flight request with no way back to its result */}
         <Stack.Screen name="trip/ai-generating" options={{ presentation: 'modal', gestureEnabled: false }} />

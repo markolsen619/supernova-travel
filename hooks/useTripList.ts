@@ -5,10 +5,23 @@ import {
   where,
   orderBy,
   limit,
+  DocumentData,
 } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { Trip } from '@/types';
+
+// Older trips predate the budget feature — default rather than leaving
+// `undefined`, which the Trip type (number | null, not optional) doesn't
+// account for.
+function normalizeTrip(id: string, data: DocumentData): Trip {
+  return {
+    id,
+    ...data,
+    budgetAmount: data.budgetAmount ?? null,
+    budgetCurrency: data.budgetCurrency ?? null,
+  } as Trip;
+}
 
 async function fetchUserTrips(uid: string): Promise<Trip[]> {
   const q = query(
@@ -18,7 +31,7 @@ async function fetchUserTrips(uid: string): Promise<Trip[]> {
     limit(50)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Trip));
+  return snap.docs.map((doc) => normalizeTrip(doc.id, doc.data()));
 }
 
 async function fetchPublicTrips(limitCount = 20): Promise<Trip[]> {
@@ -29,7 +42,7 @@ async function fetchPublicTrips(limitCount = 20): Promise<Trip[]> {
     limit(limitCount)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Trip));
+  return snap.docs.map((doc) => normalizeTrip(doc.id, doc.data()));
 }
 
 export function useTripList(uid: string | null) {

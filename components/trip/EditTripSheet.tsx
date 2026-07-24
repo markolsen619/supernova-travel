@@ -56,6 +56,7 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [visibility, setVisibility] = useState<TripVisibility>(trip.visibility);
+  const [budgetAmount, setBudgetAmount] = useState('');
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -70,6 +71,7 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
       setStartDate(trip.startDate ? trip.startDate.toDate() : null);
       setEndDate(trip.endDate ? trip.endDate.toDate() : null);
       setVisibility(trip.visibility);
+      setBudgetAmount(trip.budgetAmount != null ? String(trip.budgetAmount) : '');
       setTitleError(null);
       setSaveError(null);
     }
@@ -97,12 +99,15 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     setSaving(true);
     setSaveError(null);
     try {
+      const parsedBudget = parseFloat(budgetAmount);
       await updateTrip(trip.id, {
         title: title.trim(),
         description: description.trim(),
         startDate,
         endDate,
         visibility,
+        budgetAmount: budgetAmount.trim() && !Number.isNaN(parsedBudget) && parsedBudget > 0 ? parsedBudget : null,
+        budgetCurrency: budgetAmount.trim() ? 'USD' : null,
       });
       onClose();
     } catch (err) {
@@ -111,7 +116,7 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     } finally {
       setSaving(false);
     }
-  }, [saving, deleting, title, description, startDate, endDate, visibility, trip.id, updateTrip, onClose]);
+  }, [saving, deleting, title, description, startDate, endDate, visibility, budgetAmount, trip.id, updateTrip, onClose]);
 
   const handleDelete = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -267,6 +272,20 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
                     );
                   })}
                 </View>
+              </View>
+
+              {/* Budget — same field as the budget screen's own editor;
+                  either one can set it, both write the same trip fields. */}
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: colors.text.secondary }]}>Budget (USD)</Text>
+                <TextInput
+                  value={budgetAmount}
+                  onChangeText={setBudgetAmount}
+                  placeholder="No budget set"
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="decimal-pad"
+                  style={[styles.input, fieldStyle]}
+                />
               </View>
 
               {saveError ? (

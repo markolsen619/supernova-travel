@@ -5,6 +5,10 @@ import {
   deleteDoc,
   serverTimestamp,
   runTransaction,
+  collection,
+  getDocs,
+  query,
+  where,
 } from 'firebase/firestore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
@@ -90,4 +94,27 @@ export function useFollow(followeeUid: string) {
   });
 
   return { follow, unfollow };
+}
+
+async function fetchConnections(uid: string): Promise<string[]> {
+  const [followersSnap, followingSnap] = await Promise.all([
+    getDocs(query(collection(db, 'follows'), where('followeeUid', '==', uid))),
+    getDocs(query(collection(db, 'follows'), where('followerUid', '==', uid))),
+  ]);
+  const uids = new Set<string>();
+  followersSnap.docs.forEach((d) => uids.add(d.data().followerUid));
+  followingSnap.docs.forEach((d) => uids.add(d.data().followeeUid));
+  return Array.from(uids);
+}
+
+/** Union of "people who follow me" and "people I follow" — the audience for
+ * the trip invite picker (InviteFriendsSheet). No dedicated "friends"
+ * concept exists beyond the follow graph, so this is it. */
+export function useFollowConnections(uid: string | null) {
+  return useQuery({
+    queryKey: ['followConnections', uid],
+    queryFn: () => fetchConnections(uid!),
+    enabled: !!uid,
+    staleTime: 2 * 60 * 1000,
+  });
 }

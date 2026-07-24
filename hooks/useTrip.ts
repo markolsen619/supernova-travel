@@ -17,7 +17,16 @@ async function fetchTripWithDays(tripId: string): Promise<TripWithDays | null> {
   if (!tripSnap.exists()) {
     return null;
   }
-  const trip = { id: tripSnap.id, ...tripSnap.data() } as TripWithDays;
+  const tripData = tripSnap.data();
+  const trip = {
+    id: tripSnap.id,
+    ...tripData,
+    // Older trips predate the budget feature — default rather than leaving
+    // `undefined`, which the Trip type (number | null, not optional)
+    // doesn't account for.
+    budgetAmount: tripData.budgetAmount ?? null,
+    budgetCurrency: tripData.budgetCurrency ?? null,
+  } as TripWithDays;
 
   // Step 2: fetch all days ordered by dayNumber
   const daysQuery = query(

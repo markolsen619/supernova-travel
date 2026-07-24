@@ -11,7 +11,6 @@ import {
   User,
   Sparkle,
   VideoCamera,
-  UsersThree,
   Bell,
   Bag,
   Star,
@@ -19,9 +18,10 @@ import {
   Globe,
   Users,
   LockSimple,
+  DotsThree,
 } from 'phosphor-react-native';
 import type { Icon } from 'phosphor-react-native';
-import type { ActivityType, ReservationType, LoyaltyProgram, TripVisibility } from '@/types';
+import type { ActivityType, ReservationType, LoyaltyProgram, TripVisibility, ExpenseCategory } from '@/types';
 
 export type PhosphorIcon = Icon;
 
@@ -60,11 +60,19 @@ export const PAYWALL_FEATURE_ICONS: Array<{
 }> = [
   { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI Trips',  description: 'Generate trips with Gemini AI as often as you like' },
   { Icon: VideoCamera, color: '#f472b6', label: '30-Second Clips',     description: 'Upload up to 30-second travel video clips'          },
-  { Icon: UsersThree,  color: '#60a5fa', label: 'Collaborative Trips', description: 'Invite friends to co-edit your itineraries'         },
   { Icon: Bell,        color: '#fbbf24', label: 'Flight Alerts',       description: 'Real-time gate change and delay notifications'      },
   { Icon: Bag,         color: '#34d399', label: 'Travel Wallet',       description: 'Boarding passes, reservations, loyalty programs'    },
   { Icon: Star,        color: '#a78bfa', label: 'Priority Support',    description: 'Fast-track responses from the Supernova team'       },
 ];
+
+export const EXPENSE_ICONS: Record<ExpenseCategory, IconEntry> = {
+  food:       { Icon: ForkKnife,  color: '#f472b6' },
+  lodging:    { Icon: Buildings,  color: '#a78bfa' },
+  transport:  { Icon: Car,        color: '#fbbf24' },
+  activities: { Icon: Ticket,     color: '#34d399' },
+  shopping:   { Icon: Bag,        color: '#60a5fa' },
+  other:      { Icon: DotsThree,  color: '#9ca3af' },
+};
 
 export const VISIBILITY_ICONS: Record<TripVisibility, IconEntry> = {
   public:    { Icon: Globe,      color: '#34d399' },
