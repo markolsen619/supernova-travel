@@ -8,3 +8,4 @@ export { checkFlightStatus } from './checkFlightStatus';
 export { syncTripToAlgolia, syncUserToAlgolia } from './syncAlgolia';
 export { inviteToTrip, respondToTripInvite } from './tripInvites';
 export { createDmThread } from './dmThreads';
+export { onMessageCreated } from './dmMessages';
