@@ -22,6 +22,11 @@ export interface UserProfile {
   tripsCount: number;
   tier: Tier;
   createdAt: string;
+  /** Set (client-writable, like every UserProfile field except `tier`) when
+   * the Messages tab in app/notifications.tsx gains focus — the coarse
+   * signal behind the heart icon's badge dot for new DMs. Per-thread read
+   * state lives separately in dmThreads/{id}/reads/{uid}. */
+  lastMessagesSeenAt: Timestamp | null;
 }
 
 export type PostMediaType = 'photo' | 'video' | 'trip';
@@ -150,7 +155,65 @@ export interface TripInviteAcceptedNotification {
   createdAt: Timestamp;
 }
 
-export type AppNotification = TripInviteNotification | TripInviteAcceptedNotification;
+export interface PostLikeNotification {
+  id: string;
+  type: 'post_like';
+  postId: string;
+  postCoverUrl: string | null;
+  likerUid: string;
+  likerName: string;
+  likerAvatarUrl: string | null;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
+export interface PostCommentNotification {
+  id: string;
+  type: 'post_comment';
+  postId: string;
+  postCoverUrl: string | null;
+  commentText: string;
+  commenterUid: string;
+  commenterName: string;
+  commenterAvatarUrl: string | null;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
+export type AppNotification =
+  | TripInviteNotification
+  | TripInviteAcceptedNotification
+  | PostLikeNotification
+  | PostCommentNotification;
+
+// ── Direct messaging ─────────────────────────────────────────────────────
+
+export type DmThreadType = 'direct' | 'group';
+
+/** `dmThreads/{threadId}` — created only via the `createDmThread` Cloud
+ * Function (Admin SDK); see firestore.rules `dmThreads` create/update: if
+ * false. `threadId` is a deterministic sorted pair for `type: 'direct'`
+ * (get-or-create, so "Message" always resolves to the same thread), or an
+ * auto-generated ID for `type: 'group'`. */
+export interface DmThread {
+  id: string;
+  type: DmThreadType;
+  participants: string[];
+  createdByUid: string;
+  createdAt: Timestamp;
+  lastMessageText: string | null;
+  lastMessageAt: Timestamp | null;
+  lastMessageSenderUid: string | null;
+}
+
+/** `dmThreads/{threadId}/messages/{messageId}` — client-writable directly
+ * (no callable needed to send), append-only. */
+export interface DmMessage {
+  id: string;
+  senderUid: string;
+  text: string;
+  createdAt: Timestamp;
+}
 
 // ── Budget & expenses ───────────────────────────────────────────────────────
 
