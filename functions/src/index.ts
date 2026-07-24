@@ -7,3 +7,4 @@ export { getAiTripQuota } from './getAiTripQuota';
 export { checkFlightStatus } from './checkFlightStatus';
 export { syncTripToAlgolia, syncUserToAlgolia } from './syncAlgolia';
 export { inviteToTrip, respondToTripInvite } from './tripInvites';
+export { createDmThread } from './dmThreads';
