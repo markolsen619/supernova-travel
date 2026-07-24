@@ -36,7 +36,7 @@ export async function notifyUser(uid: string, payload: NotifyPayload): Promise<v
   await sendPushNotification(tokens, payload.push.title, payload.push.body);
 }
 
-async function sendPushNotification(tokens: string[], title: string, body: string): Promise<void> {
+export async function sendPushNotification(tokens: string[], title: string, body: string): Promise<void> {
   const messages = tokens
     .filter((t) => t.startsWith('ExponentPushToken['))
     .map((to) => ({ to, title, body, sound: 'default' }));
