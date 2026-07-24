@@ -1,5 +1,5 @@
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { useQuery } from '@tanstack/react-query';
+import { collection, getDocs, orderBy, query, where, writeBatch } from 'firebase/firestore';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { AppNotification } from '@/types';
@@ -19,5 +19,28 @@ export function useNotifications() {
     queryFn: () => fetchNotifications(uid!),
     enabled: !!uid,
     staleTime: 30 * 1000,
+  });
+}
+
+/** Batch-marks every currently-unread notification `read: true` — called
+ * when the Activity tab is viewed. firestore.rules only allows the owner to
+ * flip this one field, never author/edit notification content. */
+export function useMarkNotificationsRead() {
+  const uid = useAuthStore((s) => s.user?.uid ?? '');
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const snap = await getDocs(
+        query(collection(db, 'users', uid, 'notifications'), where('read', '==', false)),
+      );
+      if (snap.empty) return;
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => batch.update(d.ref, { read: true }));
+      await batch.commit();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', uid] });
+      queryClient.invalidateQueries({ queryKey: ['hasUnreadActivity', uid] });
+    },
   });
 }
