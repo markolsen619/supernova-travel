@@ -7,11 +7,12 @@ import {
   StyleSheet,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { MapPin, MagnifyingGlass, X, Mountains, Diamond, Wallet, UsersThree, Bank, Minus, Plus } from 'phosphor-react-native';
+import { MapPin, MagnifyingGlass, X, Mountains, Diamond, Wallet, UsersThree, Bank, Minus, Plus, CalendarBlank } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { TravelStyle, TripPace } from '@/types/ai';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { DestinationPicker } from '@/components/ui/DestinationPicker';
+import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import type { PhosphorIcon } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -21,6 +22,10 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 export interface AiPromptFormProps {
   destination: string;
   countryCode: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  onStartDateChange: (d: Date | null) => void;
+  onEndDateChange: (d: Date | null) => void;
   durationDays: number;
   travelStyle: TravelStyle;
   pace: TripPace;
@@ -56,11 +61,26 @@ const PACE_OPTIONS: { value: TripPace; label: string; hint: string }[] = [
   { value: 'packed', label: 'Packed', hint: 'See as much as possible' },
 ];
 
+function formatDate(d: Date | null): string {
+  if (!d) return 'Tap to set date';
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function diffDays(start: Date | null, end: Date | null): number | null {
+  if (!start || !end) return null;
+  const ms = end.getTime() - start.getTime();
+  return Math.round(ms / (1000 * 60 * 60 * 24));
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AiPromptForm({
   destination,
   countryCode,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
   durationDays,
   travelStyle,
   pace,
@@ -78,6 +98,8 @@ export function AiPromptForm({
 }: AiPromptFormProps) {
   const { colors } = useTheme();
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   const handleDecrement = () => {
     if (durationDays > MIN_DAYS) {
@@ -131,6 +153,25 @@ export function AiPromptForm({
     onPaceChange(v);
   }, [onPaceChange]);
 
+  const handleOpenStartPicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowStartPicker(true);
+  }, []);
+
+  const handleOpenEndPicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowEndPicker(true);
+  }, []);
+
+  const handleClearDates = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onStartDateChange(null);
+    onEndDateChange(null);
+  }, [onStartDateChange, onEndDateChange]);
+
+  const datesSet = Boolean(startDate && endDate);
+  const derivedDays = diffDays(startDate, endDate);
+
   const isPlaceSelected = Boolean(destinationPlaceId);
 
   return (
@@ -183,7 +224,58 @@ export function AiPromptForm({
         </Text>
       </View>
 
-      {/* Duration */}
+      {/* Travel dates (optional) — when both are set, they drive the
+          duration below instead of the manual stepper. */}
+      <View style={styles.field}>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Travel dates (optional)</Text>
+        <View style={styles.dateRow}>
+          <TouchableOpacity
+            style={[styles.dateBtn, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
+            onPress={handleOpenStartPicker}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.dateText, { color: startDate ? colors.text.primary : colors.text.tertiary }]}>
+              {formatDate(startDate)}
+            </Text>
+            <CalendarBlank size={18} color={colors.text.tertiary} weight="regular" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.dateBtn, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
+            onPress={handleOpenEndPicker}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.dateText, { color: endDate ? colors.text.primary : colors.text.tertiary }]}>
+              {formatDate(endDate)}
+            </Text>
+            <CalendarBlank size={18} color={colors.text.tertiary} weight="regular" />
+          </TouchableOpacity>
+        </View>
+
+        {datesSet && (
+          <TouchableOpacity onPress={handleClearDates} activeOpacity={0.7} hitSlop={8} style={styles.clearDatesBtn}>
+            <Text style={[styles.clearDatesText, { color: colors.text.tertiary }]}>Clear dates</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <DatePickerModal
+        visible={showStartPicker}
+        date={startDate}
+        title="Select start date"
+        onConfirm={(d) => { onStartDateChange(d); setShowStartPicker(false); }}
+        onCancel={() => setShowStartPicker(false)}
+      />
+      <DatePickerModal
+        visible={showEndPicker}
+        date={endDate}
+        title="Select end date"
+        onConfirm={(d) => { onEndDateChange(d); setShowEndPicker(false); }}
+        onCancel={() => setShowEndPicker(false)}
+        minimumDate={startDate ?? undefined}
+      />
+
+      {/* Duration — locked to the date range once both dates are set */}
       <View style={styles.field}>
         <Text style={[styles.label, { color: colors.text.secondary }]}>Duration</Text>
         <View style={styles.durationRow}>
@@ -191,35 +283,42 @@ export function AiPromptForm({
             style={[
               styles.durationBtn,
               { backgroundColor: `${colors.brand.purple}1F`, borderColor: colors.brand.purple },
-              durationDays <= MIN_DAYS && { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder },
+              (datesSet || durationDays <= MIN_DAYS) && { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder },
             ]}
             onPress={handleDecrement}
             activeOpacity={0.7}
-            disabled={durationDays <= MIN_DAYS}
+            disabled={datesSet || durationDays <= MIN_DAYS}
             accessibilityLabel="Decrease duration"
           >
-            <Minus size={18} color={durationDays <= MIN_DAYS ? colors.text.disabled : colors.brand.purple} weight="bold" />
+            <Minus size={18} color={(datesSet || durationDays <= MIN_DAYS) ? colors.text.disabled : colors.brand.purple} weight="bold" />
           </TouchableOpacity>
 
           <View style={styles.durationDisplay}>
-            <Text style={[styles.durationValue, { color: colors.text.primary }]}>{durationDays}</Text>
-            <Text style={[styles.durationUnit, { color: colors.text.secondary }]}>{durationDays === 1 ? 'day' : 'days'}</Text>
+            <Text style={[styles.durationValue, { color: colors.text.primary }]}>
+              {datesSet && derivedDays !== null ? derivedDays + 1 : durationDays}
+            </Text>
+            <Text style={[styles.durationUnit, { color: colors.text.secondary }]}>
+              {(datesSet && derivedDays !== null ? derivedDays + 1 : durationDays) === 1 ? 'day' : 'days'}
+            </Text>
           </View>
 
           <TouchableOpacity
             style={[
               styles.durationBtn,
               { backgroundColor: `${colors.brand.purple}1F`, borderColor: colors.brand.purple },
-              durationDays >= MAX_DAYS && { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder },
+              (datesSet || durationDays >= MAX_DAYS) && { backgroundColor: colors.background.sunken, borderColor: colors.background.cardBorder },
             ]}
             onPress={handleIncrement}
             activeOpacity={0.7}
-            disabled={durationDays >= MAX_DAYS}
+            disabled={datesSet || durationDays >= MAX_DAYS}
             accessibilityLabel="Increase duration"
           >
-            <Plus size={18} color={durationDays >= MAX_DAYS ? colors.text.disabled : colors.brand.purple} weight="bold" />
+            <Plus size={18} color={(datesSet || durationDays >= MAX_DAYS) ? colors.text.disabled : colors.brand.purple} weight="bold" />
           </TouchableOpacity>
         </View>
+        {datesSet && (
+          <Text style={[styles.hint, { color: colors.text.tertiary }]}>Derived from your travel dates</Text>
+        )}
       </View>
 
       {/* Travel Style */}
@@ -402,6 +501,34 @@ const styles = StyleSheet.create({
   durationUnit: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.medium,
+  },
+
+  // Travel dates
+  dateRow: {
+    flexDirection: 'row',
+    gap: Spacing['3'],
+  },
+  dateBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing['4'],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+  },
+  dateText: {
+    fontSize: FontSize.sm,
+  },
+  clearDatesBtn: {
+    alignSelf: 'flex-start',
+    marginTop: Spacing['2'],
+  },
+  clearDatesText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.medium,
+    textDecorationLine: 'underline',
   },
 
   // Travel style / pace pills
