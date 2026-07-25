@@ -35,6 +35,12 @@ function quotaLabel(
   return `0 left this week — resets ${resetDate}`;
 }
 
+function diffDays(start: Date | null, end: Date | null): number | null {
+  if (!start || !end) return null;
+  const ms = end.getTime() - start.getTime();
+  return Math.round(ms / (1000 * 60 * 60 * 24));
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AiGenerateScreen() {
@@ -50,6 +56,8 @@ export default function AiGenerateScreen() {
   const [countryCode, setCountryCode] = useState(params.countryCode ?? '');
   const [placeId, setPlaceId] = useState<string | null>(params.placeId ?? null);
   const [durationDays, setDurationDays] = useState(7);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [travelStyle, setTravelStyle] = useState<TravelStyle>('adventure');
   const [pace, setPace] = useState<TripPace>('moderate');
   const [mustSeeInput, setMustSeeInput] = useState('');
@@ -61,7 +69,10 @@ export default function AiGenerateScreen() {
     setPlaceId(s.placeId || null);
   }, []);
 
-  const isValid = destination.trim().length > 0 && durationDays >= 1;
+  const datesSet = Boolean(startDate && endDate);
+  const derivedDays = diffDays(startDate, endDate);
+  const effectiveDurationDays = datesSet && derivedDays !== null ? derivedDays + 1 : durationDays;
+  const isValid = destination.trim().length > 0 && effectiveDurationDays >= 1;
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -81,13 +92,13 @@ export default function AiGenerateScreen() {
       params: {
         destination: destination.trim(),
         countryCode: countryCode.trim(),
-        durationDays: String(durationDays),
+        durationDays: String(effectiveDurationDays),
         travelStyle,
         pace,
         mustSee: JSON.stringify(mustSee),
         preferences,
-        startDate: '',
-        endDate: '',
+        startDate: startDate ? startDate.toISOString() : '',
+        endDate: endDate ? endDate.toISOString() : '',
       },
     });
   };
@@ -149,6 +160,8 @@ export default function AiGenerateScreen() {
             pace={pace}
             mustSeeInput={mustSeeInput}
             preferences={preferences}
+            startDate={startDate}
+            endDate={endDate}
             onDestinationChange={setDestination}
             onCountryCodeChange={setCountryCode}
             onDurationChange={setDurationDays}
@@ -156,6 +169,8 @@ export default function AiGenerateScreen() {
             onPaceChange={setPace}
             onMustSeeChange={setMustSeeInput}
             onPreferencesChange={setPreferences}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
             destinationPlaceId={placeId}
             onPlaceSelect={handlePlaceSelect}
           />
