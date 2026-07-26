@@ -6,9 +6,9 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
 import { X, Sparkle } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { AiPromptForm } from '@/components/trip/AiPromptForm';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { TravelStyle, TripPace } from '@/types/ai';
+import { Destination } from '@/types';
 import { useAiTripQuota } from '@/hooks/useAiTripQuota';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -55,6 +56,7 @@ export default function AiGenerateScreen() {
   const [destination, setDestination] = useState(params.destination ?? '');
   const [countryCode, setCountryCode] = useState(params.countryCode ?? '');
   const [placeId, setPlaceId] = useState<string | null>(params.placeId ?? null);
+  const [additionalDestinations, setAdditionalDestinations] = useState<Destination[]>([]);
   const [durationDays, setDurationDays] = useState(7);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -92,6 +94,7 @@ export default function AiGenerateScreen() {
       params: {
         destination: destination.trim(),
         countryCode: countryCode.trim(),
+        additionalDestinations: JSON.stringify(additionalDestinations),
         durationDays: String(effectiveDurationDays),
         travelStyle,
         pace,
@@ -135,7 +138,7 @@ export default function AiGenerateScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
-        <ScrollView
+        <NestableScrollContainer
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -155,6 +158,8 @@ export default function AiGenerateScreen() {
           <AiPromptForm
             destination={destination}
             countryCode={countryCode}
+            additionalDestinations={additionalDestinations}
+            onAdditionalDestinationsChange={setAdditionalDestinations}
             durationDays={durationDays}
             travelStyle={travelStyle}
             pace={pace}
@@ -174,7 +179,7 @@ export default function AiGenerateScreen() {
             destinationPlaceId={placeId}
             onPlaceSelect={handlePlaceSelect}
           />
-        </ScrollView>
+        </NestableScrollContainer>
       </KeyboardAvoidingView>
 
       {/* Footer CTA — the hero gradient moment of this flow. */}

@@ -38,6 +38,7 @@ export default function AiGeneratingScreen() {
   const params = useLocalSearchParams<{
     destination: string;
     countryCode: string;
+    additionalDestinations: string;
     durationDays: string;
     travelStyle: string;
     pace: string;
@@ -108,6 +109,13 @@ export default function AiGeneratingScreen() {
     const request: GenerateTripRequest = {
       destination: params.destination ?? '',
       countryCode: params.countryCode ?? '',
+      additionalDestinations: (() => {
+        try {
+          return JSON.parse(params.additionalDestinations ?? '[]') as GenerateTripRequest['additionalDestinations'];
+        } catch {
+          return [];
+        }
+      })(),
       durationDays: parseInt(params.durationDays ?? '7', 10),
       travelStyle: (params.travelStyle ?? 'adventure') as GenerateTripRequest['travelStyle'],
       pace: (params.pace ?? 'moderate') as GenerateTripRequest['pace'],

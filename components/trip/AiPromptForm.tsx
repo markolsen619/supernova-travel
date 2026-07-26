@@ -12,6 +12,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { TravelStyle, TripPace } from '@/types/ai';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { DestinationPicker } from '@/components/ui/DestinationPicker';
+import { DestinationListEditor } from '@/components/trip/DestinationListEditor';
+import { Destination } from '@/types';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import type { PhosphorIcon } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -22,6 +24,8 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 export interface AiPromptFormProps {
   destination: string;
   countryCode: string;
+  additionalDestinations: Destination[];
+  onAdditionalDestinationsChange: (next: Destination[]) => void;
   startDate: Date | null;
   endDate: Date | null;
   onStartDateChange: (d: Date | null) => void;
@@ -77,6 +81,8 @@ function diffDays(start: Date | null, end: Date | null): number | null {
 export function AiPromptForm({
   destination,
   countryCode,
+  additionalDestinations,
+  onAdditionalDestinationsChange,
   startDate,
   endDate,
   onStartDateChange,
@@ -223,6 +229,16 @@ export function AiPromptForm({
           {isPlaceSelected ? 'Auto-filled from Places — tap to override' : '2-letter ISO country code'}
         </Text>
       </View>
+
+      {isPlaceSelected && (
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.text.secondary }]}>Additional destinations (optional)</Text>
+          <DestinationListEditor
+            destinations={additionalDestinations}
+            onChange={onAdditionalDestinationsChange}
+          />
+        </View>
+      )}
 
       {/* Travel dates (optional) — when both are set, they drive the
           duration below instead of the manual stepper. */}

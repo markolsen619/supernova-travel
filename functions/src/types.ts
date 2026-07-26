@@ -1,6 +1,10 @@
 export interface GenerateTripRequest {
   destination: string;
   countryCode: string;
+  /** Additional stops beyond the primary destination, in visit order. Stored
+   * on the created trip; NOT yet used by buildPrompt() (Phase 2 — see
+   * docs/superpowers/specs/2026-07-25-multi-destination-trips-design.md). */
+  additionalDestinations: { name: string; placeId: string | null; lat: number | null; lng: number | null; countryCode: string | null }[];
   startDate: string | null;   // ISO string or null
   endDate: string | null;
   durationDays: number;
