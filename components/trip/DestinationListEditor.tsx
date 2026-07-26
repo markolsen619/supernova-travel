@@ -75,7 +75,15 @@ export function DestinationListEditor({ destinations, onChange, maxTotal = DEFAU
           isActive && { borderColor: colors.brand.purple },
         ]}
       >
-        <TouchableOpacity onLongPress={drag} activeOpacity={0.7} hitSlop={8} accessibilityLabel="Drag to reorder">
+        <TouchableOpacity
+          onLongPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            drag();
+          }}
+          activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityLabel="Drag to reorder"
+        >
           <DotsSixVertical size={18} color={colors.text.tertiary} weight="bold" />
         </TouchableOpacity>
         <MapPin size={16} color={colors.brand.purple} weight="duotone" />
