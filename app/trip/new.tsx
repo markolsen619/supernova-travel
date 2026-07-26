@@ -7,11 +7,11 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Modal,
   Dimensions,
   Animated,
 } from 'react-native';
+import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
@@ -27,7 +27,8 @@ import { Button } from '@/components/ui/Button';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { DestinationPicker } from '@/components/ui/DestinationPicker';
-import { TripVisibility } from '@/types';
+import { DestinationListEditor } from '@/components/trip/DestinationListEditor';
+import { TripVisibility, Destination } from '@/types';
 import type { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -66,9 +67,19 @@ interface Step1Props {
   placeId: string | null;
   onPlaceSelect: (s: PlaceSelection) => void;
   onClearPlace: () => void;
+  additionalDestinations: Destination[];
+  onAdditionalDestinationsChange: (next: Destination[]) => void;
 }
 
-function Step1Destination({ destination, countryCode, placeId, onPlaceSelect, onClearPlace }: Step1Props) {
+function Step1Destination({
+  destination,
+  countryCode,
+  placeId,
+  onPlaceSelect,
+  onClearPlace,
+  additionalDestinations,
+  onAdditionalDestinationsChange,
+}: Step1Props) {
   const { colors } = useTheme();
   const [pickerVisible, setPickerVisible] = useState(false);
 
@@ -123,6 +134,16 @@ function Step1Destination({ destination, countryCode, placeId, onPlaceSelect, on
           <Text style={[step.countryBadge, { color: colors.brand.purple, backgroundColor: `${colors.brand.purple}1F` }]}>{countryCode}</Text>
         </View>
       ) : null}
+
+      {isSelected && (
+        <View style={step.field}>
+          <Text style={[step.label, { color: colors.text.secondary }]}>Additional destinations (optional)</Text>
+          <DestinationListEditor
+            destinations={additionalDestinations}
+            onChange={onAdditionalDestinationsChange}
+          />
+        </View>
+      )}
 
       <DestinationPicker
         visible={pickerVisible}
@@ -323,6 +344,7 @@ function Step3Details({ title, description, visibility, tagsInput, setTitle, set
 interface Step4Props {
   destination: string;
   countryCode: string;
+  additionalDestinations: Destination[];
   startDate: Date | null;
   endDate: Date | null;
   title: string;
@@ -332,7 +354,7 @@ interface Step4Props {
   onCreateTrip: () => void;
 }
 
-function Step4Review({ destination, countryCode, startDate, endDate, title, visibility, creating, error, onCreateTrip }: Step4Props) {
+function Step4Review({ destination, countryCode, additionalDestinations, startDate, endDate, title, visibility, creating, error, onCreateTrip }: Step4Props) {
   const { colors } = useTheme();
   const days = diffDays(startDate, endDate);
   const { Icon: VisibilityIcon, color: visibilityColor } = VISIBILITY_ICONS[visibility];
@@ -350,7 +372,8 @@ function Step4Review({ destination, countryCode, startDate, endDate, title, visi
             <View style={review.rowContent}>
               <Text style={[review.rowLabel, { color: colors.text.tertiary }]}>Destination</Text>
               <Text style={[review.rowValue, { color: colors.text.primary }]}>
-                {destination}{countryCode ? ` · ${countryCode}` : ''}
+                {[destination, ...additionalDestinations.map((d) => d.name)].join(', ')}
+                {countryCode ? ` · ${countryCode}` : ''}
               </Text>
             </View>
           </View>
@@ -590,6 +613,7 @@ export default function NewTripScreen() {
   const [placeId, setPlaceId] = useState<string | null>(null);
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
+  const [additionalDestinations, setAdditionalDestinations] = useState<Destination[]>([]);
 
   const handlePlaceSelect = useCallback((s: PlaceSelection) => {
     setDestination(s.name);
@@ -656,11 +680,16 @@ export default function NewTripScreen() {
     if (!canAdvance()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === 1 && titleAutoFilled) {
-      setTitle(`Trip to ${destination.trim()}`);
+      const allNames = [destination.trim(), ...additionalDestinations.map((d) => d.name)];
+      setTitle(
+        allNames.length === 1
+          ? `Trip to ${allNames[0]}`
+          : allNames.join(', ').replace(/, ([^,]*)$/, ' & $1'),
+      );
     }
     goToStep(step + 1, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, titleAutoFilled, destination, goToStep]);
+  }, [step, titleAutoFilled, destination, additionalDestinations, goToStep]);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -690,6 +719,7 @@ export default function NewTripScreen() {
           lng,
           countryCode: countryCode.trim() || null,
         },
+        additionalDestinations,
         startDate,
         endDate,
         visibility,
@@ -716,6 +746,8 @@ export default function NewTripScreen() {
             placeId={placeId}
             onPlaceSelect={handlePlaceSelect}
             onClearPlace={handleClearPlace}
+            additionalDestinations={additionalDestinations}
+            onAdditionalDestinationsChange={setAdditionalDestinations}
           />
         );
       case 1:
@@ -745,6 +777,7 @@ export default function NewTripScreen() {
           <Step4Review
             destination={destination}
             countryCode={countryCode}
+            additionalDestinations={additionalDestinations}
             startDate={startDate}
             endDate={endDate}
             title={title}
@@ -802,14 +835,14 @@ export default function NewTripScreen() {
         keyboardVerticalOffset={0}
       >
         <Animated.View style={[styles.flex, animatedStyle]}>
-          <ScrollView
+          <NestableScrollContainer
             style={styles.flex}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             {renderStep()}
-          </ScrollView>
+          </NestableScrollContainer>
         </Animated.View>
       </KeyboardAvoidingView>
 
