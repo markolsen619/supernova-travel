@@ -32,6 +32,25 @@ const STATUS_MESSAGES = [
 // Status index thresholds in seconds
 const STATUS_THRESHOLDS = [0, 3, 6, 9];
 
+// ─── Destination display ──────────────────────────────────────────────────────
+
+/** Comma-joined "A, B & C" formatting for the loading screen — same join
+ * pattern app/trip/new.tsx's auto-title already uses, duplicated here
+ * rather than extracted (this codebase's established convention for small,
+ * single-call-site date/string helpers — see the multi-destination-trips
+ * and AI-generate-dates plans' self-review notes). */
+function formatDestinationDisplay(primary: string, additionalJson: string | undefined): string {
+  let additional: { name: string }[] = [];
+  try {
+    additional = JSON.parse(additionalJson ?? '[]');
+  } catch {
+    additional = [];
+  }
+  const allNames = [primary, ...additional.map((d) => d.name)].filter(Boolean);
+  if (allNames.length <= 1) return allNames[0] || 'your destination';
+  return allNames.join(', ').replace(/, ([^,]*)$/, ' & $1');
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AiGeneratingScreen() {
@@ -49,6 +68,7 @@ export default function AiGeneratingScreen() {
   }>();
 
   const { generateTrip, isPending, error } = useAiGenerateTrip();
+  const destinationDisplay = formatDestinationDisplay(params.destination, params.additionalDestinations);
 
   const [statusIndex, setStatusIndex] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
@@ -229,7 +249,7 @@ export default function AiGeneratingScreen() {
       >
         <Text style={styles.headline}>Creating your trip</Text>
         <Text style={styles.destination}>
-          {params.destination || 'your destination'}
+          {destinationDisplay}
         </Text>
 
         <AiGeneratingAnimation status={STATUS_MESSAGES[statusIndex]} />
