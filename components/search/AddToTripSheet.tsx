@@ -89,6 +89,9 @@ export function AddToTripSheet({ visible, place, onClose, colors: colorsOverride
           lng: place.lng,
           countryCode: place.countryCode,
         },
+        // Quick-create shortcut from a search result — single destination by
+        // design, not the full multi-destination wizard.
+        additionalDestinations: [],
         startDate: null,
         endDate: null,
         // Private by default — this is a quick-create shortcut, not the full
