@@ -28,6 +28,7 @@ export function useCreateTrip() {
       title: data.title,
       description: data.description,
       destination: data.destination,
+      additionalDestinations: data.additionalDestinations,
       startDate: data.startDate ? Timestamp.fromDate(data.startDate) : null,
       endDate: data.endDate ? Timestamp.fromDate(data.endDate) : null,
       visibility: data.visibility,
