@@ -164,12 +164,16 @@ const STYLE_RULES: Record<GenerateTripRequest['travelStyle'], string> = {
   cultural: 'Prioritize museums, historic sites, and local traditions over shopping, nightlife, or generic tourist attractions.',
 };
 
-function buildPrompt(data: GenerateTripRequest): string {
+export function buildPrompt(data: GenerateTripRequest): string {
   const mustSeeStr =
     data.mustSee.length > 0
       ? `Must-see (each one of these MUST appear as its own activity somewhere in the itinerary): ${data.mustSee.join(', ')}.`
       : '';
   const prefStr = data.preferences ? `Additional preferences: ${data.preferences}.` : '';
+
+  if (data.additionalDestinations.length > 0) {
+    return buildMultiCityPrompt(data, mustSeeStr, prefStr);
+  }
 
   return `Create a ${data.durationDays}-day ${data.travelStyle}-style travel itinerary for ${data.destination}, paced for a "${data.pace}" traveler.
 
@@ -213,5 +217,74 @@ Rules:
 - Include at least one meal per day
 - Start day 1 with hotel check-in if multi-day
 - Return exactly ${data.durationDays} days
+- CRITICAL: never output a Google placeId or any other place identifier — searchQuery must be a plain human-readable search string, not an ID. Real places are resolved separately after generation.`;
+}
+
+/**
+ * Multi-city variant of buildPrompt(), used when additionalDestinations is
+ * non-empty. Gemini allocates the total day count across all listed cities
+ * itself (no pre-computed split from our own code — see the Phase 2 design
+ * spec's "Day allocation" decision), in the exact order given. The JSON
+ * response schema is identical to the single-city prompt — only the
+ * instructions change, not the shape Gemini must return.
+ */
+export function buildMultiCityPrompt(data: GenerateTripRequest, mustSeeStr: string, prefStr: string): string {
+  const cities = [
+    { name: data.destination, countryCode: data.countryCode || null },
+    ...data.additionalDestinations.map((d) => ({ name: d.name, countryCode: d.countryCode })),
+  ];
+  const cityListStr = cities
+    .map((c, i) => `${i + 1}. ${c.name}${c.countryCode ? ` (${c.countryCode})` : ''}`)
+    .join('\n');
+
+  return `Create a ${data.durationDays}-day ${data.travelStyle}-style multi-city travel itinerary spanning these destinations, IN THIS ORDER:
+${cityListStr}
+
+Paced for a "${data.pace}" traveler.
+
+Pace rule for this trip: ${PACE_RULES[data.pace]}
+Travel style rule for this trip: ${STYLE_RULES[data.travelStyle]}
+${mustSeeStr}
+${prefStr}
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+  "title": "Trip title",
+  "description": "2-3 sentence trip overview",
+  "days": [
+    {
+      "dayNumber": 1,
+      "title": "Day theme title",
+      "notes": "Brief day overview",
+      "activities": [
+        {
+          "type": "hotel|flight|restaurant|activity|transport|free",
+          "title": "Activity name",
+          "address": "Best-guess one-line address or null — this is NOT verified, so approximate is fine",
+          "rationale": "One sentence on why this stop fits this traveler's style/pace/preferences",
+          "searchQuery": "A specific, geographically-qualified search string for this place, e.g. 'Louvre Museum, Paris' — this is the ONLY place-identifying field you may output",
+          "startTime": "09:00 or null",
+          "endTime": "11:00 or null",
+          "notes": "Brief description",
+          "cost": 25 or null,
+          "currency": "USD or null"
+        }
+      ]
+    }
+  ]
+}
+
+Rules:
+- Follow the pace rule above for how many activities to include per day — do not default to a generic count
+- Follow the travel style rule above — the itinerary should look visibly different for a different style/pace than this one
+- Mix activity types naturally
+- Allocate the ${data.durationDays} total days across all ${cities.length} destinations yourself, in the order listed above — consider how much there typically is to see and do in each place. Do not split evenly by default; weight it realistically based on each destination's size and typical stay length.
+- Visit the destinations strictly in the order listed above — do not reorder them and do not revisit an earlier destination later in the trip
+- On the FIRST day at each destination after the first, include exactly one "transport"-type activity before any other activity that day, titled like "Travel from {previous destination} to {this destination}". Its searchQuery must name a real, findable transit hub in the PREVIOUS (departure) destination — its main train station or airport (e.g. "Gare de Lyon, Paris") — never the destination just arrived at, and never a generic placeholder
+- Each activity's cost and currency must reflect the LOCAL currency of whichever destination that activity actually takes place in — not one single currency for the whole trip
+- Include at least one meal per day
+- Start the very first day of the whole trip with hotel check-in
+- Return exactly ${data.durationDays} days total across the whole trip
+- dayNumber must be one continuous sequence from 1 to ${data.durationDays} spanning all destinations — do not restart numbering when arriving at a new destination
 - CRITICAL: never output a Google placeId or any other place identifier — searchQuery must be a plain human-readable search string, not an ID. Real places are resolved separately after generation.`;
 }
