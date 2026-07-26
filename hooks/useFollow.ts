@@ -25,17 +25,19 @@ async function checkIsFollowing(followerUid: string, followeeUid: string): Promi
 
 async function followUser(followerUid: string, followeeUid: string): Promise<void> {
   await runTransaction(db, async (tx) => {
-    tx.set(doc(db, 'follows', followDocId(followerUid, followeeUid)), {
-      followerUid,
-      followeeUid,
-      createdAt: serverTimestamp(),
-    });
+    // Firestore transactions require every read before any write — reads
+    // first, then the follow-doc write and count updates.
     const followerRef = doc(db, 'users', followerUid);
     const followeeRef = doc(db, 'users', followeeUid);
     const [followerSnap, followeeSnap] = await Promise.all([
       tx.get(followerRef),
       tx.get(followeeRef),
     ]);
+    tx.set(doc(db, 'follows', followDocId(followerUid, followeeUid)), {
+      followerUid,
+      followeeUid,
+      createdAt: serverTimestamp(),
+    });
     tx.update(followerRef, {
       followingCount: (followerSnap.data()?.followingCount ?? 0) + 1,
     });
@@ -47,13 +49,14 @@ async function followUser(followerUid: string, followeeUid: string): Promise<voi
 
 async function unfollowUser(followerUid: string, followeeUid: string): Promise<void> {
   await runTransaction(db, async (tx) => {
-    tx.delete(doc(db, 'follows', followDocId(followerUid, followeeUid)));
+    // Same read-before-write ordering as followUser() above.
     const followerRef = doc(db, 'users', followerUid);
     const followeeRef = doc(db, 'users', followeeUid);
     const [followerSnap, followeeSnap] = await Promise.all([
       tx.get(followerRef),
       tx.get(followeeRef),
     ]);
+    tx.delete(doc(db, 'follows', followDocId(followerUid, followeeUid)));
     tx.update(followerRef, {
       followingCount: Math.max(0, (followerSnap.data()?.followingCount ?? 1) - 1),
     });
