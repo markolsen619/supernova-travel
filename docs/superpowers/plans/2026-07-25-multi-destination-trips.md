@@ -48,6 +48,8 @@ used by `DayTimeline.tsx`/`app/trip/[id].tsx` for activity reordering), Firebase
 **Files:**
 - Modify: `types/index.ts`
 - Modify: `types/ai.ts`
+- Modify: `components/search/AddToTripSheet.tsx` (a third `createTrip()` call site the original file
+  search missed — see Step 4)
 
 **Interfaces:**
 - Produces: `Destination` interface, `Trip.additionalDestinations: Destination[]`,
@@ -198,18 +200,55 @@ export interface GenerateTripRequest {
 `types/ai.ts` currently has no cross-imports from `types/index.ts`, and this keeps that file
 independent, matching its existing style.)
 
-- [ ] **Step 4: Verify typecheck**
+- [ ] **Step 4: Fix the third `createTrip()` call site this plan's file search missed**
+
+`components/search/AddToTripSheet.tsx`'s `handleCreateAndAdd` (a "quick-create a trip from a search
+result place, then add it as an activity" shortcut, separate from both the manual wizard and the
+AI-generate flow) also constructs a `CreateTripInput` object directly — this plan's original file
+search (`grep` for `destination` usage) missed it. Since `additionalDestinations` is now required on
+`CreateTripInput`, this call site needs it too.
+
+In `components/search/AddToTripSheet.tsx`, find:
+
+```ts
+        destination: {
+          name: place.name,
+          placeId: place.placeId,
+          lat: place.lat,
+          lng: place.lng,
+          countryCode: place.countryCode,
+        },
+        startDate: null,
+```
+
+Replace with:
+
+```ts
+        destination: {
+          name: place.name,
+          placeId: place.placeId,
+          lat: place.lat,
+          lng: place.lng,
+          countryCode: place.countryCode,
+        },
+        // Quick-create shortcut from a search result — single destination by
+        // design, not the full multi-destination wizard.
+        additionalDestinations: [],
+        startDate: null,
+```
+
+- [ ] **Step 5: Verify typecheck**
 
 Run: `npx tsc --noEmit`
 Expected: errors ONLY in files that construct a `CreateTripInput`/`Trip`/`GenerateTripRequest` without
 the new required fields yet (`app/trip/new.tsx`, `hooks/useCreateTrip.ts`, `app/trip/ai-generate.tsx`,
-`app/trip/ai-generating.tsx`) — all fixed in later tasks. No errors inside `types/index.ts` or
-`types/ai.ts` themselves.
+`app/trip/ai-generating.tsx`) — all fixed in later tasks. No errors inside `types/index.ts`,
+`types/ai.ts`, or `components/search/AddToTripSheet.tsx`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add types/index.ts types/ai.ts
+git add types/index.ts types/ai.ts components/search/AddToTripSheet.tsx
 git commit -m "feat: add Destination type and additionalDestinations field"
 ```
 
