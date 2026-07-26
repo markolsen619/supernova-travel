@@ -691,6 +691,18 @@ export default function TripDetailScreen() {
             </Text>
           </View>
 
+          {trip.additionalDestinations?.map((dest, i) => (
+            <View
+              key={`${dest.placeId}-${i}`}
+              style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+            >
+              <MapPin size={13} color={colors.text.secondary} weight="bold" />
+              <Text style={[styles.chipText, { color: colors.text.primary }]} numberOfLines={1}>
+                {dest.name}
+              </Text>
+            </View>
+          ))}
+
           <View
             style={[
               styles.chip,
