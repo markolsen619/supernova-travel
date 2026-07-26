@@ -13,13 +13,15 @@ import { Trip } from '@/types';
 
 // Older trips predate the budget feature — default rather than leaving
 // `undefined`, which the Trip type (number | null, not optional) doesn't
-// account for.
+// account for. Same reasoning for additionalDestinations (predates the
+// multi-destination feature; Trip's type is Destination[], not optional).
 function normalizeTrip(id: string, data: DocumentData): Trip {
   return {
     id,
     ...data,
     budgetAmount: data.budgetAmount ?? null,
     budgetCurrency: data.budgetCurrency ?? null,
+    additionalDestinations: data.additionalDestinations ?? [],
   } as Trip;
 }
 
