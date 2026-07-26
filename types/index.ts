@@ -68,19 +68,29 @@ export interface Comment {
 export type TripStatus = 'planning' | 'active' | 'completed';
 export type TripVisibility = 'public' | 'followers' | 'private';
 
+export interface Destination {
+  name: string;
+  placeId: string | null;
+  lat: number | null;
+  lng: number | null;
+  countryCode: string | null;
+}
+
 export interface Trip {
   id: string;
   authorUid: string;
   title: string;
   description: string;
   coverImageUrl: string | null;
-  destination: {
-    name: string;
-    placeId: string | null;
-    lat: number | null;
-    lng: number | null;
-    countryCode: string | null;
-  };
+  destination: Destination;
+  /** Additional stops beyond the primary destination, in visit order. Empty
+   * for single-destination trips (the overwhelming majority). Capped at 9
+   * (10 total including the primary) — see DestinationListEditor. Every
+   * existing single-destination consumer (cover photo, map, packing
+   * templates, Algolia sync, TripCard) intentionally reads only
+   * `destination` and ignores this field — see the Phase 1 spec's "out of
+   * scope" list. */
+  additionalDestinations: Destination[];
   startDate: Timestamp | null;
   endDate: Timestamp | null;
   visibility: TripVisibility;
@@ -318,7 +328,8 @@ export interface TripWithDays extends Trip {
 export interface CreateTripInput {
   title: string;
   description: string;
-  destination: Trip['destination'];
+  destination: Destination;
+  additionalDestinations: Destination[];
   startDate: Date | null;
   endDate: Date | null;
   visibility: TripVisibility;
@@ -331,7 +342,8 @@ export interface UpdateTripInput {
   title?: string;
   description?: string;
   coverImageUrl?: string | null;
-  destination?: Trip['destination'];
+  destination?: Destination;
+  additionalDestinations?: Destination[];
   visibility?: TripVisibility;
   tags?: string[];
   startDate?: Date | null;
