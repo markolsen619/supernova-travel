@@ -5,7 +5,7 @@ import { UserProfile, Trip } from '@/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePublicTrips } from '@/hooks/useTripList';
 
-async function fetchUserSuggestions(): Promise<UserProfile[]> {
+export async function fetchUserSuggestions(): Promise<UserProfile[]> {
   const q = query(
     collection(db, 'users'),
     orderBy('followersCount', 'desc'),
