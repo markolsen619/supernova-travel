@@ -15,7 +15,6 @@ export interface OnboardingContent {
   exploreCoverUrl: string | null;
   aiCoverUrl: string | null;
   communityAvatars: OnboardingAvatar[];
-  isLoading: boolean;
 }
 
 /** Picks slide 1's and slide 2's hero photos from the same public-trips
@@ -38,12 +37,12 @@ export function selectOnboardingCovers(trips: Trip[]): {
 export function useOnboardingContent(): OnboardingContent {
   const currentUid = useAuthStore((s) => s.user?.uid ?? null);
 
-  const { data: trips = [], isLoading: tripsLoading } = usePublicTrips(20);
+  const { data: trips = [] } = usePublicTrips(20);
 
   // Same queryKey shape as useExplore.ts's own fetchUserSuggestions call —
   // when the user has already visited Explore this session, this is served
   // from TanStack Query's cache with zero extra Firestore round trips.
-  const { data: rawSuggestions = [], isLoading: suggestionsLoading } = useQuery<UserProfile[]>({
+  const { data: rawSuggestions = [] } = useQuery<UserProfile[]>({
     queryKey: ['userSuggestions', currentUid ?? 'anon'],
     queryFn: fetchUserSuggestions,
     staleTime: 10 * 60 * 1000,
@@ -67,6 +66,5 @@ export function useOnboardingContent(): OnboardingContent {
     exploreCoverUrl,
     aiCoverUrl,
     communityAvatars,
-    isLoading: tripsLoading || suggestionsLoading,
   };
 }

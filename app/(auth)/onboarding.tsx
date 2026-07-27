@@ -167,6 +167,7 @@ export default function OnboardingScreen() {
         onMomentumScrollEnd={onMomentumScrollEnd}
         style={styles.flatList}
         bounces={false}
+        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
       />
 
       <View style={styles.controls}>

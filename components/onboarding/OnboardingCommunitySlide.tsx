@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { StarMark } from '@/components/ui/StarMark';
 import { SlideTextBlock } from '@/components/onboarding/SlideTextBlock';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { useSwipeParallax } from '@/hooks/useSwipeParallax';
 import { OnboardingAvatar } from '@/hooks/useOnboardingContent';
 import { Spacing } from '@/constants/spacing';
 
@@ -40,18 +41,17 @@ export function OnboardingCommunitySlide({
   }, [active, reduceMotion, scale]);
 
   // Same swipe-parallax contract as OnboardingPhotoSlide (Task 6) — composed
-  // with the grid's own drift scale as a second transform entry.
-  const parallaxScale = scrollX.interpolate({
-    inputRange: [(index - 1) * width, index * width, (index + 1) * width],
-    outputRange: [1.05, 1, 1.05],
-    extrapolate: 'clamp',
-  });
+  // with the grid's own drift scale as a second transform entry. Reduce-
+  // motion gated inside the hook; `undefined` means omit the transform
+  // entry entirely rather than passing `{ scale: undefined }`.
+  const parallaxScale = useSwipeParallax(scrollX, index, width);
+  const gridTransform = parallaxScale ? [{ scale }, { scale: parallaxScale }] : [{ scale }];
 
   return (
     <View style={[styles.slide, { width }]}>
       <View style={styles.gridRegion}>
         {avatars.length > 0 ? (
-          <Animated.View style={[styles.grid, { transform: [{ scale }, { scale: parallaxScale }] }]}>
+          <Animated.View style={[styles.grid, { transform: gridTransform }]}>
             {avatars.map((a) => (
               <Avatar key={a.uid} uri={a.avatarUrl} name={a.name} size="xl" style={styles.gridAvatar} />
             ))}
