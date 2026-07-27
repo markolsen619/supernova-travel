@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,116 +7,56 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   ListRenderItemInfo,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
   Animated,
 } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  Globe,
-  Sparkle,
-  MapPin,
-  Users,
-  RocketLaunch,
-} from 'phosphor-react-native';
+import { useTheme } from '@/hooks/useTheme';
+import { useOnboardingContent } from '@/hooks/useOnboardingContent';
+import { OnboardingPhotoSlide } from '@/components/onboarding/OnboardingPhotoSlide';
+import { OnboardingWalletSlide } from '@/components/onboarding/OnboardingWalletSlide';
+import { OnboardingCommunitySlide } from '@/components/onboarding/OnboardingCommunitySlide';
+import { OnboardingProSlide } from '@/components/onboarding/OnboardingProSlide';
 import { Button } from '@/components/ui/Button';
-import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing, BorderRadius } from '@/constants/spacing';
+import { Spacing } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 
-type PhosphorIcon = typeof Globe;
-
-interface Slide {
-  id: string;
-  Icon: PhosphorIcon;
-  iconColor: string;
-  iconBg: string;
-  title: string;
-  body: string;
-  glowColor: string;
-}
-
-const SLIDES: Slide[] = [
-  {
-    id: '1',
-    Icon: Globe,
-    iconColor: '#a78bfa',
-    iconBg: 'rgba(167,139,250,0.15)',
-    title: 'Explore the World',
-    body: 'Discover trending destinations, hidden gems, and trip ideas from real travelers.',
-    glowColor: 'rgba(120,80,255,0.22)',
-  },
-  {
-    id: '2',
-    Icon: Sparkle,
-    iconColor: '#f472b6',
-    iconBg: 'rgba(244,114,182,0.15)',
-    title: 'AI-Powered Itineraries',
-    body: 'Tell us where you\'re headed and our AI builds a full day-by-day plan in seconds.',
-    glowColor: 'rgba(244,114,182,0.22)',
-  },
-  {
-    id: '3',
-    Icon: MapPin,
-    iconColor: '#fbbf24',
-    iconBg: 'rgba(251,191,36,0.15)',
-    title: 'Your Travel Wallet',
-    body: 'Store boarding passes, hotel reservations, and loyalty cards — all in one place.',
-    glowColor: 'rgba(251,191,36,0.18)',
-  },
-  {
-    id: '4',
-    Icon: Users,
-    iconColor: '#34d399',
-    iconBg: 'rgba(52,211,153,0.15)',
-    title: 'Travel Together',
-    body: 'Follow other explorers, share your trips, and get inspired by the community.',
-    glowColor: 'rgba(52,211,153,0.18)',
-  },
-  {
-    id: '5',
-    Icon: RocketLaunch,
-    iconColor: '#a78bfa',
-    iconBg: 'rgba(167,139,250,0.15)',
-    title: 'Ready to Explore?',
-    body: 'Your next adventure starts here. Let\'s go.',
-    glowColor: 'rgba(120,80,255,0.22)',
-  },
-];
+const SLIDE_COUNT = 5;
+const SLIDE_INDEXES = [0, 1, 2, 3, 4];
 
 async function markOnboardingComplete() {
   await AsyncStorage.setItem('onboarding_complete', '1');
 }
 
 function DotItem({ active }: { active: boolean }) {
+  const { colors } = useTheme();
   const width = useRef(new Animated.Value(active ? 24 : 8)).current;
 
   useEffect(() => {
-    Animated.spring(width, {
-      toValue: active ? 24 : 8,
-      ...SPRING,
-      // width is a layout prop — the native driver can't animate it
-      useNativeDriver: false,
-    }).start();
+    Animated.spring(width, { toValue: active ? 24 : 8, ...SPRING, useNativeDriver: false }).start();
   }, [active, width]);
 
   return (
     <Animated.View
       style={[
         styles.dot,
-        { backgroundColor: active ? DarkColors.brand.purple : 'rgba(255,255,255,0.25)' },
-        { width },
+        { backgroundColor: active ? colors.text.primary : colors.background.cardBorder, width },
       ]}
     />
   );
 }
 
 export default function OnboardingScreen() {
+  const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
-  const listRef = useRef<FlatList<Slide>>(null);
+  const listRef = useRef<FlatList<number>>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const content = useOnboardingContent();
 
   const handleFinish = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -124,8 +64,14 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)');
   }, []);
 
+  const handleSeePlans = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markOnboardingComplete();
+    router.replace('/paywall');
+  }, []);
+
   const handleNext = useCallback(() => {
-    if (activeIndex < SLIDES.length - 1) {
+    if (activeIndex < SLIDE_COUNT - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const next = activeIndex + 1;
       listRef.current?.scrollToIndex({ index: next, animated: true });
@@ -141,83 +87,95 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)');
   }, []);
 
-  const onMomentumScrollEnd = useCallback((e: any) => {
-    const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-    setActiveIndex(newIndex);
-  }, [width]);
+  const onMomentumScrollEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
+      setActiveIndex(newIndex);
+    },
+    [width]
+  );
 
-  const renderSlide = useCallback(({ item }: ListRenderItemInfo<Slide>) => {
-    const { Icon, iconColor, iconBg, title, body, glowColor } = item;
-    return (
-      <View style={[styles.slide, { width }]}>
-        {/* Glow orb behind icon */}
-        <View style={[styles.glowOrb, { backgroundColor: glowColor }]} />
+  const renderSlide = useCallback(
+    ({ item: index }: ListRenderItemInfo<number>) => {
+      const active = index === activeIndex;
+      switch (index) {
+        case 0:
+          return (
+            <OnboardingPhotoSlide
+              imageUrl={content.exploreCoverUrl}
+              eyebrow="Explore"
+              title="Explore the world"
+              body="Discover trending destinations, hidden gems, and trip ideas from real travelers."
+              active={active}
+              scrollX={scrollX}
+              index={index}
+            />
+          );
+        case 1:
+          return (
+            <OnboardingPhotoSlide
+              imageUrl={content.aiCoverUrl}
+              eyebrow="AI Itineraries"
+              title="A full plan, in seconds"
+              body="Tell us where you're headed — AI builds the day-by-day."
+              active={active}
+              scrollX={scrollX}
+              index={index}
+            />
+          );
+        case 2:
+          return <OnboardingWalletSlide active={active} />;
+        case 3:
+          return (
+            <OnboardingCommunitySlide
+              avatars={content.communityAvatars}
+              active={active}
+              scrollX={scrollX}
+              index={index}
+            />
+          );
+        default:
+          return <OnboardingProSlide active={active} />;
+      }
+    },
+    [activeIndex, content.exploreCoverUrl, content.aiCoverUrl, content.communityAvatars, scrollX]
+  );
 
-        {/* Icon bubble */}
-        <View style={[styles.iconBubble, { backgroundColor: iconBg }]}>
-          <Icon size={52} color={iconColor} weight="duotone" />
-        </View>
-
-        <Text style={styles.slideTitle}>{title}</Text>
-        <Text style={styles.slideBody}>{body}</Text>
-      </View>
-    );
-  }, [width]);
-
-  const isLast = activeIndex === SLIDES.length - 1;
+  const isLast = activeIndex === SLIDE_COUNT - 1;
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={[
-          DarkColors.background.primary,
-          DarkColors.background.elevated,
-          DarkColors.background.primary,
-        ]}
-        style={StyleSheet.absoluteFill}
-      />
-      {/* Secondary aurora glow */}
-      <View style={styles.auroraTop} />
-      <View style={styles.auroraBottom} />
-
-      {/* Skip button */}
+    <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
       {!isLast && (
         <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} activeOpacity={0.7}>
-          <Text style={styles.skipText}>Skip</Text>
+          <Text style={[styles.skipText, { color: colors.text.secondary }]}>Skip</Text>
         </TouchableOpacity>
       )}
 
-      {/* Slides */}
       <FlatList
         ref={listRef}
-        data={SLIDES}
-        keyExtractor={(s) => s.id}
+        data={SLIDE_INDEXES}
+        keyExtractor={(i) => String(i)}
         renderItem={renderSlide}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: true }
+        )}
         onMomentumScrollEnd={onMomentumScrollEnd}
         style={styles.flatList}
-        contentContainerStyle={styles.flatListContent}
         bounces={false}
       />
 
-      {/* Bottom controls */}
       <View style={styles.controls}>
-        {/* Dot indicators */}
         <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
+          {SLIDE_INDEXES.map((i) => (
             <DotItem key={i} active={i === activeIndex} />
           ))}
         </View>
 
-        {/* CTA button — handleNext/handleFinish already fire the correct
-            Light/Medium haptic per branch; haptic="none" stops Button's own
-            default from double-buzzing on top of that. colors={DarkColors}
-            pins it to this always-dark screen's palette — found missing
-            during the dark-screen shared-component audit (same bug class as
-            welcome.tsx's buttons and search.tsx's result rows). */}
         <Button
           label={isLast ? 'Get started' : 'Next'}
           onPress={handleNext}
@@ -225,9 +183,13 @@ export default function OnboardingScreen() {
           size="lg"
           fullWidth
           haptic="none"
-          colors={DarkColors}
-          style={styles.ctaBtn}
         />
+
+        {isLast ? (
+          <TouchableOpacity onPress={handleSeePlans} activeOpacity={0.7} style={styles.seePlans}>
+            <Text style={[styles.seePlansText, { color: colors.text.secondary }]}>See plans</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -235,18 +197,6 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  auroraTop: {
-    position: 'absolute', top: -100, right: -80,
-    width: 300, height: 300, borderRadius: 150,
-    backgroundColor: 'rgba(120,80,255,0.15)',
-  },
-  auroraBottom: {
-    position: 'absolute', bottom: 60, left: -80,
-    width: 260, height: 260, borderRadius: 130,
-    backgroundColor: 'rgba(244,114,182,0.12)',
-  },
-
   skipBtn: {
     position: 'absolute',
     top: 60,
@@ -255,71 +205,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['3'],
     paddingVertical: Spacing['2'],
   },
-  skipText: {
-    color: DarkColors.text.secondary,
-    fontSize: FontSize.base,
-    fontWeight: FontWeight.medium,
-  },
-
+  skipText: { fontSize: FontSize.base, fontWeight: FontWeight.medium },
   flatList: { flex: 1 },
-  flatListContent: {},
-
-  slide: {
-    flex: 1,
+  controls: { paddingHorizontal: Spacing['6'], paddingBottom: 48, gap: Spacing['5'] },
+  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: Spacing['2'] },
+  dot: { height: 8, borderRadius: 4 },
+  seePlans: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing['8'],
-    paddingTop: Spacing['16'],
+    minHeight: 44,
+    paddingVertical: Spacing['2'],
   },
-
-  glowOrb: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    top: '20%',
-    alignSelf: 'center',
-  },
-
-  iconBubble: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing['8'],
-  },
-
-  slideTitle: {
-    fontSize: FontSize['3xl'],
-    fontWeight: FontWeight.black,
-    color: DarkColors.text.primary,
-    textAlign: 'center',
-    marginBottom: Spacing['4'],
-  },
-  slideBody: {
-    fontSize: FontSize.lg,
-    color: DarkColors.text.secondary,
-    textAlign: 'center',
-    lineHeight: FontSize.lg * 1.6,
-  },
-
-  controls: {
-    paddingHorizontal: Spacing['6'],
-    paddingBottom: 48,
-    gap: Spacing['5'],
-  },
-
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: Spacing['2'],
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-
-  ctaBtn: {},
+  seePlansText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, textDecorationLine: 'underline' },
 });
