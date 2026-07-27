@@ -14,7 +14,8 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 export default function AccountSettingsScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { user, tier } = useAuthStore((s) => ({ user: s.user, tier: s.tier }));
+  const user = useAuthStore((s) => s.user);
+  const tier = useAuthStore((s) => s.tier);
   const profile = useUserStore((s) => s.profile);
 
   const handleBack = useCallback(() => {
