@@ -151,7 +151,7 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       )}
 
-      <FlatList
+      <Animated.FlatList
         ref={listRef}
         data={SLIDE_INDEXES}
         keyExtractor={(i) => String(i)}
