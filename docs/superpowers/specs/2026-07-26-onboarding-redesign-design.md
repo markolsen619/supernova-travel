@@ -47,14 +47,14 @@ Design Decisions) — only `onboarding.tsx` changes.
 | 2 | AI-powered itineraries | Real AI-generated trip cover photo | Same query, filtered to `isAiGenerated === true`, excluding whichever trip slide 1 already picked | Next |
 | 3 | Your travel wallet | Live `BoardingPassCard`, sample pass (SFO→NRT, `status: 'upcoming'`) | None — hardcoded literal | Next |
 | 4 | Travel together | Grid of real user avatars, top-followed users | `fetchUserSuggestions` (exported from `useExplore.ts`), first 6 | Next |
-| 5 | Go further with Pro | `PaywallFeatureList` (all 6 existing Pro features) | None | **Get started** (primary, → `(tabs)`) / **See plans** (secondary, → `/paywall`) |
+| 5 | Go further with Pro | `PaywallFeatureList` (all 5 existing Pro features) | None | **Get started** (primary, → `(tabs)`) / **See plans** (secondary, → `/paywall`) |
 
 ## Visual System
 
 - **Layout:** photo/component region fills top ~60% of the slide; `LinearGradient`-style scrim
   (transparent → `LightColors.background.primary`) blends it into the canvas below. Slide 3 swaps
   the bleed photo for a centered, padded `BoardingPassCard`; slide 5 swaps it for a scrollable
-  `PaywallFeatureList` block, since 6 feature rows don't fit the photo region's height.
+  `PaywallFeatureList` block, since 5 feature rows don't fit the photo region's height.
 - **Eyebrow:** uppercase, tracked-out (`0.08em`+), muted (`colors.text.tertiary`) — the app's
   existing editorial-signature pattern, above every slide's title.
 - **Title:** 24px / weight 600, `-0.02em` letter-spacing.
