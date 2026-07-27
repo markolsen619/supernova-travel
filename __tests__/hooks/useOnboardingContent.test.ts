@@ -2,6 +2,13 @@ import { Timestamp } from 'firebase/firestore';
 import { Trip } from '@/types';
 import { selectOnboardingCovers } from '@/hooks/useOnboardingContent';
 
+jest.mock('@/services/firebase', () => ({
+  auth: {},
+  db: {},
+  storage: {},
+  functions: {},
+}));
+
 function makeTrip(overrides: Partial<Trip>): Trip {
   const now = Timestamp.fromDate(new Date());
   return {
