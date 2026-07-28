@@ -1,7 +1,6 @@
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -10,13 +9,12 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useState, useCallback } from 'react';
-import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useState, useCallback, useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { StarMark } from '@/components/ui/StarMark';
+import { WalletHeader } from '@/components/wallet/WalletHeader';
+import { DateField } from '@/components/wallet/DateField';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLoyaltyPrograms } from '@/hooks/useLoyaltyPrograms';
@@ -54,10 +52,13 @@ const TIER_LABELS: Record<LoyaltyTier, string> = {
 };
 
 export default function AddLoyaltyScreen() {
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
-  const { addProgram } = useLoyaltyPrograms();
+  const { loyaltyPrograms, addProgram, updateProgram } = useLoyaltyPrograms();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+
+  const isEditMode = !!id;
+  const existing = id ? loyaltyPrograms.find((p) => p.id === id) : undefined;
 
   const [programName, setProgramName] = useState('');
   const [programType, setProgramType] = useState<ProgramType>('airline');
@@ -65,7 +66,18 @@ export default function AddLoyaltyScreen() {
   const [balanceText, setBalanceText] = useState('');
   const [unit, setUnit] = useState<LoyaltyUnit>('miles');
   const [tier, setTier] = useState<LoyaltyTier>('standard');
-  const [expiryDate, setExpiryDate] = useState('');
+  const [expiryDate, setExpiryDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!existing) return;
+    setProgramName(existing.programName);
+    setProgramType(existing.programType);
+    setMemberNumber(existing.memberNumber ?? '');
+    setBalanceText(String(existing.balance));
+    setUnit(existing.unit);
+    setTier(existing.tier ?? 'standard');
+    setExpiryDate(existing.expiryDate ? new Date(existing.expiryDate) : null);
+  }, [existing]);
 
   const handleSubmit = useCallback(() => {
     if (!programName.trim()) {
@@ -81,25 +93,34 @@ export default function AddLoyaltyScreen() {
       return;
     }
 
-    addProgram.mutate(
-      {
-        ownerUid: uid,
-        programName: programName.trim(),
-        programType,
-        memberNumber: memberNumber.trim() || undefined,
-        balance: Number(balanceText),
-        unit,
-        tier,
-        expiryDate: expiryDate.trim() || undefined,
-        isManual: true,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        onSuccess: () => router.back(),
-        onError: () => Alert.alert('Save failed', 'The program didn\'t save. Try again.'),
-      },
-    );
-  }, [programName, programType, memberNumber, balanceText, unit, tier, expiryDate, uid, addProgram]);
+    const fields = {
+      programName: programName.trim(),
+      programType,
+      ...(memberNumber.trim() ? { memberNumber: memberNumber.trim() } : {}),
+      balance: Number(balanceText),
+      unit,
+      tier,
+      ...(expiryDate ? { expiryDate: expiryDate.toISOString() } : {}),
+    };
+
+    if (isEditMode && id) {
+      updateProgram.mutate(
+        { id, ...fields },
+        {
+          onSuccess: () => router.back(),
+          onError: () => Alert.alert('Save failed', "The program didn't save. Try again."),
+        },
+      );
+    } else {
+      addProgram.mutate(
+        { ownerUid: uid, ...fields, isManual: true, createdAt: new Date().toISOString() },
+        {
+          onSuccess: () => router.back(),
+          onError: () => Alert.alert('Save failed', "The program didn't save. Try again."),
+        },
+      );
+    }
+  }, [programName, programType, memberNumber, balanceText, unit, tier, expiryDate, uid, isEditMode, id, addProgram, updateProgram]);
 
   const inputStyle = [
     styles.input,
@@ -132,30 +153,17 @@ export default function AddLoyaltyScreen() {
     setTier(t);
   }, []);
 
+  const isPending = addProgram.isPending || updateProgram.isPending;
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background.primary }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + Spacing['4'],
-            borderBottomColor: colors.background.cardBorder,
-          },
-        ]}
-      >
-        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
-          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
-        </TouchableOpacity>
-        <View style={styles.titleGroup}>
-          <StarMark size={18} />
-          <Text style={[styles.title, { color: colors.text.primary }]}>Add loyalty program</Text>
-        </View>
-        <View style={styles.backButton} />
-      </View>
+      <WalletHeader
+        title={isEditMode ? 'Edit loyalty program' : 'Add loyalty program'}
+        onBack={handleBack}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -294,23 +302,20 @@ export default function AddLoyaltyScreen() {
         </View>
 
         {/* Expiry Date */}
-        <Text style={labelStyle}>Expiry date (optional)</Text>
-        <TextInput
-          style={inputStyle}
+        <DateField
+          label="Expiry date (optional)"
           value={expiryDate}
-          onChangeText={setExpiryDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.text.tertiary}
-          autoCapitalize="none"
-          keyboardType="default"
+          onChange={setExpiryDate}
+          mode="date"
+          placeholder="Select date"
         />
 
         {/* Submit */}
         <Button
-          label="Add loyalty program"
+          label={isEditMode ? 'Save changes' : 'Add loyalty program'}
           onPress={handleSubmit}
-          loading={addProgram.isPending}
-          disabled={addProgram.isPending}
+          loading={isPending}
+          disabled={isPending}
           variant="primary"
           size="lg"
           fullWidth
@@ -322,32 +327,8 @@ export default function AddLoyaltyScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing['4'],
-    paddingBottom: Spacing['4'],
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44,
-    minHeight: 44,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
-  starIcon: { width: 18, height: 18 },
-  title: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semiBold,
-  },
-  scroll: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  scroll: { flex: 1 },
   label: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
