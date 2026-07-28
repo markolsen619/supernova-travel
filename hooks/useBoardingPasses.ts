@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { collection, query, where, getDocs, addDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { BoardingPass } from '@/types';
@@ -31,6 +31,13 @@ export function useBoardingPasses() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] }),
   });
 
+  const updatePass = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<BoardingPass> & { id: string }) => {
+      await updateDoc(doc(db, 'boarding_passes', id), updates);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] }),
+  });
+
   const deletePass = useMutation({
     mutationFn: async (passId: string) => {
       await deleteDoc(doc(db, 'boarding_passes', passId));
@@ -38,5 +45,5 @@ export function useBoardingPasses() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] }),
   });
 
-  return { boardingPasses, isLoading, addPass, deletePass };
+  return { boardingPasses, isLoading, addPass, updatePass, deletePass };
 }

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { collection, query, where, getDocs, addDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { LoyaltyProgram } from '@/types';
@@ -31,6 +31,13 @@ export function useLoyaltyPrograms() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['loyaltyPrograms', uid] }),
   });
 
+  const updateProgram = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<LoyaltyProgram> & { id: string }) => {
+      await updateDoc(doc(db, 'loyalty_programs', id), updates);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['loyaltyPrograms', uid] }),
+  });
+
   const deleteProgram = useMutation({
     mutationFn: async (programId: string) => {
       await deleteDoc(doc(db, 'loyalty_programs', programId));
@@ -38,5 +45,5 @@ export function useLoyaltyPrograms() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['loyaltyPrograms', uid] }),
   });
 
-  return { loyaltyPrograms, isLoading, addProgram, deleteProgram };
+  return { loyaltyPrograms, isLoading, addProgram, updateProgram, deleteProgram };
 }
