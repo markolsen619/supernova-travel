@@ -372,13 +372,14 @@ export interface BoardingPass {
   seat?: string;
   boardingGroup?: string;
   gate?: string;
+  terminal?: string;        // new — not yet populated by any automated flow; manual entry only until the future flight-monitoring project
   barcode?: string;         // raw barcode string
   barcodeFormat?: BarcodeFormat;
   status: BoardingPassStatus;
   createdAt: string;        // ISO 8601
 }
 
-export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity';
+export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show';
 
 export interface Reservation {
   id: string;

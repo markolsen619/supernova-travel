@@ -19,6 +19,7 @@ import {
   Users,
   LockSimple,
   DotsThree,
+  Confetti,
 } from 'phosphor-react-native';
 import type { Icon } from 'phosphor-react-native';
 import type { ActivityType, ReservationType, LoyaltyProgram, TripVisibility, ExpenseCategory } from '@/types';
@@ -42,6 +43,7 @@ export const RESERVATION_ICONS: Record<ReservationType, IconEntry> = {
   rental_car: { Icon: Car,       color: '#fbbf24' },
   restaurant: { Icon: ForkKnife, color: '#f472b6' },
   activity:   { Icon: Ticket,    color: '#34d399' },
+  show:       { Icon: Confetti,  color: '#f472b6' },
 };
 
 export const LOYALTY_ICONS: Record<LoyaltyProgram['programType'], IconEntry> = {
