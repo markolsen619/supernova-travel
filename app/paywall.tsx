@@ -25,7 +25,14 @@ export default function PaywallScreen() {
 
   const handleClose = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.back();
+    // Paywall is sometimes reached via router.replace() (onboarding's "See
+    // plans", the AI-quota-exceeded redirect) rather than push, which leaves
+    // no back target — router.back() would throw GO_BACK not handled.
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
   }, []);
 
   const handleMonthlyPurchase = () => {
