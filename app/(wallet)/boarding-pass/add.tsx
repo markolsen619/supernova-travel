@@ -104,9 +104,9 @@ export default function AddBoardingPassScreen() {
       destination: form.destination.trim().toUpperCase(),
       destinationCity: form.destinationCity.trim(),
       departureTime: departureTimeIso,
-      seat: form.seat.trim() || undefined,
-      gate: form.gate.trim() || undefined,
-      terminal: form.terminal.trim() || undefined,
+      ...(form.seat.trim() ? { seat: form.seat.trim() } : {}),
+      ...(form.gate.trim() ? { gate: form.gate.trim() } : {}),
+      ...(form.terminal.trim() ? { terminal: form.terminal.trim() } : {}),
     };
 
     if (isEditMode && id) {
