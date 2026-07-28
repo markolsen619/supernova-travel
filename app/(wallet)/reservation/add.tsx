@@ -12,6 +12,7 @@ import {
 import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
@@ -19,7 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useReservations } from '@/hooks/useReservations';
 import { RESERVATION_ICONS } from '@/constants/icons';
-import { ReservationType } from '@/types';
+import { ReservationType, Reservation } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -80,19 +81,26 @@ export default function AddReservationScreen() {
       return;
     }
 
-    const fields = {
+    const baseFields = {
       type,
       title: title.trim(),
       confirmationCode: confirmationCode.trim(),
-      ...(checkIn ? { checkIn: checkIn.toISOString() } : {}),
-      ...(checkOut ? { checkOut: checkOut.toISOString() } : {}),
-      ...(address.trim() ? { address: address.trim() } : {}),
-      ...(notes.trim() ? { notes: notes.trim() } : {}),
     };
 
     if (isEditMode && id) {
+      // Edit mode uses deleteField() for blanked optional fields so clearing
+      // check-in/check-out/address/notes actually clears them in Firestore,
+      // rather than omitting the key (which would leave the prior value
+      // untouched).
+      const editFields: Record<string, unknown> = {
+        ...baseFields,
+        checkIn: checkIn ? checkIn.toISOString() : deleteField(),
+        checkOut: checkOut ? checkOut.toISOString() : deleteField(),
+        address: address.trim() || deleteField(),
+        notes: notes.trim() || deleteField(),
+      };
       updateReservation.mutate(
-        { id, ...fields },
+        { id, ...editFields } as Partial<Reservation> & { id: string },
         {
           onSuccess: () => router.back(),
           onError: () => Alert.alert('Save failed', "The reservation didn't save. Try again."),
@@ -100,7 +108,15 @@ export default function AddReservationScreen() {
       );
     } else {
       addReservation.mutate(
-        { ownerUid: uid, ...fields, createdAt: new Date().toISOString() },
+        {
+          ownerUid: uid,
+          ...baseFields,
+          ...(checkIn ? { checkIn: checkIn.toISOString() } : {}),
+          ...(checkOut ? { checkOut: checkOut.toISOString() } : {}),
+          ...(address.trim() ? { address: address.trim() } : {}),
+          ...(notes.trim() ? { notes: notes.trim() } : {}),
+          createdAt: new Date().toISOString(),
+        },
         {
           onSuccess: () => router.back(),
           onError: () => Alert.alert('Save failed', "The reservation didn't save. Try again."),

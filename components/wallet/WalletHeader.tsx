@@ -14,7 +14,7 @@ interface WalletHeaderProps {
 }
 
 // The back/star/title/[action] header every wallet screen used to hand-roll
-// identically (see the pre-redesign app/(wallet)/boarding-passes.tsx) — one
+// identically (see the pre-redesign wallet list/detail screens) — one
 // shared component instead of an 8th, 9th, 10th copy.
 export function WalletHeader({ title, onBack, rightAction }: WalletHeaderProps) {
   const insets = useSafeAreaInsets();
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['4'],
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backButton: { width: 44, minHeight: 44, alignItems: 'flex-start', justifyContent: 'center' },
   rightButton: { width: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },

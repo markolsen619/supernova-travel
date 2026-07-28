@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -12,6 +11,7 @@ import {
 import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
@@ -21,6 +21,7 @@ import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { combineDateAndTime } from '@/utils/date';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import type { BoardingPass } from '@/types';
 
 interface FormState {
   airline: string;
@@ -77,11 +78,11 @@ export default function AddBoardingPassScreen() {
     setDepartureTime(existingDeparture);
   }, [existing]);
 
-  const updateField = (field: keyof FormState, value: string) => {
+  const updateField = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!form.airline.trim() || !form.flightNumber.trim() || !form.origin.trim() || !form.destination.trim()) {
       Alert.alert('Missing details', 'Fill in airline, flight number, origin, and destination.');
       return;
@@ -96,7 +97,7 @@ export default function AddBoardingPassScreen() {
         ? combineDateAndTime(departureDate, departureTime)
         : new Date().toISOString();
 
-    const fields = {
+    const baseFields = {
       airline: form.airline.trim(),
       flightNumber: form.flightNumber.trim().toUpperCase(),
       origin: form.origin.trim().toUpperCase(),
@@ -104,14 +105,20 @@ export default function AddBoardingPassScreen() {
       destination: form.destination.trim().toUpperCase(),
       destinationCity: form.destinationCity.trim(),
       departureTime: departureTimeIso,
-      ...(form.seat.trim() ? { seat: form.seat.trim() } : {}),
-      ...(form.gate.trim() ? { gate: form.gate.trim() } : {}),
-      ...(form.terminal.trim() ? { terminal: form.terminal.trim() } : {}),
     };
 
     if (isEditMode && id) {
+      // Edit mode uses deleteField() for blanked optional fields so clearing
+      // seat/gate/terminal actually clears them in Firestore, rather than
+      // omitting the key (which would leave the prior value untouched).
+      const editFields: Record<string, unknown> = {
+        ...baseFields,
+        seat: form.seat.trim() || deleteField(),
+        gate: form.gate.trim() || deleteField(),
+        terminal: form.terminal.trim() || deleteField(),
+      };
       updatePass.mutate(
-        { id, ...fields },
+        { id, ...editFields } as Partial<BoardingPass> & { id: string },
         {
           onSuccess: () => router.back(),
           onError: () => Alert.alert('Save failed', "The pass didn't save. Try again."),
@@ -121,7 +128,10 @@ export default function AddBoardingPassScreen() {
       addPass.mutate(
         {
           ownerUid: user.uid,
-          ...fields,
+          ...baseFields,
+          ...(form.seat.trim() ? { seat: form.seat.trim() } : {}),
+          ...(form.gate.trim() ? { gate: form.gate.trim() } : {}),
+          ...(form.terminal.trim() ? { terminal: form.terminal.trim() } : {}),
           status: 'upcoming',
           createdAt: new Date().toISOString(),
         },
@@ -131,7 +141,7 @@ export default function AddBoardingPassScreen() {
         },
       );
     }
-  };
+  }, [form, user, departureDate, departureTime, isEditMode, id, updatePass, addPass]);
 
   const inputStyle = [
     styles.input,

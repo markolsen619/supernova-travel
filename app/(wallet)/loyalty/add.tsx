@@ -12,6 +12,7 @@ import {
 import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
@@ -93,19 +94,25 @@ export default function AddLoyaltyScreen() {
       return;
     }
 
-    const fields = {
+    const baseFields = {
       programName: programName.trim(),
       programType,
-      ...(memberNumber.trim() ? { memberNumber: memberNumber.trim() } : {}),
       balance: Number(balanceText),
       unit,
       tier,
-      ...(expiryDate ? { expiryDate: expiryDate.toISOString() } : {}),
     };
 
     if (isEditMode && id) {
+      // Edit mode uses deleteField() for blanked optional fields so clearing
+      // memberNumber/expiryDate actually clears them in Firestore, rather
+      // than omitting the key (which would leave the prior value untouched).
+      const editFields: Record<string, unknown> = {
+        ...baseFields,
+        memberNumber: memberNumber.trim() || deleteField(),
+        expiryDate: expiryDate ? expiryDate.toISOString() : deleteField(),
+      };
       updateProgram.mutate(
-        { id, ...fields },
+        { id, ...editFields } as Partial<LoyaltyProgram> & { id: string },
         {
           onSuccess: () => router.back(),
           onError: () => Alert.alert('Save failed', "The program didn't save. Try again."),
@@ -113,7 +120,14 @@ export default function AddLoyaltyScreen() {
       );
     } else {
       addProgram.mutate(
-        { ownerUid: uid, ...fields, isManual: true, createdAt: new Date().toISOString() },
+        {
+          ownerUid: uid,
+          ...baseFields,
+          ...(memberNumber.trim() ? { memberNumber: memberNumber.trim() } : {}),
+          ...(expiryDate ? { expiryDate: expiryDate.toISOString() } : {}),
+          isManual: true,
+          createdAt: new Date().toISOString(),
+        },
         {
           onSuccess: () => router.back(),
           onError: () => Alert.alert('Save failed', "The program didn't save. Try again."),
