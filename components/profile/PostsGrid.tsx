@@ -16,6 +16,7 @@ import { SquaresFour } from 'phosphor-react-native';
 
 import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
+import { excludeTripShares } from '@/utils/posts';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 
@@ -25,6 +26,7 @@ const CELL = Math.floor(SCREEN_WIDTH / 3);
 interface PostDoc {
   id: string;
   mediaUrl?: string;
+  mediaType?: string;
 }
 
 async function fetchUserPosts(uid: string): Promise<PostDoc[]> {
@@ -35,7 +37,8 @@ async function fetchUserPosts(uid: string): Promise<PostDoc[]> {
     limit(60),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PostDoc));
+  const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PostDoc));
+  return excludeTripShares(posts);
 }
 
 interface PostsGridProps {
