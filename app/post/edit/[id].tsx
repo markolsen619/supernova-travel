@@ -108,7 +108,7 @@ export default function EditPostScreen() {
           <TouchableOpacity
             style={styles.removeBtn}
             onPress={() => removePhoto(index)}
-            hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
             accessibilityLabel={`Remove photo ${index + 1}`}
           >
             <X size={12} color="#fff" weight="bold" />
@@ -222,7 +222,7 @@ export default function EditPostScreen() {
             <DraggableFlatList
               data={photoItems}
               horizontal
-              keyExtractor={(item, index) => `${item.kind === 'existing' ? item.url : item.localUri}-${index}`}
+              keyExtractor={(item) => (item.kind === 'existing' ? item.url : item.localUri)}
               renderItem={renderPhotoItem}
               onDragEnd={handlePhotoDragEnd}
               showsHorizontalScrollIndicator={false}
