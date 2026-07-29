@@ -107,10 +107,10 @@ function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId:
               autoFocus
             />
             <View style={styles.commentEditActions}>
-              <TouchableOpacity onPress={cancelEdit} hitSlop={8}>
+              <TouchableOpacity onPress={cancelEdit} hitSlop={8} style={styles.commentEditActionBtn}>
                 <Text style={[styles.commentEditActionText, { color: colors.text.secondary }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={saveEdit} disabled={saving} hitSlop={8}>
+              <TouchableOpacity onPress={saveEdit} disabled={saving} hitSlop={8} style={styles.commentEditActionBtn}>
                 <Text style={[styles.commentEditActionText, { color: colors.brand.purple }]}>Save</Text>
               </TouchableOpacity>
             </View>
@@ -128,10 +128,10 @@ function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId:
           </Text>
           {isMine && (
             <View style={styles.commentOwnerActions}>
-              <TouchableOpacity onPress={startEdit} hitSlop={8} accessibilityLabel="Edit comment">
+              <TouchableOpacity onPress={startEdit} hitSlop={8} accessibilityLabel="Edit comment" style={styles.commentIconBtn}>
                 <PencilSimple size={13} color={colors.text.tertiary} weight="regular" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={confirmDelete} hitSlop={8} accessibilityLabel="Delete comment">
+              <TouchableOpacity onPress={confirmDelete} hitSlop={8} accessibilityLabel="Delete comment" style={styles.commentIconBtn}>
                 <TrashSimple size={13} color={colors.text.tertiary} weight="regular" />
               </TouchableOpacity>
             </View>
@@ -433,6 +433,7 @@ const styles = StyleSheet.create({
   commentTime: { fontSize: FontSize.xs },
   commentMeta: { alignItems: 'flex-end', gap: 6 },
   commentOwnerActions: { flexDirection: 'row', gap: 10 },
+  commentIconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   commentEditBlock: { gap: 6 },
   commentEditInput: {
     borderWidth: 1,
@@ -444,6 +445,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   commentEditActions: { flexDirection: 'row', gap: Spacing['4'] },
+  commentEditActionBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing['1'] },
   commentEditActionText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   inputBar: {
     flexDirection: 'row',
