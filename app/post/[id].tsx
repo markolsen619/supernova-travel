@@ -10,22 +10,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   collection,
   onSnapshot,
   addDoc,
-  updateDoc,
-  deleteDoc,
   serverTimestamp,
   orderBy,
   query,
   doc,
   getDoc,
 } from 'firebase/firestore';
-import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -36,7 +32,6 @@ import { Comment, Post } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple } from 'phosphor-react-native';
-import { Button } from '@/components/ui/Button';
 import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
@@ -83,64 +78,8 @@ export default function PostDetailScreen() {
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Owner-only caption editing (rules also gate update/delete to authorUid)
-  const [editing, setEditing] = useState(false);
-  const [captionDraft, setCaptionDraft] = useState('');
-  const [savingCaption, setSavingCaption] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
   const { data: currentUser } = useUserProfile(uid);
-  const queryClient = useQueryClient();
   const isOwner = !!post && !!uid && post.authorUid === uid;
-
-  const startEditing = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCaptionDraft(post?.caption ?? '');
-    setEditError(null);
-    setEditing(true);
-  };
-
-  async function handleSaveCaption() {
-    if (!post || savingCaption) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSavingCaption(true);
-    setEditError(null);
-    try {
-      await updateDoc(doc(db, 'posts', post.id), { caption: captionDraft.trim() });
-      setPost({ ...post, caption: captionDraft.trim() });
-      queryClient.invalidateQueries({ queryKey: ['userPosts'] });
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
-      setEditing(false);
-    } catch (err) {
-      console.error('[PostDetail] caption save failed:', err);
-      setEditError("Couldn't save your changes. Try again in a moment.");
-    } finally {
-      setSavingCaption(false);
-    }
-  }
-
-  function handleDeletePost() {
-    if (!post) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('Delete this post?', "This can't be undone.", [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, 'posts', post.id));
-            queryClient.invalidateQueries({ queryKey: ['userPosts'] });
-            queryClient.invalidateQueries({ queryKey: ['feed'] });
-            router.back();
-          } catch (err) {
-            console.error('[PostDetail] delete failed:', err);
-            setEditError("Couldn't delete the post. Try again in a moment.");
-          }
-        },
-      },
-    ]);
-  }
 
   // One-time post fetch
   useEffect(() => {
@@ -212,7 +151,7 @@ export default function PostDetailScreen() {
         <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Post</Text>
         {isOwner ? (
           <TouchableOpacity
-            onPress={startEditing}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/post/edit/${post.id}`); }}
             style={styles.backBtn}
             hitSlop={8}
             accessibilityLabel="Edit post"
@@ -252,60 +191,8 @@ export default function PostDetailScreen() {
                 ) : null}
               </View>
             </TouchableOpacity>
-            {editing ? (
-              <View style={styles.editBlock}>
-                <TextInput
-                  value={captionDraft}
-                  onChangeText={setCaptionDraft}
-                  placeholder="Write a caption…"
-                  placeholderTextColor={colors.text.tertiary}
-                  multiline
-                  maxLength={500}
-                  autoFocus
-                  style={[
-                    styles.captionInput,
-                    {
-                      color: colors.text.primary,
-                      backgroundColor: colors.background.card,
-                      borderColor: colors.background.cardBorder,
-                    },
-                  ]}
-                />
-                {editError ? (
-                  <Text style={[styles.editError, { color: colors.semantic.error }]}>{editError}</Text>
-                ) : null}
-                <View style={styles.editActions}>
-                  <Button
-                    label="Cancel"
-                    variant="secondary"
-                    size="sm"
-                    onPress={() => setEditing(false)}
-                    haptic="light"
-                    style={styles.editActionBtn}
-                  />
-                  <Button
-                    label="Save"
-                    variant="primary"
-                    size="sm"
-                    loading={savingCaption}
-                    onPress={handleSaveCaption}
-                    haptic="none"
-                    style={styles.editActionBtn}
-                  />
-                </View>
-                <Button
-                  label="Delete post"
-                  variant="danger"
-                  size="sm"
-                  fullWidth
-                  onPress={handleDeletePost}
-                  haptic="none"
-                />
-              </View>
-            ) : (
-              !!post.caption && (
-                <Text style={[styles.caption, { color: colors.text.secondary }]}>{post.caption}</Text>
-              )
+            {!!post.caption && (
+              <Text style={[styles.caption, { color: colors.text.secondary }]}>{post.caption}</Text>
             )}
             {!!post.placeName && (
               <View style={styles.placeRow}>
@@ -422,19 +309,6 @@ const styles = StyleSheet.create({
   authorName: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },
   authorHandle: { fontSize: FontSize.sm },
   caption: { fontSize: FontSize.base, lineHeight: 22 },
-  editBlock: { gap: Spacing['3'] },
-  captionInput: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing['4'],
-    paddingVertical: Spacing['3'],
-    fontSize: FontSize.base,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  editError: { fontSize: FontSize.xs },
-  editActions: { flexDirection: 'row', gap: Spacing['3'] },
-  editActionBtn: { flex: 1 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   place: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
   tripCard: {
