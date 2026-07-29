@@ -21,7 +21,6 @@ import {
   orderBy,
   query,
   doc,
-  getDoc,
   updateDoc,
   deleteDoc,
 } from 'firebase/firestore';
@@ -31,12 +30,13 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useTheme } from '@/hooks/useTheme';
 import { Avatar } from '@/components/ui/Avatar';
 import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
-import { Comment, Post } from '@/types';
+import { Comment } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { usePost } from '@/hooks/usePost';
 
 function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts?.toDate) return '';
@@ -149,23 +149,13 @@ export default function PostDetailScreen() {
   const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
 
-  const [post, setPost] = useState<Post | null>(null);
-  const [postLoading, setPostLoading] = useState(true);
+  const { data: post, isLoading: postLoading } = usePost(id ?? null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const { data: currentUser } = useUserProfile(uid);
   const isOwner = !!post && !!uid && post.authorUid === uid;
-
-  // One-time post fetch
-  useEffect(() => {
-    if (!id) return;
-    getDoc(doc(db, 'posts', id)).then((snap) => {
-      if (snap.exists()) setPost({ id: snap.id, ...snap.data() } as Post);
-      setPostLoading(false);
-    });
-  }, [id]);
 
   // Real-time comments listener
   useEffect(() => {
