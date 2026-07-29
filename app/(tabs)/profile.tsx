@@ -21,6 +21,7 @@ import {
   SquaresFour,
   Compass,
 } from 'phosphor-react-native';
+import { excludeTripShares } from '@/utils/posts';
 import { useTheme } from '@/hooks/useTheme';
 import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -74,7 +75,8 @@ async function fetchUserPosts(uid: string): Promise<PostDoc[]> {
     limit(60),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PostDoc));
+  const posts = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PostDoc));
+  return excludeTripShares(posts);
 }
 
 /** Saved entries are trip snapshots, or post-shaped records (feed bookmarks)

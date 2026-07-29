@@ -17,28 +17,26 @@ import {
   collection,
   onSnapshot,
   addDoc,
-  updateDoc,
-  deleteDoc,
   serverTimestamp,
   orderBy,
   query,
   doc,
-  getDoc,
+  updateDoc,
+  deleteDoc,
 } from 'firebase/firestore';
-import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useTheme } from '@/hooks/useTheme';
 import { Avatar } from '@/components/ui/Avatar';
 import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
-import { Comment, Post } from '@/types';
+import { Comment } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple } from 'phosphor-react-native';
-import { Button } from '@/components/ui/Button';
+import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { usePost } from '@/hooks/usePost';
 
 function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts?.toDate) return '';
@@ -50,8 +48,47 @@ function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string
   return `${Math.floor(diff / 86400)}d`;
 }
 
-function CommentRow({ comment }: { comment: Comment }) {
+function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId: string; currentUid: string }) {
   const { colors } = useTheme();
+  const isMine = !!currentUid && comment.authorUid === currentUid;
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(comment.text);
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDraft(comment.text);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => setIsEditing(false);
+
+  const saveEdit = async () => {
+    if (!draft.trim() || saving) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'posts', postId, 'comments', comment.id), { text: draft.trim() });
+      setIsEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Delete this comment?', "This can't be undone.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteDoc(doc(db, 'posts', postId, 'comments', comment.id));
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={styles.commentRow}>
       <Avatar uri={comment.authorAvatarUrl} name={comment.authorDisplayName} size="xs" />
@@ -59,13 +96,48 @@ function CommentRow({ comment }: { comment: Comment }) {
         <Text style={[styles.commentAuthor, { color: colors.text.primary }]}>
           {comment.authorDisplayName}
         </Text>
-        <Text style={[styles.commentText, { color: colors.text.secondary }]}>
-          {comment.text}
-        </Text>
+        {isEditing ? (
+          <View style={styles.commentEditBlock}>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              style={[styles.commentEditInput, { color: colors.text.primary, borderColor: colors.background.cardBorder }]}
+              multiline
+              maxLength={500}
+              autoFocus
+            />
+            <View style={styles.commentEditActions}>
+              <TouchableOpacity onPress={cancelEdit} hitSlop={8} style={styles.commentEditActionBtn}>
+                <Text style={[styles.commentEditActionText, { color: colors.text.secondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveEdit} disabled={saving} hitSlop={8} style={styles.commentEditActionBtn}>
+                <Text style={[styles.commentEditActionText, { color: colors.brand.purple }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <Text style={[styles.commentText, { color: colors.text.secondary }]}>
+            {comment.text}
+          </Text>
+        )}
       </View>
-      <Text style={[styles.commentTime, { color: colors.text.tertiary }]}>
-        {formatTimestamp(comment.createdAt as unknown as { toDate?: () => Date })}
-      </Text>
+      {!isEditing && (
+        <View style={styles.commentMeta}>
+          <Text style={[styles.commentTime, { color: colors.text.tertiary }]}>
+            {formatTimestamp(comment.createdAt as unknown as { toDate?: () => Date })}
+          </Text>
+          {isMine && (
+            <View style={styles.commentOwnerActions}>
+              <TouchableOpacity onPress={startEdit} hitSlop={8} accessibilityLabel="Edit comment" style={styles.commentIconBtn}>
+                <PencilSimple size={13} color={colors.text.tertiary} weight="regular" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmDelete} hitSlop={8} accessibilityLabel="Delete comment" style={styles.commentIconBtn}>
+                <TrashSimple size={13} color={colors.text.tertiary} weight="regular" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -77,79 +149,13 @@ export default function PostDetailScreen() {
   const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
 
-  const [post, setPost] = useState<Post | null>(null);
-  const [postLoading, setPostLoading] = useState(true);
+  const { data: post, isLoading: postLoading } = usePost(id ?? null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Owner-only caption editing (rules also gate update/delete to authorUid)
-  const [editing, setEditing] = useState(false);
-  const [captionDraft, setCaptionDraft] = useState('');
-  const [savingCaption, setSavingCaption] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-
   const { data: currentUser } = useUserProfile(uid);
-  const queryClient = useQueryClient();
   const isOwner = !!post && !!uid && post.authorUid === uid;
-
-  const startEditing = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCaptionDraft(post?.caption ?? '');
-    setEditError(null);
-    setEditing(true);
-  };
-
-  async function handleSaveCaption() {
-    if (!post || savingCaption) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSavingCaption(true);
-    setEditError(null);
-    try {
-      await updateDoc(doc(db, 'posts', post.id), { caption: captionDraft.trim() });
-      setPost({ ...post, caption: captionDraft.trim() });
-      queryClient.invalidateQueries({ queryKey: ['userPosts'] });
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
-      setEditing(false);
-    } catch (err) {
-      console.error('[PostDetail] caption save failed:', err);
-      setEditError("Couldn't save your changes. Try again in a moment.");
-    } finally {
-      setSavingCaption(false);
-    }
-  }
-
-  function handleDeletePost() {
-    if (!post) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('Delete this post?', "This can't be undone.", [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, 'posts', post.id));
-            queryClient.invalidateQueries({ queryKey: ['userPosts'] });
-            queryClient.invalidateQueries({ queryKey: ['feed'] });
-            router.back();
-          } catch (err) {
-            console.error('[PostDetail] delete failed:', err);
-            setEditError("Couldn't delete the post. Try again in a moment.");
-          }
-        },
-      },
-    ]);
-  }
-
-  // One-time post fetch
-  useEffect(() => {
-    if (!id) return;
-    getDoc(doc(db, 'posts', id)).then((snap) => {
-      if (snap.exists()) setPost({ id: snap.id, ...snap.data() } as Post);
-      setPostLoading(false);
-    });
-  }, [id]);
 
   // Real-time comments listener
   useEffect(() => {
@@ -212,7 +218,7 @@ export default function PostDetailScreen() {
         <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Post</Text>
         {isOwner ? (
           <TouchableOpacity
-            onPress={startEditing}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/post/edit/${post.id}`); }}
             style={styles.backBtn}
             hitSlop={8}
             accessibilityLabel="Edit post"
@@ -252,60 +258,8 @@ export default function PostDetailScreen() {
                 ) : null}
               </View>
             </TouchableOpacity>
-            {editing ? (
-              <View style={styles.editBlock}>
-                <TextInput
-                  value={captionDraft}
-                  onChangeText={setCaptionDraft}
-                  placeholder="Write a caption…"
-                  placeholderTextColor={colors.text.tertiary}
-                  multiline
-                  maxLength={500}
-                  autoFocus
-                  style={[
-                    styles.captionInput,
-                    {
-                      color: colors.text.primary,
-                      backgroundColor: colors.background.card,
-                      borderColor: colors.background.cardBorder,
-                    },
-                  ]}
-                />
-                {editError ? (
-                  <Text style={[styles.editError, { color: colors.semantic.error }]}>{editError}</Text>
-                ) : null}
-                <View style={styles.editActions}>
-                  <Button
-                    label="Cancel"
-                    variant="secondary"
-                    size="sm"
-                    onPress={() => setEditing(false)}
-                    haptic="light"
-                    style={styles.editActionBtn}
-                  />
-                  <Button
-                    label="Save"
-                    variant="primary"
-                    size="sm"
-                    loading={savingCaption}
-                    onPress={handleSaveCaption}
-                    haptic="none"
-                    style={styles.editActionBtn}
-                  />
-                </View>
-                <Button
-                  label="Delete post"
-                  variant="danger"
-                  size="sm"
-                  fullWidth
-                  onPress={handleDeletePost}
-                  haptic="none"
-                />
-              </View>
-            ) : (
-              !!post.caption && (
-                <Text style={[styles.caption, { color: colors.text.secondary }]}>{post.caption}</Text>
-              )
+            {!!post.caption && (
+              <Text style={[styles.caption, { color: colors.text.secondary }]}>{post.caption}</Text>
             )}
             {!!post.placeName && (
               <View style={styles.placeRow}>
@@ -351,7 +305,7 @@ export default function PostDetailScreen() {
             {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
           </Text>
           {comments.map((c) => (
-            <CommentRow key={c.id} comment={c} />
+            <CommentRow key={c.id} comment={c} postId={id!} currentUid={uid} />
           ))}
         </View>
       </ScrollView>
@@ -422,19 +376,6 @@ const styles = StyleSheet.create({
   authorName: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },
   authorHandle: { fontSize: FontSize.sm },
   caption: { fontSize: FontSize.base, lineHeight: 22 },
-  editBlock: { gap: Spacing['3'] },
-  captionInput: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing['4'],
-    paddingVertical: Spacing['3'],
-    fontSize: FontSize.base,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  editError: { fontSize: FontSize.xs },
-  editActions: { flexDirection: 'row', gap: Spacing['3'] },
-  editActionBtn: { flex: 1 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   place: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
   tripCard: {
@@ -480,6 +421,22 @@ const styles = StyleSheet.create({
   commentAuthor: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   commentText: { fontSize: FontSize.sm, lineHeight: 18 },
   commentTime: { fontSize: FontSize.xs },
+  commentMeta: { alignItems: 'flex-end', gap: 6 },
+  commentOwnerActions: { flexDirection: 'row', gap: 10 },
+  commentIconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  commentEditBlock: { gap: 6 },
+  commentEditInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing['3'],
+    paddingVertical: Spacing['2'],
+    fontSize: FontSize.sm,
+    minHeight: 44,
+    textAlignVertical: 'top',
+  },
+  commentEditActions: { flexDirection: 'row', gap: Spacing['4'] },
+  commentEditActionBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing['1'] },
+  commentEditActionText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
