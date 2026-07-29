@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -21,6 +22,8 @@ import {
   query,
   doc,
   getDoc,
+  updateDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '@/services/firebase';
@@ -31,7 +34,7 @@ import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
 import { Comment, Post } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple } from 'phosphor-react-native';
+import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
@@ -45,8 +48,47 @@ function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string
   return `${Math.floor(diff / 86400)}d`;
 }
 
-function CommentRow({ comment }: { comment: Comment }) {
+function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId: string; currentUid: string }) {
   const { colors } = useTheme();
+  const isMine = !!currentUid && comment.authorUid === currentUid;
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(comment.text);
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDraft(comment.text);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => setIsEditing(false);
+
+  const saveEdit = async () => {
+    if (!draft.trim() || saving) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'posts', postId, 'comments', comment.id), { text: draft.trim() });
+      setIsEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Delete this comment?', "This can't be undone.", [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteDoc(doc(db, 'posts', postId, 'comments', comment.id));
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={styles.commentRow}>
       <Avatar uri={comment.authorAvatarUrl} name={comment.authorDisplayName} size="xs" />
@@ -54,13 +96,48 @@ function CommentRow({ comment }: { comment: Comment }) {
         <Text style={[styles.commentAuthor, { color: colors.text.primary }]}>
           {comment.authorDisplayName}
         </Text>
-        <Text style={[styles.commentText, { color: colors.text.secondary }]}>
-          {comment.text}
-        </Text>
+        {isEditing ? (
+          <View style={styles.commentEditBlock}>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              style={[styles.commentEditInput, { color: colors.text.primary, borderColor: colors.background.cardBorder }]}
+              multiline
+              maxLength={500}
+              autoFocus
+            />
+            <View style={styles.commentEditActions}>
+              <TouchableOpacity onPress={cancelEdit} hitSlop={8}>
+                <Text style={[styles.commentEditActionText, { color: colors.text.secondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveEdit} disabled={saving} hitSlop={8}>
+                <Text style={[styles.commentEditActionText, { color: colors.brand.purple }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <Text style={[styles.commentText, { color: colors.text.secondary }]}>
+            {comment.text}
+          </Text>
+        )}
       </View>
-      <Text style={[styles.commentTime, { color: colors.text.tertiary }]}>
-        {formatTimestamp(comment.createdAt as unknown as { toDate?: () => Date })}
-      </Text>
+      {!isEditing && (
+        <View style={styles.commentMeta}>
+          <Text style={[styles.commentTime, { color: colors.text.tertiary }]}>
+            {formatTimestamp(comment.createdAt as unknown as { toDate?: () => Date })}
+          </Text>
+          {isMine && (
+            <View style={styles.commentOwnerActions}>
+              <TouchableOpacity onPress={startEdit} hitSlop={8} accessibilityLabel="Edit comment">
+                <PencilSimple size={13} color={colors.text.tertiary} weight="regular" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmDelete} hitSlop={8} accessibilityLabel="Delete comment">
+                <TrashSimple size={13} color={colors.text.tertiary} weight="regular" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -238,7 +315,7 @@ export default function PostDetailScreen() {
             {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
           </Text>
           {comments.map((c) => (
-            <CommentRow key={c.id} comment={c} />
+            <CommentRow key={c.id} comment={c} postId={id!} currentUid={uid} />
           ))}
         </View>
       </ScrollView>
@@ -354,6 +431,20 @@ const styles = StyleSheet.create({
   commentAuthor: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   commentText: { fontSize: FontSize.sm, lineHeight: 18 },
   commentTime: { fontSize: FontSize.xs },
+  commentMeta: { alignItems: 'flex-end', gap: 6 },
+  commentOwnerActions: { flexDirection: 'row', gap: 10 },
+  commentEditBlock: { gap: 6 },
+  commentEditInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing['3'],
+    paddingVertical: Spacing['2'],
+    fontSize: FontSize.sm,
+    minHeight: 44,
+    textAlignVertical: 'top',
+  },
+  commentEditActions: { flexDirection: 'row', gap: Spacing['4'] },
+  commentEditActionText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
