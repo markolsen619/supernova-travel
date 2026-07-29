@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
-import { storage, db } from '@/services/firebase';
+import { db } from '@/services/firebase';
+import { uploadPostImage } from '@/services/postMedia';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { Trip } from '@/types';
@@ -24,21 +24,6 @@ function formatDateRange(start: Timestamp | null, end: Timestamp | null): string
   const fmt = (ts: Timestamp) =>
     ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return end ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
-}
-
-async function uploadImage(uid: string, uri: string, index: number): Promise<string> {
-  const blob = await fetch(uri).then((r) => r.blob());
-  const storageRef = ref(storage, `posts/${uid}/${Date.now()}_${index}.jpg`);
-  const task = uploadBytesResumable(storageRef, blob);
-  await new Promise<void>((resolve, reject) => {
-    task.on(
-      'state_changed',
-      undefined,
-      (err) => reject(new Error(`Storage upload failed: ${err.message}`)),
-      resolve,
-    );
-  });
-  return getDownloadURL(storageRef);
 }
 
 export function useCreatePost() {
@@ -62,7 +47,7 @@ export function useCreatePost() {
       const mediaUrls: string[] = [];
 
       for (let i = 0; i < total; i++) {
-        const url = await uploadImage(user.uid, input.localUris[i], i);
+        const url = await uploadPostImage(user.uid, input.localUris[i], i);
         mediaUrls.push(url);
         setUploadProgress(Math.round(((i + 1) / total) * 100));
       }
