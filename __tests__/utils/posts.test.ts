@@ -11,7 +11,12 @@ describe('excludeTripShares', () => {
   });
 
   it('keeps posts with no mediaType set (defensive — legacy data)', () => {
-    const posts = [{ id: '1' }];
+    // Explicit annotation, not inferred: a bare `{ id: '1' }` shares no
+    // property names with `{ mediaType?: string }`, and TypeScript's "weak
+    // type" check rejects that under --strict even though it's structurally
+    // valid (every real PostDoc declares `mediaType` as a key, so this only
+    // bites this all-optional test fixture).
+    const posts: { id: string; mediaType?: string }[] = [{ id: '1' }];
     expect(excludeTripShares(posts)).toEqual(posts);
   });
 
