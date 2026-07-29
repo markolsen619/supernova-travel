@@ -43,7 +43,7 @@ Three related gaps in the posting flow, surfaced from the home/feed posting expe
 | Feed itself | Unchanged | Trip-shares are supposed to appear in the feed (that's the point of "Share a trip") — `FeedCard` already renders them with distinct trip UI. Only the profile Posts tab/grid was wrong |
 | Post-edit UI location | New dedicated modal route `app/post/edit/[id].tsx`, not an expansion of the existing inline edit block in `post/[id].tsx` | The inline block today is a one-line caption `TextInput`. Bolting a full add/remove/reorder photo grid onto the post-detail scroll view — which also has to share space with the comment thread — would overload a screen with a different primary job. A dedicated screen mirrors `create-photo.tsx`'s existing composer UI (same thumbnail-grid/remove/add-more visual pattern, so it's immediately familiar) and matches this codebase's precedent of separate edit surfaces (`EditProfileSheet`) |
 | Editable fields | Caption (all posts) · place name + photo grid add/remove/**reorder** (photo posts only) · delete post (all posts, moved onto this screen) | Trip posts (`mediaType: 'trip'`) derive their place/photo from the linked trip — editing them independently would desync from the trip and confuse "which one is the source of truth." Trip posts stay caption + delete only, same as today |
-| Photo reorder mechanism | `react-native-draggable-flatlist`, `numColumns` grid | Already a project dependency (per CLAUDE.md, "available for drag-to-reorder"), already used this way for trip-activity reordering — reuse over adding a new library |
+| Photo reorder mechanism | `react-native-draggable-flatlist`'s `DraggableFlatList` with `horizontal` — a horizontal strip of thumbnails, drag left/right to reorder | Already a project dependency (per CLAUDE.md, "available for drag-to-reorder"), already used this way for trip-activity/destination reordering. The library's type defs (`lib/typescript/types.d.ts`) confirm it has no `numColumns` grid mode — only single-row/column or `horizontal` — so a wrapping 3-per-row grid (like `create-photo.tsx`'s static grid) isn't achievable with drag support from this library. A horizontal strip is the closest supported layout and is a common, recognizable pattern for reordering a small photo set |
 | Photo upload logic | Extract the existing `uploadImage()` helper out of `hooks/useCreatePost.ts` into a shared location both `useCreatePost` and the new edit hook call | Avoids duplicating the Storage-upload implementation between create and edit flows |
 | New Firestore/Storage logic location | New hook `hooks/useEditPost.ts` exposing `updateCaption`, `updatePlace`, `updatePhotos`, `deletePost` | Matches how `useCreatePost`/`useSavePost` already own this class of Firestore/Storage logic rather than inlining `updateDoc`/`deleteDoc` calls directly in a screen component (the one inconsistency today — inline calls in `post/[id].tsx` — is being resolved by this same change, not preserved) |
 | Comment edit/delete location | Inline in the existing `CommentRow` / `post/[id].tsx`, no new hook | Two Firestore calls (`updateDoc`/`deleteDoc` on a single comment doc) — proportionate to keep inline, consistent with how comment *creation* (`handleSubmitComment`) is already inline in the same file |
@@ -125,11 +125,16 @@ alongside the existing `post/create-photo` and `post/create-trip` entries.
 - For `mediaType === 'photo'` only:
   - Place field: `TextInput` with a `MapPin` icon, prefilled from `post.placeName`, same visual
     treatment as `create-photo.tsx`'s place row.
-  - Photo grid: `react-native-draggable-flatlist` grid (numColumns matching `create-photo.tsx`'s
-    3-per-row thumbnail sizing) seeded from `post.mediaUrls` as `{ kind: 'existing', url }` items;
-    drag to reorder; per-thumbnail remove (×) button, same as `create-photo.tsx`; "Add more" cell opens
-    `expo-image-picker`, appended as `{ kind: 'new', localUri }` items, capped at `MAX_PHOTOS = 10`
-    (same constant already in `create-photo.tsx`) counting existing + new together.
+  - Photo strip: a horizontal `DraggableFlatList` (`horizontal` prop) of thumbnails, seeded from
+    `post.mediaUrls` as `{ kind: 'existing', url }` items; long-press + drag left/right to reorder
+    (same long-press-then-`drag()` interaction `DestinationListEditor.tsx` already uses); per-thumbnail
+    remove (×) button, same visual treatment as `create-photo.tsx`'s grid; a trailing "Add more" tile
+    (rendered as the list's `ListFooterComponent`, not a draggable item) opens `expo-image-picker`,
+    appending picks as `{ kind: 'new', localUri }` items, capped at `MAX_PHOTOS = 10` (same constant
+    already in `create-photo.tsx`) counting existing + new together. The first item in the list is
+    always the post's cover photo — a small "Cover" badge on that thumbnail makes this legible, since
+    reordering now has a visible consequence (unlike `DestinationListEditor`, where order only affects
+    display order, not which item is "primary").
 - For `mediaType === 'trip'`: place/photo sections hidden entirely; only caption is editable, matching
   today's behavior on this post type.
 - Save button calls `updateCaption`/`updatePlace`/`updatePhotos` (only the ones that actually changed)
