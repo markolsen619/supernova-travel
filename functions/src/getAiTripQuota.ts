@@ -37,7 +37,7 @@ export const getAiTripQuota = functions.https.onCall(
 
     const quotaDoc = await db.doc(`usage_quotas/${uid}`).get();
     const quotaData = quotaDoc.data() ?? {};
-    const used = quotaData[getWeeklyQuotaKey()] ?? 0;
+    const used = quotaData[getWeeklyQuotaKey('ai_trips')] ?? 0;
     const remaining = Math.max(0, FREE_TIER_WEEKLY_AI_TRIP_LIMIT - used);
 
     return {
