@@ -248,15 +248,16 @@ export default function EditPostScreen() {
           </View>
         )}
 
-        <Button
-          label="Delete post"
-          variant="danger"
-          size="md"
-          fullWidth
-          onPress={handleDelete}
-          haptic="none"
-          style={styles.deleteButton}
-        />
+        <View style={styles.deleteButtonWrapper}>
+          <Button
+            label="Delete post"
+            variant="danger"
+            size="md"
+            fullWidth
+            onPress={handleDelete}
+            haptic="none"
+          />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -357,5 +358,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: BorderRadius.full },
-  deleteButton: { marginHorizontal: Spacing['5'], marginTop: Spacing['6'] },
+  deleteButtonWrapper: { marginHorizontal: Spacing['5'], marginTop: Spacing['6'] },
 });

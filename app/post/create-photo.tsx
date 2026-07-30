@@ -182,16 +182,17 @@ export default function CreatePhotoScreen() {
         )}
 
         {/* Post button — the one hero moment of this flow. */}
-        <Button
-          label={isUploading ? `Uploading… ${uploadProgress}%` : 'Post'}
-          onPress={handlePost}
-          disabled={!canPost}
-          loading={false}
-          variant="hero"
-          size="lg"
-          fullWidth
-          style={styles.postButton}
-        />
+        <View style={styles.postButtonWrapper}>
+          <Button
+            label={isUploading ? `Uploading… ${uploadProgress}%` : 'Post'}
+            onPress={handlePost}
+            disabled={!canPost}
+            loading={false}
+            variant="hero"
+            size="lg"
+            fullWidth
+          />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: BorderRadius.full,
   },
-  postButton: {
+  postButtonWrapper: {
     marginHorizontal: Spacing['5'],
     marginTop: Spacing['5'],
   },
