@@ -35,6 +35,7 @@ export function useCreatePost() {
 
   function invalidateFeed() {
     queryClient.invalidateQueries({ queryKey: ['feed'], refetchType: 'all' });
+    queryClient.invalidateQueries({ queryKey: ['userPosts'] });
   }
 
   async function createPhotoPost(input: CreatePhotoPostInput): Promise<string> {
