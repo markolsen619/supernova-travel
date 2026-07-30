@@ -28,11 +28,11 @@ This spec covers **only (1)**. Loyalty balance sync is explicitly deferred to a 
 | Entry point | Wallet hub's `+` button opens the new **Import** screen directly (promoted to the primary action, per user); "Enter manually instead" is a secondary link that falls back to today's `Alert.alert` type-picker (Boarding pass / Reservation / Loyalty program / Cancel) | User explicitly chose to promote import over manual entry, since it's the point of this feature. |
 | Review before save | Extraction always lands the user on the *existing* `boarding-pass/add.tsx` / `reservation/add.tsx` form, pre-filled, never auto-saved | Same safety net manual entry already has. A partial or wrong AI parse is just an editable draft, never a silent write. Also means minimal new form UI — the existing forms just gain a second pre-fill source. |
 | Draft transfer mechanism | New Zustand store `stores/useImportDraftStore.ts` (matching `useAuthStore`/`useUserStore`'s existing `create()` pattern) holds the extracted draft; forms read from it when arriving via `?draft=true` instead of `?id=` | Expo Router params are strings only — round-tripping a multi-field object through a URL is awkward and has length limits on some platforms. A transient store is the same shape of solution this codebase already uses for cross-screen state. Store clears on successful save or on leaving the form. |
-| Quota | New `usage_quotas/{uid}` key, free tier weekly cap, pro/business unlimited | Mirrors `generateTrip`'s existing enforcement exactly (same collection, same weekly-reset mechanism, same tier gate) rather than inventing a second quota system. |
+| Quota | New `usage_quotas/{uid}` key, free tier capped at **1 import per calendar year** (a "try it once" gate, not an ongoing allowance), pro/business unlimited | User explicitly wants this scarce enough to be a taste, not a recurring free tier feature — a weekly cap (like AI trip generation) would let a free user import every single week indefinitely. Still reuses the same `usage_quotas` collection and tier-gate shape as `generateTrip`, just a yearly reset window instead of weekly. |
 | Photo handling | Picked image is base64-encoded client-side, sent inline in the callable request body, never uploaded to Storage | One-time "parse it, discard it" use case, unlike a post/trip-cover photo the user is choosing to keep. Confirmation screenshots often contain a confirmation code or barcode — no reason to persist that. |
 | Gemini model + JSON parsing | `gemini-2.5-flash`, same `model.generateContent(prompt)` → strip ```` ```json ```` fence → `JSON.parse` pattern `generateTrip.ts` already uses | Proven, already-working pattern in this codebase; no new parsing approach to validate. |
 | Cloud Function shape | New `parseTravelConfirmation` callable, same `onCall({ region: 'us-central1', enforceAppCheck: false })` shape as `generateTrip`/`getAiTripQuota` | Consistency; the client-side `services/gemini.ts` module gains one more typed `httpsCallable` wrapper next to the existing two. |
-| `getWeeklyQuotaKey` | Generalized to accept a namespace prefix (`getWeeklyQuotaKey(prefix: string)`), existing `generateTrip.ts`/`getAiTripQuota.ts` call sites updated to pass `'ai_trips'` | The key format (`{prefix}_{weekStart}`) only differs by prefix between the two features; a second near-identical copy of the date-math would drift from the original instead of staying in lockstep. |
+| `getWeeklyQuotaKey` | Generalized to accept a namespace prefix (`getWeeklyQuotaKey(prefix: string)`), existing `generateTrip.ts`/`getAiTripQuota.ts` call sites updated to pass `'ai_trips'`. A new sibling `getYearlyQuotaKey(prefix: string)` (same prefix idea, year-granularity date math) is added for wallet imports, not a further generalization of `getWeeklyQuotaKey` itself | The key format (`{prefix}_{periodStart}`) only differs by prefix within each period type; a second near-identical copy of the *week* date-math would drift from the original. But week vs. year is a different axis (period length, not namespace) with only two call sites total — a sibling function stays as readable as the existing one (`getYearlyQuotaKey('wallet_imports')` reads the same way `getWeeklyQuotaKey('ai_trips')` already does) rather than adding a branching period parameter for two cases. |
 | Barcode/`.pkpass` parsing | Not built | Explicitly out of scope for the wallet redesign already, and Gemini vision on a screenshot covers the common case (most people screenshot their boarding pass, not the raw `.pkpass` file) without needing a dedicated barcode/pass-format parser. |
 
 ## Data Model
@@ -41,7 +41,7 @@ This spec covers **only (1)**. Loyalty balance sync is explicitly deferred to a 
 
 ```ts
 export const FREE_TIER_WEEKLY_AI_TRIP_LIMIT = 1;
-export const FREE_TIER_WEEKLY_IMPORT_LIMIT = 3; // new
+export const FREE_TIER_YEARLY_IMPORT_LIMIT = 1; // new — a "try it once" gate, not a weekly allowance
 
 export function getWeekStart(): Date { /* unchanged */ }
 export function getNextWeekStart(): Date { /* unchanged */ }
@@ -50,10 +50,30 @@ export function getNextWeekStart(): Date { /* unchanged */ }
 export function getWeeklyQuotaKey(prefix: string): string {
   return `${prefix}_${getWeekStart().toISOString().split('T')[0]}`;
 }
+
+/** Start of the current calendar year (Jan 1 00:00 UTC) — NOT a rolling 365-day window, same
+ * "calendar period, not rolling window" philosophy as getWeekStart(). */
+export function getYearStart(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+}
+
+/** Start of next calendar year (Jan 1 00:00 UTC) — when the yearly quota resets. */
+export function getNextYearStart(): Date {
+  const yearStart = getYearStart();
+  return new Date(Date.UTC(yearStart.getUTCFullYear() + 1, 0, 1));
+}
+
+/** Firestore field key on usage_quotas/{uid} for the current calendar year. */
+export function getYearlyQuotaKey(prefix: string): string {
+  return `${prefix}_${getYearStart().toISOString().split('T')[0]}`;
+}
 ```
 
 `generateTrip.ts` and `getAiTripQuota.ts` update their one call site each from `getWeeklyQuotaKey()` to
-`getWeeklyQuotaKey('ai_trips')` — no behavior change, same resulting key string.
+`getWeeklyQuotaKey('ai_trips')` — no behavior change, same resulting key string. The new
+`parseTravelConfirmation.ts`/`getImportQuota.ts` use `getYearlyQuotaKey('wallet_imports')` and
+`FREE_TIER_YEARLY_IMPORT_LIMIT` instead of the weekly equivalents.
 
 ### `functions/src/types.ts` (additions)
 
@@ -130,17 +150,20 @@ Shape mirrors `generateTrip.ts` closely:
 1. Auth check (`onCall`, throw `unauthenticated` if no `request.auth`).
 2. Validate request: at least one of `text`/`imageBase64` must be present, throw `invalid-argument` otherwise.
 3. Quota check for free tier: read `users/{uid}.tier`, if `'free'` read `usage_quotas/{uid}`, compare
-   `quotaData[getWeeklyQuotaKey('wallet_imports')]` against `FREE_TIER_WEEKLY_IMPORT_LIMIT`, throw
-   `resource-exhausted` if met — identical shape to `generateTrip.ts`'s quota check, different constant/prefix.
+   `quotaData[getYearlyQuotaKey('wallet_imports')]` against `FREE_TIER_YEARLY_IMPORT_LIMIT` (`1`), throw
+   `resource-exhausted` if met — same *shape* as `generateTrip.ts`'s quota check, but yearly instead of
+   weekly reset.
 4. Build the Gemini request content array: `[{ text: buildExtractionPrompt() }, ...(imageBase64 ? [{ inlineData: { mimeType: imageMimeType, data: imageBase64 } }] : [])]`. `buildExtractionPrompt()` instructs Gemini to: read the provided confirmation text and/or image, decide if it's a flight boarding pass or another kind of reservation, pick the closest `ReservationType` if the latter, extract every field it can confidently find into the exact JSON shape from `ParseTravelConfirmationResult`, and omit (not guess) fields it can't find. Same `model: 'gemini-2.5-flash'`, `model.generateContent(...)`.
 5. Parse the response with the same ```` ```json ```` fence-stripping + `JSON.parse` `generateTrip.ts` already uses; throw `internal` on parse failure (surfaced to the user as "couldn't read that — try pasting the text instead" per the client-side UX below).
-6. Update quota for free tier (same `FieldValue.increment(1)` pattern as `generateTrip.ts`, on the `wallet_imports` key).
+6. Update quota for free tier (same `FieldValue.increment(1)` pattern as `generateTrip.ts`, on the
+   `getYearlyQuotaKey('wallet_imports')` key).
 7. Return the parsed `ParseTravelConfirmationResult` — nothing is written to Firestore by this function; it only extracts.
 
 ## Cloud Function: `functions/src/getImportQuota.ts` (new)
 
-Direct copy of `getAiTripQuota.ts`'s shape, reading the `wallet_imports` key and
-`FREE_TIER_WEEKLY_IMPORT_LIMIT` instead.
+Direct copy of `getAiTripQuota.ts`'s shape, reading `getYearlyQuotaKey('wallet_imports')` and
+`FREE_TIER_YEARLY_IMPORT_LIMIT`, and returning `resetsAt: getNextYearStart().toISOString()` instead of the
+weekly equivalents.
 
 ## `services/gemini.ts` (modified)
 
@@ -190,8 +213,11 @@ export async function callGetImportQuota(): Promise<ImportQuota> {
 - Secondary link below the primary button: "Enter manually instead" — triggers the same
   `Alert.alert('Add to wallet', ...)` type-picker the wallet hub's `+` button used to open directly, now
   reached from here instead.
-- A small "X of Y imports left this week" hint (from `useImportQuota()`), matching how `AiPromptForm` already
-  surfaces the AI-trip-generation quota — hidden entirely for pro/business (`limit === null`).
+- A small quota hint (from `useImportQuota()`), hidden entirely for pro/business (`limit === null`). Given the
+  limit is `1` total per year rather than a recurring weekly allowance, this reads as "Your free import for
+  this year" (`remaining === 1`) or "You've used your free import for this year — upgrade to Pro for
+  unlimited imports" (`remaining === 0`), not the "X of Y left this week" counter `AiPromptForm` uses for the
+  weekly AI-trip quota — that phrasing implies a recurring allowance, which a once-a-year gate isn't.
 
 ## `app/(wallet)/index.tsx` (modified)
 
@@ -232,11 +258,12 @@ consumption means navigating back to Import a second time never shows a stale dr
 
 No component-render test library is installed in this repo (consistent with every other recent UI-heavy
 project here), so this is verified manually in the simulator: paste a real confirmation email's text, import
-a photo of a printed confirmation, confirm the right form opens pre-filled, confirm quota depletion redirects
-to `/paywall` on the free tier, confirm pro-tier shows no quota hint and never hits the limit. The one piece
-worth a unit test is `getWeeklyQuotaKey`'s generalization (`quotaUtils.ts`) — confirm
-`getWeeklyQuotaKey('ai_trips')` and `getWeeklyQuotaKey('wallet_imports')` produce the expected
-`{prefix}_{weekStart}` shape and that the two prefixes never collide.
+a photo of a printed confirmation, confirm the right form opens pre-filled, confirm a second import attempt
+within the same calendar year redirects to `/paywall` on the free tier, confirm pro-tier shows no quota hint
+and never hits the limit. The one piece worth a unit test is `quotaUtils.ts`'s key helpers — confirm
+`getWeeklyQuotaKey('ai_trips')` produces the expected `{prefix}_{weekStart}` shape, confirm
+`getYearlyQuotaKey('wallet_imports')` produces the expected `{prefix}_{yearStart}` shape (e.g.
+`wallet_imports_2026-01-01`), and confirm the week and year key functions never collide with each other.
 
 ## Out of Scope
 
