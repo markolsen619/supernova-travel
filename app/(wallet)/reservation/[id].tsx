@@ -1,19 +1,18 @@
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { useCallback } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, CalendarX } from 'phosphor-react-native';
+import { CalendarX } from 'phosphor-react-native';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/hooks/useTheme';
-import { StarMark } from '@/components/ui/StarMark';
+import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useReservations } from '@/hooks/useReservations';
 import { RESERVATION_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
@@ -27,6 +26,7 @@ const TYPE_LABELS: Record<ReservationType, string> = {
   rental_car: 'Rental car',
   restaurant: 'Restaurant',
   activity: 'Activity',
+  show: 'Show',
 };
 
 function formatDate(isoDate?: string): string {
@@ -44,19 +44,23 @@ function formatDate(isoDate?: string): string {
 }
 
 export default function ReservationDetailScreen() {
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { reservations, deleteReservation } = useReservations();
 
   const reservation = reservations.find((r) => r.id === id);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
-  };
+  }, []);
 
-  const handleDelete = () => {
+  const handleEdit = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/(wallet)/reservation/add?id=${id}`);
+  }, [id]);
+
+  const handleDelete = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Delete reservation',
@@ -76,29 +80,12 @@ export default function ReservationDetailScreen() {
         },
       ],
     );
-  };
+  }, [id, deleteReservation]);
 
   if (!reservation) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top + Spacing['4'],
-              borderBottomColor: colors.background.cardBorder,
-            },
-          ]}
-        >
-          <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
-            <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
-          </TouchableOpacity>
-          <View style={styles.titleGroup}>
-            <StarMark size={18} />
-            <Text style={[styles.title, { color: colors.text.primary }]}>Reservation</Text>
-          </View>
-          <View style={styles.backButton} />
-        </View>
+        <WalletHeader title="Reservation" onBack={handleBack} />
         <View style={styles.centered}>
           <EmptyState
             icon={CalendarX}
@@ -117,22 +104,7 @@ export default function ReservationDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + Spacing['4'],
-            borderBottomColor: colors.background.cardBorder,
-          },
-        ]}
-      >
-        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
-          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text.primary }]}>Reservation</Text>
-        <View style={styles.backButton} />
-      </View>
+      <WalletHeader title="Reservation" onBack={handleBack} />
 
       <ScrollView
         style={styles.scroll}
@@ -191,6 +163,20 @@ export default function ReservationDetailScreen() {
           ) : null}
         </View>
 
+        {/* Edit button */}
+        <TouchableOpacity
+          style={[
+            styles.editButton,
+            { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+          ]}
+          onPress={handleEdit}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.editButtonText, { color: colors.text.primary }]}>
+            Edit reservation
+          </Text>
+        </TouchableOpacity>
+
         {/* Delete button */}
         <TouchableOpacity
           style={[styles.deleteButton, { borderColor: colors.semantic.error }]}
@@ -228,26 +214,6 @@ function DetailRow({ label, value, valueStyle, colors, borderColor }: DetailRowP
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing['4'],
-    paddingBottom: Spacing['4'],
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44,
-    minHeight: 44,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
-  starIcon: { width: 18, height: 18 },
-  title: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semiBold,
   },
   scroll: {
     flex: 1,
@@ -300,12 +266,23 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
-  deleteButton: {
+  editButton: {
     borderWidth: 1,
     borderRadius: BorderRadius.xl,
     paddingVertical: Spacing['4'],
     alignItems: 'center',
     marginTop: Spacing['2'],
+  },
+  editButtonText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semiBold,
+  },
+  deleteButton: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing['4'],
+    alignItems: 'center',
+    marginTop: Spacing['3'],
   },
   deleteButtonText: {
     fontSize: FontSize.base,
@@ -315,8 +292,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  notFoundText: {
-    fontSize: FontSize.base,
   },
 });
