@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -47,24 +47,15 @@ export default function WalletHubScreen() {
 
   const handleAdd = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (segment === 'flights') {
-      router.push('/(wallet)/boarding-pass/add');
-      return;
-    }
-    if (segment === 'reservations') {
-      router.push('/(wallet)/reservation/add');
-      return;
-    }
     if (segment === 'loyalty') {
+      // Import only produces boarding passes/reservations (see the design
+      // spec's scope split) — from the Loyalty segment, manual entry is the
+      // only sensible destination, so this stays a direct link rather than
+      // routing through Import just to bounce back out to manual anyway.
       router.push('/(wallet)/loyalty/add');
       return;
     }
-    Alert.alert('Add to wallet', undefined, [
-      { text: 'Boarding pass', onPress: () => router.push('/(wallet)/boarding-pass/add') },
-      { text: 'Reservation', onPress: () => router.push('/(wallet)/reservation/add') },
-      { text: 'Loyalty program', onPress: () => router.push('/(wallet)/loyalty/add') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    router.push('/(wallet)/import');
   }, [segment]);
 
   const showFlights = segment === 'all' || segment === 'flights';
