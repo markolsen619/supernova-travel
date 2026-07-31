@@ -17,6 +17,7 @@ import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useImportDraftStore } from '@/stores/useImportDraftStore';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { combineDateAndTime } from '@/utils/date';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -51,7 +52,9 @@ export default function AddBoardingPassScreen() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
   const { boardingPasses, addPass, updatePass } = useBoardingPasses();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, draft: draftParam } = useLocalSearchParams<{ id?: string; draft?: string }>();
+  const draft = useImportDraftStore((s) => s.draft);
+  const clearDraft = useImportDraftStore((s) => s.clearDraft);
 
   const isEditMode = !!id;
   const existing = id ? boardingPasses.find((p) => p.id === id) : undefined;
@@ -77,6 +80,28 @@ export default function AddBoardingPassScreen() {
     setDepartureDate(existingDeparture);
     setDepartureTime(existingDeparture);
   }, [existing]);
+
+  useEffect(() => {
+    if (draftParam !== 'true' || !draft || draft.kind !== 'boarding_pass') return;
+    setForm((prev) => ({
+      ...prev,
+      airline: draft.fields.airline ?? prev.airline,
+      flightNumber: draft.fields.flightNumber ?? prev.flightNumber,
+      origin: draft.fields.origin ?? prev.origin,
+      originCity: draft.fields.originCity ?? prev.originCity,
+      destination: draft.fields.destination ?? prev.destination,
+      destinationCity: draft.fields.destinationCity ?? prev.destinationCity,
+      seat: draft.fields.seat ?? prev.seat,
+      gate: draft.fields.gate ?? prev.gate,
+      terminal: draft.fields.terminal ?? prev.terminal,
+    }));
+    if (draft.fields.departureTime) {
+      const d = new Date(draft.fields.departureTime);
+      setDepartureDate(d);
+      setDepartureTime(d);
+    }
+    clearDraft();
+  }, [draftParam, draft, clearDraft]);
 
   const updateField = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
