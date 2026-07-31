@@ -26,3 +26,47 @@ export interface AiTripQuota {
   /** ISO timestamp of the next reset, null = unlimited */
   resetsAt: string | null;
 }
+
+export interface ImportQuota {
+  tier: 'free' | 'pro' | 'business';
+  limit: number | null;      // null = unlimited
+  remaining: number | null;  // null = unlimited
+  resetsAt: string | null;   // null = unlimited
+}
+
+export interface ParseTravelConfirmationRequest {
+  text?: string;
+  imageBase64?: string;
+  imageMimeType?: string;
+}
+
+export type ParseTravelConfirmationResult =
+  | {
+      kind: 'boarding_pass';
+      fields: Partial<{
+        airline: string;
+        flightNumber: string;
+        origin: string;
+        originCity: string;
+        destination: string;
+        destinationCity: string;
+        departureTime: string;
+        arrivalTime: string;
+        seat: string;
+        boardingGroup: string;
+        gate: string;
+        terminal: string;
+      }>;
+    }
+  | {
+      kind: 'reservation';
+      reservationType: 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show';
+      fields: Partial<{
+        title: string;
+        confirmationCode: string;
+        checkIn: string;
+        checkOut: string;
+        address: string;
+        notes: string;
+      }>;
+    };
