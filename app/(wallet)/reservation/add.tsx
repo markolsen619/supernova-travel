@@ -18,6 +18,7 @@ import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useImportDraftStore } from '@/stores/useImportDraftStore';
 import { useReservations } from '@/hooks/useReservations';
 import { RESERVATION_ICONS } from '@/constants/icons';
 import { ReservationType, Reservation } from '@/types';
@@ -37,7 +38,9 @@ export default function AddReservationScreen() {
   const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
   const { reservations, addReservation, updateReservation } = useReservations();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, draft: draftParam } = useLocalSearchParams<{ id?: string; draft?: string }>();
+  const draft = useImportDraftStore((s) => s.draft);
+  const clearDraft = useImportDraftStore((s) => s.clearDraft);
 
   const isEditMode = !!id;
   const existing = id ? reservations.find((r) => r.id === id) : undefined;
@@ -60,6 +63,18 @@ export default function AddReservationScreen() {
     setCheckIn(existing.checkIn ? new Date(existing.checkIn) : null);
     setCheckOut(existing.checkOut ? new Date(existing.checkOut) : null);
   }, [existing]);
+
+  useEffect(() => {
+    if (draftParam !== 'true' || !draft || draft.kind !== 'reservation') return;
+    setType(draft.reservationType);
+    if (draft.fields.title) setTitle(draft.fields.title);
+    if (draft.fields.confirmationCode) setConfirmationCode(draft.fields.confirmationCode);
+    if (draft.fields.address) setAddress(draft.fields.address);
+    if (draft.fields.notes) setNotes(draft.fields.notes);
+    if (draft.fields.checkIn) setCheckIn(new Date(draft.fields.checkIn));
+    if (draft.fields.checkOut) setCheckOut(new Date(draft.fields.checkOut));
+    clearDraft();
+  }, [draftParam, draft, clearDraft]);
 
   const handleSelectType = useCallback((t: ReservationType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
