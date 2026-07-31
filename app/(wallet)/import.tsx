@@ -171,6 +171,7 @@ export default function ImportScreen() {
             variant="hero"
             size="lg"
             fullWidth
+            haptic="none"
           />
         </View>
 
