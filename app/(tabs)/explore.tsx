@@ -5,10 +5,12 @@ import {
   ScrollView,
   StyleSheet,
   Dimensions,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { Bag } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useExplore } from '@/hooks/useExplore';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
@@ -118,6 +120,11 @@ export default function ExploreScreen() {
     router.push({ pathname: '/(tabs)/search', params: { q: name } });
   }, [router]);
 
+  const handleWalletPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/(wallet)');
+  }, [router]);
+
   return (
     <ScreenEntrance>
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
@@ -130,11 +137,22 @@ export default function ExploreScreen() {
       >
         {/* ── Header ── */}
         <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <ScreenHeaderStar />
-            <Text style={[styles.title, { color: colors.text.primary }]}>
-              Explore
-            </Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.titleRow}>
+              <ScreenHeaderStar />
+              <Text style={[styles.title, { color: colors.text.primary }]}>
+                Explore
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleWalletPress}
+              style={styles.walletBtn}
+              activeOpacity={0.7}
+              hitSlop={6}
+              accessibilityLabel="Wallet"
+            >
+              <Bag size={22} color={colors.text.secondary} weight="regular" />
+            </TouchableOpacity>
           </View>
           <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
             Discover your next destination
@@ -249,11 +267,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['6'],
     marginBottom: Spacing['6'],
   },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing['1'],
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['2'],
-    marginBottom: Spacing['1'],
   },
   title: {
     fontSize: FontSize['2xl'],
@@ -262,6 +285,12 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FontSize.sm,
+  },
+  walletBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   section: {
     marginBottom: Spacing['6'],
