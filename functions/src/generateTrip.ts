@@ -21,7 +21,7 @@ export const generateTrip = functions.https.onCall(
     if (tier === 'free') {
       const quotaDoc = await db.doc(`usage_quotas/${uid}`).get();
       const quotaData = quotaDoc.data() ?? {};
-      const weeklyCount = quotaData[getWeeklyQuotaKey()] ?? 0;
+      const weeklyCount = quotaData[getWeeklyQuotaKey('ai_trips')] ?? 0;
       if (weeklyCount >= FREE_TIER_WEEKLY_AI_TRIP_LIMIT) {
         throw new functions.https.HttpsError(
           'resource-exhausted',
@@ -141,7 +141,7 @@ export const generateTrip = functions.https.onCall(
     // 7. Update quota for free tier
     if (tier === 'free') {
       await db.doc(`usage_quotas/${uid}`).set(
-        { [getWeeklyQuotaKey()]: admin.firestore.FieldValue.increment(1) },
+        { [getWeeklyQuotaKey('ai_trips')]: admin.firestore.FieldValue.increment(1) },
         { merge: true }
       );
     }

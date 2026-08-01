@@ -1,19 +1,18 @@
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { useCallback } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Medal } from 'phosphor-react-native';
+import { Medal } from 'phosphor-react-native';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/hooks/useTheme';
-import { StarMark } from '@/components/ui/StarMark';
+import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useLoyaltyPrograms } from '@/hooks/useLoyaltyPrograms';
 import { LoyaltyCard } from '@/components/wallet/LoyaltyCard';
 import { PointsBalance } from '@/components/wallet/PointsBalance';
@@ -38,19 +37,23 @@ function formatExpiryDate(dateStr: string): string {
 }
 
 export default function LoyaltyDetailScreen() {
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { loyaltyPrograms, deleteProgram } = useLoyaltyPrograms();
 
   const program = loyaltyPrograms.find((p) => p.id === id);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
-  };
+  }, []);
 
-  const handleDelete = () => {
+  const handleEdit = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/(wallet)/loyalty/add?id=${id}`);
+  }, [id]);
+
+  const handleDelete = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Delete loyalty program',
@@ -70,26 +73,12 @@ export default function LoyaltyDetailScreen() {
         },
       ],
     );
-  };
+  }, [program, deleteProgram]);
 
   if (!program) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
-        <View
-          style={[
-            styles.header,
-            { paddingTop: insets.top + Spacing['4'], borderBottomColor: colors.background.cardBorder },
-          ]}
-        >
-          <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
-            <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
-          </TouchableOpacity>
-          <View style={styles.titleGroup}>
-            <StarMark size={18} />
-            <Text style={[styles.title, { color: colors.text.primary }]}>Loyalty program</Text>
-          </View>
-          <View style={styles.backButton} />
-        </View>
+        <WalletHeader title="Loyalty program" onBack={handleBack} />
         <View style={styles.centered}>
           <EmptyState
             icon={Medal}
@@ -106,22 +95,7 @@ export default function LoyaltyDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + Spacing['4'],
-            borderBottomColor: colors.background.cardBorder,
-          },
-        ]}
-      >
-        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
-          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text.primary }]}>Loyalty program</Text>
-        <View style={styles.backButton} />
-      </View>
+      <WalletHeader title="Loyalty program" onBack={handleBack} />
 
       <ScrollView
         style={styles.scroll}
@@ -186,6 +160,20 @@ export default function LoyaltyDetailScreen() {
           ) : null}
         </View>
 
+        {/* Edit button */}
+        <TouchableOpacity
+          style={[
+            styles.editButton,
+            { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
+          ]}
+          onPress={handleEdit}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.editButtonText, { color: colors.text.primary }]}>
+            Edit loyalty program
+          </Text>
+        </TouchableOpacity>
+
         {/* Delete button */}
         <TouchableOpacity
           style={[styles.deleteButton, { borderColor: colors.semantic.error }]}
@@ -204,26 +192,6 @@ export default function LoyaltyDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing['4'],
-    paddingBottom: Spacing['4'],
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44,
-    minHeight: 44,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
-  starIcon: { width: 18, height: 18 },
-  title: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semiBold,
   },
   scroll: {
     flex: 1,
@@ -287,9 +255,21 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.regular,
     marginTop: Spacing['1'],
   },
-  deleteButton: {
+  editButton: {
     marginHorizontal: Spacing['4'],
     marginTop: Spacing['2'],
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing['4'],
+    alignItems: 'center',
+  },
+  editButtonText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.semiBold,
+  },
+  deleteButton: {
+    marginHorizontal: Spacing['4'],
+    marginTop: Spacing['3'],
     borderWidth: 1,
     borderRadius: BorderRadius.xl,
     paddingVertical: Spacing['4'],
@@ -303,8 +283,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  notFoundText: {
-    fontSize: FontSize.base,
   },
 });

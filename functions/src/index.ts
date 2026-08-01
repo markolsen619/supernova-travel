@@ -10,3 +10,5 @@ export { inviteToTrip, respondToTripInvite } from './tripInvites';
 export { createDmThread } from './dmThreads';
 export { onMessageCreated } from './dmMessages';
 export { onLikeCreated, onCommentCreated } from './postEvents';
+export { parseTravelConfirmation } from './parseTravelConfirmation';
+export { getImportQuota } from './getImportQuota';

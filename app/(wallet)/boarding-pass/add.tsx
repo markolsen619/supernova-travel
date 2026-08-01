@@ -1,27 +1,28 @@
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   ScrollView,
   TextInput,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native';
-import { useState, useCallback } from 'react';
-import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useState, useCallback, useEffect } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft } from 'phosphor-react-native';
+import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
-import { StarMark } from '@/components/ui/StarMark';
+import { WalletHeader } from '@/components/wallet/WalletHeader';
+import { DateField } from '@/components/wallet/DateField';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useImportDraftStore } from '@/stores/useImportDraftStore';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
+import { combineDateAndTime } from '@/utils/date';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import type { BoardingPass } from '@/types';
 
 interface FormState {
   airline: string;
@@ -30,9 +31,9 @@ interface FormState {
   originCity: string;
   destination: string;
   destinationCity: string;
-  departureTime: string;
   seat: string;
   gate: string;
+  terminal: string;
 }
 
 const INITIAL_FORM: FormState = {
@@ -42,23 +43,71 @@ const INITIAL_FORM: FormState = {
   originCity: '',
   destination: '',
   destinationCity: '',
-  departureTime: '',
   seat: '',
   gate: '',
+  terminal: '',
 };
 
 export default function AddBoardingPassScreen() {
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user } = useAuthStore();
-  const { addPass } = useBoardingPasses();
+  const { boardingPasses, addPass, updatePass } = useBoardingPasses();
+  const { id, draft: draftParam } = useLocalSearchParams<{ id?: string; draft?: string }>();
+  const draft = useImportDraftStore((s) => s.draft);
+  const clearDraft = useImportDraftStore((s) => s.clearDraft);
+
+  const isEditMode = !!id;
+  const existing = id ? boardingPasses.find((p) => p.id === id) : undefined;
+
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [departureDate, setDepartureDate] = useState<Date | null>(null);
+  const [departureTime, setDepartureTime] = useState<Date | null>(null);
 
-  const updateField = (field: keyof FormState, value: string) => {
+  useEffect(() => {
+    if (!existing) return;
+    setForm({
+      airline: existing.airline,
+      flightNumber: existing.flightNumber,
+      origin: existing.origin,
+      originCity: existing.originCity,
+      destination: existing.destination,
+      destinationCity: existing.destinationCity,
+      seat: existing.seat ?? '',
+      gate: existing.gate ?? '',
+      terminal: existing.terminal ?? '',
+    });
+    const existingDeparture = new Date(existing.departureTime);
+    setDepartureDate(existingDeparture);
+    setDepartureTime(existingDeparture);
+  }, [existing]);
+
+  useEffect(() => {
+    if (draftParam !== 'true' || !draft || draft.kind !== 'boarding_pass') return;
+    setForm((prev) => ({
+      ...prev,
+      airline: draft.fields.airline ?? prev.airline,
+      flightNumber: draft.fields.flightNumber ?? prev.flightNumber,
+      origin: draft.fields.origin ?? prev.origin,
+      originCity: draft.fields.originCity ?? prev.originCity,
+      destination: draft.fields.destination ?? prev.destination,
+      destinationCity: draft.fields.destinationCity ?? prev.destinationCity,
+      seat: draft.fields.seat ?? prev.seat,
+      gate: draft.fields.gate ?? prev.gate,
+      terminal: draft.fields.terminal ?? prev.terminal,
+    }));
+    if (draft.fields.departureTime) {
+      const d = new Date(draft.fields.departureTime);
+      setDepartureDate(d);
+      setDepartureTime(d);
+    }
+    clearDraft();
+  }, [draftParam, draft, clearDraft]);
+
+  const updateField = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!form.airline.trim() || !form.flightNumber.trim() || !form.origin.trim() || !form.destination.trim()) {
       Alert.alert('Missing details', 'Fill in airline, flight number, origin, and destination.');
       return;
@@ -68,27 +117,56 @@ export default function AddBoardingPassScreen() {
       return;
     }
 
-    addPass.mutate(
-      {
-        ownerUid: user.uid,
-        airline: form.airline.trim(),
-        flightNumber: form.flightNumber.trim().toUpperCase(),
-        origin: form.origin.trim().toUpperCase(),
-        originCity: form.originCity.trim(),
-        destination: form.destination.trim().toUpperCase(),
-        destinationCity: form.destinationCity.trim(),
-        departureTime: form.departureTime.trim() || new Date().toISOString(),
-        seat: form.seat.trim() || undefined,
-        gate: form.gate.trim() || undefined,
-        status: 'upcoming',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        onSuccess: () => router.back(),
-        onError: () => Alert.alert('Save failed', 'The pass didn\'t save. Try again.'),
-      },
-    );
-  };
+    const departureTimeIso =
+      departureDate && departureTime
+        ? combineDateAndTime(departureDate, departureTime)
+        : new Date().toISOString();
+
+    const baseFields = {
+      airline: form.airline.trim(),
+      flightNumber: form.flightNumber.trim().toUpperCase(),
+      origin: form.origin.trim().toUpperCase(),
+      originCity: form.originCity.trim(),
+      destination: form.destination.trim().toUpperCase(),
+      destinationCity: form.destinationCity.trim(),
+      departureTime: departureTimeIso,
+    };
+
+    if (isEditMode && id) {
+      // Edit mode uses deleteField() for blanked optional fields so clearing
+      // seat/gate/terminal actually clears them in Firestore, rather than
+      // omitting the key (which would leave the prior value untouched).
+      const editFields: Record<string, unknown> = {
+        ...baseFields,
+        seat: form.seat.trim() || deleteField(),
+        gate: form.gate.trim() || deleteField(),
+        terminal: form.terminal.trim() || deleteField(),
+      };
+      updatePass.mutate(
+        { id, ...editFields } as Partial<BoardingPass> & { id: string },
+        {
+          onSuccess: () => router.back(),
+          onError: () => Alert.alert('Save failed', "The pass didn't save. Try again."),
+        },
+      );
+    } else {
+      addPass.mutate(
+        {
+          ownerUid: user.uid,
+          ...baseFields,
+          ...(form.seat.trim() ? { seat: form.seat.trim() } : {}),
+          ...(form.gate.trim() ? { gate: form.gate.trim() } : {}),
+          ...(form.terminal.trim() ? { terminal: form.terminal.trim() } : {}),
+          status: 'upcoming',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          onSuccess: () => router.back(),
+          onError: () => Alert.alert('Save failed', "The pass didn't save. Try again."),
+        },
+      );
+    }
+  }, [form, user, departureDate, departureTime, isEditMode, id, updatePass, addPass]);
 
   const inputStyle = [
     styles.input,
@@ -106,30 +184,17 @@ export default function AddBoardingPassScreen() {
     router.back();
   }, []);
 
+  const isPending = addPass.isPending || updatePass.isPending;
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background.primary }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: insets.top + Spacing['4'],
-            borderBottomColor: colors.background.cardBorder,
-          },
-        ]}
-      >
-        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityLabel="Back">
-          <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
-        </TouchableOpacity>
-        <View style={styles.titleGroup}>
-          <StarMark size={18} />
-          <Text style={[styles.title, { color: colors.text.primary }]}>Add boarding pass</Text>
-        </View>
-        <View style={styles.backButton} />
-      </View>
+      <WalletHeader
+        title={isEditMode ? 'Edit boarding pass' : 'Add boarding pass'}
+        onBack={handleBack}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -213,19 +278,29 @@ export default function AddBoardingPassScreen() {
           </View>
         </View>
 
-        {/* Departure time */}
-        <Text style={labelStyle}>Departure time</Text>
-        <TextInput
-          style={inputStyle}
-          value={form.departureTime}
-          onChangeText={(v) => updateField('departureTime', v)}
-          placeholder="2025-08-15T10:30:00"
-          placeholderTextColor={colors.text.tertiary}
-          autoCapitalize="none"
-          keyboardType="default"
-        />
+        {/* Departure date & time */}
+        <View style={styles.row}>
+          <View style={styles.rowItem}>
+            <DateField
+              label="Departure date"
+              value={departureDate}
+              onChange={setDepartureDate}
+              mode="date"
+              placeholder="Select date"
+            />
+          </View>
+          <View style={styles.rowItem}>
+            <DateField
+              label="Departure time"
+              value={departureTime}
+              onChange={setDepartureTime}
+              mode="time"
+              placeholder="Select time"
+            />
+          </View>
+        </View>
 
-        {/* Seat & Gate row */}
+        {/* Seat, Gate & Terminal row */}
         <View style={styles.row}>
           <View style={styles.rowItem}>
             <Text style={labelStyle}>Seat</Text>
@@ -249,14 +324,25 @@ export default function AddBoardingPassScreen() {
               autoCapitalize="characters"
             />
           </View>
+          <View style={styles.rowItem}>
+            <Text style={labelStyle}>Terminal</Text>
+            <TextInput
+              style={inputStyle}
+              value={form.terminal}
+              onChangeText={(v) => updateField('terminal', v)}
+              placeholder="4"
+              placeholderTextColor={colors.text.tertiary}
+              autoCapitalize="characters"
+            />
+          </View>
         </View>
 
         {/* Submit */}
         <Button
-          label="Add boarding pass"
+          label={isEditMode ? 'Save changes' : 'Add boarding pass'}
           onPress={handleSubmit}
-          loading={addPass.isPending}
-          disabled={addPass.isPending}
+          loading={isPending}
+          disabled={isPending}
           variant="primary"
           size="lg"
           fullWidth
@@ -268,32 +354,8 @@ export default function AddBoardingPassScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing['4'],
-    paddingBottom: Spacing['4'],
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 44,
-    minHeight: 44,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  titleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
-  starIcon: { width: 18, height: 18 },
-  title: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semiBold,
-  },
-  scroll: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  scroll: { flex: 1 },
   label: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,

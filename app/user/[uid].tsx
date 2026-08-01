@@ -92,7 +92,7 @@ export default function UserProfileScreen() {
 
   const handleWalletPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/(wallet)/boarding-passes');
+    router.push('/(wallet)');
   }, []);
 
   const handleTripPress = useCallback(

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { collection, query, where, getDocs, addDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Reservation } from '@/types';
@@ -31,6 +31,13 @@ export function useReservations() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reservations', uid] }),
   });
 
+  const updateReservation = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Reservation> & { id: string }) => {
+      await updateDoc(doc(db, 'reservations', id), updates);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reservations', uid] }),
+  });
+
   const deleteReservation = useMutation({
     mutationFn: async (reservationId: string) => {
       await deleteDoc(doc(db, 'reservations', reservationId));
@@ -38,5 +45,5 @@ export function useReservations() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reservations', uid] }),
   });
 
-  return { reservations, isLoading, addReservation, deleteReservation };
+  return { reservations, isLoading, addReservation, updateReservation, deleteReservation };
 }
