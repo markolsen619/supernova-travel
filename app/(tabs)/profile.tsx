@@ -14,6 +14,7 @@ import * as Haptics from 'expo-haptics';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Bag,
   Gear,
   PencilSimple,
   MapTrifold,
@@ -182,6 +183,11 @@ function ProfileScreenContent() {
     router.push('/settings');
   }, []);
 
+  const handleWallet = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/(wallet)');
+  }, []);
+
   const handlePostPress = useCallback((postId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/post/${postId}`);
@@ -203,15 +209,26 @@ function ProfileScreenContent() {
         {/* Top actions */}
         <View style={styles.heroActions}>
           <ScreenHeaderStar />
-          <TouchableOpacity
-            onPress={handleSettings}
-            style={styles.heroIconBtn}
-            activeOpacity={0.7}
-            hitSlop={6}
-            accessibilityLabel="Settings"
-          >
-            <Gear size={22} color={colors.text.secondary} weight="regular" />
-          </TouchableOpacity>
+          <View style={styles.heroIconGroup}>
+            <TouchableOpacity
+              onPress={handleWallet}
+              style={styles.heroIconBtn}
+              activeOpacity={0.7}
+              hitSlop={6}
+              accessibilityLabel="Wallet"
+            >
+              <Bag size={22} color={colors.text.secondary} weight="regular" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSettings}
+              style={styles.heroIconBtn}
+              activeOpacity={0.7}
+              hitSlop={6}
+              accessibilityLabel="Settings"
+            >
+              <Gear size={22} color={colors.text.secondary} weight="regular" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Avatar + info */}
@@ -492,6 +509,10 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  heroIconGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 
   heroContent: {
