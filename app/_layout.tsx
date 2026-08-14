@@ -13,6 +13,7 @@ import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTheme } from '@/hooks/useTheme';
+import { resolveAuthRoute } from '@/utils/authRoute';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { SplashOverlay } from '@/components/SplashOverlay';
@@ -99,7 +100,8 @@ export default function RootLayout() {
       setUser(firebaseUser);
       if (firebaseUser) {
         const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (snap.exists()) {
+        const hasProfile = snap.exists();
+        if (hasProfile) {
           const data = snap.data();
           setTier(data.tier ?? 'free');
           // Hydrate the cached profile — EditProfileSheet, post authoring,
@@ -117,14 +119,16 @@ export default function RootLayout() {
             followingCount: data.followingCount ?? 0,
             createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
           });
+          registerPushToken(firebaseUser.uid);
+          configureRevenueCat(firebaseUser.uid);
         }
-        registerPushToken(firebaseUser.uid);
-        configureRevenueCat(firebaseUser.uid);
-        const onboardingDone = await AsyncStorage.getItem('onboarding_complete');
-        router.replace(onboardingDone ? '/(tabs)' : '/(auth)/onboarding');
+        // Truthiness, not a null check — the existing code is `onboardingDone ? ... : ...`,
+        // so a stored empty string must keep meaning "not onboarded".
+        const onboardingComplete = Boolean(await AsyncStorage.getItem('onboarding_complete'));
+        router.replace(resolveAuthRoute({ isAuthenticated: true, hasProfile, onboardingComplete }));
       } else {
         useUserStore.getState().setProfile(null);
-        router.replace('/(auth)/welcome');
+        router.replace(resolveAuthRoute({ isAuthenticated: false, hasProfile: false, onboardingComplete: false }));
       }
       setInitialized(true);
     });
