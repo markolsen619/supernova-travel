@@ -15,11 +15,11 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { CaretLeft, Eye, EyeSlash, CalendarBlank } from 'phosphor-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { auth, db } from '@/services/firebase';
+import { auth } from '@/services/firebase';
+import { createUserProfile } from '@/services/profile';
 import { useTheme } from '@/hooks/useTheme';
 import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
@@ -151,19 +151,7 @@ export default function SignUpScreen() {
       const claimResult = await claimUsername(user.uid, username, '');
       const claimedUsername = claimResult === 'ok' ? username : '';
 
-      await setDoc(doc(db, 'users', user.uid), {
-        fullName: fullName.trim(),
-        username: claimedUsername,
-        avatarUrl: null,
-        bio: '',
-        location: '',
-        tier: 'free',
-        followersCount: 0,
-        followingCount: 0,
-        createdAt: serverTimestamp(),
-        settings: { theme: 'dark', notificationsEnabled: true, privacy: 'public' },
-        usage: { weeklyAiTrips: 0, weeklyResetAt: null },
-      });
+      await createUserProfile(user.uid, { fullName, username: claimedUsername });
       router.replace('/(auth)/onboarding');
     } catch (e: any) {
       setError(
