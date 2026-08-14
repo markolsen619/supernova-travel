@@ -11,7 +11,6 @@ import {
   ScrollView,
   Modal,
   Animated,
-  ActivityIndicator,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
@@ -24,10 +23,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
+import UsernameField from '@/components/auth/UsernameField';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
-import { checkUsernameAvailability, claimUsername, validateUsernameFormat } from '@/services/usernames';
+import { claimUsername } from '@/services/usernames';
 import { isUnder13 } from '@/utils/age';
 
 export default function SignUpScreen() {
@@ -60,37 +60,13 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
-  const [usernameFocused, setUsernameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
-  const [usernameError, setUsernameError] = useState<string | null>(null);
-  const [usernameChecking, setUsernameChecking] = useState(false);
-  const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleUsernameChange = useCallback((raw: string) => {
-    const value = raw.toLowerCase().replace(/\s/g, '');
-    setUsername(value);
-    setError('');
-    if (usernameCheckTimer.current) clearTimeout(usernameCheckTimer.current);
-
-    const formatError = validateUsernameFormat(value);
-    if (formatError || !value) {
-      setUsernameError(formatError);
-      setUsernameChecking(false);
-      return;
-    }
-    setUsernameChecking(true);
-    setUsernameError(null);
-    usernameCheckTimer.current = setTimeout(async () => {
-      const available = await checkUsernameAvailability(value);
-      setUsernameChecking(false);
-      setUsernameError(available ? null : 'That username is taken.');
-    }, 500);
-  }, []);
+  const [usernameValid, setUsernameValid] = useState(false);
 
   const handleConfirmPasswordChange = useCallback((value: string) => {
     setConfirmPassword(value);
@@ -115,12 +91,7 @@ export default function SignUpScreen() {
       setError('Fill in all fields to continue.');
       return;
     }
-    const formatError = validateUsernameFormat(username);
-    if (formatError) {
-      setUsernameError(formatError);
-      return;
-    }
-    if (usernameError || usernameChecking) return;
+    if (!usernameValid) return;
     if (isUnder13(dob)) {
       setError('You must be 13 or older to use Supernova.');
       return;
@@ -162,7 +133,7 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [fullName, username, usernameError, usernameChecking, email, password, confirmPassword, dob]);
+  }, [fullName, username, usernameValid, email, password, confirmPassword, dob]);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -237,41 +208,7 @@ export default function SignUpScreen() {
         </View>
 
         {/* Username */}
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.text.secondary }]}>Username</Text>
-          <View
-            style={[
-              styles.input,
-              styles.usernameRow,
-              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
-              usernameFocused && { borderColor: colors.brand.purple },
-              usernameError && { borderColor: colors.semantic.error },
-            ]}
-          >
-            <Text style={[styles.atSign, { color: colors.text.tertiary }]}>@</Text>
-            <TextInput
-              style={[styles.usernameInput, { color: colors.text.primary }]}
-              value={username}
-              onChangeText={handleUsernameChange}
-              onFocus={() => setUsernameFocused(true)}
-              onBlur={() => setUsernameFocused(false)}
-              placeholder="username"
-              placeholderTextColor={colors.text.tertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={20}
-              returnKeyType="next"
-            />
-            {usernameChecking && <ActivityIndicator size="small" color={colors.text.tertiary} />}
-          </View>
-          {usernameError ? (
-            <Text style={[styles.fieldError, { color: colors.semantic.error }]}>{usernameError}</Text>
-          ) : (
-            <Text style={[styles.fieldHint, { color: colors.text.tertiary }]}>
-              Lowercase letters, numbers, dots, and underscores.
-            </Text>
-          )}
-        </View>
+        <UsernameField value={username} onChangeText={setUsername} onValidityChange={setUsernameValid} />
 
         {/* Email */}
         <View style={styles.field}>
@@ -408,7 +345,7 @@ export default function SignUpScreen() {
           label="Create account"
           onPress={handleSignUp}
           loading={loading}
-          disabled={usernameChecking || !!usernameError || !!confirmPasswordError}
+          disabled={!usernameValid || !!confirmPasswordError}
           fullWidth
           size="lg"
           style={styles.cta}
@@ -499,11 +436,7 @@ const styles = StyleSheet.create({
   },
   dobRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'] },
   dobText: { fontSize: FontSize.base, flex: 1 },
-  usernameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['1'], paddingVertical: 0 },
-  atSign: { fontSize: FontSize.base },
-  usernameInput: { flex: 1, fontSize: FontSize.base, paddingVertical: Spacing['3'] },
   fieldError: { fontSize: FontSize.xs, marginTop: Spacing['2'] },
-  fieldHint: { fontSize: FontSize.xs, marginTop: Spacing['2'] },
   inputRow: { flexDirection: 'row', gap: Spacing['2'] },
   inputFlex: { flex: 1 },
   eyeBtn: {
