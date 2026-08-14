@@ -25,11 +25,18 @@ try {
   authInstance = initializeAuth(app, {
     persistence: getReactNativePersistence(ReactNativeAsyncStorage),
   });
-} catch {
+} catch (error) {
   // Fast Refresh re-evaluates this module against a live Firebase app whose
   // Auth provider is already initialized. initializeAuth is not idempotent —
   // getReactNativePersistence returns a new class each call, so Firebase's
-  // deepEqual guard never matches. Reuse the existing instance.
+  // deepEqual guard never matches. Reusing the existing instance is correct
+  // here and keeps the persistence configured by the first call.
+  if ((error as { code?: string })?.code !== 'auth/already-initialized') {
+    // Any other cause means persistence did NOT get configured and we are
+    // about to fall back to a memory-only instance. Say so loudly — silent
+    // degradation here reintroduces the exact bug this file was changed to fix.
+    console.warn('[firebase] initializeAuth failed; auth persistence is NOT active:', error);
+  }
   authInstance = getAuth(app);
 }
 export const auth = authInstance;
