@@ -15,6 +15,7 @@ import { signOut } from 'firebase/auth';
 import * as Haptics from 'expo-haptics';
 import { auth } from '@/services/firebase';
 import { createUserProfile } from '@/services/profile';
+import { hydrateSession } from '@/services/session';
 import { claimUsername } from '@/services/usernames';
 import { useTheme } from '@/hooks/useTheme';
 import { StarMark } from '@/components/ui/StarMark';
@@ -85,6 +86,10 @@ export default function CompleteProfileScreen() {
         fullName,
         username: claimResult === 'ok' ? username : '',
       });
+      // The doc now exists, but this write does not re-fire onAuthStateChanged —
+      // hydrate the session here so tier/profile/push-token/RevenueCat are set
+      // before entering the app this session, not next cold start.
+      await hydrateSession(user);
       router.replace('/(auth)/onboarding');
     } catch {
       setError('Could not save your profile. Try again in a moment.');
