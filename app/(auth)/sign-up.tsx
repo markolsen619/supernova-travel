@@ -67,6 +67,7 @@ export default function SignUpScreen() {
   const [error, setError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const [usernameValid, setUsernameValid] = useState(false);
+  const [usernameBlocking, setUsernameBlocking] = useState(false);
 
   const handleConfirmPasswordChange = useCallback((value: string) => {
     setConfirmPassword(value);
@@ -208,7 +209,12 @@ export default function SignUpScreen() {
         </View>
 
         {/* Username */}
-        <UsernameField value={username} onChangeText={setUsername} onValidityChange={setUsernameValid} />
+        <UsernameField
+          value={username}
+          onChangeText={setUsername}
+          onValidityChange={setUsernameValid}
+          onBlockingChange={setUsernameBlocking}
+        />
 
         {/* Email */}
         <View style={styles.field}>
@@ -345,7 +351,7 @@ export default function SignUpScreen() {
           label="Create account"
           onPress={handleSignUp}
           loading={loading}
-          disabled={!usernameValid || !!confirmPasswordError}
+          disabled={usernameBlocking || !!confirmPasswordError}
           fullWidth
           size="lg"
           style={styles.cta}

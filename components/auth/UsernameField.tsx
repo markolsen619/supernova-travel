@@ -11,10 +11,15 @@ type UsernameFieldProps = {
   // false while unresolved, invalid, or a check is in flight;
   // true only once the name is confirmed available
   onValidityChange: (valid: boolean) => void;
+  /** true while a check is in flight or the current value is invalid/taken —
+   *  mirrors the pre-extraction `usernameChecking || !!usernameError` signal
+   *  that the sign-up submit button gates on. Distinct from onValidityChange:
+   *  a pristine, untouched field is NOT blocking, but is also NOT yet valid. */
+  onBlockingChange?: (blocking: boolean) => void;
   forUid?: string;
 };
 
-export default function UsernameField({ value, onChangeText, onValidityChange, forUid }: UsernameFieldProps) {
+export default function UsernameField({ value, onChangeText, onValidityChange, onBlockingChange, forUid }: UsernameFieldProps) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,18 +40,22 @@ export default function UsernameField({ value, onChangeText, onValidityChange, f
       setError(formatError);
       setChecking(false);
       onValidityChange(false);
+      onBlockingChange?.(!!formatError);
       return;
     }
     setChecking(true);
     setError(null);
     onValidityChange(false);
+    onBlockingChange?.(true);
     checkTimer.current = setTimeout(async () => {
       const available = await checkUsernameAvailability(next, forUid);
+      const takenError = available ? null : 'That username is taken.';
       setChecking(false);
-      setError(available ? null : 'That username is taken.');
+      setError(takenError);
       onValidityChange(available);
+      onBlockingChange?.(!!takenError);
     }, 500);
-  }, [onChangeText, onValidityChange, forUid]);
+  }, [onChangeText, onValidityChange, onBlockingChange, forUid]);
 
   const handleFocus = useCallback(() => setFocused(true), []);
   const handleBlur = useCallback(() => setFocused(false), []);
