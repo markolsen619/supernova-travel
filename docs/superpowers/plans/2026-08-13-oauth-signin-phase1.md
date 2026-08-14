@@ -827,8 +827,15 @@ git commit -m "chore: add and configure @react-native-google-signin"
 
 - [ ] **Step 1: Write the module**
 
+**Installed version is 16.1.4.** Since v13 the API changed in a way that breaks
+the obvious implementation: `signIn()` NO LONGER THROWS when the user dismisses
+the sheet — it RESOLVES with `{ type: 'cancelled' }`. Any cancellation handling
+built around a `catch` block will therefore never fire. The package exports a
+type guard, `isSuccessResponse(response): response is SignInSuccessResponse`,
+which is the correct discriminator. Use it.
+
 ```ts
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, signInWithCredential, type UserCredential } from 'firebase/auth';
 import { auth } from '@/services/firebase';
 
@@ -843,10 +850,17 @@ export function configureGoogleSignIn(): void {
   });
 }
 
-export async function signInWithGoogle(): Promise<UserCredential> {
+/**
+ * Resolves to null when the user dismisses the sheet — cancellation is a normal
+ * outcome, not an error. Since v13 the SDK signals it by resolving with
+ * { type: 'cancelled' } rather than throwing, so a catch block would miss it.
+ */
+export async function signInWithGoogle(): Promise<UserCredential | null> {
   await GoogleSignin.hasPlayServices();
   const response = await GoogleSignin.signIn();
-  const idToken = response.data?.idToken;
+  if (!isSuccessResponse(response)) return null;
+
+  const { idToken } = response.data;
   if (!idToken) throw new Error('Google sign-in returned no ID token');
   const credential = GoogleAuthProvider.credential(idToken);
   return signInWithCredential(auth, credential);
@@ -857,11 +871,20 @@ export async function isAppleAuthAvailable(): Promise<boolean> {
   return false;
 }
 
-/** Dismissing a provider sheet is a normal outcome, not an error to surface. */
-export function isCancellation(error: unknown): boolean {
-  const code = (error as { code?: string })?.code;
-  return code === statusCodes.SIGN_IN_CANCELLED || code === 'ERR_REQUEST_CANCELED';
-}
+Note there is deliberately no `isCancellation(error)` helper. Cancellation is
+carried by the RETURN VALUE (`null`), not by a thrown error, so callers write:
+
+```ts
+const credential = await signInWithGoogle();
+if (!credential) return;   // user dismissed the sheet — show nothing
+```
+
+- [ ] **Step 2b: Confirm the type guard exists in the installed version**
+
+Run: `grep -rn "isSuccessResponse" node_modules/@react-native-google-signin/google-signin/lib/typescript/src/functions.d.ts`
+Expected: a line declaring `isSuccessResponse(response: SignInResponse): response is SignInSuccessResponse`.
+If absent, the installed major differs from 16.x — STOP and report rather than
+improvising a shape.
 ```
 
 - [ ] **Step 2: Confirm the response shape**
