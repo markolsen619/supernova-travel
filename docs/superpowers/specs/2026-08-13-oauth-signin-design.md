@@ -18,6 +18,33 @@ those created by email/password sign-up.
 | Firebase auth persistence | Fixed as part of this work |
 | Platform scope | iOS first; Android code paths written but its client unconfigured |
 | Button styling | Apple's native `AppleAuthenticationButton` + a matched custom Google button |
+| Shipping order | **Phase 1 — Google only.** Apple deferred pending Apple Developer enrollment |
+
+## Phasing
+
+Sign in with Apple requires an entitlement that only a paid Apple Developer
+Program membership can grant. Enrollment is expected the week of 2026-08-17, so
+the work splits:
+
+**Phase 1 (now) — everything except Apple.** Auth persistence, the routing gate,
+`complete-profile`, the three extractions, and Google sign-in end to end.
+`expo-apple-authentication` is **not installed** in this phase: its config plugin
+adds an entitlement the App ID cannot yet carry, which introduces signing noise
+for no benefit.
+
+**Phase 2 (post-enrollment) — Apple.** Install `expo-apple-authentication`,
+implement `signInWithApple()` against the contract below, enable the Apple
+provider in Firebase, and render the button. No Phase 1 code changes shape.
+
+The seam that makes this clean: `SocialAuthButtons` renders each provider behind
+an availability predicate, and `services/oauth.ts` already exports
+`isAppleAuthAvailable()` — which returns `false` in Phase 1. Phase 2 replaces one
+function body and adds one dependency.
+
+Until Phase 2 ships, the iOS build offers Google and email only. Note this cannot
+be submitted to the App Store in that state — Guideline 4.8 requires Sign in with
+Apple wherever a third-party provider is offered — so Phase 1 is a
+develop-and-test milestone, not a releasable one.
 
 ## Background: why a profile step is required
 
@@ -213,16 +240,40 @@ user's password regardless.
 
 ## Console configuration (manual prerequisites)
 
-1. Firebase Console → Authentication → Sign-in method → enable **Google** and
-   **Apple**.
-2. Copy the iOS client ID and reversed client ID; the reversed value becomes a
-   `CFBundleURLSchemes` entry in `app.json`.
-3. Copy the **Web client ID** for `GoogleSignin.configure()`.
-4. Apple Developer → Certificates, IDs & Profiles → App ID → enable the
-   **Sign in with Apple** capability.
+**Phase 1 — complete as of 2026-08-13:**
 
-Not required: Services ID, Team ID, Key ID, and `.p8` private key. Those apply to
-web and Android Apple sign-in, which iOS-first scope excludes.
+1. ✅ Firebase → Authentication → Sign-in method → **Google** enabled
+   (confirmed by `IS_SIGNIN_ENABLED: true` in the plist).
+2. ✅ iOS app registered under bundle ID `com.supernovatravel.app`;
+   `GoogleService-Info.plist` at the project root, supplying `CLIENT_ID` and
+   `REVERSED_CLIENT_ID`.
+3. ✅ Web client ID recorded as `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in
+   `.env.local`. Verified to share GCP project `329448816704` with the plist's
+   `GCM_SENDER_ID` — a mismatch here is the usual cause of otherwise-inexplicable
+   token rejection.
+
+**Phase 2 — blocked on Apple Developer Program enrollment:**
+
+4. ⏳ Apple Developer → Certificates, IDs & Profiles → App ID
+   `com.supernovatravel.app` → enable the **Sign in with Apple** capability.
+5. ⏳ Firebase → Authentication → Sign-in method → enable **Apple**.
+
+Not required at any phase: Services ID, Team ID, Key ID, and `.p8` private key.
+Those apply to web and Android Apple sign-in, which iOS-first scope excludes.
+
+### Secret handling
+
+`GoogleService-Info.plist` is **gitignored** (`.gitignore`), matching how
+`.env.local` is already treated — the repo is public and the plist carries the
+same project configuration. Consequences:
+
+- Local dev: the file sits at the project root, provisioned manually.
+- EAS builds: supply via `eas secret:create --type file`.
+- Fresh clones: the file must be downloaded from the Firebase console.
+
+The plist is not a credential — its `API_KEY` is a client identifier that ships
+in the app binary, and access control rests on `firestore.rules`. It is excluded
+for consistency with existing repo practice, not because it is sensitive.
 
 A dev-client rebuild is required — both libraries ship native modules. This
 machine has no `ios/Pods`, so the first build includes a `pod install`.
@@ -237,17 +288,27 @@ Automated:
 - The `_layout` gate — profile-missing routes to `complete-profile`;
   profile-present routes to tabs/onboarding.
 
-Manual, in the simulator:
+Manual, in the simulator — Phase 1:
 
 - Google first-time → `complete-profile` → app entry.
-- Apple first-time → name prefilled from the one-time payload.
-- Both returning → straight to tabs, no profile step.
-- Cancel each sheet → no error shown.
+- Google returning → straight to tabs, no profile step.
+- Cancel the Google sheet → no error shown.
 - Force-quit mid-`complete-profile` → relaunch returns there.
+- "Use a different account" on `complete-profile` → back to welcome.
 - Cold start after sign-in → still signed in (persistence).
+- Existing email account → unchanged behavior through the new gate.
 
-The simulator must be signed into an Apple ID (Settings → Sign in to your iPhone)
-or Apple's sheet errors immediately.
+The last two are testable before any provider work lands, since persistence and
+the gate are exercised by the email flow alone. Sequence them first.
+
+Phase 2 adds:
+
+- Apple first-time → name prefilled from the one-time payload.
+- Apple returning → name absent from the payload, profile already populated.
+- Cancel the Apple sheet → no error shown.
+
+Phase 2 requires the simulator to be signed into an Apple ID (Settings → Sign in
+to your iPhone) or Apple's sheet errors immediately.
 
 ## Out of scope
 
