@@ -9,14 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
   Animated,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import * as Haptics from 'expo-haptics';
-import { CaretLeft, Eye, EyeSlash, CalendarBlank } from 'phosphor-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { CaretLeft, Eye, EyeSlash } from 'phosphor-react-native';
 import { auth } from '@/services/firebase';
 import { createUserProfile } from '@/services/profile';
 import { useTheme } from '@/hooks/useTheme';
@@ -24,11 +22,11 @@ import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import UsernameField from '@/components/auth/UsernameField';
+import BirthdayField from '@/components/auth/BirthdayField';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 import { claimUsername } from '@/services/usernames';
-import { isUnder13 } from '@/utils/age';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -56,7 +54,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dob, setDob] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [birthdayValid, setBirthdayValid] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
@@ -84,19 +82,13 @@ export default function SignUpScreen() {
     setConfirmPasswordError(password === confirmPassword ? null : "Passwords don't match.");
   }, [password, confirmPassword]);
 
-  const maxDobDate = new Date();
-  maxDobDate.setFullYear(maxDobDate.getFullYear() - 13);
-
   const handleSignUp = useCallback(async () => {
     if (!fullName.trim() || !username.trim() || !email.trim() || !password || !confirmPassword || !dob) {
       setError('Fill in all fields to continue.');
       return;
     }
     if (!usernameValid) return;
-    if (isUnder13(dob)) {
-      setError('You must be 13 or older to use Supernova.');
-      return;
-    }
+    if (!birthdayValid) return;
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
@@ -134,7 +126,7 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [fullName, username, usernameValid, email, password, confirmPassword, dob]);
+  }, [fullName, username, usernameValid, email, password, confirmPassword, dob, birthdayValid]);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -145,24 +137,6 @@ export default function SignUpScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowPassword((v) => !v);
   }, []);
-
-  const openDatePicker = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowDatePicker(true);
-  }, []);
-
-  const closeDatePicker = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowDatePicker(false);
-  }, []);
-
-  const onDateChange = useCallback((_: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (selectedDate) setDob(selectedDate);
-  }, []);
-
-  const formatDob = (date: Date) =>
-    date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
     <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -238,28 +212,8 @@ export default function SignUpScreen() {
           />
         </View>
 
-        {/* Date of Birth */}
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.text.secondary }]}>Date of birth</Text>
-          <TouchableOpacity
-            style={[
-              styles.input,
-              styles.dobRow,
-              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
-            ]}
-            onPress={openDatePicker}
-            activeOpacity={0.8}
-          >
-            <CalendarBlank
-              size={18}
-              color={dob ? colors.text.primary : colors.text.tertiary}
-              weight="regular"
-            />
-            <Text style={[styles.dobText, { color: dob ? colors.text.primary : colors.text.tertiary }]}>
-              {dob ? formatDob(dob) : 'Select your date of birth'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Date of birth */}
+        <BirthdayField value={dob} onChange={setDob} onValidityChange={setBirthdayValid} />
 
         {/* Password */}
         <View style={styles.field}>
@@ -371,44 +325,6 @@ export default function SignUpScreen() {
       </ScrollView>
       </Animated.View>
 
-      {/* iOS date picker in a bottom sheet modal — matches the rest of the
-          (now light) form, not hardcoded dark. */}
-      {Platform.OS === 'ios' && showDatePicker && (
-        <Modal transparent animationType="slide">
-          <View style={styles.pickerOverlay}>
-            <TouchableOpacity style={styles.pickerBackdrop} onPress={closeDatePicker} />
-            <View style={[styles.pickerSheet, { backgroundColor: colors.background.elevated }]}>
-              <View style={[styles.pickerHeader, { borderBottomColor: colors.background.cardBorder }]}>
-                <TouchableOpacity onPress={closeDatePicker} hitSlop={8}>
-                  <Text style={[styles.pickerDone, { color: colors.brand.purple }]}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={dob ?? maxDobDate}
-                mode="date"
-                display="spinner"
-                onChange={onDateChange}
-                maximumDate={maxDobDate}
-                minimumDate={new Date(1900, 0, 1)}
-                textColor={colors.text.primary}
-              />
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Android shows native dialog when showDatePicker is true */}
-      {Platform.OS === 'android' && showDatePicker && (
-        <DateTimePicker
-          value={dob ?? maxDobDate}
-          mode="date"
-          display="default"
-          onChange={onDateChange}
-          maximumDate={maxDobDate}
-          minimumDate={new Date(1900, 0, 1)}
-        />
-      )}
-
       {/* Fades out on first mount only, revealing the light content — the
           arrival counterpart to ai-generating.tsx's fade-out-into-dark. */}
       <Animated.View
@@ -440,8 +356,6 @@ const styles = StyleSheet.create({
     padding: Spacing['4'],
     fontSize: FontSize.base,
   },
-  dobRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'] },
-  dobText: { fontSize: FontSize.base, flex: 1 },
   fieldError: { fontSize: FontSize.xs, marginTop: Spacing['2'] },
   inputRow: { flexDirection: 'row', gap: Spacing['2'] },
   inputFlex: { flex: 1 },
@@ -464,25 +378,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: FontSize.sm },
   footerLink: {
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.semiBold,
-  },
-
-  // Date picker modal
-  pickerOverlay: { flex: 1, justifyContent: 'flex-end' },
-  pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  pickerSheet: {
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    paddingBottom: 32,
-  },
-  pickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: Spacing['4'],
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  pickerDone: {
-    fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
   },
 });
