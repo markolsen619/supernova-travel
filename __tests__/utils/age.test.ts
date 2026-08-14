@@ -1,6 +1,17 @@
 import { isUnder13 } from '@/utils/age';
 
 describe('isUnder13', () => {
+  // Pin "today" so these never depend on the calendar date the suite runs on.
+  // Without this, setFullYear rolls Feb 29 -> Mar 1 and the birthday-boundary
+  // assertions flip. 2026-06-15 is deliberately not near a month or year edge.
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+  });
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   const daysAgo = (n: number) => {
     const d = new Date();
     d.setDate(d.getDate() - n);
