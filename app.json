@@ -14,6 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.supernovatravel.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "Supernova needs camera access to capture travel photos and clips.",
         "NSPhotoLibraryUsageDescription": "Supernova needs photo library access to share your travel memories.",
@@ -73,6 +74,12 @@
         "react-native-maps",
         {
           "googleMapsApiKey": "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.329448816704-2ek5dmk5j5a5s7mteoms6mkgc71fk8ce"
         }
       ]
     ],
