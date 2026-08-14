@@ -97,11 +97,26 @@ account:
 
 A check inside `handleGoogleSignIn` would catch only the first of these.
 
+### Session setup happens at two moments, not one
+
+`onAuthStateChanged` fires on sign-in, sign-out, and token refresh. It does **not**
+fire on a Firestore write. So when `complete-profile` creates the missing
+document, the listener that would normally hydrate the session has already run
+and will not run again that session.
+
+Everything gated on "a profile now exists" therefore lives in
+`services/session.ts`'s `hydrateSession(firebaseUser)` — store hydration, `tier`,
+push-token registration, and RevenueCat configuration — and is called from both
+the auth listener and `complete-profile`. Omitting the second call site leaves a
+first-time user with RevenueCat unconfigured, so purchases fail until their next
+cold start.
+
 ### New files
 
 | File | Responsibility |
 |---|---|
 | `services/oauth.ts` | `signInWithGoogle()`, `signInWithApple()`, `isAppleAuthAvailable()` — all provider-SDK detail |
+| `services/session.ts` | `hydrateSession(firebaseUser)` — everything that must happen once a profile document is known to exist; returns whether it exists |
 | `services/profile.ts` | `createUserProfile(uid, { fullName, username })` — sole writer of the `users/{uid}` shape |
 | `app/(auth)/complete-profile.tsx` | Gated step: full name (prefilled), username, birthday |
 | `components/auth/SocialAuthButtons.tsx` | Divider + both buttons, shared by sign-in and sign-up |

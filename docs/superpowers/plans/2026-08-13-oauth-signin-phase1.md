@@ -681,7 +681,22 @@ const onboardingComplete = Boolean(await AsyncStorage.getItem('onboarding_comple
 router.replace(resolveAuthRoute({ isAuthenticated: true, hasProfile, onboardingComplete }));
 ```
 
-Note `registerPushToken` and `configureRevenueCat` now run **only** when a profile exists — both write to or key off `users/{uid}`, so calling them for a profile-less account is meaningless. They will run on the next auth state change after `complete-profile` writes the document.
+`registerPushToken` and `configureRevenueCat` run **only** when a profile exists — both write to or key off `users/{uid}`.
+
+**They do NOT re-run by themselves after the gate is completed.** An earlier
+revision of this plan claimed the auth listener would fire again once
+`complete-profile` wrote the document. That is false: `onAuthStateChanged` fires
+on sign-in, sign-out, and token refresh — a Firestore write triggers nothing, and
+`complete-profile` touches Firebase Auth not at all. Left unaddressed, a
+first-time user finishes the gate with no push token and, more seriously, with
+RevenueCat unconfigured, so purchases fail for that entire session.
+
+The fix is `services/session.ts`'s `hydrateSession(firebaseUser)`, which performs
+the `getDoc`, hydrates the store, sets the tier, registers the push token, and
+configures RevenueCat, returning whether the profile exists. It is called from
+**both** the auth listener and `complete-profile` immediately after
+`createUserProfile`. Those two call sites cannot be collapsed — they are the two
+distinct moments at which a profile becomes known to exist.
 
 - [ ] **Step 2: Verify the signed-out branch**
 
