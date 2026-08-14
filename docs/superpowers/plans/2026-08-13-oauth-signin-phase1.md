@@ -823,7 +823,7 @@ git commit -m "chore: add and configure @react-native-google-signin"
   - `configureGoogleSignIn(): void`
   - `signInWithGoogle(): Promise<UserCredential>`
   - `isAppleAuthAvailable(): Promise<boolean>` — returns `false` in Phase 1
-  - `isCancellation(error: unknown): boolean`
+  (no `isCancellation` helper — cancellation is the `null` return, not a throw)
 
 - [ ] **Step 1: Write the module**
 
@@ -923,7 +923,7 @@ git commit -m "feat: add Google sign-in service wrapper"
 - Modify: `app/(auth)/sign-up.tsx` (insert below the submit button)
 
 **Interfaces:**
-- Consumes: `signInWithGoogle`, `isCancellation`, `isAppleAuthAvailable` (Task 10)
+- Consumes: `signInWithGoogle`, `isAppleAuthAvailable` (Task 10)
 - Produces: `SocialAuthButtons` (default export), props `{ onError: (message: string) => void }`
 
 **REQUIRED:** read `.claude/skills/supernova-design/SKILL.md` and run its pre-ship checklist before completing this task.
@@ -941,10 +941,14 @@ const handleGoogle = useCallback(async () => {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   setLoading(true);
   try {
-    await signInWithGoogle();
-    // No navigation here — the auth listener in _layout owns routing.
+    const credential = await signInWithGoogle();
+    // null means the user dismissed the sheet. Cancelling is a normal outcome,
+    // not a failure — show nothing at all. Note this is a RETURN VALUE check,
+    // not a catch: since v13 the SDK resolves with { type: 'cancelled' }
+    // instead of throwing, so a catch-based check would never fire.
+    if (!credential) return;
+    // No navigation on success either — the auth listener in _layout owns routing.
   } catch (e: any) {
-    if (isCancellation(e)) return;
     if (e?.code === 'auth/account-exists-with-different-credential') {
       onError('You already have an account with this email. Sign in with your password.');
     } else if (e?.code === 'auth/network-request-failed') {
