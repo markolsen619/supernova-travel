@@ -197,10 +197,24 @@ form applies:
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+let authInstance: Auth;
+try {
+  authInstance = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+  });
+} catch {
+  authInstance = getAuth(app);
+}
+export const auth = authInstance;
 ```
+
+The try/catch is required, not defensive padding. `initializeAuth` is not
+idempotent, and `getReactNativePersistence` returns a newly-constructed class on
+every call, so Firebase's `deepEqual` check against the first call's options can
+never match — a second evaluation always throws `auth/already-initialized`.
+React Native's Fast Refresh re-evaluates modules without restarting the JS
+engine, so this fires on every hot reload. Cold start never hits it, and neither
+do `tsc`, `lint`, or `jest`.
 
 This also changes existing email/password behavior — those sessions will now
 survive restarts as well. That is the intended outcome.

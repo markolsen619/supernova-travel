@@ -54,12 +54,28 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 ```
 
 ```ts
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+let authInstance: Auth;
+try {
+  authInstance = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+  });
+} catch {
+  // Fast Refresh re-evaluates this module against a live Firebase app whose
+  // Auth provider is already initialized. initializeAuth is not idempotent —
+  // getReactNativePersistence returns a new class each call, so Firebase's
+  // deepEqual guard never matches and the second call always throws
+  // auth/already-initialized. Reuse the existing instance.
+  authInstance = getAuth(app);
+}
+export const auth = authInstance;
 ```
 
-Remove the now-unused `getAuth` import.
+Keep the `getAuth` import — the catch branch needs it. Import the `Auth` type too.
+
+**Do not simplify this to a bare `initializeAuth` call.** An earlier revision of
+this plan prescribed exactly that; it passes `tsc`, `lint`, and `jest`, and
+crashes the app on every Fast Refresh. Cold start is unaffected, which is why no
+automated gate catches it.
 
 - [ ] **Step 2: Typecheck**
 
