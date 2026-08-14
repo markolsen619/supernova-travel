@@ -120,6 +120,18 @@ Create `__tests__/utils/age.test.ts`:
 import { isUnder13 } from '@/utils/age';
 
 describe('isUnder13', () => {
+  // Pin "today" so these never depend on the calendar date the suite runs on.
+  // Without it, setFullYear rolls Feb 29 -> Mar 1 when the target year is not
+  // a leap year, shifting the constructed DOB by a day and flipping the
+  // birthday-boundary assertions. 2026-06-15 sits clear of month/year edges.
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 5, 15, 12, 0, 0));
+  });
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   const daysAgo = (n: number) => {
     const d = new Date();
     d.setDate(d.getDate() - n);
