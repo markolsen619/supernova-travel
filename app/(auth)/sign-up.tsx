@@ -28,6 +28,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 import { checkUsernameAvailability, claimUsername, validateUsernameFormat } from '@/services/usernames';
+import { isUnder13 } from '@/utils/age';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -109,13 +110,6 @@ export default function SignUpScreen() {
   const maxDobDate = new Date();
   maxDobDate.setFullYear(maxDobDate.getFullYear() - 13);
 
-  const isUnder13 = useCallback((date: Date) => {
-    const today = new Date();
-    const age = today.getFullYear() - date.getFullYear();
-    const m = today.getMonth() - date.getMonth();
-    return (m < 0 || (m === 0 && today.getDate() < date.getDate()) ? age - 1 : age) < 13;
-  }, []);
-
   const handleSignUp = useCallback(async () => {
     if (!fullName.trim() || !username.trim() || !email.trim() || !password || !confirmPassword || !dob) {
       setError('Fill in all fields to continue.');
@@ -180,7 +174,7 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [fullName, username, usernameError, usernameChecking, email, password, confirmPassword, dob, isUnder13]);
+  }, [fullName, username, usernameError, usernameChecking, email, password, confirmPassword, dob]);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
