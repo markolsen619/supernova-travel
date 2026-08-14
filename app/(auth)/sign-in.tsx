@@ -20,6 +20,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
+import SocialAuthButtons from '@/components/auth/SocialAuthButtons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
@@ -180,6 +181,8 @@ export default function SignInScreen() {
           size="lg"
           style={styles.cta}
         />
+
+        <SocialAuthButtons onError={setError} />
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.text.secondary }]}>Don&apos;t have an account? </Text>

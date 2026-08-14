@@ -21,6 +21,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
+import SocialAuthButtons from '@/components/auth/SocialAuthButtons';
 import UsernameField from '@/components/auth/UsernameField';
 import BirthdayField from '@/components/auth/BirthdayField';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -310,6 +311,8 @@ export default function SignUpScreen() {
           size="lg"
           style={styles.cta}
         />
+
+        <SocialAuthButtons onError={setError} />
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.text.secondary }]}>Already have an account? </Text>
