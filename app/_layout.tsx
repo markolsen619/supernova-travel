@@ -7,6 +7,7 @@ import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/services/firebase';
+import { configureGoogleSignIn } from '@/services/oauth';
 import { hydrateSession } from '@/services/session';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
@@ -17,6 +18,7 @@ import { StyleSheet } from 'react-native';
 import { SplashOverlay } from '@/components/SplashOverlay';
 
 SplashScreen.preventAutoHideAsync();
+configureGoogleSignIn();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
