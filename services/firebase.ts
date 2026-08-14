@@ -1,9 +1,10 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 // @ts-expect-error — getReactNativePersistence ships only in Firebase's React
 // Native build (@firebase/auth/dist/rn), which Metro resolves; it is absent
 // from the CJS typings that tsc reads. Runtime export is real.
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
+import type { Auth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
@@ -19,9 +20,19 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+let authInstance: Auth;
+try {
+  authInstance = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+  });
+} catch {
+  // Fast Refresh re-evaluates this module against a live Firebase app whose
+  // Auth provider is already initialized. initializeAuth is not idempotent —
+  // getReactNativePersistence returns a new class each call, so Firebase's
+  // deepEqual guard never matches. Reuse the existing instance.
+  authInstance = getAuth(app);
+}
+export const auth = authInstance;
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'us-central1');
