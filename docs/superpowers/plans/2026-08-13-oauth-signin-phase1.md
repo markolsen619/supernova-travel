@@ -766,25 +766,42 @@ Add to `expo.plugins`:
 That `iosUrlScheme` is the `REVERSED_CLIENT_ID` from the plist. Do not invent it — re-read it if unsure:
 `/usr/libexec/PlistBuddy -c 'Print :REVERSED_CLIENT_ID' GoogleService-Info.plist`
 
-- [ ] **Step 3: Regenerate native project**
+- [ ] **Step 3: Build the dev client — VIA EAS, NOT LOCALLY**
+
+**A local build is impossible on this machine.** It has Xcode 15.2; React Native
+0.81 requires Xcode 16.1+, so `pod install` fails with `Invalid Podfile file:
+Please upgrade XCode.` This is also why the repo has never had an `ios/Pods`
+directory — the existing dev client was produced by EAS, not locally.
+
+Do NOT run `npx expo prebuild` or `npx expo run:ios`. Build in the cloud:
 
 ```bash
-npx expo prebuild --platform ios --clean
+eas build --profile development --platform ios
 ```
 
-Safe: `ios/` is gitignored and fully generated. This also runs `pod install`, absent from this machine so far.
+The `development` profile already sets `ios.simulator: true`, which yields an
+installable simulator `.app`. Expect ~15-30 minutes including queue.
 
-- [ ] **Step 4: Rebuild and install the dev client**
+**Sequence this AFTER Tasks 10 and 11**, not here. Those tasks add the code that
+imports the native module, so building before them wastes a build: one EAS run
+should cover all of the native-dependent work at once.
+
+- [ ] **Step 4: Install the built client**
+
+Download the artifact, then:
 
 ```bash
-npx expo run:ios --device "iPhone 15 Pro"
+tar -xzf <artifact>.tar.gz          # if gzipped
+xcrun simctl install <UDID> <Supernova.app>
+xcrun simctl launch <UDID> com.supernovatravel.app
 ```
 
-Expect ~10-15 minutes for the first cold build.
+- [ ] **Step 5: Verify the app launches**
 
-- [ ] **Step 5: Verify the app still launches**
-
-Expected: app boots to welcome as before. No behavior change yet — this task only links the SDK.
+Expected: boots to welcome. Note that between Task 10 landing and this build
+completing, the OLD dev client will CRASH on launch — `configureGoogleSignIn()`
+runs at module scope in `_layout.tsx` and its native module does not exist in
+that binary. That crash is expected and is resolved by this build.
 
 - [ ] **Step 6: Commit**
 
