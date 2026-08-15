@@ -75,17 +75,27 @@ export default function RootLayout() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      if (firebaseUser) {
-        const hasProfile = await hydrateSession(firebaseUser);
-        // Truthiness, not a null check — the existing code is `onboardingDone ? ... : ...`,
-        // so a stored empty string must keep meaning "not onboarded".
-        const onboardingComplete = Boolean(await AsyncStorage.getItem('onboarding_complete'));
-        router.replace(resolveAuthRoute({ isAuthenticated: true, hasProfile, onboardingComplete }));
-      } else {
-        useUserStore.getState().setProfile(null);
-        router.replace(resolveAuthRoute({ isAuthenticated: false, hasProfile: false, onboardingComplete: false }));
+      try {
+        if (firebaseUser) {
+          const hasProfile = await hydrateSession(firebaseUser);
+          // Truthiness, not a null check — the existing code is `onboardingDone ? ... : ...`,
+          // so a stored empty string must keep meaning "not onboarded".
+          const onboardingComplete = Boolean(await AsyncStorage.getItem('onboarding_complete'));
+          router.replace(resolveAuthRoute({ isAuthenticated: true, hasProfile, onboardingComplete }));
+        } else {
+          useUserStore.getState().setProfile(null);
+          router.replace(resolveAuthRoute({ isAuthenticated: false, hasProfile: false, onboardingComplete: false }));
+        }
+      } catch (error) {
+        // hydrateSession's getDoc (or the AsyncStorage read) can reject —
+        // offline being the common case. Without this, setInitialized(true)
+        // below would never run and SplashOverlay (opaque, zIndex 9999) would
+        // never unmount: a dead logo screen with no error, force-quit only.
+        console.warn('[auth] session restore failed; routing to a usable screen:', error);
+        router.replace('/(auth)/welcome');
+      } finally {
+        setInitialized(true);
       }
-      setInitialized(true);
     });
     return unsubscribe;
   }, []);

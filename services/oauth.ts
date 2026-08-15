@@ -34,6 +34,20 @@ export async function signInWithGoogle(): Promise<UserCredential | null> {
 }
 
 /**
+ * Releases the native Google session as well as Firebase's. Without this the
+ * SDK silently re-authorizes the same account on the next attempt, so
+ * "use a different account" would loop straight back to the same one.
+ */
+export async function signOutGoogle(): Promise<void> {
+  try {
+    await GoogleSignin.signOut();
+  } catch {
+    // Not signed in with Google, or the native module is unavailable. Firebase
+    // sign-out is what must succeed; this is best-effort.
+  }
+}
+
+/**
  * Phase 2. Apple sign-in needs an entitlement this App ID does not yet carry,
  * and expo-apple-authentication is not installed in this phase. This function
  * body is replaced when Apple sign-in ships.

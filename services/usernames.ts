@@ -6,7 +6,11 @@ import { db } from '@/services/firebase';
 export const USERNAME_PATTERN = /^[a-z0-9_.]{3,20}$/;
 
 export function validateUsernameFormat(username: string): string | null {
-  if (username.length === 0) return null; // empty = "keep none", validated at save if required
+  // empty = "keep none", validated at save if required. UsernameField's
+  // handleChangeText depends on this returning null for '' to correctly
+  // report a cleared field as non-blocking — changing this branch requires
+  // updating that coupling too (see the comment there).
+  if (username.length === 0) return null;
   if (username.length < 3) return 'At least 3 characters.';
   if (username.length > 20) return 'At most 20 characters.';
   if (!USERNAME_PATTERN.test(username)) {

@@ -16,6 +16,10 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen name="welcome" options={{ contentStyle: { backgroundColor: DarkColors.background.primary } }} />
+      {/* No back button on this screen by design (see complete-profile.tsx),
+          but the iOS swipe-back gesture is independent of that and would
+          still pop to welcome with the user left signed in. */}
+      <Stack.Screen name="complete-profile" options={{ gestureEnabled: false }} />
     </Stack>
   );
 }

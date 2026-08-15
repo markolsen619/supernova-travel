@@ -182,7 +182,7 @@ export default function SignInScreen() {
           style={styles.cta}
         />
 
-        <SocialAuthButtons onError={setError} />
+        <SocialAuthButtons />
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.text.secondary }]}>Don&apos;t have an account? </Text>

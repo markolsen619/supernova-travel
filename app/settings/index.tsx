@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/Button';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auth } from '@/services/firebase';
+import { signOutGoogle } from '@/services/oauth';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -48,7 +49,15 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('Sign out?', "You'll need to sign in again to get back to your trips.", [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => auth.signOut() },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: () => {
+          // Release the native Google session too — otherwise the SDK
+          // silently re-authorizes the same account on the next sign-in.
+          signOutGoogle().finally(() => auth.signOut());
+        },
+      },
     ]);
   }, []);
 

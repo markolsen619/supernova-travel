@@ -30,8 +30,17 @@ export function buildUserProfile({ fullName, username }: NewUserProfileInput) {
 }
 
 export async function createUserProfile(uid: string, input: NewUserProfileInput): Promise<void> {
-  await setDoc(doc(db, 'users', uid), {
-    ...buildUserProfile(input),
-    createdAt: serverTimestamp(),
-  });
+  // merge: true — if this ever runs against an existing doc (e.g. the
+  // complete-profile idempotency guard races a concurrent write), a plain
+  // setDoc would REPLACE it, wiping avatarUrl/bio/location/follower counts/
+  // expoPushTokens. firestore.rules permits this for free-tier users, so
+  // without merge it would fail silently with no error to catch.
+  await setDoc(
+    doc(db, 'users', uid),
+    {
+      ...buildUserProfile(input),
+      createdAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }

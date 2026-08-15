@@ -312,7 +312,7 @@ export default function SignUpScreen() {
           style={styles.cta}
         />
 
-        <SocialAuthButtons onError={setError} />
+        <SocialAuthButtons />
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.text.secondary }]}>Already have an account? </Text>

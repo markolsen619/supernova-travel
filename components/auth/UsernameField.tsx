@@ -40,6 +40,12 @@ export default function UsernameField({ value, onChangeText, onValidityChange, o
       setError(formatError);
       setChecking(false);
       onValidityChange(false);
+      // NOTE: relies on validateUsernameFormat('') === null (see
+      // services/usernames.ts) so a cleared field reports blocking:false, not
+      // formatError's own truthiness. If that function is ever changed to
+      // reject empty strings, this line starts reporting blocking:true for a
+      // cleared field and the Continue/Create account button goes dead with
+      // no visible error to explain why.
       onBlockingChange?.(!!formatError);
       return;
     }
@@ -48,12 +54,24 @@ export default function UsernameField({ value, onChangeText, onValidityChange, o
     onValidityChange(false);
     onBlockingChange?.(true);
     checkTimer.current = setTimeout(async () => {
-      const available = await checkUsernameAvailability(next, forUid);
-      const takenError = available ? null : 'That username is taken.';
-      setChecking(false);
-      setError(takenError);
-      onValidityChange(available);
-      onBlockingChange?.(!!takenError);
+      try {
+        const available = await checkUsernameAvailability(next, forUid);
+        const takenError = available ? null : 'That username is taken.';
+        setChecking(false);
+        setError(takenError);
+        onValidityChange(available);
+        onBlockingChange?.(!!takenError);
+      } catch {
+        // Without this, a rejected check (e.g. offline) would leave the
+        // spinner spinning and the CTA permanently disabled with no way out —
+        // a hard dead end on complete-profile, where the user is already
+        // authenticated. Stays blocking (availability is unconfirmed); the
+        // user can retype to retry.
+        setChecking(false);
+        setError("Couldn't check that username. Try again.");
+        onValidityChange(false);
+        onBlockingChange?.(true);
+      }
     }, 500);
   }, [onChangeText, onValidityChange, onBlockingChange, forUid]);
 

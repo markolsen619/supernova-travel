@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { auth } from '@/services/firebase';
 import { createUserProfile } from '@/services/profile';
 import { hydrateSession } from '@/services/session';
+import { signOutGoogle } from '@/services/oauth';
 import { claimUsername } from '@/services/usernames';
 import { useTheme } from '@/hooks/useTheme';
 import { StarMark } from '@/components/ui/StarMark';
@@ -79,19 +80,34 @@ export default function CompleteProfileScreen() {
     setLoading(true);
     setError('');
     try {
-      // Mirrors sign-up.tsx: a lost race must not strand the account. Finish
-      // with no username rather than fail; it can be set from Edit profile.
-      const claimResult = await claimUsername(user.uid, username, '');
-      await createUserProfile(user.uid, {
-        fullName,
-        username: claimResult === 'ok' ? username : '',
-      });
-      // The doc now exists, but this write does not re-fire onAuthStateChanged —
-      // hydrate the session here so tier/profile/push-token/RevenueCat are set
-      // before entering the app this session, not next cold start.
-      await hydrateSession(user);
+      // Idempotency guard: if the profile document already exists (e.g. this
+      // account finished sign-up elsewhere while sitting on this gate), don't
+      // re-claim/re-write it — just hydrate and move on. Closes the
+      // signup/gate race.
+      const alreadyExists = await hydrateSession(user);
+      if (!alreadyExists) {
+        // Mirrors sign-up.tsx: a lost race must not strand the account. Finish
+        // with no username rather than fail; it can be set from Edit profile.
+        const claimResult = await claimUsername(user.uid, username, '');
+        await createUserProfile(user.uid, {
+          fullName,
+          username: claimResult === 'ok' ? username : '',
+        });
+        // The doc now exists, but this write does not re-fire
+        // onAuthStateChanged — hydrate here so tier/profile/push-token/
+        // RevenueCat are set before entering the app this session, not next
+        // cold start. Isolated in its own try: a failure here must not be
+        // reported as "could not save your profile" when the write itself
+        // already succeeded.
+        try {
+          await hydrateSession(user);
+        } catch (hydrateError) {
+          console.warn('[complete-profile] profile saved but session hydration failed:', hydrateError);
+        }
+      }
       router.replace('/(auth)/onboarding');
-    } catch {
+    } catch (error) {
+      console.warn('[complete-profile] could not save profile:', error);
       setError('Could not save your profile. Try again in a moment.');
     } finally {
       setLoading(false);
@@ -100,6 +116,9 @@ export default function CompleteProfileScreen() {
 
   const handleUseAnotherAccount = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Release the native Google session too — otherwise the SDK silently
+    // re-authorizes the same account and this button loops back to itself.
+    await signOutGoogle();
     await signOut(auth);
     // The auth listener in _layout owns routing; do not navigate manually.
   }, []);
