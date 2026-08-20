@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, LayoutChangeEvent } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleLogo } from 'phosphor-react-native';
@@ -11,13 +11,24 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 
 // Apple's native button renders NOTHING (silently, no error) without explicit
 // dimensions — it does not size itself off content the way the app's own
-// Button does. Height is derived, not guessed, to match the Google button
-// directly above it: Button 'lg' uses paddingVertical Spacing['4'] (16) on
-// each side plus FontSize.md (17) text at LineHeight.normal (1.5) →
-// 16*2 + 17*1.5 = 57.5, rounded to 58. cornerRadius is half that (29) so the
-// button reads as the same full pill as Google's BorderRadius.full.
-const APPLE_BUTTON_HEIGHT = 58;
-const APPLE_BUTTON_CORNER_RADIUS = APPLE_BUTTON_HEIGHT / 2;
+// Button does. Its height MUST match the Google button above it, but that
+// height can't be computed from Button.tsx's style table: Button.tsx's
+// `styles.text` (label) sets only `fontWeight`, no `lineHeight`, so the
+// rendered row height comes from the system font's natural line height for
+// FontSize.md — which varies by platform and Dynamic Type setting, not a
+// fixed multiple of fontSize. So it's measured, not computed: the Google
+// button is wrapped in a View with onLayout, and that measured height feeds
+// both the Apple button's height and its cornerRadius (height / 2, to keep
+// the same full-pill shape as Google's BorderRadius.full).
+//
+// This is the pre-layout fallback only, used for the one frame before
+// onLayout fires. Deliberately UNDER the real height (Button 'lg' is
+// ~52-54pt in practice) rather than over it: a one-frame flash of
+// slightly-short is far less visible than a flash of too-tall that then
+// visibly shrinks — and importantly, too-tall would (for one frame) make
+// this secondary control the largest element on the screen, outsizing the
+// primary CTA.
+const FALLBACK_APPLE_BUTTON_HEIGHT = 52;
 
 // No props needed — the component owns its own error display (see `error`
 // below), matching UsernameField/BirthdayField's local-ownership pattern
@@ -29,6 +40,9 @@ export default function SocialAuthButtons() {
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Measured height of the Google button's own box (margin excluded — see
+  // the wrapping View below), fed into the Apple button's style + cornerRadius.
+  const [googleButtonHeight, setGoogleButtonHeight] = useState(FALLBACK_APPLE_BUTTON_HEIGHT);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +105,15 @@ export default function SocialAuthButtons() {
     }
   }, []);
 
+  // Button.tsx does not spread unknown props onto its root TouchableOpacity
+  // (its destructured prop list has no rest/spread), so onLayout has to go
+  // on a wrapping View instead — passing it to <Button> directly would be
+  // silently dropped.
+  const handleGoogleButtonLayout = useCallback((e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    setGoogleButtonHeight((prev) => (prev === height ? prev : height));
+  }, []);
+
   return (
     <View>
       <View style={styles.dividerRow}>
@@ -105,20 +128,31 @@ export default function SocialAuthButtons() {
         </View>
       ) : null}
 
-      <Button
-        label="Continue with Google"
-        onPress={handleGoogle}
-        loading={googleLoading}
-        variant="secondary"
-        size="lg"
-        fullWidth
-        haptic="none"
-        icon={GoogleLogo}
-        style={appleAvailable ? styles.googleButtonSpaced : undefined}
-      />
+      <View
+        onLayout={handleGoogleButtonLayout}
+        // Spacing to the Apple button below lives on this wrapper, not on
+        // the Button itself — keeping it off the measured box so
+        // googleButtonHeight reflects only the button's own height, not the
+        // gap after it.
+        style={appleAvailable ? styles.googleButtonWrapperSpaced : undefined}
+      >
+        <Button
+          label="Continue with Google"
+          onPress={handleGoogle}
+          loading={googleLoading}
+          variant="secondary"
+          size="lg"
+          fullWidth
+          haptic="none"
+          icon={GoogleLogo}
+        />
+      </View>
 
       {appleAvailable ? (
-        <View style={styles.appleButtonContainer} pointerEvents={appleLoading ? 'none' : 'auto'}>
+        <View
+          style={[styles.appleButtonContainer, { height: googleButtonHeight }]}
+          pointerEvents={appleLoading ? 'none' : 'auto'}
+        >
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
             // Apple mandates its own predefined button colors for this
@@ -127,8 +161,8 @@ export default function SocialAuthButtons() {
             // colors; that would fail Guideline 4.8. Same exception pattern
             // as the always-dark screens documented in CLAUDE.md.
             buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={APPLE_BUTTON_CORNER_RADIUS}
-            style={styles.appleButton}
+            cornerRadius={Math.round(googleButtonHeight / 2)}
+            style={[styles.appleButton, { height: googleButtonHeight }]}
             onPress={handleApple}
           />
           {appleLoading ? (
@@ -159,16 +193,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: FontWeight.medium,
   },
-  googleButtonSpaced: {
+  googleButtonWrapperSpaced: {
     marginBottom: Spacing['3'],
   },
   appleButtonContainer: {
     width: '100%',
-    height: APPLE_BUTTON_HEIGHT,
   },
   appleButton: {
     width: '100%',
-    height: APPLE_BUTTON_HEIGHT,
   },
   appleButtonLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,
