@@ -35,10 +35,24 @@ export async function createUserProfile(uid: string, input: NewUserProfileInput)
   // setDoc would REPLACE it, wiping avatarUrl/bio/location/follower counts/
   // expoPushTokens. firestore.rules permits this for free-tier users, so
   // without merge it would fail silently with no error to catch.
+  //
+  // tier is deliberately OMITTED from this write. merge:true overwrites the
+  // keys it does include, so a re-run against an existing document (the same
+  // race described above) would reset an already-upgraded pro/business
+  // user's tier back to 'free'. Every reader of tier already defaults a
+  // missing field to 'free' (services/session.ts, hooks/useExplore.ts,
+  // hooks/useUserProfile.ts, functions/src/generateTrip.ts,
+  // getImportQuota.ts, parseTravelConfirmation.ts), so omitting it here is
+  // behaviourally identical for brand-new accounts and safe for existing
+  // ones. buildUserProfile() itself is left unchanged — it stays the
+  // documented reference shape (and its "defaults new accounts to free"
+  // test keeps passing) — only this write strips tier out via the rest
+  // sibling below.
+  const { tier, ...profile } = buildUserProfile(input);
   await setDoc(
     doc(db, 'users', uid),
     {
-      ...buildUserProfile(input),
+      ...profile,
       createdAt: serverTimestamp(),
     },
     { merge: true },
