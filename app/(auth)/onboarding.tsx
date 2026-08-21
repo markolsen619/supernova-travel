@@ -112,10 +112,10 @@ export default function OnboardingScreen() {
         case 0:
           return (
             <OnboardingPhotoSlide
-              heroSource={content.exploreCoverUrl ? { uri: content.exploreCoverUrl } : null}
+              heroSource={require('@/assets/onboarding/explore.png')}
               eyebrow="Explore"
-              title="Explore the world"
-              body="Discover trending destinations, hidden gems, and trip ideas from real travelers."
+              title="Find your next trip"
+              body="Scroll real itineraries from other travelers and save the ones that catch your eye."
               active={active}
               scrollX={scrollX}
               index={index}
@@ -124,10 +124,10 @@ export default function OnboardingScreen() {
         case 1:
           return (
             <OnboardingPhotoSlide
-              heroSource={content.aiCoverUrl ? { uri: content.aiCoverUrl } : null}
+              heroSource={require('@/assets/onboarding/ai-plan.png')}
               eyebrow="AI Itineraries"
-              title="A full plan, in seconds"
-              body="Tell us where you're headed — AI builds the day-by-day."
+              title="Skip the planning spreadsheet"
+              body="Name a destination and get a day-by-day itinerary, built and ready to edit."
               active={active}
               scrollX={scrollX}
               index={index}
@@ -148,7 +148,7 @@ export default function OnboardingScreen() {
           return <OnboardingProSlide active={active} />;
       }
     },
-    [activeIndex, content.exploreCoverUrl, content.aiCoverUrl, content.communityAvatars, scrollX]
+    [activeIndex, content.communityAvatars, scrollX]
   );
 
   const isLast = activeIndex === SLIDE_COUNT - 1;

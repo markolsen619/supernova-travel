@@ -34,12 +34,12 @@ export function KenBurnsImage({ source, active, style, parallaxScale }: KenBurns
     const loop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(scale, { toValue: 1.12, duration: 9000, useNativeDriver: true }),
-          Animated.timing(translateY, { toValue: -8, duration: 9000, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1.15, duration: 10000, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: -8, duration: 10000, useNativeDriver: true }),
         ]),
         Animated.parallel([
-          Animated.timing(scale, { toValue: 1, duration: 9000, useNativeDriver: true }),
-          Animated.timing(translateY, { toValue: 0, duration: 9000, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1, duration: 10000, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: 0, duration: 10000, useNativeDriver: true }),
         ]),
       ])
     );
