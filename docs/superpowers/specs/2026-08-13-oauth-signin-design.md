@@ -345,3 +345,33 @@ to your iPhone) or Apple's sheet errors immediately.
   fingerprints).
 - Apple sign-in on Android or web (needs the Services ID / `.p8` limb).
 - Account linking between an existing email account and a provider credential.
+
+## Decision: the field overlap is intentional — do not "unify" it
+
+`sign-up.tsx` and `complete-profile.tsx` both collect full name, username, and
+date of birth. This looks like duplication and is not.
+
+**Email sign-up must NOT go through the gate.** It collects everything up front,
+writes `users/{uid}` itself, and routes to onboarding. A manual signer-up never
+sees `complete-profile`.
+
+**The gate exists for OAuth.** Google and Apple return a name and email and
+nothing else — no username, no date of birth — so a provider-created account
+cannot be completed from provider data alone. It is also the safety net for an
+account whose profile write failed, and for a profile document deleted out from
+under a live Auth user.
+
+Confirmed as intended behaviour by the project owner on 2026-08-21, after seeing
+`complete-profile` during verification (it appeared only because its document had
+been deleted by hand to test the gate).
+
+The tempting refactor — strip `sign-up.tsx` to email + password and route
+everyone through `complete-profile` so one screen owns profile fields — is
+explicitly NOT wanted. It would make the gate load-bearing for every signup
+rather than only the OAuth minority, so a defect there would affect all users
+instead of some.
+
+Drift between the two screens is prevented by shared code, not by merging them:
+`components/auth/UsernameField`, `components/auth/BirthdayField`, and
+`services/profile.ts`'s `createUserProfile` are the single definitions each
+screen calls.
