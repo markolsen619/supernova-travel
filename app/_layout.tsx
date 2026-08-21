@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/services/firebase';
 import { configureGoogleSignIn } from '@/services/oauth';
 import { hydrateSession } from '@/services/session';
@@ -77,18 +76,17 @@ export default function RootLayout() {
       setUser(firebaseUser);
       try {
         if (firebaseUser) {
-          const hasProfile = await hydrateSession(firebaseUser);
-          // Truthiness, not a null check — the existing code is `onboardingDone ? ... : ...`,
-          // so a stored empty string must keep meaning "not onboarded".
-          const onboardingComplete = Boolean(await AsyncStorage.getItem('onboarding_complete'));
-          router.replace(resolveAuthRoute({ isAuthenticated: true, hasProfile, onboardingComplete }));
+          const { hasProfile, hasSeenOnboarding } = await hydrateSession(firebaseUser);
+          router.replace(resolveAuthRoute({
+            isAuthenticated: true, hasProfile, onboardingComplete: hasSeenOnboarding,
+          }));
         } else {
           useUserStore.getState().setProfile(null);
           router.replace(resolveAuthRoute({ isAuthenticated: false, hasProfile: false, onboardingComplete: false }));
         }
       } catch (error) {
-        // hydrateSession's getDoc (or the AsyncStorage read) can reject —
-        // offline being the common case. Without this, setInitialized(true)
+        // hydrateSession's getDoc (or its legacy-migration AsyncStorage read)
+        // can reject — offline being the common case. Without this, setInitialized(true)
         // below would never run and SplashOverlay (opaque, zIndex 9999) would
         // never unmount: a dead logo screen with no error, force-quit only.
         console.warn('[auth] session restore failed; routing to a usable screen:', error);

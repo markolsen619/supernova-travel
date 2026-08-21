@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
 import { useOnboardingContent } from '@/hooks/useOnboardingContent';
 import { OnboardingPhotoSlide } from '@/components/onboarding/OnboardingPhotoSlide';
@@ -28,8 +29,17 @@ import { SPRING } from '@/constants/motion';
 const SLIDE_COUNT = 5;
 const SLIDE_INDEXES = [0, 1, 2, 3, 4];
 
-async function markOnboardingComplete() {
-  await AsyncStorage.setItem('onboarding_complete', '1');
+function markOnboardingComplete() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  // Do NOT await this write. services/firebase.ts uses plain getFirestore
+  // with no offline persistence configured, so this promise does not resolve
+  // from a local queue — it hangs until the server acknowledges. Awaiting it
+  // would strand an offline user on this screen after tapping "Get started"
+  // with no feedback. Fire-and-forget worst case: they see onboarding once
+  // more next launch — annoying, not a hang.
+  updateDoc(doc(db, 'users', uid), { hasSeenOnboarding: true })
+    .catch((error) => console.warn('[onboarding] failed to persist hasSeenOnboarding:', error));
 }
 
 function DotItem({ active }: { active: boolean }) {
@@ -58,15 +68,15 @@ export default function OnboardingScreen() {
   const scrollX = useRef(new Animated.Value(0)).current;
   const content = useOnboardingContent();
 
-  const handleFinish = useCallback(async () => {
+  const handleFinish = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await markOnboardingComplete();
+    markOnboardingComplete();
     router.replace('/(tabs)');
   }, []);
 
-  const handleSeePlans = useCallback(async () => {
+  const handleSeePlans = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await markOnboardingComplete();
+    markOnboardingComplete();
     router.replace('/paywall');
   }, []);
 
@@ -81,9 +91,9 @@ export default function OnboardingScreen() {
     }
   }, [activeIndex, handleFinish]);
 
-  const handleSkip = useCallback(async () => {
+  const handleSkip = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await markOnboardingComplete();
+    markOnboardingComplete();
     router.replace('/(tabs)');
   }, []);
 

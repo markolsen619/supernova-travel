@@ -84,7 +84,7 @@ export default function CompleteProfileScreen() {
       // account finished sign-up elsewhere while sitting on this gate), don't
       // re-claim/re-write it — just hydrate and move on. Closes the
       // signup/gate race.
-      const alreadyExists = await hydrateSession(user);
+      const { hasProfile: alreadyExists } = await hydrateSession(user);
       if (!alreadyExists) {
         // Mirrors sign-up.tsx: a lost race must not strand the account. Finish
         // with no username rather than fail; it can be set from Edit profile.
