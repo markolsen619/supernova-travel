@@ -101,8 +101,14 @@ export async function hydrateSession(
       // Fire-and-forget on purpose: awaiting either of these would add
       // latency to every cold-start routing decision and introduce a new
       // failure mode into the auth path. See app/_layout.tsx's try/finally.
-      updateDoc(userRef, { hasSeenOnboarding: true }).catch(() => {});
-      AsyncStorage.removeItem(LEGACY_ONBOARDING_KEY).catch(() => {});
+      updateDoc(userRef, { hasSeenOnboarding: true }).catch((error) => {
+        // Logged, not silent: a failure here means the migration never lands
+        // and this device keeps re-reading the legacy key every launch.
+        console.warn('[session] onboarding migration write failed:', error);
+      });
+      AsyncStorage.removeItem(LEGACY_ONBOARDING_KEY).catch((error) => {
+        console.warn('[session] failed to clear the legacy onboarding key:', error);
+      });
     }
   }
 
