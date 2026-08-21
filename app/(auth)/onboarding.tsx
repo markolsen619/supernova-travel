@@ -112,7 +112,7 @@ export default function OnboardingScreen() {
         case 0:
           return (
             <OnboardingPhotoSlide
-              imageUrl={content.exploreCoverUrl}
+              heroSource={content.exploreCoverUrl ? { uri: content.exploreCoverUrl } : null}
               eyebrow="Explore"
               title="Explore the world"
               body="Discover trending destinations, hidden gems, and trip ideas from real travelers."
@@ -124,7 +124,7 @@ export default function OnboardingScreen() {
         case 1:
           return (
             <OnboardingPhotoSlide
-              imageUrl={content.aiCoverUrl}
+              heroSource={content.aiCoverUrl ? { uri: content.aiCoverUrl } : null}
               eyebrow="AI Itineraries"
               title="A full plan, in seconds"
               body="Tell us where you're headed — AI builds the day-by-day."

@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View, ViewStyle } from 'react-native';
+import { Animated, ImageSourcePropType, StyleSheet, View, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { StarMark } from '@/components/ui/StarMark';
 
 interface KenBurnsImageProps {
-  uri: string | null;
+  source: ImageSourcePropType | null;
   active: boolean;
   style?: ViewStyle;
   // Swipe-parallax scale driven by the parent slide's scroll position
@@ -18,7 +18,7 @@ interface KenBurnsImageProps {
 // photo cross-fades in over 300ms once it resolves, so there's never a dead
 // frame. Continuous slow zoom/pan while `active` — skipped when Reduce
 // Motion is on. See the onboarding redesign spec's Motion System.
-export function KenBurnsImage({ uri, active, style, parallaxScale }: KenBurnsImageProps) {
+export function KenBurnsImage({ source, active, style, parallaxScale }: KenBurnsImageProps) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
   const scale = useRef(new Animated.Value(1)).current;
@@ -49,10 +49,10 @@ export function KenBurnsImage({ uri, active, style, parallaxScale }: KenBurnsIma
 
   useEffect(() => {
     fade.setValue(0);
-    if (uri) {
+    if (source) {
       Animated.timing(fade, { toValue: 1, duration: 300, useNativeDriver: true }).start();
     }
-  }, [uri, fade]);
+  }, [source, fade]);
 
   const transform = parallaxScale
     ? [{ scale }, { translateY }, { scale: parallaxScale }]
@@ -63,9 +63,9 @@ export function KenBurnsImage({ uri, active, style, parallaxScale }: KenBurnsIma
       <View style={styles.fallback}>
         <StarMark size={40} />
       </View>
-      {uri ? (
+      {source ? (
         <Animated.Image
-          source={{ uri }}
+          source={source}
           style={[StyleSheet.absoluteFill, { opacity: fade, transform }]}
           resizeMode="cover"
         />
