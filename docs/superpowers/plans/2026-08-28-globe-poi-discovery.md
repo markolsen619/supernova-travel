@@ -980,6 +980,34 @@ Render, after the map and before the search bar:
 The 44 pt diameter deliberately matches the hit area from `tapBbox`, so the
 pulse shows the user exactly how forgiving the tap actually was.
 
+- [ ] **Step 3c: Let the sheet mount without a query**
+
+The results sheet is gated on `showingQuery` (`query.length > 0 && !selectedPlace`).
+A nearby-results miss never sets `query`, so under that gate the sheet would
+never mount and the fallback would silently show nothing — reproducing the exact
+bug this task exists to fix.
+
+Add a second flag and gate only the sheet on it. The tabs keep using
+`showingQuery`, since a tab row over a tap-driven result list has nothing to
+switch between:
+
+```ts
+  const showingQuery = query.length > 0 && !selectedPlace;
+  // A nearby-results miss has no query text, so it can't ride showingQuery.
+  const showingSheet = showingQuery || nearbyResults !== null;
+```
+
+Also reset the active tab when nearby results arrive. `handleClearQuery` does
+not reset `activeTab`, so a user who searched, switched to Users, then cleared
+and tapped the map would land on `renderUsers()` — an empty state covering real
+results sitting in `nearbyResults`:
+
+```ts
+      setActiveTab('Places');
+```
+
+Set it alongside `setNearbyResults(nearby)` in the miss branch.
+
 - [ ] **Step 4: Render the nearby results in the sheet**
 
 In `renderPlaces()`, before the existing `if (!query.trim())` line:
