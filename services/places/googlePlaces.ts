@@ -218,6 +218,13 @@ export async function searchNearbyPlaces(
   radiusM: number,
   maxResults = 5,
 ): Promise<EnrichedPlace[]> {
+  // Clamped here, not only in nearbyRadiusForZoom. This function is exported
+  // and every call is billed, so it defends itself rather than trusting each
+  // caller to have clamped first. Google's own limits: radius 0-50000m,
+  // maxResultCount 1-20 — exceeding either is a 400, i.e. a wasted round trip.
+  const radius = Math.min(50000, Math.max(1, radiusM));
+  const count = Math.min(20, Math.max(1, Math.trunc(maxResults)));
+
   try {
     const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
       method: 'POST',
@@ -228,9 +235,9 @@ export async function searchNearbyPlaces(
       },
       body: JSON.stringify({
         locationRestriction: {
-          circle: { center: { latitude: lat, longitude: lng }, radius: radiusM },
+          circle: { center: { latitude: lat, longitude: lng }, radius },
         },
-        maxResultCount: maxResults,
+        maxResultCount: count,
         rankPreference: 'DISTANCE',
         languageCode: 'en',
       }),
