@@ -22,6 +22,8 @@ in front of a place worth adding. No changes to the add flow.
 | Curated layer contents | **Trending public destinations only** (not own trips, saved trips, or a new saved-places collection) |
 | Zoom behaviour | **Crossfade** — curated fades out, ambient fades in, one clear layer at any zoom |
 | Chrome scope | **Everything**, including the light→dark tab transition |
+| Tap misses | **Tap-anywhere fallback above z12** — a miss resolves via Nearby Search |
+| Navigation affordances | All four: back-to-globe, tap feedback, tappable-looking pins, draggable sheet |
 | Screen palette | Stays always-dark (Architecture Rule 3). Not revisited. |
 
 ## Background: what is actually wrong today
@@ -57,15 +59,25 @@ inventing a second one.
 
 ## Architecture
 
-Five independent units, each landable on its own:
+Seven units, each landable on its own:
 
 ```
-utils/trendingPlaces.ts   pure   aggregate + weight + sort destinations
-hooks/useTrendingPlaces   data   one cached Firestore query -> TrendingPlace[]
-utils/camera.ts           pure   pitchForZoom(), headingForArrival()
-services/places/poiTapBridge.ts  pure (revised)  Point-only feature extraction
-app/(tabs)/search.tsx     view   layers, crossfade, chrome, transition
+utils/trendingPlaces.ts          pure      aggregate + weight + sort destinations
+utils/camera.ts                  pure      pitchForZoom(), headingForArrival()
+utils/mapInteraction.ts          pure      shouldFallbackToNearby(), nearbyRadiusForZoom(),
+                                           tapBbox()
+hooks/useTrendingPlaces.ts       data      one cached Firestore query -> TrendingPlace[]
+services/places/poiTapBridge.ts  pure*     Point-only feature extraction (revised)
+services/places/googlePlaces.ts  data      + searchNearbyPlaces() (added)
+app/(tabs)/search.tsx            view      layers, crossfade, chrome, transition,
+                                           navigation affordances
 ```
+
+`search.tsx` is already 678 lines and this adds materially to it. Extract the
+map itself — layers, camera wiring and tap handling — into
+`components/search/GlobeMapView.tsx`, leaving `search.tsx` responsible for
+search, tabs and sheets. Without that split the file becomes the kind of
+do-everything module that is hard to reason about and harder to edit reliably.
 
 Pure logic lives in `utils/` so it is unit-testable — this project has no React
 Native component-testing library, so anything worth asserting must be pushed out
@@ -162,6 +174,44 @@ Deliberately **not** filtering by layer ID: Mapbox Standard is a fragment style
 and its internal layer names are not a stable public contract. Filtering on
 geometry type is robust to Standard's internals changing under us.
 
+### The tap-anywhere fallback
+
+Standard declutters labels aggressively — at any zoom it draws only a fraction of
+the POIs it knows about. Rendered-feature querying can only ever see what was
+drawn, so tap tolerance alone cannot deliver "every POI is clickable."
+
+Worse, the current miss path is a bare `return` after a `console.log`. No haptic,
+no marker, no message. A tap that misses is indistinguishable from a broken app,
+and this is the single biggest contributor to the screen feeling hard to navigate.
+
+New behaviour when no rendered POI is found:
+
+- **At zoom > 12** — call Nearby Search at the tap coordinates and present the
+  closest results. Every tap resolves to something real.
+- **At zoom <= 12** — do not call the API. A tap at that scale spans hundreds of
+  kilometres, so any result is close to arbitrary and would bill a call to
+  produce it. Fly in toward the tap point instead, which is the useful
+  interpretation of a tap on a far-out map.
+
+New `searchNearbyPlaces(lat, lng, radiusM)` in `services/places/googlePlaces.ts`,
+using the `places:searchNearby` endpoint with the existing TIER1 field mask and
+the same auth/error handling as `textSearchFirstResult`. Returns up to 5 results
+ordered by distance.
+
+Presentation reuses what already exists: results render as `PlaceResult` rows in
+the existing bottom sheet under a "Places near here" heading. No new chooser UI.
+A single result selects directly, skipping the list.
+
+Cost control:
+
+- Fires only on a deliberate tap that missed — never on pan, zoom, or render.
+- Radius scales with zoom (roughly 150 m at z16, 500 m at z13) so the query is
+  proportionate to what the user can see.
+- Results cache in `usePlacesStore` keyed by coordinates rounded to 4 dp
+  (~11 m), so re-tapping the same spot is free.
+- An empty result set shows an honest empty state — "No places found here" —
+  never silence.
+
 ## 3. Selected-place pin
 
 A second `ShapeSource` (`id="selected-place"`) holding a single point derived
@@ -246,6 +296,64 @@ established in-repo pattern rather than a new invention.
 No reverse animation on blur — tab swaps away are fast and an exit animation
 would delay the next screen.
 
+## 6. Navigation affordances
+
+Four changes, all aimed at the same problem: the map currently gives the user no
+way to tell what is interactive or how to get back.
+
+### Back-to-globe control
+
+A floating button (Phosphor `Globe`, duotone) in the lower-right, above the tab
+bar, appearing once zoom exceeds 6. Flies back to `INITIAL_COORDS` / `INITIAL_ZOOM`
+with pitch and heading reset, and clears any selection.
+
+Today the only route back to the world view is clearing the search field — an
+interaction nobody will discover, and one that is not obviously a camera control
+at all.
+
+Requires tracking the live zoom, via `onCameraChanged` on `MapView`. **That event
+is high-frequency** — it fires continuously through a pinch. Store the zoom in a
+ref and only lift it into state when it crosses the threshold, or every render
+during a gesture will re-render the whole screen.
+
+### Immediate tap feedback
+
+`handleMapPress` currently does its haptic *after* resolution succeeds, so a tap
+that misses is silent and a tap that hits feels delayed by a network call.
+
+Move a `Light` haptic to the very top of the handler, before any async work, and
+render a brief pulse at the tap point — a circle scaling out and fading, using
+`SPRING` from `constants/motion.ts`. The tap is acknowledged in the same frame it
+happens, regardless of what resolution eventually finds.
+
+### Tappable-looking pins
+
+Trending pins get a soft outer halo — a second `CircleLayer` beneath the main
+one, larger radius, low-opacity purple — so they read as interactive targets
+rather than flat map decoration.
+
+Chosen over an animated pulse deliberately: Mapbox layer properties cannot be
+driven by React Native's `Animated` without per-frame `setState`, which would be
+a real performance cost for a decorative effect. A static halo achieves the
+affordance with none of it.
+
+### Draggable results sheet
+
+The results sheet is currently dismiss-or-nothing — while it is open the map
+behind it cannot be seen at all, which makes searching and looking mutually
+exclusive.
+
+Add a `PanGestureHandler` (`react-native-gesture-handler` is already a
+dependency) with two snap points: **expanded** (current position) and
+**peek** (~35% height, enough for two result rows). Velocity decides the snap on
+release; the existing `slideAnim` `Animated.Value` is reused so there is one
+source of truth for the sheet's position, not two competing animations.
+
+This is the largest of the four and the one most likely to interact badly with
+the `ScrollView` inside the sheet — the gesture must yield to the scroll view
+when the list is scrolled away from its top, or dragging the list will fight the
+sheet.
+
 ## Testing
 
 Pure-function tests only, per project convention:
@@ -259,6 +367,10 @@ Pure-function tests only, per project convention:
 - `__tests__/services/poiTapBridge.test.ts` — Point features accepted; polygon
   and line features rejected; nearest-of-several chosen; unnamed features
   skipped; empty collection returns null.
+- `__tests__/utils/mapInteraction.test.ts` — `shouldFallbackToNearby(zoom)` true
+  above 12 and false at/below it, including the exact boundary; nearby radius
+  scales down as zoom increases; tap-bbox helper emits `[top, left, bottom,
+  right]` in that order.
 
 The crossfade, the layers and the transition are visual and cannot be asserted in
 this project's test setup — they are verified on device.
@@ -274,6 +386,18 @@ expressions.
 **Section 5's transition touches navigation.** If the overlay fights the tab
 bar's own transition, stop and report rather than layering workarounds on top.
 
+**The draggable sheet and its inner ScrollView will compete.** Gesture
+composition between a pan handler and a nested scroll view is the classic source
+of a sheet that either cannot be dragged or cannot be scrolled. If it does not
+resolve cleanly with `simultaneousHandlers`, fall back to a drag handle that is
+the only draggable region — a smaller but reliable interaction — rather than
+shipping a sheet that fights the user.
+
+**The fallback introduces a per-tap billed call.** It is bounded by the z12 gate,
+the coordinate cache and miss-only firing, but it is a real cost that scales with
+engagement. Worth watching in the Places console after release; if it runs hot,
+the gate moves up from z12 rather than the feature being removed.
+
 ## Manual prerequisites
 
 - Composite Firestore index: `trips(visibility ASC, savesCount DESC)`.
@@ -284,7 +408,14 @@ bar's own transition, stop and report rather than layering workarounds on top.
   trending public destinations cover the discovery goal without new Firestore
   collections, rules or write paths.
 - Own-trip and saved-trip pins on the globe.
-- Any change to `PlaceDetailSheet` or `AddToTripSheet` — the add flow works.
+- `AddToTripSheet` and the add-to-trip flow itself — already built and working.
+- `PlaceDetailSheet`'s **content and actions**. Note this is narrower than it
+  first appears: `slideAnim` is shared between the results sheet and
+  `PlaceDetailSheet` (`search.tsx` passes the same `Animated.Value` to both), so
+  making the results sheet draggable necessarily touches how `PlaceDetailSheet`
+  is positioned. Either give the two sheets independent animated values, or apply
+  the drag to both consistently — but do not assume `PlaceDetailSheet` is
+  untouched by section 6.
 - Revisiting the always-dark decision for this screen.
 - `TripMapView` — it shares `poiTapBridge`, so it inherits the Point-only fix,
   but no other change is made to it.
