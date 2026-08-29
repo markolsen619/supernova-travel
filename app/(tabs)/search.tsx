@@ -19,6 +19,7 @@ import * as Haptics from 'expo-haptics';
 import { MagnifyingGlass, X, Compass, WarningCircle, MapPin } from 'phosphor-react-native';
 import { DarkColors } from '@/constants/colors';
 import { useSearch } from '@/hooks/useSearch';
+import { useTrendingPlaces } from '@/hooks/useTrendingPlaces';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { useFlyTo } from '@/hooks/useFlyTo';
 import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
@@ -99,6 +100,9 @@ export default function SearchScreen() {
 
   // ── Algolia search (Users + Trips tabs) ───────────────────────────────────
   const { users, trips, isSearching } = useSearch(query);
+
+  // ── Trending destination pins (world-zoom scannability) ───────────────────
+  const { places: trendingPlaces } = useTrendingPlaces();
 
   // ── Google Places autocomplete (Places tab) ───────────────────────────────
   // richDetails: true — the sheet always opens right after a selection here,
@@ -486,6 +490,8 @@ export default function SearchScreen() {
         mapRef={mapRef}
         lightPreset={lightPreset}
         onPress={handleMapPress}
+        trendingPlaces={trendingPlaces}
+        selectedPlace={selectedPlace}
       />
 
       {pulseAt && (
