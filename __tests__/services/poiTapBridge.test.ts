@@ -28,6 +28,28 @@ function line(name: string): GeoJSON.Feature {
   };
 }
 
+function multipoint(name: string, coords: Array<[number, number]>): GeoJSON.Feature {
+  return {
+    type: 'Feature',
+    properties: { name },
+    geometry: { type: 'MultiPoint', coordinates: coords },
+  };
+}
+
+function multipolygon(name: string): GeoJSON.Feature {
+  return {
+    type: 'Feature',
+    properties: { name },
+    geometry: {
+      type: 'MultiPolygon',
+      coordinates: [
+        [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]],
+        [[[2, 2], [2, 3], [3, 3], [3, 2], [2, 2]]],
+      ],
+    },
+  };
+}
+
 function collection(features: GeoJSON.Feature[]): GeoJSON.FeatureCollection {
   return { type: 'FeatureCollection', features };
 }
@@ -89,6 +111,30 @@ describe('extractPoiFromFeatures', () => {
   it('returns null for an empty or missing collection', () => {
     expect(extractPoiFromFeatures(collection([]), 0, 0)).toBeNull();
     expect(extractPoiFromFeatures(undefined, 0, 0)).toBeNull();
+  });
+
+  it('accepts a MultiPoint feature and uses its first coordinate', () => {
+    const poi = extractPoiFromFeatures(
+      collection([multipoint('Train Station', [[2.3376, 48.8606], [2.4, 48.9]])]),
+      48.8606,
+      2.3376,
+    );
+    expect(poi?.name).toBe('Train Station');
+    expect(poi?.lat).toBeCloseTo(48.8606);
+    expect(poi?.lng).toBeCloseTo(2.3376);
+  });
+
+  it('rejects a MultiPolygon, even if named', () => {
+    expect(extractPoiFromFeatures(collection([multipolygon('Island Group')]), 0, 0)).toBeNull();
+  });
+
+  it('chooses the nearest Point with coordinates of similar magnitude', () => {
+    const poi = extractPoiFromFeatures(
+      collection([point('Far Place', 45.6, 45.1), point('Near Place', 45.52, 45.02)]),
+      45.0,
+      45.5,
+    );
+    expect(poi?.name).toBe('Near Place');
   });
 });
 

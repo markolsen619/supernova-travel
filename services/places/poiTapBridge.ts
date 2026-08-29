@@ -36,13 +36,13 @@ function nameOf(feature: GeoJSON.Feature): string {
 /**
  * Extracts the POI nearest a tap from a queryRenderedFeatures result.
  *
- * Point geometry is REQUIRED, not preferred. Mapbox returns everything drawn
+ * Point and MultiPoint geometry are accepted. Mapbox returns everything drawn
  * under the tap — water and landuse polygons, road lines, admin boundaries —
  * and all of them carry names. The previous implementation took the first
  * named feature of any geometry and fell back to the tap coordinates, so a
  * near-miss could resolve "Pacific Ocean" and then spend a billed Google Text
- * Search resolving it. Only labels are Points, so this single constraint
- * removes that entire class of failure.
+ * Search resolving it. Only labels are Points (or MultiPoints), so this
+ * constraint removes that entire class of failure.
  *
  * tapLat/tapLng are the reference point for choosing between several
  * candidates — never a coordinate fallback.
@@ -58,12 +58,25 @@ export function extractPoiFromFeatures(
   let bestDistance = Infinity;
 
   for (const feature of collection.features) {
-    if (feature.geometry?.type !== 'Point') continue;
+    const geometry = feature.geometry;
+    if (!geometry) continue;
+    // Point OR MultiPoint: Mapbox label features are normally Point, but a
+    // MultiPoint label would be silently untappable under a strict Point-only
+    // check, and an unreachable POI is the one failure this screen cannot
+    // afford. Polygons and lines — oceans, landuse, roads — remain excluded,
+    // which is the actual bug this guard exists to prevent.
+    let coords: number[] | undefined;
+    if (geometry.type === 'Point') {
+      coords = (geometry as GeoJSON.Point).coordinates;
+    } else if (geometry.type === 'MultiPoint') {
+      coords = (geometry as GeoJSON.MultiPoint).coordinates[0];
+    }
+    if (!coords) continue;
 
     const name = nameOf(feature);
     if (!name) continue;
 
-    const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates;
+    const [lng, lat] = coords;
     const d = distanceSq(lat, lng, tapLat, tapLng);
     if (d < bestDistance) {
       bestDistance = d;
