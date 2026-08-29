@@ -30,6 +30,7 @@ import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
 import { enrichPoiByNameAndCoords, placeFromSelection, zoomForPlaceType } from '@/services/places/googlePlaces';
 import { lightPresetForNow, type LightPreset } from '@/services/mapLighting';
 import { extractPoiFromFeatures } from '@/services/places/poiTapBridge';
+import { tapBbox } from '@/utils/mapInteraction';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { UserResult } from '@/components/search/UserResult';
 import { TripResult } from '@/components/search/TripResult';
@@ -220,10 +221,9 @@ export default function SearchScreen() {
       // labels), which previously looked identical from the outside.
       console.log('[Map tap]', { screenPointX, screenPointY, tapLat, tapLng, hasRef: !!mapRef.current });
 
-      const collection = await mapRef.current?.queryRenderedFeaturesAtPoint([
-        screenPointX,
-        screenPointY,
-      ]);
+      const collection = await mapRef.current?.queryRenderedFeaturesInRect(
+        tapBbox(screenPointX, screenPointY),
+      );
       const poi = extractPoiFromFeatures(collection, tapLat, tapLng);
       if (!poi) {
         console.log('[Map tap] no POI feature at this point —', collection?.features?.length ?? 0, 'features found');
