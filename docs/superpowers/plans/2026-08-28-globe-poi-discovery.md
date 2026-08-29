@@ -1909,7 +1909,10 @@ Inside the component — the drag needs to know where the sheet started, since
 back synchronously:
 
 ```ts
-  const sheetBaseY = useRef(SHEET_EXPANDED_Y);
+  // Initialised to SCREEN_HEIGHT, matching slideAnim's own initial value
+  // (`useRef(new Animated.Value(SCREEN_HEIGHT))` — the sheet starts hidden).
+  // Seeding this to 0 instead would make the first drag jump a full screen.
+  const sheetBaseY = useRef(SCREEN_HEIGHT);
 ```
 
 `showSheet` and `hideSheet` must keep it in sync, or the next drag starts from
@@ -1960,6 +1963,19 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 ```
 
 `simultaneousWithExternalGesture` is what lets the sheet drag and the list scroll coexist. **Wire it from the start rather than tuning to iOS behaviour alone** — Android resolves this composition differently, and the Android pass should be a test, not a redesign.
+
+**`scrollRef` must actually be attached**, or the composition is a no-op and the
+drag and the scroll will fight — the exact failure this task is most at risk of.
+Both platform branches render their own `ScrollView`, so both need it:
+
+```tsx
+              <ScrollView
+                ref={scrollRef}
+                style={styles.resultsList}
+                keyboardShouldPersistTaps="handled"
+```
+
+Add it to the iOS (`BlurView`) branch and the Android (`View`) branch alike.
 
 - [ ] **Step 3: Apply to both platform branches**
 
