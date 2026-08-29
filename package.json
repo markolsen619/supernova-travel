@@ -50,6 +50,7 @@
     "react-native-gesture-handler": "^2.31.1",
     "react-native-maps": "^1.27.2",
     "react-native-purchases": "^10.0.1",
+    "react-native-purchases-ui": "^10.8.1",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",

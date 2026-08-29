@@ -15,6 +15,7 @@ import { resolveAuthRoute } from '@/utils/authRoute';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { SplashOverlay } from '@/components/SplashOverlay';
+import { useRevenueCatSync } from '@/hooks/useRevenueCatSync';
 
 SplashScreen.preventAutoHideAsync();
 configureGoogleSignIn();
@@ -37,6 +38,9 @@ const queryClient = new QueryClient({
 
 function AppStack() {
   const { isDark } = useTheme();
+  // Keeps useAuthStore.tier live with RevenueCat for the whole session —
+  // renewals, lapses, refunds and cross-device purchases all land here.
+  useRevenueCatSync();
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
