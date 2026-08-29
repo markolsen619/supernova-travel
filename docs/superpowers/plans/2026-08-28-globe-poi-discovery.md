@@ -1439,7 +1439,10 @@ Pure refactor. **No behaviour changes.** A reviewer should be able to confirm th
 
 ```ts
 interface GlobeMapViewProps {
-  cameraRef: CameraHandle | React.RefObject<CameraHandle>;
+  // RefObject<T | null> matches what useRef<CameraHandle>(null) actually
+  // produces, and mirrors the mapRef prop below. The looser union does not
+  // typecheck against React's ref typing.
+  cameraRef: React.RefObject<CameraHandle | null>;
   mapRef: React.RefObject<InstanceType<typeof MapView> | null>;
   lightPreset: LightPreset;
   onPress: (feature: GeoJSON.Feature<GeoJSON.Point, ScreenPointPayload>) => void;
