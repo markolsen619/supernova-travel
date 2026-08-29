@@ -21,23 +21,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MagnifyingGlass, X, Compass, WarningCircle } from 'phosphor-react-native';
+import { MagnifyingGlass, X, Compass, WarningCircle, MapPin } from 'phosphor-react-native';
 import { DarkColors } from '@/constants/colors';
 import { useSearch } from '@/hooks/useSearch';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { useFlyTo } from '@/hooks/useFlyTo';
 import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
-import { enrichPoiByNameAndCoords, placeFromSelection, zoomForPlaceType } from '@/services/places/googlePlaces';
+import { enrichPoiByNameAndCoords, placeFromSelection, zoomForPlaceType, searchNearbyPlaces } from '@/services/places/googlePlaces';
 import { lightPresetForNow, type LightPreset } from '@/services/mapLighting';
 import { extractPoiFromFeatures } from '@/services/places/poiTapBridge';
-import { tapBbox } from '@/utils/mapInteraction';
+import { tapBbox, shouldFallbackToNearby, nearbyRadiusForZoom } from '@/utils/mapInteraction';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { UserResult } from '@/components/search/UserResult';
 import { TripResult } from '@/components/search/TripResult';
 import { PlaceResult } from '@/components/search/PlaceResult';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { SPRING } from '@/constants/motion';
+import { SPRING, Duration, fadeTo } from '@/constants/motion';
 import type * as GeoJSON from 'geojson';
 
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
@@ -69,6 +69,16 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('Places');
   const [enriching, setEnriching] = useState(false);
+  // Results of a tap that hit no rendered POI. Rendered in the sheet under
+  // "Places near here" — reusing PlaceResult rows rather than a new chooser.
+  const [nearbyResults, setNearbyResults] = useState<EnrichedPlace[] | null>(null);
+  // Live zoom, kept in a ref because onCameraChanged fires continuously
+  // through a pinch — see Task 9 for why this must not be state.
+  const zoomRef = useRef(INITIAL_ZOOM);
+  // Screen point of the last tap, for the pulse. Null when no pulse is running.
+  const [pulseAt, setPulseAt] = useState<{ x: number; y: number } | null>(null);
+  const pulseScale = useRef(new Animated.Value(0)).current;
+  const pulseOpacity = useRef(new Animated.Value(0)).current;
 
   // Standard's lighting follows the actual time of day. Recomputed three
   // ways, deliberately redundant: on mount (a plain useEffect, NOT just the
@@ -156,6 +166,7 @@ export default function SearchScreen() {
   // ── Search bar ────────────────────────────────────────────────────────────
   const handleQueryChange = useCallback(
     (text: string) => {
+      setNearbyResults(null);
       setQuery(text);
       setPlacesQuery(text);
       if (text.length > 0) {
@@ -169,6 +180,7 @@ export default function SearchScreen() {
   );
 
   const handleClearQuery = useCallback(() => {
+    setNearbyResults(null);
     setQuery('');
     clearPlacesQuery();
     setSelectedPlace(null);
@@ -208,12 +220,33 @@ export default function SearchScreen() {
     [selectPlace, setPlace, setSelectedPlace, flyToPlace, showSheet],
   );
 
+  // Visible tap acknowledgement — a haptic alone can be suppressed (silent
+  // switch) or coarsened (Android), so the ring is the reliable half.
+  const firePulse = useCallback(
+    (x: number, y: number) => {
+      setPulseAt({ x, y });
+      pulseScale.setValue(0);
+      pulseOpacity.setValue(0.5);
+      Animated.parallel([
+        Animated.spring(pulseScale, { toValue: 1, ...SPRING }),
+        fadeTo(pulseOpacity, 0, Duration.base),
+      ]).start(() => setPulseAt(null));
+    },
+    [pulseScale, pulseOpacity],
+  );
+
   // ── Flow B: Mapbox ambient POI tap ────────────────────────────────────────
   // Cache-first: reconciliation → place-detail → Text Search (Tier 2) on miss.
   const handleMapPress = useCallback(
     async (feature: GeoJSON.Feature<GeoJSON.Point, ScreenPointPayload>) => {
       const { screenPointX, screenPointY } = feature.properties;
       const [tapLng, tapLat] = feature.geometry.coordinates;
+
+      // Acknowledge the tap in the same frame it happens, before any await.
+      // Whether it resolves to a POI, to nearby results, or to nothing, the
+      // user must never wonder if the tap registered.
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      firePulse(screenPointX, screenPointY);
 
       // Logged unconditionally (not just on a POI hit) — distinguishes "the
       // tap never registered" from "it registered but found no POI feature
@@ -227,10 +260,48 @@ export default function SearchScreen() {
       const poi = extractPoiFromFeatures(collection, tapLat, tapLng);
       if (!poi) {
         console.log('[Map tap] no POI feature at this point —', collection?.features?.length ?? 0, 'features found');
+
+        const zoom = zoomRef.current;
+
+        // Below the gate a tap covers hundreds of kilometres, so any nearby
+        // result would be arbitrary — and billed. Flying in is the useful
+        // reading of a tap on a far-out map.
+        if (!shouldFallbackToNearby(zoom)) {
+          flyTo(tapLng, tapLat, Math.min(zoom + 3, 12.5));
+          return;
+        }
+
+        setEnriching(true);
+        try {
+          const nearby = await searchNearbyPlaces(
+            tapLat,
+            tapLng,
+            nearbyRadiusForZoom(zoom),
+          );
+
+          if (nearby.length === 1) {
+            // One obvious answer — skip the list and select it directly.
+            setPlace(nearby[0]);
+            setSelectedPlace(nearby[0]);
+            flyToPlace(nearby[0]);
+            showSheet();
+            return;
+          }
+
+          // Zero results still opens the sheet: an honest empty state beats
+          // the silence this branch used to produce.
+          nearby.forEach((p) => setPlace(p));
+          setNearbyResults(nearby);
+          setSelectedPlace(null);
+          showSheet();
+        } finally {
+          setEnriching(false);
+        }
         return;
       }
 
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // A real POI was found — drop any stale nearby list.
+      setNearbyResults(null);
       console.log('[POI tap]', poi.name, poi.lat, poi.lng);
 
       // 1. Reconciliation cache: do we already know the placeId for this POI?
@@ -263,7 +334,24 @@ export default function SearchScreen() {
         setEnriching(false);
       }
     },
-    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet],
+    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, firePulse],
+  );
+
+  // ── Flow C: nearby-results row tap ────────────────────────────────────────
+  // Already tier2-enriched and cached by handleMapPress — goes straight to
+  // getPlace rather than handlePlacePress, which would spend a second billed
+  // Details call re-fetching data already in hand.
+  const handleNearbyPress = useCallback(
+    (placeId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const place = getPlace(placeId);
+      if (!place) return;
+      setNearbyResults(null);
+      setSelectedPlace(place);
+      flyToPlace(place);
+      showSheet();
+    },
+    [getPlace, setSelectedPlace, flyToPlace, showSheet],
   );
 
   const handleDismissPlace = useCallback(() => {
@@ -307,6 +395,37 @@ export default function SearchScreen() {
       );
     }
     if (placesError) return renderEmptyState(WarningCircle, 'Search failed', 'Check your connection and try again.');
+
+    // A tap that fell through to Nearby Search owns the sheet until the user
+    // searches or selects — checked before the query-empty branch, which
+    // would otherwise show "Search the map" over real results.
+    if (nearbyResults !== null) {
+      if (nearbyResults.length === 0) {
+        return renderEmptyState(
+          MapPin,
+          'No places found here',
+          'Try tapping closer to a building or label.',
+        );
+      }
+      return (
+        <>
+          <Text style={[styles.sheetHeading, { color: colors.text.tertiary }]}>
+            PLACES NEAR HERE
+          </Text>
+          {nearbyResults.map((p) => (
+            <PlaceResult
+              key={p.placeId}
+              placeId={p.placeId}
+              mainText={p.name}
+              secondaryText={p.address}
+              onPress={handleNearbyPress}
+              colors={DarkColors}
+            />
+          ))}
+        </>
+      );
+    }
+
     if (!query.trim()) return renderEmptyState(Compass, 'Search the map', 'Find places, people, and trips.');
     if (query.trim().length < 2) return renderEmptyState(MagnifyingGlass, 'Keep typing…');
     if (places.length === 0) return renderEmptyState(MagnifyingGlass, `No results for "${query}"`);
@@ -367,6 +486,13 @@ export default function SearchScreen() {
   };
 
   const showingQuery = query.length > 0 && !selectedPlace;
+  // A nearby-results miss has no query text, so it can't ride showingQuery —
+  // without this the results sheet would never mount and the fallback would
+  // be just as silent as the miss it replaces. Tabs stay keyed off
+  // showingQuery alone: switching to Users/Trips mid-nearby-list isn't a
+  // real use case, and Task 10's idle-eyebrow condition checks nearbyResults
+  // separately from showingQuery, so this stays additive rather than folded in.
+  const showingSheet = showingQuery || nearbyResults !== null;
 
   return (
     <View style={styles.container}>
@@ -406,6 +532,22 @@ export default function SearchScreen() {
           animationMode="none"
         />
       </MapView>
+
+      {pulseAt && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.tapPulse,
+            {
+              left: pulseAt.x - 22,
+              top: pulseAt.y - 22,
+              borderColor: colors.brand.purple,
+              opacity: pulseOpacity,
+              transform: [{ scale: pulseScale }],
+            },
+          ]}
+        />
+      )}
 
       {/* ── Floating search bar ───────────────────────────────────────────── */}
       <View style={[styles.topBar, { paddingTop: insets.top + Spacing['2'] }]}>
@@ -475,7 +617,7 @@ export default function SearchScreen() {
       )}
 
       {/* ── Search results bottom sheet ───────────────────────────────────── */}
-      {showingQuery && (
+      {showingSheet && (
         <Animated.View
           style={[styles.bottomSheet, { transform: [{ translateY: slideAnim }] }]}
         >
@@ -647,6 +789,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2'],
   },
   resultsList: { flex: 1 },
+  sheetHeading: {
+    fontSize: 11,
+    fontWeight: FontWeight.medium,
+    letterSpacing: 0.9,
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['3'],
+    paddingBottom: Spacing['2'],
+  },
 
   enrichingBadge: {
     position: 'absolute',
@@ -655,6 +805,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: Spacing['3'],
     zIndex: 20,
+  },
+
+  // 44pt diameter deliberately matches the tapBbox hit area, so the pulse
+  // shows the user exactly how forgiving the tap actually was.
+  tapPulse: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    borderWidth: 2,
   },
 
   centered: { paddingTop: Spacing['8'], alignItems: 'center' },
