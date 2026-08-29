@@ -5,6 +5,8 @@ import { pitchForZoom, headingForArrival } from '@/utils/camera';
 export type CameraHandle = React.ElementRef<typeof Camera>;
 
 const DEFAULT_DURATION_MS = 1200;
+// Screen-point padding around a fitted bounds box, so the region isn't
+// framed edge-to-edge against the device chrome/search bar.
 const BOUNDS_PADDING = 60;
 
 export function useFlyTo() {
@@ -31,19 +33,29 @@ export function useFlyTo() {
   // viewport (regions: country/administrative_area/locality), since a fitted
   // box frames the place far more correctly than a guessed zoom level.
   //
-  // fitBounds does NOT touch pitch or heading, so arriving here from a tilted
-  // POI would leave the region framed crooked. Reset both explicitly first —
-  // this is the easiest thing in the file to get wrong, because it only shows
-  // up on the second navigation, never the first.
+  // ONE camera stop, carrying bounds and pitch and heading together — NOT a
+  // pitch reset followed by fitBounds. fitBounds is itself a thin wrapper that
+  // calls setCamera({ type: 'CameraStop', bounds, padding }), so issuing both
+  // in the same tick means the second stop preempts the first, and because a
+  // CameraStop leaves omitted fields at their current value, the pitch reset
+  // never lands. A region arrived at straight after a tilted POI would stay
+  // crooked — the exact bug the reset exists to prevent, and one that only
+  // shows on the SECOND navigation, never the first.
   const flyToBounds = useCallback(
     (ne: [number, number], sw: [number, number], durationMs = DEFAULT_DURATION_MS) => {
       cameraRef.current?.setCamera({
+        bounds: { ne, sw },
+        padding: {
+          paddingTop: BOUNDS_PADDING,
+          paddingBottom: BOUNDS_PADDING,
+          paddingLeft: BOUNDS_PADDING,
+          paddingRight: BOUNDS_PADDING,
+        },
         pitch: 0,
         heading: 0,
-        animationDuration: durationMs / 2,
-        animationMode: 'easeTo',
+        animationDuration: durationMs,
+        animationMode: 'flyTo',
       });
-      cameraRef.current?.fitBounds(ne, sw, BOUNDS_PADDING, durationMs);
     },
     [],
   );
