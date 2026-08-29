@@ -11,12 +11,7 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-import {
-  MapView,
-  Camera,
-  StyleImport,
-  setAccessToken,
-} from '@rnmapbox/maps';
+import { MapView } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
@@ -35,27 +30,16 @@ import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { UserResult } from '@/components/search/UserResult';
 import { TripResult } from '@/components/search/TripResult';
 import { PlaceResult } from '@/components/search/PlaceResult';
+import { GlobeMapView, INITIAL_ZOOM, INITIAL_COORDS, type ScreenPointPayload } from '@/components/search/GlobeMapView';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING, Duration, fadeTo } from '@/constants/motion';
 import type * as GeoJSON from 'geojson';
 
-// ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
-type ScreenPointPayload = { screenPointX: number; screenPointY: number };
-
-// Set token once at module load — before any MapView renders
-setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
-
-const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
-
 type Tab = 'Places' | 'Users' | 'Trips';
 const TABS: Tab[] = ['Places', 'Users', 'Trips'];
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Initial camera: wide-angle globe view centred on 0°N 20°W
-const INITIAL_ZOOM = 1.5;
-const INITIAL_COORDS: [number, number] = [0, 20]; // [lng, lat]
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -101,10 +85,6 @@ export default function SearchScreen() {
       setLightPreset(lightPresetForNow());
     }, []),
   );
-
-  const handleMapLoadingError = useCallback(() => {
-    console.error('[SearchMap] Mapbox Standard style failed to load — check EXPO_PUBLIC_MAPBOX_TOKEN and network.');
-  }, []);
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -501,41 +481,12 @@ export default function SearchScreen() {
   return (
     <View style={styles.container}>
       {/* ── Mapbox Standard globe ─────────────────────────────────────────── */}
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        styleURL={STANDARD_STYLE}
-        projection="globe"
+      <GlobeMapView
+        cameraRef={cameraRef}
+        mapRef={mapRef}
+        lightPreset={lightPreset}
         onPress={handleMapPress}
-        onMapLoadingError={handleMapLoadingError}
-        // Mapbox ToS requires the wordmark + attribution on-map — kept small
-        // and tucked above the tab bar.
-        logoEnabled
-        logoPosition={{ bottom: 88, left: 8 }}
-        attributionEnabled
-        attributionPosition={{ bottom: 88, right: 8 }}
-        compassEnabled={false}
-        scaleBarEnabled={false}
-      >
-        <StyleImport
-          id="basemap"
-          existing
-          config={{
-            lightPreset,
-            showPointOfInterestLabels: true,
-            showLandmarkIcons: true,
-            show3dBuildings: true,
-          }}
-        />
-        <Camera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: INITIAL_COORDS,
-            zoomLevel: INITIAL_ZOOM,
-          }}
-          animationMode="none"
-        />
-      </MapView>
+      />
 
       {pulseAt && (
         <Animated.View
