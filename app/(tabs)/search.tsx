@@ -293,6 +293,10 @@ export default function SearchScreen() {
           nearby.forEach((p) => setPlace(p));
           setNearbyResults(nearby);
           setSelectedPlace(null);
+          // A map tap always produces place results, so force the Places tab —
+          // activeTab survives handleClearQuery, and a stale Users/Trips tab would
+          // render its own empty state over real nearby results.
+          setActiveTab('Places');
           showSheet();
         } finally {
           setEnriching(false);
@@ -334,7 +338,7 @@ export default function SearchScreen() {
         setEnriching(false);
       }
     },
-    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, firePulse],
+    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse],
   );
 
   // ── Flow C: nearby-results row tap ────────────────────────────────────────
