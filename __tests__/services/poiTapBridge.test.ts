@@ -128,13 +128,19 @@ describe('extractPoiFromFeatures', () => {
     expect(extractPoiFromFeatures(collection([multipolygon('Island Group')]), 0, 0)).toBeNull();
   });
 
-  it('chooses the nearest Point with coordinates of similar magnitude', () => {
+  it('picks the nearest Point even when lat and lng deltas pull in opposite directions', () => {
+    // This fixture is designed to catch latitude/longitude transposition in distance math.
+    // Skewed Lat is nearer in latitude but far in longitude; Skewed Lng is near in longitude
+    // but far in latitude. The correct calculation (0.3² + 0.05² = 0.0925 vs 0.1² + 0.2² = 0.05)
+    // picks Skewed Lng. If someone transposes the distance formula, the math flips
+    // (0.55² + 0.2² = 0.3425 vs 0.7² + 0.4² = 0.65) and Skewed Lat wins instead — this test
+    // catches that mistake. Never simplify this fixture; the skew is the whole point.
     const poi = extractPoiFromFeatures(
-      collection([point('Far Place', 45.6, 45.1), point('Near Place', 45.52, 45.02)]),
+      collection([point('Skewed Lat', 45.55, 45.3), point('Skewed Lng', 45.7, 45.1)]),
       45.0,
       45.5,
     );
-    expect(poi?.name).toBe('Near Place');
+    expect(poi?.name).toBe('Skewed Lng');
   });
 });
 
