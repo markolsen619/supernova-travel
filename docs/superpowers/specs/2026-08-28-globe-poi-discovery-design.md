@@ -20,7 +20,7 @@ in front of a place worth adding. No changes to the add flow.
 |---|---|
 | POI strategy | **Hybrid** — own curated layer at low zoom, fixed ambient Mapbox POIs at high zoom |
 | Curated layer contents | **Trending public destinations only** (not own trips, saved trips, or a new saved-places collection) |
-| Zoom behaviour | **Crossfade** — curated fades out, ambient fades in, one clear layer at any zoom |
+| Zoom behaviour | **Hard zoom cutoff** via native `maxZoomLevel` — no interpolated crossfade |
 | Chrome scope | **Everything**, including the light→dark tab transition |
 | Tap misses | **Tap-anywhere fallback above z12** — a miss resolves via Nearby Search |
 | Navigation affordances | All four: back-to-globe, tap feedback, tappable-looking pins, draggable sheet |
@@ -69,8 +69,8 @@ utils/mapInteraction.ts          pure      shouldFallbackToNearby(), nearbyRadiu
 hooks/useTrendingPlaces.ts       data      one cached Firestore query -> TrendingPlace[]
 services/places/poiTapBridge.ts  pure*     Point-only feature extraction (revised)
 services/places/googlePlaces.ts  data      + searchNearbyPlaces() (added)
-app/(tabs)/search.tsx            view      layers, crossfade, chrome, transition,
-                                           navigation affordances
+app/(tabs)/search.tsx            view      chrome, sheets, transition
+components/search/GlobeMapView.tsx  view    layers, camera, tap handling
 ```
 
 `search.tsx` is already 678 lines and this adds materially to it. Extract the
@@ -139,6 +139,18 @@ A `ShapeSource` (`id="trending-places"`) built from the aggregated list, with:
 
 Purple fill deliberately differs from `TripMapView`'s day-colored stops: these
 are two different vocabularies and must not be confused for each other.
+
+### Zoom handoff — a hard cutoff, not a crossfade
+
+Both trending layers carry `maxZoomLevel: 12`. Mapbox stops drawing them past
+that point; Standard's own POI labels come in around z14 on their own. The handoff
+is declarative, costs nothing to render, and behaves identically on iOS and
+Android because the native SDK enforces it rather than a JS interpolation.
+
+An interpolated opacity crossfade was considered and dropped. It needed on-device
+tuning on two platforms to avoid reading as a pop, which is tuning effort spent on
+a transition the user never explicitly looks at. `maxZoomLevel` is one prop and
+has no failure mode.
 
 ### Firestore index
 
@@ -372,16 +384,60 @@ Pure-function tests only, per project convention:
   scales down as zoom increases; tap-bbox helper emits `[top, left, bottom,
   right]` in that order.
 
-The crossfade, the layers and the transition are visual and cannot be asserted in
-this project's test setup — they are verified on device.
+The layers, the transition and the sheet gesture are visual and cannot be
+asserted in this project's test setup — they are verified on device, **on both
+platforms** (see below).
+
+## Cross-platform
+
+This ships to iOS and Android together. Nothing in this design is iOS-only, but
+three things need explicit care, and one is a blocker.
+
+### Blocker: `@rnmapbox/maps` has no Expo config plugin registered
+
+`@rnmapbox/maps` ships an Expo config plugin (`node_modules/@rnmapbox/maps/plugin/`)
+and **it is not listed in `app.json`**. The repo has a prebuilt `ios/` directory
+and no `android/` directory, no `gradle.properties` and no `.netrc`.
+
+On Android, Mapbox's SDK comes from a private Maven repository that needs a
+download token supplied at build time. The config plugin is what injects it.
+Without the plugin registered, the first Android prebuild will fail to resolve
+the Mapbox SDK — which means **the globe has almost certainly never run on
+Android**, and no amount of work in this spec would change that on its own.
+
+The credential is already half-wired: `.env.local.example` documents
+`MAPBOX_SECRET_DOWNLOAD_TOKEN` and even gives the `eas secret:create` command.
+Only the plugin registration is missing:
+
+```json
+["@rnmapbox/maps", { "RNMapboxMapsDownloadToken": "<sk. token>" }]
+```
+
+This must be fixed and an Android build must come up green **before** the rest of
+this spec can be validated cross-platform. It is a prerequisite, not a task.
+
+### BlurView has no Android equivalent
+
+`search.tsx` already handles this: `Platform.OS === 'ios'` renders `BlurView`,
+Android renders a solid `DARK_SCRIM_96` view. Every new piece of floating
+chrome — the back-to-globe button, the eyebrow, the tap pulse — follows the same
+branch. Do not introduce blur without its solid fallback.
+
+The draggable sheet in particular has to work against **both** branches, since
+the sheet body is a different component per platform.
+
+### Gesture composition differs by platform
+
+`PanGestureHandler` over a nested `ScrollView` resolves differently on iOS and
+Android; a composition that feels right on one can be unusable on the other. Test
+the sheet drag on a physical Android device, not only the emulator, where fling
+velocity does not match real hardware.
+
+Haptics also differ: `expo-haptics` maps to a coarser vibration on Android. The
+tap-feedback pulse must carry the interaction visually on its own, and never rely
+on haptics alone to confirm a tap registered.
 
 ## Risks
-
-**The crossfade is the part most likely to need tuning.** Zoom-interpolated
-opacity is straightforward to write; making it read as a handoff rather than a
-pop needs adjustment on a real device. Both thresholds ship as named constants at
-the top of the file so they can be changed without hunting through interpolation
-expressions.
 
 **Section 5's transition touches navigation.** If the overlay fights the tab
 bar's own transition, stop and report rather than layering workarounds on top.
@@ -400,6 +456,9 @@ the gate moves up from z12 rather than the feature being removed.
 
 ## Manual prerequisites
 
+- **Register the `@rnmapbox/maps` Expo config plugin in `app.json`** with the
+  Mapbox download token, and get a green Android build. Blocking — see
+  Cross-platform above.
 - Composite Firestore index: `trips(visibility ASC, savesCount DESC)`.
 
 ## Out of scope
