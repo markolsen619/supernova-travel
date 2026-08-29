@@ -1147,6 +1147,10 @@ function trip(over: Partial<Trip> = {}): Trip {
     additionalDestinations: [],
     savesCount: 0,
     likesCount: 0,
+    // Without this spread every test silently runs against the defaults,
+    // ignoring its own arguments — the suite would look like it exercises
+    // variation while asserting nothing of the kind.
+    ...over,
   } as unknown as Trip;
 }
 
