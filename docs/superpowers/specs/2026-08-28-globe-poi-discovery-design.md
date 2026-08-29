@@ -24,6 +24,8 @@ in front of a place worth adding. No changes to the add flow.
 | Chrome scope | **Everything**, including the light→dark tab transition |
 | Tap misses | **Tap-anywhere fallback above z12** — a miss resolves via Nearby Search |
 | Navigation affordances | All four: back-to-globe, tap feedback, tappable-looking pins, draggable sheet |
+| Shipping order | **iOS first.** Android code paths written but not built or validated this pass |
+| Firestore index | Hook degrades to an empty layer when the index is absent — not a blocker |
 | Screen palette | Stays always-dark (Architecture Rule 3). Not revisited. |
 
 ## Background: what is actually wrong today
@@ -385,15 +387,24 @@ Pure-function tests only, per project convention:
   right]` in that order.
 
 The layers, the transition and the sheet gesture are visual and cannot be
-asserted in this project's test setup — they are verified on device, **on both
-platforms** (see below).
+asserted in this project's test setup — they are verified on device. **iOS this
+pass**; Android verification is deferred (see Cross-platform). The pure functions
+above are platform-agnostic and cover the logic that would otherwise be at risk
+of drifting between the two.
 
 ## Cross-platform
 
-This ships to iOS and Android together. Nothing in this design is iOS-only, but
-three things need explicit care, and one is a blocker.
+**iOS ships first; Android follows in a later pass.** That defers *validation*,
+not *compatibility* — nothing here may be built in an iOS-only way. Writing
+Android-compatible code costs almost nothing now; retrofitting it later is
+expensive. Every decision below stands regardless of shipping order, so the
+Android pass is verification rather than a rewrite.
 
-### Blocker: `@rnmapbox/maps` has no Expo config plugin registered
+Concretely, that means the `maxZoomLevel` handoff (rather than a JS crossfade
+tuned per platform), the BlurView fallback branch, and gesture composition care
+all stay in scope now, even though nobody will run them on Android this pass.
+
+### Known Android debt: `@rnmapbox/maps` has no Expo config plugin registered
 
 `@rnmapbox/maps` ships an Expo config plugin (`node_modules/@rnmapbox/maps/plugin/`)
 and **it is not listed in `app.json`**. The repo has a prebuilt `ios/` directory
@@ -413,8 +424,10 @@ Only the plugin registration is missing:
 ["@rnmapbox/maps", { "RNMapboxMapsDownloadToken": "<sk. token>" }]
 ```
 
-This must be fixed and an Android build must come up green **before** the rest of
-this spec can be validated cross-platform. It is a prerequisite, not a task.
+Deferred with the rest of the Android work, but recorded here because it is the
+reason an Android build cannot simply be run at the end of this project to "check
+Android" — it will fail at dependency resolution, before any code in this spec is
+reached. Budget it as its own piece of work, not a final checkbox.
 
 ### BlurView has no Android equivalent
 
@@ -429,9 +442,11 @@ the sheet body is a different component per platform.
 ### Gesture composition differs by platform
 
 `PanGestureHandler` over a nested `ScrollView` resolves differently on iOS and
-Android; a composition that feels right on one can be unusable on the other. Test
-the sheet drag on a physical Android device, not only the emulator, where fling
-velocity does not match real hardware.
+Android; a composition that feels right on one can be unusable on the other.
+Build it with `simultaneousHandlers` wired from the start rather than tuned to
+iOS behaviour alone — the Android pass should be a test, not a redesign. When
+Android is validated, test the drag on physical hardware, not only the emulator,
+where fling velocity does not match.
 
 Haptics also differ: `expo-haptics` maps to a coarser vibration on Android. The
 tap-feedback pulse must carry the interaction visually on its own, and never rely
@@ -456,10 +471,17 @@ the gate moves up from z12 rather than the feature being removed.
 
 ## Manual prerequisites
 
-- **Register the `@rnmapbox/maps` Expo config plugin in `app.json`** with the
-  Mapbox download token, and get a green Android build. Blocking — see
-  Cross-platform above.
 - Composite Firestore index: `trips(visibility ASC, savesCount DESC)`.
+  **Not blocking** — `useTrendingPlaces` catches the failed-precondition error and
+  returns an empty list, so the globe renders without trending pins until the
+  index exists. Everything else in this spec stays testable meanwhile.
+
+### Deferred to the Android pass
+
+- Register the `@rnmapbox/maps` Expo config plugin in `app.json` with the Mapbox
+  download token, and get a green Android build.
+- Validate the sheet drag, haptics and blur fallbacks on physical Android
+  hardware.
 
 ## Out of scope
 
