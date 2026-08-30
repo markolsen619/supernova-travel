@@ -362,15 +362,26 @@ export default function SearchScreen() {
 
   // Visible tap acknowledgement — a haptic alone can be suppressed (silent
   // switch) or coarsened (Android), so the ring is the reliable half.
+  // pulseTokenRef guards against a rapid double-tap eating the ring: without
+  // it, setValue(0) on the second tap restarts the shared Animated.Values,
+  // but the FIRST tap's still-pending .start() completion callback fires
+  // setPulseAt(null) after the second tap's setPulseAt({x,y}) — same React
+  // batch — so the second tap (the one case this ring exists for) shows
+  // nothing. Each call claims a token; a completion only clears the pulse if
+  // its own token is still the current one.
+  const pulseTokenRef = useRef(0);
   const firePulse = useCallback(
     (x: number, y: number) => {
+      const token = ++pulseTokenRef.current;
       setPulseAt({ x, y });
       pulseScale.setValue(0);
       pulseOpacity.setValue(0.5);
       Animated.parallel([
         Animated.spring(pulseScale, { toValue: 1, ...SPRING }),
         fadeTo(pulseOpacity, 0, Duration.base),
-      ]).start(() => setPulseAt(null));
+      ]).start(() => {
+        if (pulseTokenRef.current === token) setPulseAt(null);
+      });
     },
     [pulseScale, pulseOpacity],
   );
@@ -715,8 +726,18 @@ export default function SearchScreen() {
         />
       )}
 
-      {/* ── Eyebrow label (idle only) ─────────────────────────────────────── */}
-      {!showingQuery && !selectedPlace && nearbyResults === null && (
+      {/* ── Eyebrow label (idle world view only) ────────────────────────────
+          isZoomedIn, not a bespoke zoom check: trending pins stop drawing at
+          GlobeMapView's TRENDING_MAX_ZOOM (12), so trendingPlaces.length
+          reads wrong above that — but isZoomedIn's own threshold (6) trips
+          earlier still. That's the honest direction to be wrong in: this
+          label describes the idle globe, and isZoomedIn is already this
+          screen's one signal for "no longer idle" (it drives the
+          back-to-globe button too) — hiding a few zoom levels before the
+          pins actually vanish costs nothing, where showing a stale count
+          for however long the user stays past z12 would be a wrong number
+          on screen. */}
+      {!showingQuery && !selectedPlace && !isZoomedIn && nearbyResults === null && (
         <View style={[styles.eyebrowWrap, { paddingTop: insets.top + 68 }]} pointerEvents="none">
           <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>
             {trendingPlaces.length > 0
