@@ -882,6 +882,11 @@ Replace the whole `if (!poi) { ... return; }` block:
 
           if (nearby.length === 1) {
             // One obvious answer — skip the list and select it directly.
+            // Clear any nearby list from a PREVIOUS tap first: without this,
+            // a multi-result tap followed by a single-result tap leaves both
+            // sheets mounted, and dismissing the detail sheet reveals a stale
+            // list from two taps ago.
+            setNearbyResults(null);
             setPlace(nearby[0]);
             setSelectedPlace(nearby[0]);
             flyToPlace(nearby[0]);
