@@ -51,6 +51,7 @@ export function GlobeMapView({
   mapRef,
   lightPreset,
   onPress,
+  onCameraChanged,
   trendingPlaces,
   selectedPlace,
 }: GlobeMapViewProps) {
@@ -98,6 +99,7 @@ export function GlobeMapView({
       styleURL={STANDARD_STYLE}
       projection="globe"
       onPress={onPress}
+      onCameraChanged={(state) => onCameraChanged?.(state.properties.zoom)}
       onMapLoadingError={handleMapLoadingError}
       // Mapbox ToS requires the wordmark + attribution on-map — kept small
       // and tucked above the tab bar.

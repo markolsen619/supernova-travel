@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MagnifyingGlass, X, Compass, WarningCircle, MapPin } from 'phosphor-react-native';
+import { MagnifyingGlass, X, Compass, WarningCircle, MapPin, Globe } from 'phosphor-react-native';
 import { DarkColors } from '@/constants/colors';
 import { useSearch } from '@/hooks/useSearch';
 import { useTrendingPlaces } from '@/hooks/useTrendingPlaces';
@@ -60,6 +60,9 @@ export default function SearchScreen() {
   // Live zoom, kept in a ref because onCameraChanged fires continuously
   // through a pinch — see Task 9 for why this must not be state.
   const zoomRef = useRef(INITIAL_ZOOM);
+  // Only the threshold crossing reaches React — at most twice per gesture,
+  // rather than once per frame. Drives the back-to-globe button.
+  const [isZoomedIn, setIsZoomedIn] = useState(false);
   // Screen point of the last tap, for the pulse. Null when no pulse is running.
   const [pulseAt, setPulseAt] = useState<{ x: number; y: number } | null>(null);
   const pulseScale = useRef(new Animated.Value(0)).current;
@@ -146,6 +149,30 @@ export default function SearchScreen() {
     },
     [flyTo, flyToBounds],
   );
+
+  // ── Camera zoom tracking (Task 9) ─────────────────────────────────────────
+  // onCameraChanged fires continuously through a pinch/pan — many times per
+  // second. Storing the raw zoom in state would re-render the whole screen
+  // every frame of every gesture. The value lives in zoomRef (Task 5's
+  // fallback-to-nearby gate reads it); only the boolean threshold crossing
+  // is lifted into state, and the functional setState skips the update
+  // entirely when the boolean hasn't changed.
+  const handleCameraChanged = useCallback((zoom: number) => {
+    zoomRef.current = zoom;
+    const next = zoom > 6;
+    setIsZoomedIn((prev) => (prev === next ? prev : next));
+  }, []);
+
+  const handleBackToGlobe = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedPlace(null);
+    setNearbyResults(null);
+    hideSheet();
+    // flyTo applies pitchForZoom/headingForArrival internally; INITIAL_ZOOM
+    // is below the pitch threshold, so this also resets pitch to 0 — no
+    // separate reset needed.
+    flyTo(INITIAL_COORDS[0], INITIAL_COORDS[1], INITIAL_ZOOM);
+  }, [setSelectedPlace, hideSheet, flyTo]);
 
   // ── Search bar ────────────────────────────────────────────────────────────
   const handleQueryChange = useCallback(
@@ -490,6 +517,7 @@ export default function SearchScreen() {
         mapRef={mapRef}
         lightPreset={lightPreset}
         onPress={handleMapPress}
+        onCameraChanged={handleCameraChanged}
         trendingPlaces={trendingPlaces}
         selectedPlace={selectedPlace}
       />
@@ -575,6 +603,25 @@ export default function SearchScreen() {
         <View style={[styles.enrichingBadge, { backgroundColor: `${colors.background.primary}D9` }]}>
           <ActivityIndicator size="small" color={colors.text.primary} />
         </View>
+      )}
+
+      {/* ── Back to globe ─────────────────────────────────────────────────── */}
+      {isZoomedIn && (
+        <TouchableOpacity
+          onPress={handleBackToGlobe}
+          style={[
+            styles.globeButton,
+            {
+              bottom: insets.bottom + 96,
+              backgroundColor: `${colors.background.primary}D9`,
+              borderColor: colors.background.cardBorder,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Back to globe"
+        >
+          <Globe size={20} color={colors.text.primary} weight="duotone" />
+        </TouchableOpacity>
       )}
 
       {/* ── Search results bottom sheet ───────────────────────────────────── */}
@@ -766,6 +813,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: Spacing['3'],
     zIndex: 20,
+  },
+
+  globeButton: {
+    position: 'absolute',
+    right: Spacing['5'],
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // 44pt diameter deliberately matches the tapBbox hit area, so the pulse
