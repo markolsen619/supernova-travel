@@ -68,6 +68,13 @@ export default function SearchScreen() {
   const pulseScale = useRef(new Animated.Value(0)).current;
   const pulseOpacity = useRef(new Animated.Value(0)).current;
 
+  // Light→dark reveal on focus (design system: "the light-to-dark transition
+  // is a signature moment — fade/scale it, never hard-cut"). No reverse on
+  // blur: tab swaps away are immediate, and an exit animation would delay
+  // the next screen appearing.
+  const revealOpacity = useRef(new Animated.Value(1)).current;
+  const revealScale = useRef(new Animated.Value(1.04)).current;
+
   // Standard's lighting follows the actual time of day. Recomputed three
   // ways, deliberately redundant: on mount (a plain useEffect, NOT just the
   // useState initializer — React preserves local state across Fast Refresh,
@@ -87,7 +94,19 @@ export default function SearchScreen() {
   useFocusEffect(
     useCallback(() => {
       setLightPreset(lightPresetForNow());
-    }, []),
+
+      // Reset (not just animate) each focus, or the reveal only ever plays
+      // once — on first mount — and never again on subsequent visits to the
+      // tab, which is the common case in real use.
+      revealOpacity.setValue(1);
+      revealScale.setValue(1.04);
+      Animated.parallel([
+        fadeTo(revealOpacity, 0, Duration.slow),
+        Animated.spring(revealScale, { toValue: 1, ...SPRING }),
+      ]).start();
+      // No reverse on blur: tab swaps away are immediate, and an exit
+      // animation would delay the next screen appearing.
+    }, [revealOpacity, revealScale]),
   );
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -512,15 +531,17 @@ export default function SearchScreen() {
   return (
     <View style={styles.container}>
       {/* ── Mapbox Standard globe ─────────────────────────────────────────── */}
-      <GlobeMapView
-        cameraRef={cameraRef}
-        mapRef={mapRef}
-        lightPreset={lightPreset}
-        onPress={handleMapPress}
-        onCameraChanged={handleCameraChanged}
-        trendingPlaces={trendingPlaces}
-        selectedPlace={selectedPlace}
-      />
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: revealScale }] }]}>
+        <GlobeMapView
+          cameraRef={cameraRef}
+          mapRef={mapRef}
+          lightPreset={lightPreset}
+          onPress={handleMapPress}
+          onCameraChanged={handleCameraChanged}
+          trendingPlaces={trendingPlaces}
+          selectedPlace={selectedPlace}
+        />
+      </Animated.View>
 
       {pulseAt && (
         <Animated.View
@@ -682,6 +703,19 @@ export default function SearchScreen() {
           colors={DarkColors}
         />
       )}
+
+      {/* ── Reveal overlay ─────────────────────────────────────────────────
+          Last child so it covers everything above, including the search bar
+          and any sheets. pointerEvents="none" is essential — without it the
+          overlay swallows the first tap after every focus (invisible once
+          faded, so this presents as "the map ignores my first tap"). */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: colors.background.primary, opacity: revealOpacity },
+        ]}
+      />
     </View>
   );
 }
