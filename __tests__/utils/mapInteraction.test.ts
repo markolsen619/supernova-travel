@@ -2,6 +2,7 @@ import {
   tapBbox,
   shouldFallbackToNearby,
   nearbyRadiusForZoom,
+  nearbyCacheKey,
   TAP_RADIUS_PT,
 } from '@/utils/mapInteraction';
 
@@ -52,5 +53,28 @@ describe('nearbyRadiusForZoom', () => {
       expect(nearbyRadiusForZoom(z)).toBeGreaterThanOrEqual(50);
       expect(nearbyRadiusForZoom(z)).toBeLessThanOrEqual(50000);
     });
+  });
+});
+
+describe('nearbyCacheKey', () => {
+  it('is deterministic for the same coordinates', () => {
+    expect(nearbyCacheKey(40.7128, -74.006)).toBe(nearbyCacheKey(40.7128, -74.006));
+  });
+
+  it('collides taps within ~11m (4 decimal places) of each other', () => {
+    // Same key once both are rounded to 4dp — this is the "free re-tap" case.
+    expect(nearbyCacheKey(40.71281, -74.00601)).toBe(nearbyCacheKey(40.71284, -74.00604));
+  });
+
+  it('does not collide taps meaningfully far apart', () => {
+    expect(nearbyCacheKey(40.7128, -74.006)).not.toBe(nearbyCacheKey(40.7228, -74.006));
+  });
+
+  it('rounds to exactly 4 decimal places', () => {
+    expect(nearbyCacheKey(1.23456789, -2.3456789)).toBe('1.2346,-2.3457');
+  });
+
+  it('distinguishes lat from lng so a transposed tap does not collide', () => {
+    expect(nearbyCacheKey(10, 20)).not.toBe(nearbyCacheKey(20, 10));
   });
 });

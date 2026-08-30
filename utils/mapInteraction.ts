@@ -47,3 +47,16 @@ export function nearbyRadiusForZoom(zoom: number): number {
   const metres = 500 * Math.pow(2, 13 - zoom);
   return Math.round(Math.min(50000, Math.max(50, metres)));
 }
+
+/**
+ * Cache key for a Nearby Search result, rounded to 4 decimal places (~11m) —
+ * fine enough that two taps meant as "the same spot" collide, coarse enough
+ * that adjacent-but-distinct spots don't share a billed result. Re-tapping
+ * the same spot (the results sheet has no dismiss affordance, so tapping the
+ * map to close it is the common path) should be free, not a fresh billed
+ * Nearby Search every time.
+ */
+export function nearbyCacheKey(lat: number, lng: number): string {
+  const round4 = (n: number) => Math.round(n * 10000) / 10000;
+  return `${round4(lat)},${round4(lng)}`;
+}

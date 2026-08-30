@@ -166,6 +166,8 @@ export default function SearchScreen() {
     setRecon,
     getPlace,
     setPlace,
+    getNearby,
+    setNearby,
   } = usePlacesStore();
 
   // ── Algolia search (Users + Trips tabs) ───────────────────────────────────
@@ -409,41 +411,53 @@ export default function SearchScreen() {
           return;
         }
 
-        setEnriching(true);
-        try {
-          const nearby = await searchNearbyPlaces(
-            tapLat,
-            tapLng,
-            nearbyRadiusForZoom(zoom),
-          );
-
-          if (nearby.length === 1) {
-            // One obvious answer — skip the list and select it directly.
-            // Clear any nearby list from a PREVIOUS tap first: without this,
-            // a multi-result tap followed by a single-result tap leaves both
-            // sheets mounted, and dismissing the detail sheet reveals a stale
-            // list from two taps ago.
-            setNearbyResults(null);
-            setPlace(nearby[0]);
-            setSelectedPlace(nearby[0]);
-            flyToPlace(nearby[0]);
-            showSheet();
-            return;
+        // Coordinate-keyed cache: the results sheet has no dismiss
+        // affordance, so tapping the map to close it re-enters this exact
+        // path — without this, that dismiss-tap re-bills a Nearby Search
+        // every time. Cache hit resolves synchronously, so it never shows
+        // the enriching spinner (there's nothing to wait for).
+        const cached = getNearby(tapLat, tapLng);
+        let nearby: EnrichedPlace[];
+        if (cached) {
+          nearby = cached;
+        } else {
+          setEnriching(true);
+          try {
+            nearby = await searchNearbyPlaces(
+              tapLat,
+              tapLng,
+              nearbyRadiusForZoom(zoom),
+            );
+            setNearby(tapLat, tapLng, nearby);
+          } finally {
+            setEnriching(false);
           }
-
-          // Zero results still opens the sheet: an honest empty state beats
-          // the silence this branch used to produce.
-          nearby.forEach((p) => setPlace(p));
-          setNearbyResults(nearby);
-          setSelectedPlace(null);
-          // A map tap always produces place results, so force the Places tab —
-          // activeTab survives handleClearQuery, and a stale Users/Trips tab would
-          // render its own empty state over real nearby results.
-          setActiveTab('Places');
-          showSheet();
-        } finally {
-          setEnriching(false);
         }
+
+        if (nearby.length === 1) {
+          // One obvious answer — skip the list and select it directly.
+          // Clear any nearby list from a PREVIOUS tap first: without this,
+          // a multi-result tap followed by a single-result tap leaves both
+          // sheets mounted, and dismissing the detail sheet reveals a stale
+          // list from two taps ago.
+          setNearbyResults(null);
+          setPlace(nearby[0]);
+          setSelectedPlace(nearby[0]);
+          flyToPlace(nearby[0]);
+          showSheet();
+          return;
+        }
+
+        // Zero results still opens the sheet: an honest empty state beats
+        // the silence this branch used to produce.
+        nearby.forEach((p) => setPlace(p));
+        setNearbyResults(nearby);
+        setSelectedPlace(null);
+        // A map tap always produces place results, so force the Places tab —
+        // activeTab survives handleClearQuery, and a stale Users/Trips tab would
+        // render its own empty state over real nearby results.
+        setActiveTab('Places');
+        showSheet();
         return;
       }
 
@@ -481,7 +495,7 @@ export default function SearchScreen() {
         setEnriching(false);
       }
     },
-    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse],
+    [getRecon, getPlace, setRecon, setPlace, getNearby, setNearby, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse],
   );
 
   // ── Flow C: nearby-results row tap ────────────────────────────────────────
