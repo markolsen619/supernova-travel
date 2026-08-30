@@ -197,6 +197,82 @@ export async function enrichPoiByNameAndCoords(
 }
 
 /**
+ * Tap-anywhere fallback — what is physically near these coordinates?
+ *
+ * Mapbox Standard declutters labels aggressively, so most POIs it knows about
+ * are never drawn and therefore never tappable. When a tap finds no rendered
+ * feature, this answers "what is actually here?" instead of the map appearing
+ * broken.
+ *
+ * Uses `places:searchNearby` rather than the shared textSearchFirstResult
+ * helper: that helper hits `places:searchText` and returns a single result,
+ * and here there is no text to search for and several results are wanted.
+ * Same API key, same TIER2 mask, same error posture.
+ *
+ * Call ONLY on a tap that found nothing, and only above the zoom gate — see
+ * shouldFallbackToNearby(). Every call is billed.
+ */
+export async function searchNearbyPlaces(
+  lat: number,
+  lng: number,
+  radiusM: number,
+  maxResults = 5,
+): Promise<EnrichedPlace[]> {
+  // Clamped here, not only in nearbyRadiusForZoom. This function is exported
+  // and every call is billed, so it defends itself rather than trusting each
+  // caller to have clamped first. Google's own limits: radius 0-50000m,
+  // maxResultCount 1-20 — exceeding either is a 400, i.e. a wasted round trip.
+  const radius = Math.min(50000, Math.max(1, radiusM));
+  const count = Math.min(20, Math.max(1, Math.trunc(maxResults)));
+
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': API_KEY,
+        'X-Goog-FieldMask': TIER2_LIST_FIELD_MASK,
+      },
+      body: JSON.stringify({
+        locationRestriction: {
+          circle: { center: { latitude: lat, longitude: lng }, radius },
+        },
+        maxResultCount: count,
+        rankPreference: 'DISTANCE',
+        languageCode: 'en',
+      }),
+    });
+
+    if (!res.ok) {
+      console.error('[searchNearbyPlaces] HTTP', res.status, await res.text());
+      return [];
+    }
+
+    const json = (await res.json()) as { places?: RawTier2Place[] };
+    const places = json.places ?? [];
+
+    return places.map((place) => {
+      const components = place.addressComponents ?? [];
+      return {
+        placeId: place.id ?? '',
+        name: place.displayName?.text ?? '',
+        address: place.formattedAddress ?? '',
+        lat: place.location?.latitude ?? lat,
+        lng: place.location?.longitude ?? lng,
+        countryCode: components.find((c) => c.types.includes('country'))?.shortText ?? null,
+        tier: 'tier2' as const,
+        ...tier2FieldsFromRaw(place),
+      };
+    });
+  } catch (error) {
+    // Offline or DNS failure. An empty list renders the honest "no places
+    // found here" state, which is the right outcome either way.
+    console.error('[searchNearbyPlaces] failed', error);
+    return [];
+  }
+}
+
+/**
  * Lazy grounding for AI-generated stops (Part B) — resolves a Gemini-authored
  * searchQuery string (e.g. "Louvre Museum, Paris") to a real Google place,
  * via the SAME Text Search endpoint/field mask as the POI-tap path above; no

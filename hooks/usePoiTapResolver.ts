@@ -4,6 +4,7 @@ import type * as GeoJSON from 'geojson';
 import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
 import { enrichPoiByNameAndCoords } from '@/services/places/googlePlaces';
 import { extractPoiFromFeatures } from '@/services/places/poiTapBridge';
+import { tapBbox } from '@/utils/mapInteraction';
 
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
 type ScreenPointPayload = { screenPointX: number; screenPointY: number };
@@ -31,10 +32,9 @@ export function usePoiTapResolver() {
       const { screenPointX, screenPointY } = feature.properties;
       const [tapLng, tapLat] = feature.geometry.coordinates;
 
-      const collection = await mapRef.current?.queryRenderedFeaturesAtPoint([
-        screenPointX,
-        screenPointY,
-      ]);
+      const collection = await mapRef.current?.queryRenderedFeaturesInRect(
+        tapBbox(screenPointX, screenPointY),
+      );
       const poi = extractPoiFromFeatures(collection, tapLat, tapLng);
       if (!poi) return null;
 

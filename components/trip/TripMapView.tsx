@@ -17,6 +17,7 @@ import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
 import { usePoiTapResolver } from '@/hooks/usePoiTapResolver';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
+import { tapBbox } from '@/utils/mapInteraction';
 import { lightPresetForNow } from '@/services/mapLighting';
 import { placeToTripActivity } from '@/services/places/googlePlaces';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
@@ -328,7 +329,14 @@ export function TripMapView({
   const handleMapPress = useCallback(
     async (feature: GeoJSON.Feature<GeoJSON.Point, ScreenPointPayload>) => {
       const { screenPointX, screenPointY } = feature.properties;
-      const collection = await mapRef.current?.queryRenderedFeaturesAtPoint([screenPointX, screenPointY]);
+      // Same 44pt rect usePoiTapResolver queries (tapBbox) — not a bare
+      // point. A near-miss 28-44pt from a trip stop used to fail this exact
+      // -hit check on the tighter point query, fall through to the ambient
+      // POI path below, and spend a billed Text Search whose result the
+      // matchingStop check further down would just discard anyway.
+      const collection = await mapRef.current?.queryRenderedFeaturesInRect(
+        tapBbox(screenPointX, screenPointY),
+      );
 
       const nearbyOwnStop = await findOwnStopNearTap(screenPointX, screenPointY, collection);
       if (nearbyOwnStop) {

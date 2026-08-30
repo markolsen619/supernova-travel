@@ -187,6 +187,8 @@ import { pitchForZoom, headingForArrival } from '@/utils/camera';
 export type CameraHandle = React.ElementRef<typeof Camera>;
 
 const DEFAULT_DURATION_MS = 1200;
+// Screen-point padding around a fitted bounds box, so the region isn't
+// framed edge-to-edge against the device chrome/search bar.
 const BOUNDS_PADDING = 60;
 
 export function useFlyTo() {
@@ -213,19 +215,29 @@ export function useFlyTo() {
   // viewport (regions: country/administrative_area/locality), since a fitted
   // box frames the place far more correctly than a guessed zoom level.
   //
-  // fitBounds does NOT touch pitch or heading, so arriving here from a tilted
-  // POI would leave the region framed crooked. Reset both explicitly first —
-  // this is the easiest thing in the file to get wrong, because it only shows
-  // up on the second navigation, never the first.
+  // ONE camera stop, carrying bounds and pitch and heading together — NOT a
+  // pitch reset followed by fitBounds. fitBounds is itself a thin wrapper that
+  // calls setCamera({ type: 'CameraStop', bounds, padding }), so issuing both
+  // in the same tick means the second stop preempts the first, and because a
+  // CameraStop leaves omitted fields at their current value, the pitch reset
+  // never lands. A region arrived at straight after a tilted POI would stay
+  // crooked — the exact bug the reset exists to prevent, and one that only
+  // shows on the SECOND navigation, never the first.
   const flyToBounds = useCallback(
     (ne: [number, number], sw: [number, number], durationMs = DEFAULT_DURATION_MS) => {
       cameraRef.current?.setCamera({
+        bounds: { ne, sw },
+        padding: {
+          paddingTop: BOUNDS_PADDING,
+          paddingBottom: BOUNDS_PADDING,
+          paddingLeft: BOUNDS_PADDING,
+          paddingRight: BOUNDS_PADDING,
+        },
         pitch: 0,
         heading: 0,
-        animationDuration: durationMs / 2,
-        animationMode: 'easeTo',
+        animationDuration: durationMs,
+        animationMode: 'flyTo',
       });
-      cameraRef.current?.fitBounds(ne, sw, BOUNDS_PADDING, durationMs);
     },
     [],
   );
@@ -721,6 +733,13 @@ export async function searchNearbyPlaces(
   radiusM: number,
   maxResults = 5,
 ): Promise<EnrichedPlace[]> {
+  // Clamped here, not only in nearbyRadiusForZoom. This function is exported
+  // and every call is billed, so it defends itself rather than trusting each
+  // caller to have clamped first. Google's own limits: radius 0-50000m,
+  // maxResultCount 1-20 — exceeding either is a 400, i.e. a wasted round trip.
+  const radius = Math.min(50000, Math.max(1, radiusM));
+  const count = Math.min(20, Math.max(1, Math.trunc(maxResults)));
+
   try {
     const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
       method: 'POST',
@@ -731,9 +750,9 @@ export async function searchNearbyPlaces(
       },
       body: JSON.stringify({
         locationRestriction: {
-          circle: { center: { latitude: lat, longitude: lng }, radius: radiusM },
+          circle: { center: { latitude: lat, longitude: lng }, radius },
         },
-        maxResultCount: maxResults,
+        maxResultCount: count,
         rankPreference: 'DISTANCE',
         languageCode: 'en',
       }),
@@ -863,6 +882,11 @@ Replace the whole `if (!poi) { ... return; }` block:
 
           if (nearby.length === 1) {
             // One obvious answer — skip the list and select it directly.
+            // Clear any nearby list from a PREVIOUS tap first: without this,
+            // a multi-result tap followed by a single-result tap leaves both
+            // sheets mounted, and dismissing the detail sheet reveals a stale
+            // list from two taps ago.
+            setNearbyResults(null);
             setPlace(nearby[0]);
             setSelectedPlace(nearby[0]);
             flyToPlace(nearby[0]);
@@ -960,6 +984,34 @@ Render, after the map and before the search bar:
 
 The 44 pt diameter deliberately matches the hit area from `tapBbox`, so the
 pulse shows the user exactly how forgiving the tap actually was.
+
+- [ ] **Step 3c: Let the sheet mount without a query**
+
+The results sheet is gated on `showingQuery` (`query.length > 0 && !selectedPlace`).
+A nearby-results miss never sets `query`, so under that gate the sheet would
+never mount and the fallback would silently show nothing — reproducing the exact
+bug this task exists to fix.
+
+Add a second flag and gate only the sheet on it. The tabs keep using
+`showingQuery`, since a tab row over a tap-driven result list has nothing to
+switch between:
+
+```ts
+  const showingQuery = query.length > 0 && !selectedPlace;
+  // A nearby-results miss has no query text, so it can't ride showingQuery.
+  const showingSheet = showingQuery || nearbyResults !== null;
+```
+
+Also reset the active tab when nearby results arrive. `handleClearQuery` does
+not reset `activeTab`, so a user who searched, switched to Users, then cleared
+and tapped the map would land on `renderUsers()` — an empty state covering real
+results sitting in `nearbyResults`:
+
+```ts
+      setActiveTab('Places');
+```
+
+Set it alongside `setNearbyResults(nearby)` in the miss branch.
 
 - [ ] **Step 4: Render the nearby results in the sheet**
 
@@ -1100,6 +1152,10 @@ function trip(over: Partial<Trip> = {}): Trip {
     additionalDestinations: [],
     savesCount: 0,
     likesCount: 0,
+    // Without this spread every test silently runs against the defaults,
+    // ignoring its own arguments — the suite would look like it exercises
+    // variation while asserting nothing of the kind.
+    ...over,
   } as unknown as Trip;
 }
 
@@ -1388,7 +1444,10 @@ Pure refactor. **No behaviour changes.** A reviewer should be able to confirm th
 
 ```ts
 interface GlobeMapViewProps {
-  cameraRef: CameraHandle | React.RefObject<CameraHandle>;
+  // RefObject<T | null> matches what useRef<CameraHandle>(null) actually
+  // produces, and mirrors the mapRef prop below. The looser union does not
+  // typecheck against React's ref typing.
+  cameraRef: React.RefObject<CameraHandle | null>;
   mapRef: React.RefObject<InstanceType<typeof MapView> | null>;
   lightPreset: LightPreset;
   onPress: (feature: GeoJSON.Feature<GeoJSON.Point, ScreenPointPayload>) => void;
@@ -1683,7 +1742,12 @@ After the enriching badge, before the results sheet:
           style={[
             styles.globeButton,
             {
-              bottom: insets.bottom + 96,
+              // 128, not 96. The Mapbox logo and attribution sit at a FIXED
+              // bottom: 88 and are not inset-aware, so on a device with a
+              // small or zero bottom inset a 96 offset puts this button on
+              // top of them. Attribution is required by Mapbox's terms, so
+              // this must clear it on every device, not just notched ones.
+              bottom: insets.bottom + 128,
               backgroundColor: `${colors.background.primary}D9`,
               borderColor: colors.background.cardBorder,
             },
@@ -1740,9 +1804,9 @@ raw value would re-render the screen every frame of every gesture."
 
 In the active-tab inline style, replace the inactive branch `'rgba(255,255,255,0.15)'` with `colors.background.cardBorder`.
 
-- [ ] **Step 2: Reduce the active tab to one purple signal**
+- [ ] **Step 2: Reduce the active tab to a single purple treatment**
 
-The active tab currently carries purple fill, purple border and purple text — three signals for one state, where the design system treats the accent as "a jewel against neutrals". Keep the text only:
+The active tab currently carries purple fill, purple border and purple text — three independently coloured surfaces for one state, where the design system treats the accent as "a jewel against neutrals". Take the fill out of the state entirely, leaving a purple outline and purple label on a neutral chip. Outline-plus-label in one hue reads as a single treatment, not two competing signals:
 
 ```tsx
                   {
