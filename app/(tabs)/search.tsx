@@ -10,6 +10,7 @@ import {
   Platform,
   Animated,
   Dimensions,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { MapView } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,6 +52,16 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 // visible behind roughly two result rows.
 const SHEET_PEEK_Y = SCREEN_HEIGHT * 0.35;
 const SHEET_EXPANDED_Y = 0;
+// The sheet's height is content-driven (bottomSheetInner minHeight: 180, up
+// to BOTTOM_SHEET_MAX_HEIGHT below) — SHEET_PEEK_Y is an absolute
+// translation, so a short sheet (a two-row nearby list, an empty state) can
+// translate fully off-screen at "peek", stranding the user with no visible
+// gesture target. The actual peek target is clamped against the sheet's
+// measured height so at least this many points stay on screen.
+const SHEET_PEEK_MIN_VISIBLE = 96;
+// Shared between the style below and the pre-layout fallback so they can't
+// drift apart.
+const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.55;
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -136,6 +147,17 @@ export default function SearchScreen() {
   // below, so it can't be read back from slideAnim synchronously.
   const sheetBaseY = useRef(SCREEN_HEIGHT);
   const scrollRef = useRef(null);
+  // Measured on every layout of the sheet (content-driven height, capped by
+  // BOTTOM_SHEET_MAX_HEIGHT). Seeded to that same cap so the pre-layout
+  // fallback assumes the tallest the sheet can be — the safe direction: it
+  // reproduces today's peek position (SHEET_PEEK_Y) rather than prematurely
+  // shrinking peek for a sheet that might turn out to be tall. A ref, not
+  // state, for the same reason sheetBaseY is a ref: read inside the pan
+  // gesture's onEnd without forcing panGesture to rebuild on every layout.
+  const sheetHeightRef = useRef(BOTTOM_SHEET_MAX_HEIGHT);
+  const handleSheetLayout = useCallback((e: LayoutChangeEvent) => {
+    sheetHeightRef.current = e.nativeEvent.layout.height;
+  }, []);
 
   const {
     selectedPlace,
@@ -188,10 +210,11 @@ export default function SearchScreen() {
   // test, not a redesign.
   // Memoised: the only reactive value the closures below touch is slideAnim,
   // which is a useRef(...).current — a stable object identity for the life
-  // of the component — so this never needs to rebuild. sheetBaseY and
-  // scrollRef are refs (read via .current inside the handlers, so mutating
-  // them doesn't require rebuilding this either). Rebuilding on every render
-  // would tear down and reattach the native gesture handler each time,
+  // of the component — so this never needs to rebuild. sheetBaseY,
+  // sheetHeightRef, and scrollRef are refs (read via .current inside the
+  // handlers, so mutating them doesn't require rebuilding this either).
+  // Rebuilding on every render would tear down and reattach the native
+  // gesture handler each time,
   // which is the thing to avoid — a wrong dep list here would either defeat
   // that (rebuild every render anyway) or capture stale snap-point state
   // worse than not memoising at all, but neither risk applies since nothing
@@ -217,14 +240,21 @@ export default function SearchScreen() {
           slideAnim.setValue(Math.max(SHEET_EXPANDED_Y, Math.min(SCREEN_HEIGHT, next)));
         })
         .onEnd((e) => {
+          // Clamp against the sheet's own measured height, or a short sheet
+          // (a two-row nearby list, an empty state) would translate fully
+          // off-screen at "peek" — still mounted, still gesture-target-less.
+          const peekTarget = Math.max(
+            SHEET_EXPANDED_Y,
+            Math.min(SHEET_PEEK_Y, sheetHeightRef.current - SHEET_PEEK_MIN_VISIBLE),
+          );
           // Velocity decides, so a flick works as well as a long drag.
           const target =
             e.velocityY > 500
-              ? SHEET_PEEK_Y
+              ? peekTarget
               : e.velocityY < -500
                 ? SHEET_EXPANDED_Y
-                : sheetBaseY.current + e.translationY > SHEET_PEEK_Y / 2
-                  ? SHEET_PEEK_Y
+                : sheetBaseY.current + e.translationY > peekTarget / 2
+                  ? peekTarget
                   : SHEET_EXPANDED_Y;
           sheetBaseY.current = target;
           Animated.spring(slideAnim, { toValue: target, ...SPRING }).start();
@@ -744,6 +774,7 @@ export default function SearchScreen() {
         <GestureDetector gesture={panGesture}>
           <Animated.View
             style={[styles.bottomSheet, { transform: [{ translateY: slideAnim }] }]}
+            onLayout={handleSheetLayout}
           >
             {Platform.OS === 'ios' ? (
               <BlurView intensity={80} tint="dark" style={styles.bottomSheetInner}>
@@ -918,7 +949,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: SCREEN_HEIGHT * 0.55,
+    maxHeight: BOTTOM_SHEET_MAX_HEIGHT,
     borderTopLeftRadius: BorderRadius['2xl'] ?? 24,
     borderTopRightRadius: BorderRadius['2xl'] ?? 24,
     overflow: 'hidden',
@@ -962,6 +993,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
+    // Above the results sheet: a peeked sheet whose height wasn't yet
+    // measured, or one stranded by a bad clamp, must never cover this — it's
+    // the only way out of a full-screen sheet besides typing.
+    zIndex: 20,
   },
 
   // 44pt diameter deliberately matches the tapBbox hit area, so the pulse
