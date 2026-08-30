@@ -1799,9 +1799,9 @@ raw value would re-render the screen every frame of every gesture."
 
 In the active-tab inline style, replace the inactive branch `'rgba(255,255,255,0.15)'` with `colors.background.cardBorder`.
 
-- [ ] **Step 2: Reduce the active tab to one purple signal**
+- [ ] **Step 2: Reduce the active tab to a single purple treatment**
 
-The active tab currently carries purple fill, purple border and purple text — three signals for one state, where the design system treats the accent as "a jewel against neutrals". Keep the text only:
+The active tab currently carries purple fill, purple border and purple text — three independently coloured surfaces for one state, where the design system treats the accent as "a jewel against neutrals". Take the fill out of the state entirely, leaving a purple outline and purple label on a neutral chip. Outline-plus-label in one hue reads as a single treatment, not two competing signals:
 
 ```tsx
                   {
