@@ -17,7 +17,11 @@ import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MagnifyingGlass, X, Compass, WarningCircle, MapPin, Globe } from 'phosphor-react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  Gesture,
+  GestureDetector,
+  ScrollView as GestureScrollView,
+} from 'react-native-gesture-handler';
 import { DarkColors } from '@/constants/colors';
 import { useSearch } from '@/hooks/useSearch';
 import { useTrendingPlaces } from '@/hooks/useTrendingPlaces';
@@ -744,7 +748,13 @@ export default function SearchScreen() {
             {Platform.OS === 'ios' ? (
               <BlurView intensity={80} tint="dark" style={styles.bottomSheetInner}>
                 <View style={styles.sheetHandle} />
-                <ScrollView
+                {/* GestureScrollView (react-native-gesture-handler), not RN's
+                    ScrollView: simultaneousWithExternalGesture(scrollRef) above
+                    reads ref.current.handlerTag, which only RNGH's ScrollView
+                    exposes — a plain RN ScrollView ref has no handlerTag, so
+                    the simultaneous-gesture list would silently resolve to
+                    empty and the sheet drag / list scroll would fight. */}
+                <GestureScrollView
                   ref={scrollRef}
                   style={styles.resultsList}
                   keyboardShouldPersistTaps="handled"
@@ -754,12 +764,12 @@ export default function SearchScreen() {
                   {activeTab === 'Places' && renderPlaces()}
                   {activeTab === 'Users' && renderUsers()}
                   {activeTab === 'Trips' && renderTrips()}
-                </ScrollView>
+                </GestureScrollView>
               </BlurView>
             ) : (
               <View style={[styles.bottomSheetInner, styles.bottomSheetAndroid]}>
                 <View style={styles.sheetHandle} />
-                <ScrollView
+                <GestureScrollView
                   ref={scrollRef}
                   style={styles.resultsList}
                   keyboardShouldPersistTaps="handled"
@@ -769,7 +779,7 @@ export default function SearchScreen() {
                   {activeTab === 'Places' && renderPlaces()}
                   {activeTab === 'Users' && renderUsers()}
                   {activeTab === 'Trips' && renderTrips()}
-                </ScrollView>
+                </GestureScrollView>
               </View>
             )}
           </Animated.View>
