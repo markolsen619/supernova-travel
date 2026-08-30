@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -117,11 +117,13 @@ export default function SearchScreen() {
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   // PlaceDetailSheet gets its own value rather than sharing slideAnim: the two
-  // sheets can both be mounted at once (a map-tap "nearby results" list left
-  // showing while an autocomplete pick opens the detail sheet — handlePlacePress
-  // doesn't clear nearbyResults), and they have different heights. Sharing one
-  // value would mean dragging the results sheet also yanks the detail sheet,
-  // which has no drag handle of its own to explain why it moved.
+  // sheets can both be mounted at once via handleMapPress's nearby.length === 1
+  // branch — two consecutive map taps, the first yielding several nearby
+  // places (nearbyResults set) and the second landing on exactly one (which
+  // selects it directly) — leaving both sheets mounted, and they have
+  // different heights. Sharing one value would mean dragging the results
+  // sheet also yanks the detail sheet, which has no drag handle of its own
+  // to explain why it moved.
   const detailSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   // Initialised to SCREEN_HEIGHT, matching slideAnim's own initial value
   // (the sheet starts hidden). Seeding this to 0 instead would make the
@@ -179,25 +181,39 @@ export default function SearchScreen() {
   // is wired from the start (not tuned to iOS alone) — Android resolves
   // pan-over-scroll composition differently, and the Android pass should be a
   // test, not a redesign.
-  const panGesture = Gesture.Pan()
-    .simultaneousWithExternalGesture(scrollRef)
-    .onUpdate((e) => {
-      const next = sheetBaseY.current + e.translationY;
-      slideAnim.setValue(Math.max(SHEET_EXPANDED_Y, Math.min(SCREEN_HEIGHT, next)));
-    })
-    .onEnd((e) => {
-      // Velocity decides, so a flick works as well as a long drag.
-      const target =
-        e.velocityY > 500
-          ? SHEET_PEEK_Y
-          : e.velocityY < -500
-            ? SHEET_EXPANDED_Y
-            : sheetBaseY.current + e.translationY > SHEET_PEEK_Y / 2
+  // Memoised: the only reactive value the closures below touch is slideAnim,
+  // which is a useRef(...).current — a stable object identity for the life
+  // of the component — so this never needs to rebuild. sheetBaseY and
+  // scrollRef are refs (read via .current inside the handlers, so mutating
+  // them doesn't require rebuilding this either). Rebuilding on every render
+  // would tear down and reattach the native gesture handler each time,
+  // which is the thing to avoid — a wrong dep list here would either defeat
+  // that (rebuild every render anyway) or capture stale snap-point state
+  // worse than not memoising at all, but neither risk applies since nothing
+  // captured here actually varies across renders.
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .simultaneousWithExternalGesture(scrollRef)
+        .onUpdate((e) => {
+          const next = sheetBaseY.current + e.translationY;
+          slideAnim.setValue(Math.max(SHEET_EXPANDED_Y, Math.min(SCREEN_HEIGHT, next)));
+        })
+        .onEnd((e) => {
+          // Velocity decides, so a flick works as well as a long drag.
+          const target =
+            e.velocityY > 500
               ? SHEET_PEEK_Y
-              : SHEET_EXPANDED_Y;
-      sheetBaseY.current = target;
-      Animated.spring(slideAnim, { toValue: target, ...SPRING }).start();
-    });
+              : e.velocityY < -500
+                ? SHEET_EXPANDED_Y
+                : sheetBaseY.current + e.translationY > SHEET_PEEK_Y / 2
+                  ? SHEET_PEEK_Y
+                  : SHEET_EXPANDED_Y;
+          sheetBaseY.current = target;
+          Animated.spring(slideAnim, { toValue: target, ...SPRING }).start();
+        }),
+    [slideAnim],
+  );
 
   // ── Type-aware fly-in (Part A) ─────────────────────────────────────────────
   // Countries/regions/cities frame far more correctly against Google's viewport
@@ -356,6 +372,11 @@ export default function SearchScreen() {
 
           if (nearby.length === 1) {
             // One obvious answer — skip the list and select it directly.
+            // Clear any nearby list from a PREVIOUS tap first: without this,
+            // a multi-result tap followed by a single-result tap leaves both
+            // sheets mounted, and dismissing the detail sheet reveals a stale
+            // list from two taps ago.
+            setNearbyResults(null);
             setPlace(nearby[0]);
             setSelectedPlace(nearby[0]);
             flyToPlace(nearby[0]);
