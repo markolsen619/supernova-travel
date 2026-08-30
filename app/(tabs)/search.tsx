@@ -375,6 +375,60 @@ export default function SearchScreen() {
     [pulseScale, pulseOpacity],
   );
 
+  // Nearby Search + result branching, shared by two callers: a tap that hit
+  // no rendered feature at all, and (Section 6b) a tap that hit a POI
+  // feature whose Text Search resolution came back empty or errored — both
+  // are "we don't have an exact answer for this tap", and both deserve the
+  // same honest fallback rather than one of them going silent.
+  const runNearbySearchFallback = useCallback(
+    async (lat: number, lng: number, zoom: number) => {
+      // Coordinate-keyed cache: the results sheet has no dismiss
+      // affordance, so tapping the map to close it re-enters this exact
+      // path — without this, that dismiss-tap re-bills a Nearby Search
+      // every time. Cache hit resolves synchronously, so it never shows
+      // the enriching spinner (there's nothing to wait for).
+      const cached = getNearby(lat, lng);
+      let nearby: EnrichedPlace[];
+      if (cached) {
+        nearby = cached;
+      } else {
+        setEnriching(true);
+        try {
+          nearby = await searchNearbyPlaces(lat, lng, nearbyRadiusForZoom(zoom));
+          setNearby(lat, lng, nearby);
+        } finally {
+          setEnriching(false);
+        }
+      }
+
+      if (nearby.length === 1) {
+        // One obvious answer — skip the list and select it directly.
+        // Clear any nearby list from a PREVIOUS tap first: without this,
+        // a multi-result tap followed by a single-result tap leaves both
+        // sheets mounted, and dismissing the detail sheet reveals a stale
+        // list from two taps ago.
+        setNearbyResults(null);
+        setPlace(nearby[0]);
+        setSelectedPlace(nearby[0]);
+        flyToPlace(nearby[0]);
+        showSheet();
+        return;
+      }
+
+      // Zero results still opens the sheet: an honest empty state beats
+      // the silence this branch used to produce.
+      nearby.forEach((p) => setPlace(p));
+      setNearbyResults(nearby);
+      setSelectedPlace(null);
+      // A map tap always produces place results, so force the Places tab —
+      // activeTab survives handleClearQuery, and a stale Users/Trips tab would
+      // render its own empty state over real nearby results.
+      setActiveTab('Places');
+      showSheet();
+    },
+    [getNearby, setNearby, setPlace, setSelectedPlace, flyToPlace, showSheet, setNearbyResults, setActiveTab],
+  );
+
   // ── Flow B: Mapbox ambient POI tap ────────────────────────────────────────
   // Cache-first: reconciliation → place-detail → Text Search (Tier 2) on miss.
   const handleMapPress = useCallback(
@@ -411,53 +465,7 @@ export default function SearchScreen() {
           return;
         }
 
-        // Coordinate-keyed cache: the results sheet has no dismiss
-        // affordance, so tapping the map to close it re-enters this exact
-        // path — without this, that dismiss-tap re-bills a Nearby Search
-        // every time. Cache hit resolves synchronously, so it never shows
-        // the enriching spinner (there's nothing to wait for).
-        const cached = getNearby(tapLat, tapLng);
-        let nearby: EnrichedPlace[];
-        if (cached) {
-          nearby = cached;
-        } else {
-          setEnriching(true);
-          try {
-            nearby = await searchNearbyPlaces(
-              tapLat,
-              tapLng,
-              nearbyRadiusForZoom(zoom),
-            );
-            setNearby(tapLat, tapLng, nearby);
-          } finally {
-            setEnriching(false);
-          }
-        }
-
-        if (nearby.length === 1) {
-          // One obvious answer — skip the list and select it directly.
-          // Clear any nearby list from a PREVIOUS tap first: without this,
-          // a multi-result tap followed by a single-result tap leaves both
-          // sheets mounted, and dismissing the detail sheet reveals a stale
-          // list from two taps ago.
-          setNearbyResults(null);
-          setPlace(nearby[0]);
-          setSelectedPlace(nearby[0]);
-          flyToPlace(nearby[0]);
-          showSheet();
-          return;
-        }
-
-        // Zero results still opens the sheet: an honest empty state beats
-        // the silence this branch used to produce.
-        nearby.forEach((p) => setPlace(p));
-        setNearbyResults(nearby);
-        setSelectedPlace(null);
-        // A map tap always produces place results, so force the Places tab —
-        // activeTab survives handleClearQuery, and a stale Users/Trips tab would
-        // render its own empty state over real nearby results.
-        setActiveTab('Places');
-        showSheet();
+        await runNearbySearchFallback(tapLat, tapLng, zoom);
         return;
       }
 
@@ -480,22 +488,43 @@ export default function SearchScreen() {
 
       // 2. Cache miss (or only tier1) → Text Search (Tier 2 field mask)
       setEnriching(true);
+      let enriched: EnrichedPlace | null = null;
       try {
-        const enriched = await enrichPoiByNameAndCoords(poi.name, poi.lat, poi.lng);
-        if (!enriched) return;
+        enriched = await enrichPoiByNameAndCoords(poi.name, poi.lat, poi.lng);
+      } catch (err) {
+        console.log('[POI tap] Text Search failed —', err);
+      } finally {
+        setEnriching(false);
+      }
 
+      if (enriched) {
         setRecon(poi.cacheKey, enriched.placeId);
         setPlace(enriched);
         setSelectedPlace(enriched);
         flyToPlace(enriched);
         showSheet();
-      } catch {
-        // network error — silent
-      } finally {
-        setEnriching(false);
+        return;
+      }
+
+      // A feature was found and named, but Text Search couldn't resolve it
+      // (or the request errored) — going silent here recreates the exact
+      // dead-tap this project exists to remove. Fall through to the same
+      // nearby-search behaviour a miss gets, respecting the same zoom gate:
+      // below it, a nearby search would be as arbitrary and billed as it is
+      // in the miss case, so show the honest empty state instead of firing
+      // one.
+      console.log('[POI tap] Text Search found nothing for', poi.name, '— falling back to nearby search');
+      const zoom = zoomRef.current;
+      if (shouldFallbackToNearby(zoom)) {
+        await runNearbySearchFallback(poi.lat, poi.lng, zoom);
+      } else {
+        setNearbyResults([]);
+        setSelectedPlace(null);
+        setActiveTab('Places');
+        showSheet();
       }
     },
-    [getRecon, getPlace, setRecon, setPlace, getNearby, setNearby, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse],
+    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse, runNearbySearchFallback],
   );
 
   // ── Flow C: nearby-results row tap ────────────────────────────────────────
