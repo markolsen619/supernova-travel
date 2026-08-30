@@ -538,6 +538,17 @@ export default function SearchScreen() {
         />
       )}
 
+      {/* ── Eyebrow label (idle only) ─────────────────────────────────────── */}
+      {!showingQuery && !selectedPlace && nearbyResults === null && (
+        <View style={[styles.eyebrowWrap, { paddingTop: insets.top + 68 }]} pointerEvents="none">
+          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>
+            {trendingPlaces.length > 0
+              ? `TRENDING NOW · ${trendingPlaces.length} PLACES`
+              : 'TRENDING NOW'}
+          </Text>
+        </View>
+      )}
+
       {/* ── Floating search bar ───────────────────────────────────────────── */}
       <View style={[styles.topBar, { paddingTop: insets.top + Spacing['2'] }]}>
         {Platform.OS === 'ios' ? (
@@ -571,14 +582,9 @@ export default function SearchScreen() {
                 style={[
                   styles.tab,
                   {
-                    // Tied to colors.background.primary (the same dark void
-                    // token the globe/other floating chrome uses) rather than
-                    // an independently-invented rgba(10,10,26,…) — deliberate,
-                    // not a scattered magic number.
-                    backgroundColor:
-                      activeTab === tab ? `${colors.brand.purple}33` : `${colors.background.primary}B3`,
+                    backgroundColor: `${colors.background.primary}B3`,
                     borderColor:
-                      activeTab === tab ? colors.brand.purple : 'rgba(255,255,255,0.15)',
+                      activeTab === tab ? colors.brand.purple : colors.background.cardBorder,
                   },
                 ]}
                 hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
@@ -747,13 +753,13 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: DarkColors.background.cardBorder,
   },
   searchBarAndroid: {
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: DarkColors.background.cardBorder,
     backgroundColor: DARK_SCRIM_90,
   },
   searchRow: {
@@ -858,5 +864,18 @@ const styles = StyleSheet.create({
   emptyDescription: {
     fontSize: FontSize.sm,
     textAlign: 'center',
+  },
+
+  eyebrowWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: FontWeight.medium,
+    letterSpacing: 0.9,
   },
 });
