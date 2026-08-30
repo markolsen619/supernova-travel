@@ -195,6 +195,18 @@ export default function SearchScreen() {
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
+        // .runOnJS(true) is required, not stylistic: this screen drives the
+        // sheet with plain React Native `Animated` (slideAnim.setValue,
+        // Animated.spring(...).start()) and a plain ref (sheetBaseY), none
+        // of which are Reanimated shared values or worklet-safe. But
+        // react-native-reanimated/plugin (babel.config.js) auto-workletizes
+        // every .onUpdate/.onEnd callback on a Gesture.*() chain regardless
+        // of what it references, so without this the callbacks run on the
+        // UI thread, `Animated`/`sheetBaseY.current` calls throw a
+        // ReanimatedError, and sheetBaseY's mutation never reaches the JS
+        // thread anyway. Do not remove this as "redundant" — it is load-
+        // bearing, not a default.
+        .runOnJS(true)
         .simultaneousWithExternalGesture(scrollRef)
         .onUpdate((e) => {
           const next = sheetBaseY.current + e.translationY;
