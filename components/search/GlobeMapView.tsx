@@ -8,6 +8,7 @@ import {
   CircleLayer,
   SymbolLayer,
   setAccessToken,
+  type MapState,
 } from '@rnmapbox/maps';
 import type { CameraHandle } from '@/hooks/useFlyTo';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
@@ -59,6 +60,13 @@ export function GlobeMapView({
     console.error('[SearchMap] Mapbox Standard style failed to load — check EXPO_PUBLIC_MAPBOX_TOKEN and network.');
   }, []);
 
+  // Named distinctly from search.tsx's own handleCameraChanged — this one is
+  // just the zoom-extraction bridge to that consumer's handler.
+  const handleMapCameraChanged = React.useCallback(
+    (state: MapState) => onCameraChanged?.(state.properties.zoom),
+    [onCameraChanged],
+  );
+
   const trendingCollection = useMemo<GeoJSON.FeatureCollection>(
     () => ({
       type: 'FeatureCollection',
@@ -99,7 +107,7 @@ export function GlobeMapView({
       styleURL={STANDARD_STYLE}
       projection="globe"
       onPress={onPress}
-      onCameraChanged={(state) => onCameraChanged?.(state.properties.zoom)}
+      onCameraChanged={handleMapCameraChanged}
       onMapLoadingError={handleMapLoadingError}
       // Mapbox ToS requires the wordmark + attribution on-map — kept small
       // and tucked above the tab bar.
