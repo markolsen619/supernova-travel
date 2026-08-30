@@ -21,7 +21,7 @@ export function useFlyTo() {
         centerCoordinate: [lng, lat],
         zoomLevel: zoom,
         pitch: pitchForZoom(zoom),
-        heading: headingForArrival(lng),
+        heading: headingForArrival(lng, zoom),
         animationDuration: durationMs,
         animationMode: 'flyTo',
       });

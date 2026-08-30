@@ -26,8 +26,14 @@ export function pitchForZoom(zoom: number): number {
  *
  * Derived from longitude rather than randomised: revisiting the same place
  * must frame it the same way, or the map feels unstable.
+ *
+ * Only applied once the camera is actually tilted (same threshold as
+ * `pitchForZoom`'s flat band) — a pitch-0, straight-down view has no tilt for
+ * a heading to angle, so rotating it just leaves the world view crooked for
+ * no visual benefit. Below that zoom this returns 0.
  */
-export function headingForArrival(lng: number): number {
+export function headingForArrival(lng: number, zoom: number): number {
+  if (zoom < FLAT_BELOW_ZOOM) return 0;
   // Longitude is already well distributed across the globe; folding it to a
   // ±25° band gives variety without ever looking crooked.
   const folded = ((Math.abs(lng) * 7) % 50) - 25;

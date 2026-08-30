@@ -32,16 +32,26 @@ describe('pitchForZoom', () => {
 
 describe('headingForArrival', () => {
   it('is deterministic — the same place always looks the same', () => {
-    expect(headingForArrival(2.3522)).toBe(headingForArrival(2.3522));
+    expect(headingForArrival(2.3522, 13)).toBe(headingForArrival(2.3522, 13));
   });
 
   it('varies between different places, so arrivals are not all identical', () => {
-    expect(headingForArrival(2.3522)).not.toBe(headingForArrival(139.6917));
+    expect(headingForArrival(2.3522, 13)).not.toBe(headingForArrival(139.6917, 13));
   });
 
   it('stays within a subtle range', () => {
     [-180, -74, 0, 2.35, 139.69, 180].forEach((lng) => {
-      expect(Math.abs(headingForArrival(lng))).toBeLessThanOrEqual(25);
+      expect(Math.abs(headingForArrival(lng, 13))).toBeLessThanOrEqual(25);
     });
+  });
+
+  it('is 0 at globe zoom — a flat overhead view has no tilt to angle', () => {
+    expect(headingForArrival(0, 1.5)).toBe(0);
+    expect(headingForArrival(139.6917, 1.5)).toBe(0);
+  });
+
+  it('treats the flat/tilted boundary the same way pitchForZoom does', () => {
+    expect(headingForArrival(139.6917, 7.9)).toBe(0);
+    expect(headingForArrival(139.6917, 8)).not.toBe(0);
   });
 });
