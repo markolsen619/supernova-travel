@@ -1737,7 +1737,12 @@ After the enriching badge, before the results sheet:
           style={[
             styles.globeButton,
             {
-              bottom: insets.bottom + 96,
+              // 128, not 96. The Mapbox logo and attribution sit at a FIXED
+              // bottom: 88 and are not inset-aware, so on a device with a
+              // small or zero bottom inset a 96 offset puts this button on
+              // top of them. Attribution is required by Mapbox's terms, so
+              // this must clear it on every device, not just notched ones.
+              bottom: insets.bottom + 128,
               backgroundColor: `${colors.background.primary}D9`,
               borderColor: colors.background.cardBorder,
             },
