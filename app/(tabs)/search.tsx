@@ -116,14 +116,15 @@ export default function SearchScreen() {
   );
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  // PlaceDetailSheet gets its own value rather than sharing slideAnim: the two
-  // sheets can both be mounted at once via handleMapPress's nearby.length === 1
-  // branch — two consecutive map taps, the first yielding several nearby
-  // places (nearbyResults set) and the second landing on exactly one (which
-  // selects it directly) — leaving both sheets mounted, and they have
-  // different heights. Sharing one value would mean dragging the results
-  // sheet also yanks the detail sheet, which has no drag handle of its own
-  // to explain why it moved.
+  // PlaceDetailSheet gets its own value rather than sharing slideAnim.
+  // showSheet/hideSheet drive both values together, but the pan gesture below
+  // drives slideAnim ALONE — if the two sheets shared one value, dragging the
+  // results sheet would also drag PlaceDetailSheet, which has no drag handle
+  // of its own to explain why it moved. The two also have different heights,
+  // so one set of snap points can't serve both. (The two are not currently
+  // reachable mounted together — handleMapPress's nearby.length === 1 branch
+  // clears any stale nearbyResults before selecting — but that guard is not
+  // what this separation depends on; the reasons above hold either way.)
   const detailSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   // Initialised to SCREEN_HEIGHT, matching slideAnim's own initial value
   // (the sheet starts hidden). Seeding this to 0 instead would make the
