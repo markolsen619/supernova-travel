@@ -17,6 +17,7 @@ import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MagnifyingGlass, X, Compass, WarningCircle, MapPin, Globe } from 'phosphor-react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { DarkColors } from '@/constants/colors';
 import { useSearch } from '@/hooks/useSearch';
 import { useTrendingPlaces } from '@/hooks/useTrendingPlaces';
@@ -41,6 +42,11 @@ type Tab = 'Places' | 'Users' | 'Trips';
 const TABS: Tab[] = ['Places', 'Users', 'Trips'];
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Two positions: expanded (current behaviour) and peek, which leaves the map
+// visible behind roughly two result rows.
+const SHEET_PEEK_Y = SCREEN_HEIGHT * 0.35;
+const SHEET_EXPANDED_Y = 0;
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -110,6 +116,19 @@ export default function SearchScreen() {
   );
 
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // PlaceDetailSheet gets its own value rather than sharing slideAnim: the two
+  // sheets can both be mounted at once (a map-tap "nearby results" list left
+  // showing while an autocomplete pick opens the detail sheet — handlePlacePress
+  // doesn't clear nearbyResults), and they have different heights. Sharing one
+  // value would mean dragging the results sheet also yanks the detail sheet,
+  // which has no drag handle of its own to explain why it moved.
+  const detailSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // Initialised to SCREEN_HEIGHT, matching slideAnim's own initial value
+  // (the sheet starts hidden). Seeding this to 0 instead would make the
+  // first drag jump a full screen. Written directly by the pan gesture
+  // below, so it can't be read back from slideAnim synchronously.
+  const sheetBaseY = useRef(SCREEN_HEIGHT);
+  const scrollRef = useRef(null);
 
   const {
     selectedPlace,
@@ -140,19 +159,45 @@ export default function SearchScreen() {
   } = usePlaceAutocomplete(350, { richDetails: true });
 
   // ── Bottom sheet animation ────────────────────────────────────────────────
+  // Both slideAnim (results sheet) and detailSlideAnim (PlaceDetailSheet) are
+  // driven together here, since every call site means "show/hide whichever
+  // sheet applies" rather than picking one — only the drag gesture below
+  // touches slideAnim on its own.
   const showSheet = useCallback(() => {
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      ...SPRING,
-    }).start();
-  }, [slideAnim]);
+    sheetBaseY.current = SHEET_EXPANDED_Y;
+    Animated.spring(slideAnim, { toValue: SHEET_EXPANDED_Y, ...SPRING }).start();
+    Animated.spring(detailSlideAnim, { toValue: SHEET_EXPANDED_Y, ...SPRING }).start();
+  }, [slideAnim, detailSlideAnim]);
 
   const hideSheet = useCallback(() => {
-    Animated.spring(slideAnim, {
-      toValue: SCREEN_HEIGHT,
-      ...SPRING,
-    }).start();
-  }, [slideAnim]);
+    sheetBaseY.current = SCREEN_HEIGHT;
+    Animated.spring(slideAnim, { toValue: SCREEN_HEIGHT, ...SPRING }).start();
+    Animated.spring(detailSlideAnim, { toValue: SCREEN_HEIGHT, ...SPRING }).start();
+  }, [slideAnim, detailSlideAnim]);
+
+  // Drag the results sheet between expanded and peek. simultaneousWithExternalGesture
+  // is wired from the start (not tuned to iOS alone) — Android resolves
+  // pan-over-scroll composition differently, and the Android pass should be a
+  // test, not a redesign.
+  const panGesture = Gesture.Pan()
+    .simultaneousWithExternalGesture(scrollRef)
+    .onUpdate((e) => {
+      const next = sheetBaseY.current + e.translationY;
+      slideAnim.setValue(Math.max(SHEET_EXPANDED_Y, Math.min(SCREEN_HEIGHT, next)));
+    })
+    .onEnd((e) => {
+      // Velocity decides, so a flick works as well as a long drag.
+      const target =
+        e.velocityY > 500
+          ? SHEET_PEEK_Y
+          : e.velocityY < -500
+            ? SHEET_EXPANDED_Y
+            : sheetBaseY.current + e.translationY > SHEET_PEEK_Y / 2
+              ? SHEET_PEEK_Y
+              : SHEET_EXPANDED_Y;
+      sheetBaseY.current = target;
+      Animated.spring(slideAnim, { toValue: target, ...SPRING }).start();
+    });
 
   // ── Type-aware fly-in (Part A) ─────────────────────────────────────────────
   // Countries/regions/cities frame far more correctly against Google's viewport
@@ -658,46 +703,50 @@ export default function SearchScreen() {
 
       {/* ── Search results bottom sheet ───────────────────────────────────── */}
       {showingSheet && (
-        <Animated.View
-          style={[styles.bottomSheet, { transform: [{ translateY: slideAnim }] }]}
-        >
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={80} tint="dark" style={styles.bottomSheetInner}>
-              <View style={styles.sheetHandle} />
-              <ScrollView
-                style={styles.resultsList}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
-              >
-                {activeTab === 'Places' && renderPlaces()}
-                {activeTab === 'Users' && renderUsers()}
-                {activeTab === 'Trips' && renderTrips()}
-              </ScrollView>
-            </BlurView>
-          ) : (
-            <View style={[styles.bottomSheetInner, styles.bottomSheetAndroid]}>
-              <View style={styles.sheetHandle} />
-              <ScrollView
-                style={styles.resultsList}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
-              >
-                {activeTab === 'Places' && renderPlaces()}
-                {activeTab === 'Users' && renderUsers()}
-                {activeTab === 'Trips' && renderTrips()}
-              </ScrollView>
-            </View>
-          )}
-        </Animated.View>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View
+            style={[styles.bottomSheet, { transform: [{ translateY: slideAnim }] }]}
+          >
+            {Platform.OS === 'ios' ? (
+              <BlurView intensity={80} tint="dark" style={styles.bottomSheetInner}>
+                <View style={styles.sheetHandle} />
+                <ScrollView
+                  ref={scrollRef}
+                  style={styles.resultsList}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
+                >
+                  {activeTab === 'Places' && renderPlaces()}
+                  {activeTab === 'Users' && renderUsers()}
+                  {activeTab === 'Trips' && renderTrips()}
+                </ScrollView>
+              </BlurView>
+            ) : (
+              <View style={[styles.bottomSheetInner, styles.bottomSheetAndroid]}>
+                <View style={styles.sheetHandle} />
+                <ScrollView
+                  ref={scrollRef}
+                  style={styles.resultsList}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
+                >
+                  {activeTab === 'Places' && renderPlaces()}
+                  {activeTab === 'Users' && renderUsers()}
+                  {activeTab === 'Trips' && renderTrips()}
+                </ScrollView>
+              </View>
+            )}
+          </Animated.View>
+        </GestureDetector>
       )}
 
       {/* ── Place detail sheet ────────────────────────────────────────────── */}
       {selectedPlace && (
         <PlaceDetailSheet
           place={selectedPlace}
-          slideAnim={slideAnim}
+          slideAnim={detailSlideAnim}
           bottomInset={insets.bottom}
           onDismiss={handleDismissPlace}
           colors={DarkColors}
