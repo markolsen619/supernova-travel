@@ -125,6 +125,51 @@ export function useCreateTrip() {
   }
 
   /**
+   * Grounding write path — one activity field patch, no refetch.
+   *
+   * Identical Firestore write to `updateActivity`, but it reconciles the
+   * `['trip', tripId]` cache with `setQueryData` instead of invalidating it.
+   * That difference is the whole point. `useTrip` fans one invalidation out
+   * into a trip-document read, a days query, and one activities query per
+   * day; the background grounding pass is strictly sequential, so with
+   * `updateActivity` every one of ~25 stops paid a full trip refetch (roughly
+   * 800 document reads and tens of seconds) before the next lookup could even
+   * start — on a feature whose entire selling point is pins appearing one by
+   * one as you watch. The patched value is exactly what was just written, so
+   * there is nothing to re-read; the next mount refetches from Firestore
+   * anyway.
+   *
+   * Deliberately a separate function rather than a flag on `updateActivity`:
+   * `updateActivity`'s other callers (the activity form, the day/notes edits)
+   * write fields this cache patch would have to know how to merge, and they
+   * are not in a hot loop, so their invalidate-and-refetch semantics are left
+   * exactly as they were.
+   */
+  async function patchActivityGrounding(
+    tripId: string,
+    dayId: string,
+    activityId: string,
+    data: Partial<TripActivity>
+  ): Promise<void> {
+    const activityRef = doc(db, 'trips', tripId, 'days', dayId, 'activities', activityId);
+    await updateDoc(activityRef, { ...data });
+    queryClient.setQueryData<TripWithDays | null>(['trip', tripId], (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        days: old.days.map((day) =>
+          day.id !== dayId
+            ? day
+            : {
+                ...day,
+                activities: day.activities.map((a) => (a.id !== activityId ? a : { ...a, ...data })),
+              }
+        ),
+      };
+    });
+  }
+
+  /**
    * TM-2b: manual visited toggle — no GPS, just this tap. Patches the
    * `['trip', tripId]` cache directly (not a dedicated local boolean)
    * before the write resolves: the timeline row and the map pin both read
@@ -289,6 +334,7 @@ export function useCreateTrip() {
     addDay,
     addActivity,
     updateActivity,
+    patchActivityGrounding,
     toggleVisited,
     deleteActivity,
     getOrCreateLastDay,
