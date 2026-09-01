@@ -49,6 +49,8 @@ export function useTripCoverResolver() {
           await updateTrip(trip.id, {
             destination: { ...trip.destination, bounds },
           });
+        } else {
+          attemptedBounds.current.delete(trip.id);
         }
       } catch (err) {
         console.error('[useTripCoverResolver] bounds resolution failed:', err);

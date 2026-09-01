@@ -125,11 +125,14 @@ function ProfileScreenContent() {
     }, [refetchTrips]),
   );
 
-  // Backfill missing cover photos across every one of your trips (Upcoming/
-  // Current/Past alike), not just the one you happen to open — every trip
-  // here is already yours (useTripList filters by authorUid), so isOwner is
-  // always true. Sequential, not parallel: courteous to the Places API
-  // budget the same way the trip map's "Locate all" is, just without a
+  // Backfill missing cover photos AND missing destination bounds across every
+  // one of your trips (Upcoming/Current/Past alike), not just the one you
+  // happen to open — every trip here is already yours (useTripList filters
+  // by authorUid), so isOwner is always true. The loop guard below only
+  // skips a trip once BOTH are already resolved: a trip with a cover but no
+  // bounds (or vice versa) must still reach resolveCover, which backfills
+  // each independently. Sequential, not parallel: courteous to the Places
+  // API budget the same way the trip map's "Locate all" is, just without a
   // confirmation prompt since this is a silent, one-time backfill identical
   // in spirit to the one that already ran on trip-detail open.
   const { resolveCover } = useTripCoverResolver();
@@ -138,7 +141,7 @@ function ProfileScreenContent() {
     (async () => {
       for (const trip of allTrips) {
         if (cancelled) return;
-        if (trip.coverImageUrl !== null) continue;
+        if (trip.coverImageUrl !== null && trip.destination.bounds !== null) continue;
         await resolveCover(trip, true);
       }
     })();

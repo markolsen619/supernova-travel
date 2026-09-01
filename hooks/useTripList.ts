@@ -9,7 +9,14 @@ import {
 } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
-import { Trip } from '@/types';
+import { Trip, Destination } from '@/types';
+
+// Destinations predate the bounding-box feature — default rather than leaving
+// `undefined`, which Destination's type (PlaceViewportBounds | null, not
+// optional) doesn't account for. Applies to additionalDestinations too.
+export function normalizeDestination(d: DocumentData | undefined): Destination {
+  return { ...(d ?? {}), bounds: d?.bounds ?? null } as Destination;
+}
 
 // Older trips predate the budget feature — default rather than leaving
 // `undefined`, which the Trip type (number | null, not optional) doesn't
@@ -21,7 +28,8 @@ function normalizeTrip(id: string, data: DocumentData): Trip {
     ...data,
     budgetAmount: data.budgetAmount ?? null,
     budgetCurrency: data.budgetCurrency ?? null,
-    additionalDestinations: data.additionalDestinations ?? [],
+    destination: normalizeDestination(data.destination),
+    additionalDestinations: (data.additionalDestinations ?? []).map(normalizeDestination),
   } as Trip;
 }
 
