@@ -8,7 +8,7 @@ describe('selectStopsToGround', () => {
   it('selects ungrounded stops that have a searchQuery', () => {
     const days = [{ id: 'd1', activities: [act()] }];
     expect(selectStopsToGround(days, [0])).toEqual([
-      { activityId: 'a1', dayId: 'd1', searchQuery: 'Malecón', destinationIndex: 0 },
+      { searchQuery: 'Malecón', destinationIndex: 0, targets: [{ activityId: 'a1', dayId: 'd1' }] },
     ]);
   });
 
@@ -27,17 +27,27 @@ describe('selectStopsToGround', () => {
     expect(selectStopsToGround(days, [0])).toEqual([]);
   });
 
-  it('deduplicates repeated queries within the same destination', () => {
+  it('deduplicates repeated queries within the same destination into one entry with all targets', () => {
     const days = [{ id: 'd1', activities: [act({ id: 'a1' }), act({ id: 'a2' })] }];
-    expect(selectStopsToGround(days, [0])).toHaveLength(1);
+    const result = selectStopsToGround(days, [0]);
+    expect(result).toHaveLength(1);
+    expect(result[0].targets).toEqual([
+      { activityId: 'a1', dayId: 'd1' },
+      { activityId: 'a2', dayId: 'd1' },
+    ]);
   });
 
-  it('does not deduplicate the same query across different destinations', () => {
+  it('does not deduplicate the same query across different destinations — each stays its own entry with one target', () => {
     const days = [
       { id: 'd1', activities: [act({ id: 'a1', searchQuery: 'Central Station' })] },
       { id: 'd2', activities: [act({ id: 'a2', searchQuery: 'Central Station' })] },
     ];
-    expect(selectStopsToGround(days, [0, 1])).toHaveLength(2);
+    const result = selectStopsToGround(days, [0, 1]);
+    expect(result).toHaveLength(2);
+    expect(result.map((s) => s.targets)).toEqual([
+      [{ activityId: 'a1', dayId: 'd1' }],
+      [{ activityId: 'a2', dayId: 'd2' }],
+    ]);
   });
 
   it('carries each day\'s destination index onto its stops', () => {

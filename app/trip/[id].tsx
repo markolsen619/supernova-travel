@@ -42,6 +42,7 @@ import { usePlacesStore } from '@/stores/usePlacesStore';
 import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { groundStop, type GroundingContext } from '@/services/places/groundStop';
+import type { GroundedPlace } from '@/utils/mapboxQuery';
 import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
 import { resolveDayDestinationIndices } from '@/utils/dayDestination';
 import { selectStopsToGround } from '@/utils/groundingQueue';
@@ -158,6 +159,7 @@ export default function TripDetailScreen() {
     deleteDay,
   } = useCreateTrip();
   const setPlace = usePlacesStore((s) => s.setPlace);
+  const getPlace = usePlacesStore((s) => s.getPlace);
   const { resolveCover } = useTripCoverResolver();
 
   // Who's on this trip — author + accepted collaborators. Only fetched once
@@ -178,6 +180,13 @@ export default function TripDetailScreen() {
   // stop it already knows won't resolve, without blocking a deliberate
   // individual retry (tapping that stop directly still tries again).
   const [unresolvedActivityIds, setUnresolvedActivityIds] = useState<Set<string>>(new Set());
+  // In-flight grounding lookups, keyed by activityId — a ref, not state, so it
+  // survives the awaits inside groundAndPersist without needing a re-render.
+  // The background pass and "Locate all" both funnel through groundAndPersist,
+  // and "Locate all" snapshots its stop list at click time (it doesn't shrink
+  // as the background pass works), so without this guard the two loops can
+  // both start a lookup for the same activity and double-bill it.
+  const groundingInFlight = useRef<Set<string>>(new Set());
 
   // Activity form sheet state (add + edit share one sheet — see ActivityFormSheet)
   const [formVisible, setFormVisible] = useState(false);
@@ -400,18 +409,23 @@ export default function TripDetailScreen() {
     [trip, destinationNames],
   );
 
-  // Grounds one stop and persists the outcome — success writes coordinates,
-  // failure persists `groundingFailedAt` so neither the automatic pass nor a
-  // later "Locate all" re-bills a stop that's already known to be
-  // unresolvable. Shared by the manual tap-to-locate path (handleGroundActivity
-  // below, itself shared with the map's per-stop / "Locate all" actions) AND
-  // the background auto-grounding pass — one write path, not two.
-  const groundAndPersist = useCallback(
-    async (dayId: string, activityId: string, searchQuery: string, ctx: GroundingContext) => {
+  // Persists one already-resolved grounding outcome to one activity — success
+  // writes coordinates, failure persists `groundingFailedAt`. Split out of
+  // groundAndPersist so a single lookup shared across a deduplicated group of
+  // stops (StopToGround.targets) can be applied to every target without a
+  // second Mapbox/Google call — see groundAndPersist and the background pass
+  // below.
+  //
+  // Note: `groundingFailedAt` is read by the automatic pass (selectStopsToGround
+  // skips it) and by this session's own re-tap of the same in-memory activity
+  // (unresolvedActivityIds), but NOT by "Locate all" or a fresh tap on a
+  // different mount — unresolvedActivityIds starts empty every mount and is
+  // never seeded from the persisted marker, so those paths still re-bill an
+  // already-known-unresolvable stop until the automatic pass catches it again.
+  const applyGroundingResult = useCallback(
+    async (dayId: string, activityId: string, resolved: GroundedPlace | null) => {
       if (!id) return;
-      const resolved = await groundStop(searchQuery, ctx);
       if (!resolved) {
-        console.error('[trip/[id]] could not ground activity:', searchQuery);
         setUnresolvedActivityIds((prev) => new Set(prev).add(activityId));
         await updateActivity(id, dayId, activityId, { groundingFailedAt: Timestamp.now() });
         return;
@@ -424,8 +438,11 @@ export default function TripDetailScreen() {
       });
       // Only a Google result carries a real Google placeId — a Mapbox result
       // would poison the Search screen's place-detail cache (keyed by
-      // placeId) with an entry that has none.
-      if (resolved.source === 'google') {
+      // placeId) with an entry that has none. And never downgrade an entry
+      // already cached at tier2 (full Place Details) this session — a
+      // grounding-mask tier1 write would force a later re-enrichment call for
+      // no reason, since tier2's data already covers everything tier1 has.
+      if (resolved.source === 'google' && getPlace(resolved.placeId ?? '')?.tier !== 'tier2') {
         setPlace({
           placeId: resolved.placeId ?? '',
           name: resolved.name,
@@ -443,7 +460,37 @@ export default function TripDetailScreen() {
         return next;
       });
     },
-    [id, updateActivity, setPlace],
+    [id, updateActivity, setPlace, getPlace],
+  );
+
+  // Runs one grounding lookup and persists it — the single Mapbox/Google call
+  // per (dayId, activityId, searchQuery). Guarded by `groundingInFlight` so
+  // the background pass and "Locate all" can never both start a lookup for
+  // the same activity: the ref (not state, so it survives the awaits below)
+  // is checked-and-added before the call and cleared in `finally`. Returns
+  // the resolved place (or null) so a caller grounding a deduplicated group
+  // of stops can apply the same result to the rest of the group without
+  // re-searching — see the background pass below. Shared by the manual
+  // tap-to-locate path (handleGroundActivity below, itself shared with the
+  // map's per-stop / "Locate all" actions) AND the background auto-grounding
+  // pass — one search path, not two.
+  const groundAndPersist = useCallback(
+    async (dayId: string, activityId: string, searchQuery: string, ctx: GroundingContext): Promise<GroundedPlace | null> => {
+      if (!id) return null;
+      if (groundingInFlight.current.has(activityId)) return null;
+      groundingInFlight.current.add(activityId);
+      try {
+        const resolved = await groundStop(searchQuery, ctx);
+        if (!resolved) {
+          console.error('[trip/[id]] could not ground activity:', searchQuery);
+        }
+        await applyGroundingResult(dayId, activityId, resolved);
+        return resolved;
+      } finally {
+        groundingInFlight.current.delete(activityId);
+      }
+    },
+    [id, applyGroundingResult],
   );
 
   // Grounds one AI-generated stop from a user gesture. Shared by the timeline
@@ -451,7 +498,8 @@ export default function TripDetailScreen() {
   // C) — one grounding path, not two.
   const handleGroundActivity = useCallback(
     async (activity: TripActivity, dayId: string) => {
-      if (!id || !trip || activity.placeId || !activity.searchQuery || resolvingActivityId) return;
+      const alreadyGrounded = activity.lat != null && activity.lng != null;
+      if (!id || !trip || alreadyGrounded || !activity.searchQuery || resolvingActivityId) return;
       setResolvingActivityId(activity.id);
       try {
         const dayIndex = trip.days.findIndex((d) => d.id === dayId);
@@ -474,7 +522,16 @@ export default function TripDetailScreen() {
   // this is a background pass nobody is waiting on, so keeping the request
   // rate low and the code obvious wins over speed). `cancelled` stops the
   // loop cleanly on unmount/navigation instead of writing into an activity
-  // that's no longer being viewed.
+  // that's no longer being viewed. Each stop is wrapped in its own try/catch:
+  // a rejected fetch (offline, DNS) inside groundStop's Google fallback must
+  // not abort the whole pass and silently skip every remaining stop for this
+  // open — it should just move on to the next one.
+  //
+  // Each StopToGround carries one or more targets (activities that share its
+  // deduplicated query within this destination — see selectStopsToGround).
+  // The lookup itself only runs once, for the first target; its result is
+  // then applied directly to every remaining target via applyGroundingResult,
+  // with no further Mapbox/Google call.
   //
   // Deliberately keyed only on [trip?.id, isOwner] — not on `trip` itself,
   // `dayDestinationIndices`, or `groundAndPersist` — so a write this same
@@ -489,8 +546,17 @@ export default function TripDetailScreen() {
       const queue = selectStopsToGround(trip.days, dayDestinationIndices);
       for (const stop of queue) {
         if (cancelled) return;
-        const ctx = groundingContextFor(destinationAt(trip, stop.destinationIndex));
-        await groundAndPersist(stop.dayId, stop.activityId, stop.searchQuery, ctx);
+        try {
+          const [first, ...rest] = stop.targets;
+          const ctx = groundingContextFor(destinationAt(trip, stop.destinationIndex));
+          const resolved = await groundAndPersist(first.dayId, first.activityId, stop.searchQuery, ctx);
+          for (const target of rest) {
+            if (cancelled) return;
+            await applyGroundingResult(target.dayId, target.activityId, resolved);
+          }
+        } catch (err) {
+          console.error('[trip/[id]] background grounding failed for stop:', stop.searchQuery, err);
+        }
       }
     })();
 
@@ -511,14 +577,18 @@ export default function TripDetailScreen() {
   // are a dead end; only fully omitting onPress for viewers avoids it.
   const handleActivityPress = useCallback(
     (activity: TripActivity, dayId: string) => {
+      // Grounded means "has coordinates", not "has a Google placeId" — a
+      // Mapbox-grounded stop has no placeId but is fully pinnable (mirrors
+      // TripMapView's collectStops predicate).
+      const isGrounded = activity.lat != null && activity.lng != null;
       // TM-3c: a visited, grounded stop opens its journal ("your visit")
       // instead of jumping to the map — that's now the more useful default
       // once there's something personal to see there.
-      if (activity.visited && activity.placeId) {
+      if (activity.visited && isGrounded) {
         setJournalActivity({ activity, dayId });
         return;
       }
-      if (activity.placeId) {
+      if (isGrounded) {
         setFocusActivityId(activity.id);
         setViewMode('map');
         return;
