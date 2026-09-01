@@ -26,3 +26,5 @@ android/
 
 expo-env.d.ts
 # @end expo-cli
+# git worktrees for isolated agent work
+.worktrees/
