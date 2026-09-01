@@ -62,8 +62,13 @@ export function TripRecapSheet({ visible, trip, onClose, onViewOnMap }: TripReca
     [sortedDays],
   );
 
+  // Grounded means "has coordinates", not "has a Google placeId" — the
+  // majority of stops are now Mapbox-grounded and carry no placeId at all
+  // (mirrors TripMapView's collectStops predicate). Counting placeId here made
+  // this denominator smaller than `totalVisited`, rendering "5 of 1 stops
+  // visited" and a progress bar past 100%.
   const totalGrounded = useMemo(
-    () => sortedDays.reduce((n, d) => n + d.activities.filter((a) => a.placeId).length, 0),
+    () => sortedDays.reduce((n, d) => n + d.activities.filter((a) => a.lat != null && a.lng != null).length, 0),
     [sortedDays],
   );
   const totalVisited = useMemo(

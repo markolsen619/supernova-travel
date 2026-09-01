@@ -296,11 +296,27 @@ export interface TripActivity {
   createdAt: Timestamp;
   /**
    * Human-readable, geographically-qualified search string (e.g. "Louvre
-   * Museum, Paris") set by AI generation for stops not yet grounded to a real
-   * Google place. Non-null exactly when placeId is still null — the stop is
-   * "ungrounded" until the client lazily resolves it on first interaction
-   * (tap in the trip view, add-to-trip, show-on-map). Always null for
-   * manually-created or already-grounded activities.
+   * Museum, Paris") set by AI generation for a stop the client still has to
+   * resolve to real coordinates. Always null for manually-created activities,
+   * and for anything that arrived already positioned.
+   *
+   * Two separate properties, easily confused:
+   *
+   *   - GROUNDED = `lat != null && lng != null`. The stop can be pinned on the
+   *     map. This is the predicate every consumer wants (TripMapView's
+   *     collectStops, TripRecapSheet's totals, selectStopsToGround).
+   *   - ENRICHED = `placeId != null`. The stop additionally has a Google
+   *     identity, so it can be looked up for photos/hours/rating.
+   *
+   * Grounded does NOT imply enriched. Most stops are grounded by Mapbox inside
+   * the destination's bounding box and carry `placeId: null` forever unless
+   * someone opens them; only the Google fallback yields a placeId. Treating
+   * `placeId` as the grounded test hides the majority of pins.
+   *
+   * `searchQuery` outlives grounding — it is not cleared once a stop resolves,
+   * so it is not a "still ungrounded" flag either. Pair it with the coordinate
+   * test: a stop with a searchQuery, no coordinates, and no `groundingFailedAt`
+   * is what the background pass picks up.
    */
   searchQuery: string | null;
   /**

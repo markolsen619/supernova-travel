@@ -1,4 +1,6 @@
 import {
+  findStopMatchingPlace,
+  metersBetween,
   tapBbox,
   shouldFallbackToNearby,
   nearbyRadiusForZoom,
@@ -76,5 +78,58 @@ describe('nearbyCacheKey', () => {
 
   it('distinguishes lat from lng so a transposed tap does not collide', () => {
     expect(nearbyCacheKey(10, 20)).not.toBe(nearbyCacheKey(20, 10));
+  });
+});
+
+describe('metersBetween', () => {
+  it('is zero for the same point', () => {
+    expect(metersBetween(24.1426, -110.3128, 24.1426, -110.3128)).toBe(0);
+  });
+
+  it('measures a short offset in metres', () => {
+    // ~0.0001 deg latitude is ~11.1 m.
+    expect(metersBetween(24.1426, -110.3128, 24.1427, -110.3128)).toBeCloseTo(11.1, 0);
+  });
+});
+
+describe('findStopMatchingPlace', () => {
+  const withId = { placeId: 'g1', lat: 24.1426, lng: -110.3128 };
+  const mapboxGrounded = { placeId: null, lat: 24.1426, lng: -110.3128 };
+
+  it('matches on placeId when both sides carry one', () => {
+    const far = { placeId: 'g1', lat: 48.8606, lng: 2.3376 };
+    expect(findStopMatchingPlace([far], { placeId: 'g1', lat: 24.1426, lng: -110.3128 })).toBe(far);
+  });
+
+  it('matches a Mapbox-grounded stop (no placeId) by proximity', () => {
+    // The majority case: ~10 m apart, resolved place has a Google id, stop does not.
+    const match = findStopMatchingPlace([mapboxGrounded], {
+      placeId: 'g9',
+      lat: 24.14261,
+      lng: -110.31281,
+    });
+    expect(match).toBe(mapboxGrounded);
+  });
+
+  it('does not match a Mapbox-grounded stop a block away', () => {
+    expect(
+      findStopMatchingPlace([mapboxGrounded], { placeId: 'g9', lat: 24.145, lng: -110.3128 }),
+    ).toBeUndefined();
+  });
+
+  it('does not collapse two separately-identified Google places that sit metres apart', () => {
+    expect(
+      findStopMatchingPlace([withId], { placeId: 'g2', lat: 24.14261, lng: -110.31281 }),
+    ).toBeUndefined();
+  });
+
+  it('picks the nearest candidate when several are in range', () => {
+    const near = { placeId: null, lat: 24.14261, lng: -110.3128 };
+    const nearer = { placeId: null, lat: 24.142605, lng: -110.3128 };
+    expect(findStopMatchingPlace([near, nearer], { placeId: null, lat: 24.1426, lng: -110.3128 })).toBe(nearer);
+  });
+
+  it('returns undefined for an empty stop list', () => {
+    expect(findStopMatchingPlace([], { placeId: 'g1', lat: 0, lng: 0 })).toBeUndefined();
   });
 });
