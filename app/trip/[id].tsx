@@ -167,6 +167,7 @@ export default function TripDetailScreen() {
     addDay,
     addActivity,
     updateActivity,
+    patchActivityGrounding,
     toggleVisited,
     deleteActivity,
     reorderActivities,
@@ -437,15 +438,21 @@ export default function TripDetailScreen() {
   // different mount — unresolvedActivityIds starts empty every mount and is
   // never seeded from the persisted marker, so those paths still re-bill an
   // already-known-unresolvable stop until the automatic pass catches it again.
+  //
+  // Writes go through `patchActivityGrounding`, not `updateActivity`: the same
+  // Firestore write, but it reconciles the cached trip instead of invalidating
+  // it. The background pass is sequential and runs this once per stop, so an
+  // invalidation here made every stop wait on a full trip refetch (trip doc +
+  // days query + one activities query per day) before the next lookup started.
   const applyGroundingResult = useCallback(
     async (dayId: string, activityId: string, resolved: GroundedPlace | null) => {
       if (!id) return;
       if (!resolved) {
         setUnresolvedActivityIds((prev) => new Set(prev).add(activityId));
-        await updateActivity(id, dayId, activityId, { groundingFailedAt: Timestamp.now() });
+        await patchActivityGrounding(id, dayId, activityId, { groundingFailedAt: Timestamp.now() });
         return;
       }
-      await updateActivity(id, dayId, activityId, {
+      await patchActivityGrounding(id, dayId, activityId, {
         placeId: resolved.placeId,
         address: resolved.address,
         lat: resolved.lat,
@@ -475,7 +482,7 @@ export default function TripDetailScreen() {
         return next;
       });
     },
-    [id, updateActivity, setPlace, getPlace],
+    [id, patchActivityGrounding, setPlace, getPlace],
   );
 
   // Runs one grounding lookup and persists it — the single Mapbox/Google call
@@ -537,6 +544,24 @@ export default function TripDetailScreen() {
     [id, trip, resolvingActivityId, dayDestinationIndices, groundAndPersist],
   );
 
+  // Destination readiness gate for the background pass below. `resolveCover`
+  // (the effect above) kicks off `resolveBounds` asynchronously and nothing
+  // awaits it, so on the primary path — generate a trip, open it — the trip
+  // snapshot this component first renders with is the one generateTrip wrote:
+  // `{ lat: null, lng: null, bounds: null }`. Starting the pass against that
+  // snapshot gives groundingContextFor nothing to work with, which sends
+  // every stop to Google with no bbox and no bias at all — the exact
+  // unbiased global search this whole design exists to eliminate, at roughly
+  // ten times the cost, permanently persisted and then skipped forever by
+  // selectStopsToGround. So the pass waits until the destination has either a
+  // box or coordinates. Restarting once they land is safe and idempotent:
+  // selectStopsToGround filters out everything already grounded, so a restart
+  // only ever re-selects what remains. If a destination resolves neither, the
+  // automatic pass simply never runs and the owner still has "Locate all" —
+  // strictly better than grounding the whole itinerary against the planet.
+  const destReady =
+    trip?.destination.bounds != null || trip?.destination.lat != null;
+
   // ── Background auto-grounding (Fix 10) ───────────────────────────────────────
   // A freshly generated trip otherwise opens to an empty map, asking the
   // owner to press "Locate all" to find their own itinerary. Owner-gated and
@@ -555,13 +580,16 @@ export default function TripDetailScreen() {
   // then applied directly to every remaining target via applyGroundingResult,
   // with no further Mapbox/Google call.
   //
-  // Deliberately keyed only on [trip?.id, isOwner] — not on `trip` itself,
-  // `dayDestinationIndices`, or `groundAndPersist` — so a write this same
-  // pass makes (which refetches `trip` and recreates those) never restarts
-  // the loop mid-flight. The queue is built once from the trip snapshot at
-  // the moment the effect fires and is not re-read after that.
+  // Deliberately keyed only on [trip?.id, isOwner, destReady] — not on `trip`
+  // itself, `dayDestinationIndices`, or `groundAndPersist` — so a write this
+  // same pass makes (which refetches `trip` and recreates those) never
+  // restarts the loop mid-flight. The queue is built once from the trip
+  // snapshot at the moment the effect fires and is not re-read after that.
+  // `destReady` is in the key on purpose (see above): it flips false → true
+  // exactly once, when the bounds/destination backfill lands, and that is the
+  // first moment the pass has a geographic anchor to search inside.
   useEffect(() => {
-    if (!trip?.isAiGenerated || !isOwner) return;
+    if (!trip?.isAiGenerated || !isOwner || !destReady) return;
     let cancelled = false;
 
     (async () => {
@@ -595,7 +623,7 @@ export default function TripDetailScreen() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip?.id, isOwner]);
+  }, [trip?.id, isOwner, destReady]);
 
   // Timeline tap: ungrounded → ground it in place; already-grounded → jump to
   // the map, centered on its pin (Part C: "tapping an activity in the

@@ -49,4 +49,53 @@ describe('groundStop', () => {
     expect(mapbox).not.toHaveBeenCalled();
     expect(google).toHaveBeenCalled();
   });
+
+  it('normalises an empty Google placeId to null rather than caching under ""', async () => {
+    const result = await groundStop('X', CTX, {
+      mapbox: jest.fn().mockResolvedValue(null),
+      google: jest.fn().mockResolvedValue({
+        placeId: '', name: 'X', address: null, lat: 1, lng: 2, countryCode: null,
+      }),
+    });
+    expect(result?.placeId).toBeNull();
+  });
+
+  // A context with neither a box nor a centre has no geographic anchor at
+  // all. Searching anyway is an unbiased planet-wide Google query — the exact
+  // bug this module exists to prevent — so it must refuse instead.
+  it('refuses a context with no bbox and no center, calling neither provider', async () => {
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const mapbox = jest.fn();
+    const google = jest.fn();
+    const result = await groundStop('Malecón', { bbox: null, center: null }, { mapbox, google });
+    expect(result).toBeNull();
+    expect(mapbox).not.toHaveBeenCalled();
+    expect(google).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  // The background pass's per-stop try/catch depends on this: a provider
+  // outage (Google Text Search throws on any non-2xx) must reach the caller
+  // so it skips the stop, NOT collapse into the null that persists a
+  // permanent groundingFailedAt marker.
+  it('propagates a rejection from the Google provider', async () => {
+    await expect(
+      groundStop('Bismarkcito', CTX, {
+        mapbox: jest.fn().mockResolvedValue(null),
+        google: jest.fn().mockRejectedValue(new Error('HTTP 429')),
+      }),
+    ).rejects.toThrow('HTTP 429');
+  });
+
+  it('propagates a rejection from the Mapbox provider', async () => {
+    const google = jest.fn();
+    await expect(
+      groundStop('Malecón', CTX, {
+        mapbox: jest.fn().mockRejectedValue(new Error('boom')),
+        google,
+      }),
+    ).rejects.toThrow('boom');
+    expect(google).not.toHaveBeenCalled();
+  });
 });

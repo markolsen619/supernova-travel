@@ -37,7 +37,22 @@ export async function groundStop(
 ): Promise<GroundedPlace | null> {
   if (!query.trim()) return null;
 
-  if (isBboxUsable(ctx.bbox)) {
+  const boxed = isBboxUsable(ctx.bbox);
+
+  // No box AND no centre is not a searchable request — it is a caller bug.
+  // Passing it through would issue an unbiased, planet-wide Google Text
+  // Search, which is precisely the failure this module exists to prevent (a
+  // La Paz, Baja California Sur itinerary resolving its stops in La Paz,
+  // Bolivia) and it would do so silently, at full price, with a
+  // plausible-looking result the caller then persists. Refusing loudly means
+  // the stop stays ungrounded and the bug shows up as a log line rather than
+  // as wrong coordinates nobody re-checks.
+  if (!boxed && ctx.center == null) {
+    console.error('[groundStop] refusing to search with no bbox and no center:', query);
+    return null;
+  }
+
+  if (boxed) {
     const hit = await providers.mapbox(query, ctx.bbox, ctx.center);
     if (hit) return hit;
   }
@@ -52,7 +67,12 @@ export async function groundStop(
     address: g.address || null,
     countryCode: g.countryCode,
     source: 'google',
-    placeId: g.placeId,
+    // `EnrichedPlace.placeId` is `place.id ?? ''` upstream, so a Google hit
+    // that came back without an id yields an empty string. That would be
+    // cached under the '' key by applyGroundingResult and written onto the
+    // activity as a placeId that identifies nothing — null is the honest
+    // value for "no Google identity".
+    placeId: g.placeId || null,
     mapboxId: null,
   };
 }

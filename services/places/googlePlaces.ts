@@ -147,7 +147,18 @@ export function placeFromSelection(sel: PlaceSelection): EnrichedPlace | null {
 }
 
 /** Shared Text Search call — both POI-tap grounding and AI-stop grounding
- * (Part B) hit the same endpoint/mask, just with a different query shape. */
+ * (Part B) hit the same endpoint/mask, just with a different query shape.
+ *
+ * Resolves `null` for "Google answered, and there is no such place". THROWS
+ * for "Google did not answer" — a non-2xx (429 rate limit, 403 quota/billing,
+ * any 5xx) as well as the network rejections `fetch` already produces. The
+ * distinction is load-bearing downstream: the AI-stop grounding path persists
+ * a permanent `groundingFailedAt` marker on a null and `selectStopsToGround`
+ * then skips that stop forever, so swallowing a five-minute Google incident
+ * into a null would permanently brand every in-flight trip's stops
+ * unresolvable, recoverable only stop-by-stop by hand. A throw propagates to
+ * the caller's own error handling, which skips the stop without writing a
+ * marker, so the next open retries it. */
 async function textSearchFirstResult(
   body: Record<string, unknown>,
   logLabel: string,
@@ -164,8 +175,11 @@ async function textSearchFirstResult(
   });
 
   if (!res.ok) {
-    console.error(`[${logLabel}] HTTP`, res.status, await res.text());
-    return null;
+    const detail = await res.text();
+    console.error(`[${logLabel}] HTTP`, res.status, detail);
+    // Deliberately a throw, not a null — see the note above. "The provider was
+    // unavailable" must never be recorded as "this place does not exist".
+    throw new Error(`[${logLabel}] Places Text Search failed with HTTP ${res.status}`);
   }
 
   const json = (await res.json()) as { places?: RawTier2Place[] };
