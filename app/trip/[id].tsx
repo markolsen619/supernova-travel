@@ -204,6 +204,14 @@ export default function TripDetailScreen() {
   // both start a lookup for the same activity and double-bill it.
   const groundingInFlight = useRef<Set<string>>(new Set());
 
+  // The background pass below is deliberately not keyed on `trip` — re-keying
+  // would restart it on every write it makes. But it must still see a bounds
+  // backfill that lands mid-pass, or a trip whose box arrives a beat after the
+  // pass starts grounds every remaining stop unboxed, through Google, at ~10x
+  // the intended cost. A ref gives it the latest trip without re-keying.
+  const tripRef = useRef(trip);
+  tripRef.current = trip;
+
   // Activity form sheet state (add + edit share one sheet — see ActivityFormSheet)
   const [formVisible, setFormVisible] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
@@ -584,7 +592,9 @@ export default function TripDetailScreen() {
   // itself, `dayDestinationIndices`, or `groundAndPersist` — so a write this
   // same pass makes (which refetches `trip` and recreates those) never
   // restarts the loop mid-flight. The queue is built once from the trip
-  // snapshot at the moment the effect fires and is not re-read after that.
+  // snapshot at the moment the effect fires and is not rebuilt after that;
+  // only each stop's grounding context is re-read (via tripRef) so a bounds
+  // write landing mid-pass still boxes the stops that remain.
   // `destReady` is in the key on purpose (see above): it flips false → true
   // exactly once, when the bounds/destination backfill lands, and that is the
   // first moment the pass has a geographic anchor to search inside.
@@ -598,7 +608,10 @@ export default function TripDetailScreen() {
         if (cancelled) return;
         try {
           const [first, ...rest] = stop.targets;
-          const ctx = groundingContextFor(destinationAt(trip, stop.destinationIndex));
+          // Read the destination from the ref, not the effect-time snapshot:
+          // a bounds backfill that lands mid-pass must reach the stops still
+          // to come. Falls back to the captured trip if the ref is empty.
+          const ctx = groundingContextFor(destinationAt(tripRef.current ?? trip, stop.destinationIndex));
           const outcome = await groundAndPersist(first.dayId, first.activityId, stop.searchQuery, ctx);
           // A skip means another path (manual tap or "Locate all") owns this
           // activity right now and will persist its own result. Fanning `null`
