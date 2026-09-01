@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import type { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import type { TripActivity } from '@/types';
+import { buildTextSearchBody, type PlaceBias } from '@/utils/placeQuery';
 
 // COST GUARD: every fetch in this file hits Google Places API (New), which is
 // billable per request/session at tiered SKUs. Field masks below are kept
@@ -44,6 +45,19 @@ const TIER2_FIELDS = [
 export const TIER2_FIELD_MASK = TIER2_FIELDS.join(',');
 // List endpoints (POST /v1/places:searchText) — each field prefixed `places.`.
 const TIER2_LIST_FIELD_MASK = TIER2_FIELDS.map((f) => `places.${f}`).join(',');
+
+// Grounding needs an identity and a position — nothing else. Excluding
+// rating/priceLevel/openingHours/editorialSummary drops the call from the
+// Atmosphere SKU to Text Search Pro ($32/1k, 5,000 free vs 1,000).
+const GROUNDING_FIELDS = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'location',
+  'addressComponents',
+] as const;
+
+export const GROUNDING_LIST_FIELD_MASK = GROUNDING_FIELDS.map((f) => `places.${f}`).join(',');
 
 type RawAddressComponent = { types: string[]; shortText: string };
 type RawLatLng = { latitude?: number; longitude?: number };
@@ -137,13 +151,14 @@ export function placeFromSelection(sel: PlaceSelection): EnrichedPlace | null {
 async function textSearchFirstResult(
   body: Record<string, unknown>,
   logLabel: string,
+  fieldMask: string = TIER2_LIST_FIELD_MASK, // default preserves every existing caller
 ): Promise<RawTier2Place | null> {
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': API_KEY,
-      'X-Goog-FieldMask': TIER2_LIST_FIELD_MASK,
+      'X-Goog-FieldMask': fieldMask,
     },
     body: JSON.stringify(body),
   });
@@ -275,21 +290,34 @@ export async function searchNearbyPlaces(
 /**
  * Lazy grounding for AI-generated stops (Part B) — resolves a Gemini-authored
  * searchQuery string (e.g. "Louvre Museum, Paris") to a real Google place,
- * via the SAME Text Search endpoint/field mask as the POI-tap path above; no
- * second Text Search implementation. Called once per stop, only on first user
- * interaction with an ungrounded activity (tap in the trip view, add-to-trip,
- * show-on-map) — never at generation time. The caller persists the result
+ * via the SAME Text Search endpoint as the POI-tap path above; no second Text
+ * Search implementation. Called once per stop, only on first user interaction
+ * with an ungrounded activity (tap in the trip view, add-to-trip, show-on-map)
+ * — never at generation time. The caller persists the result
  * (useCreateTrip().updateActivity) and caches it (usePlacesStore.setPlace) so
  * a given stop is never resolved twice.
  *
- * Unlike enrichPoiByNameAndCoords, there's no known lat/lng to bias or fall
- * back to — an AI stop with no resolvable location returns null rather than
- * guessing coordinates.
+ * Callers pass the trip destination's centre as `bias` so the search prefers
+ * that region — an unbiased call resolves against the whole planet, which is
+ * how a trip to La Paz, Baja California Sur used to resolve stops in La Paz,
+ * Bolivia.
+ *
+ * `mask` defaults to `'full'` (TIER2, tier: 'tier2') so every existing caller
+ * is unchanged — `useTripCoverResolver` relies on tier2 fields (photoNames)
+ * coming back in this same call to skip a separately-billed enrichPlaceById.
+ * Pass `mask: 'grounding'` when only coordinates are needed: it uses the
+ * cheaper GROUNDING_LIST_FIELD_MASK and returns `tier: 'tier1'` since
+ * rating/photos/hours were never requested.
  */
-export async function enrichPlaceByQuery(query: string): Promise<EnrichedPlace | null> {
+export async function enrichPlaceByQuery(
+  query: string,
+  bias?: PlaceBias | null,
+  mask: 'grounding' | 'full' = 'full',
+): Promise<EnrichedPlace | null> {
   const place = await textSearchFirstResult(
-    { textQuery: query, maxResultCount: 1, languageCode: 'en' },
+    buildTextSearchBody(query, bias),
     'enrichPlaceByQuery',
+    mask === 'grounding' ? GROUNDING_LIST_FIELD_MASK : TIER2_LIST_FIELD_MASK,
   );
   if (!place || place.location?.latitude == null || place.location?.longitude == null) {
     return null;
@@ -306,8 +334,9 @@ export async function enrichPlaceByQuery(query: string): Promise<EnrichedPlace |
     lat: place.location.latitude,
     lng: place.location.longitude,
     countryCode,
-    tier: 'tier2',
-    ...tier2FieldsFromRaw(place),
+    ...(mask === 'grounding'
+      ? { tier: 'tier1' as const }
+      : { tier: 'tier2' as const, ...tier2FieldsFromRaw(place) }),
   };
 }
 
