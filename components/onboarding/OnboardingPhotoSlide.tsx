@@ -1,4 +1,4 @@
-import { Animated, View, StyleSheet, useWindowDimensions } from 'react-native';
+import { Animated, ImageSourcePropType, View, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/hooks/useTheme';
 import { Spacing } from '@/constants/spacing';
@@ -7,7 +7,7 @@ import { SlideTextBlock } from '@/components/onboarding/SlideTextBlock';
 import { useSwipeParallax } from '@/hooks/useSwipeParallax';
 
 interface OnboardingPhotoSlideProps {
-  imageUrl: string | null;
+  heroSource: ImageSourcePropType | null;
   eyebrow: string;
   title: string;
   body: string;
@@ -19,7 +19,7 @@ interface OnboardingPhotoSlideProps {
 // Layout A from the design-phase visual comparison: photo fills the top
 // ~60%, fades to canvas via a scrim, text + CTA sit on light ground below.
 export function OnboardingPhotoSlide({
-  imageUrl,
+  heroSource,
   eyebrow,
   title,
   body,
@@ -39,7 +39,7 @@ export function OnboardingPhotoSlide({
     <View style={[styles.slide, { width }]}>
       <View style={styles.photoRegion}>
         <KenBurnsImage
-          uri={imageUrl}
+          source={heroSource}
           active={active}
           style={StyleSheet.absoluteFillObject}
           parallaxScale={parallaxScale}

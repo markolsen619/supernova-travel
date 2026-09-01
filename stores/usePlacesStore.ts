@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { PlaceViewportBounds } from '@/services/places/googlePlaces';
+import { nearbyCacheKey } from '@/utils/mapInteraction';
 
 export interface EnrichedPlace {
   placeId: string;
@@ -40,6 +41,13 @@ interface PlacesState {
    * A tier1 entry can be upgraded to tier2 in-place.
    */
   _placeCache: Record<string, EnrichedPlace>;
+  /**
+   * Nearby Search results cache, keyed by tap coordinates rounded to 4dp
+   * (~11m) via nearbyCacheKey. The results sheet has no dismiss affordance,
+   * so tapping the map to close it re-runs handleMapPress's fallback path —
+   * without this cache that re-taps the SAME billed Nearby Search every time.
+   */
+  _nearbyCache: Record<string, EnrichedPlace[]>;
 
   setSelectedPlace: (place: EnrichedPlace | null) => void;
 
@@ -51,12 +59,18 @@ interface PlacesState {
   getPlace: (placeId: string) => EnrichedPlace | undefined;
   /** Upsert a place into the detail cache (keyed by place.placeId). */
   setPlace: (place: EnrichedPlace) => void;
+
+  /** Look up cached Nearby Search results for a coordinate, if any. */
+  getNearby: (lat: number, lng: number) => EnrichedPlace[] | undefined;
+  /** Cache Nearby Search results for a coordinate. */
+  setNearby: (lat: number, lng: number, results: EnrichedPlace[]) => void;
 }
 
 export const usePlacesStore = create<PlacesState>((set, get) => ({
   selectedPlace: null,
   _reconCache: {},
   _placeCache: {},
+  _nearbyCache: {},
 
   setSelectedPlace: (place) => set({ selectedPlace: place }),
 
@@ -67,4 +81,10 @@ export const usePlacesStore = create<PlacesState>((set, get) => ({
   getPlace: (placeId) => get()._placeCache[placeId],
   setPlace: (place) =>
     set((s) => ({ _placeCache: { ...s._placeCache, [place.placeId]: place } })),
+
+  getNearby: (lat, lng) => get()._nearbyCache[nearbyCacheKey(lat, lng)],
+  setNearby: (lat, lng, results) =>
+    set((s) => ({
+      _nearbyCache: { ...s._nearbyCache, [nearbyCacheKey(lat, lng)]: results },
+    })),
 }));

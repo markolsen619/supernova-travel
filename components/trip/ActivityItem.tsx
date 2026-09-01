@@ -48,12 +48,15 @@ export function ActivityItem({
 }: ActivityItemProps) {
   const { colors } = useTheme();
   const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
-  // An AI-generated stop not yet resolved to a real Google place — tapping it
-  // triggers lazy grounding (see trip/[id].tsx). Only hinted when onPress is
-  // actually wired: DayTimeline only passes onActivityPress for the trip
+  // An AI-generated stop not yet resolved to a real place — tapping it
+  // triggers lazy grounding (see trip/[id].tsx). Grounded means "has
+  // coordinates", not "has a Google placeId": a Mapbox-grounded stop carries
+  // lat/lng with no placeId and must not still read as ungrounded here
+  // (mirrors TripMapView's collectStops predicate). Only hinted when onPress
+  // is actually wired: DayTimeline only passes onActivityPress for the trip
   // owner (Firestore only allows the persisting write for owner/collaborator),
   // so a viewer never sees an affordance that would silently fail on tap.
-  const isUngrounded = !activity.placeId && !!activity.searchQuery && !!onPress;
+  const isUngrounded = (activity.lat == null || activity.lng == null) && !!activity.searchQuery && !!onPress;
   const subtitle = isResolving
     ? 'Finding on map…'
     : isUngrounded

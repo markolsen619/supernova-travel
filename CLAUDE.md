@@ -38,6 +38,7 @@ Copy `.env.local.example` to `.env.local` and fill in all keys. Client vars are 
 | `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` | client | RevenueCat Android SDK |
 | `EXPO_PUBLIC_ALGOLIA_APP_ID` | client | Algolia search app ID |
 | `EXPO_PUBLIC_ALGOLIA_SEARCH_KEY` | client | Algolia **Search-Only** key (never Admin) |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | client | Google Sign-In. Required **even on iOS** — it is the audience Firebase validates the ID token against. The iOS client ID is read from `GoogleService-Info.plist`, not from env |
 | `ALGOLIA_APP_ID` | Cloud Function | Algolia sync (Admin key context) |
 | `ALGOLIA_ADMIN_KEY` | Cloud Function | Algolia index write access |
 | `AVIATIONSTACK_API_KEY` | Cloud Function | Flight status polling |
@@ -57,7 +58,8 @@ app/
 │   ├── welcome.tsx
 │   ├── sign-in.tsx
 │   ├── sign-up.tsx
-│   └── forgot-password.tsx
+│   ├── forgot-password.tsx
+│   └── complete-profile.tsx       # Gate: authenticated but no users/{uid} doc
 ├── (tabs)/
 │   ├── _layout.tsx                # Tab bar: Feed, Explore, Create, Search, Profile
 │   ├── index.tsx                  # Feed
@@ -134,6 +136,9 @@ All functions use Firebase Functions v2.
 - `services/firebase.ts` — `auth`, `db`, `storage`, `functions` singletons
 - `services/revenuecat.ts` — `configureRevenueCat(uid)`: sets log level, calls `Purchases.configure` with platform-specific keys; called in `_layout.tsx` after auth fires
 - `services/gemini.ts` — `callGenerateTrip(request)`: calls the `generateTrip` Cloud Function via `httpsCallable`
+- `services/oauth.ts` — `configureGoogleSignIn()`, `signInWithGoogle()`, `signOutGoogle()`, `isAppleAuthAvailable()`. The **only** file permitted to import a provider SDK. `signInWithGoogle` resolves `null` when the user dismisses the sheet — since v13 the SDK reports cancellation by resolving `{ type: 'cancelled' }`, not by throwing, so cancellation is a return-value check and never a `catch`
+- `services/session.ts` — `hydrateSession(firebaseUser): Promise<boolean>` plus `registerPushToken`. Everything that must happen once a profile document is known to exist (store hydration, `tier`, push token, RevenueCat), returning whether it exists. Called from **two** places: the auth listener and `complete-profile` right after it writes. Both are required — `onAuthStateChanged` does not fire on a Firestore write
+- `services/profile.ts` — `buildUserProfile()` (pure, testable field shape) and `createUserProfile()` (adds `createdAt`, writes with `{ merge: true }`). Sole writer of the new-account `users/{uid}` shape
 
 ### Hooks (`hooks/`)
 
@@ -357,7 +362,7 @@ These rules apply to ALL new code:
 
 1. **No direct Gemini / secret API calls from client** — Cloud Function proxy only
 2. **No `onSnapshot` in TanStack Query hooks** — use `getDocs`/`getDoc`. Exception: post comments
-3. **All components use `const { colors } = useTheme()`** — never import `DarkColors`/`LightColors` directly, except in always-dark screens: the Mapbox globe/trip map (`app/(tabs)/search.tsx`, `components/trip/TripMapView`), the splash screen (`SplashOverlay`), the AI-generating screens (`AiGeneratingAnimation`, `app/trip/ai-generating.tsx`), and `BoardingPassCard` (kept dark deliberately — a boarding pass is a physical-object skeuomorph, not app chrome)
+3. **All components use `const { colors } = useTheme()`** — never import `DarkColors`/`LightColors` directly, except in always-dark screens: the Mapbox globe/trip map (`app/(tabs)/search.tsx`, `components/trip/TripMapView`), the splash screen (`SplashOverlay`), the AI-generating screens (`AiGeneratingAnimation`, `app/trip/ai-generating.tsx`), `BoardingPassCard` (kept dark deliberately — a boarding pass is a physical-object skeuomorph, not app chrome), and the **auth reveal-transition screens** (`welcome`, `sign-in`, `sign-up`, `complete-profile`), which pin a dark overlay that fades out on first mount to continue the splash palette — all four have always done this; the rule previously omitted them
 4. **`StyleSheet.create` is module-level** — it cannot call `useTheme()`. Dynamic/theme-dependent colors go in **inline styles only**, not inside `StyleSheet.create`
 5. **`LinearGradient` colors prop** must be typed as `[string, string]`, not `string[]`
 6. **`useCallback`** required for all event handlers passed as props to child components
@@ -368,3 +373,16 @@ These rules apply to ALL new code:
 11. **Icon + color pairs**: always pull from `constants/icons.ts` maps (`ACTIVITY_ICONS`, `RESERVATION_ICONS`, etc.) — never hard-code icon components or hex colors for typed entities inline
 12. **Lists**: use `FlashList` from `@shopify/flash-list` — not `FlatList` — for all scrollable content lists
 13. **`TripActivity.startTime` / `endTime`** are wall-clock strings (`"14:30"`), not Firestore Timestamps — never coerce them to Date objects
+
+### Auth components (`components/auth/`)
+
+- `UsernameField` — username input with debounced (500ms) live availability check. Props `{ value, onChangeText, onValidityChange, onBlockingChange?, forUid? }`. **`onValidityChange` and `onBlockingChange` are different questions:** `valid` asks "proven available?" (pristine = false), `blocking` asks "actively wrong or pending?" (pristine = false). A submit button gating on `valid` is dead on a fresh form; gate on `blocking`. Pass `forUid` when the user already has a uid, or they'll be told their own username is taken
+- `BirthdayField` — date picker plus the 13+ gate; renders its under-13 message inline at selection time. Props `{ value, onChange, onValidityChange }`
+- `SocialAuthButtons` — divider plus the Google button; owns its error inline. The Apple slot is a real `isAppleAuthAvailable()` check that returns `false` until Phase 2
+
+### Utils
+
+- `utils/age.ts` — `isUnder13(date)`. Tests pin the clock with fake timers; without that, `setFullYear` rolls Feb 29 and flips the birthday boundary
+- `utils/authRoute.ts` — `resolveAuthRoute({ isAuthenticated, hasProfile, onboardingComplete })`. The profile check precedes the onboarding check deliberately: no `users/{uid}` document means no app entry, whatever the onboarding flag says
+
+**Testing note:** there is no React Native component-testing library in this project. Every test in `__tests__/` is a pure-function test. Push logic out of components into `utils/` or `services/` to make it testable rather than adding a renderer.

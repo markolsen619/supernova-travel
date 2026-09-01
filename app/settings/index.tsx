@@ -17,6 +17,9 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/Button';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auth } from '@/services/firebase';
+import { signOutGoogle } from '@/services/oauth';
+import { logOutRevenueCat } from '@/services/revenuecat';
+import { presentCustomerCenter } from '@/services/revenuecatUI';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -48,9 +51,42 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('Sign out?', "You'll need to sign in again to get back to your trips.", [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => auth.signOut() },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: () => {
+          // Release the native Google session too — otherwise the SDK
+          // silently re-authorizes the same account on the next sign-in.
+          // Same reasoning for RevenueCat: without logOut the next user on
+          // this device inherits these entitlements until its cache expires.
+          Promise.allSettled([signOutGoogle(), logOutRevenueCat()]).finally(() =>
+            auth.signOut(),
+          );
+        },
+      },
     ]);
   }, []);
+
+  // Free users get the storefront; subscribers get RevenueCat's Customer
+  // Center, which owns cancel / change-plan / refund — flows that need
+  // StoreKit APIs we don't otherwise expose, and that Apple expects to exist
+  // in-app for auto-renewing subscriptions.
+  const handleSubscriptionPress = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (tier === 'free') {
+      router.push('/paywall');
+      return;
+    }
+    const presented = await presentCustomerCenter();
+    if (!presented) {
+      // No native module (Expo Go, or a build without purchases-ui). Say so
+      // rather than leaving a dead row.
+      Alert.alert(
+        'Not available here',
+        'Subscription management needs a full build of the app. Manage your plan in your store account settings.',
+      );
+    }
+  }, [tier]);
 
   const sectionStyle = [styles.section, { borderColor: colors.background.cardBorder }];
 
@@ -114,7 +150,7 @@ export default function SettingsScreen() {
             label="Subscription"
             icon={Sparkle}
             value={capitalizedTier}
-            onPress={tier === 'free' ? () => router.push('/paywall') : undefined}
+            onPress={handleSubscriptionPress}
           />
         </View>
 

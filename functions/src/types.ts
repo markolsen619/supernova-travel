@@ -36,6 +36,10 @@ export interface GeneratedActivity {
 
 export interface GeneratedDay {
   dayNumber: number;
+  /** 0-based index into the destination list. Absent on single-city trips and
+   *  on every trip generated before this field existed — the client infers it
+   *  from transport markers in that case (utils/dayDestination.ts). */
+  destinationIndex?: number | null;
   title: string;
   notes: string;
   activities: GeneratedActivity[];

@@ -9,6 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { TripWithDays, TripDay, TripActivity } from '@/types';
+import { normalizeDestination } from '@/hooks/useTripList';
 
 async function fetchTripWithDays(tripId: string): Promise<TripWithDays | null> {
   // Step 1: fetch the trip document
@@ -28,7 +29,8 @@ async function fetchTripWithDays(tripId: string): Promise<TripWithDays | null> {
     // Destination[], not optional).
     budgetAmount: tripData.budgetAmount ?? null,
     budgetCurrency: tripData.budgetCurrency ?? null,
-    additionalDestinations: tripData.additionalDestinations ?? [],
+    destination: normalizeDestination(tripData.destination),
+    additionalDestinations: (tripData.additionalDestinations ?? []).map(normalizeDestination),
   } as TripWithDays;
 
   // Step 2: fetch all days ordered by dayNumber

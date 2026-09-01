@@ -3,21 +3,22 @@ import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth, db } from '@/services/firebase';
-import { configureRevenueCat } from '@/services/revenuecat';
+import { auth } from '@/services/firebase';
+import { configureGoogleSignIn } from '@/services/oauth';
+import { hydrateSession } from '@/services/session';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useTheme } from '@/hooks/useTheme';
+import { resolveAuthRoute } from '@/utils/authRoute';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { SplashOverlay } from '@/components/SplashOverlay';
+import { useRevenueCatSync } from '@/hooks/useRevenueCatSync';
 
 SplashScreen.preventAutoHideAsync();
+configureGoogleSignIn();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -35,31 +36,11 @@ const queryClient = new QueryClient({
   },
 });
 
-async function registerPushToken(uid: string) {
-  if (Platform.OS === 'web') return;
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== 'granted') return;
-
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
-  // Store token on the user document for Cloud Function flight alerts
-  const userRef = doc(db, 'users', uid);
-  const snap = await getDoc(userRef);
-  if (snap.exists()) {
-    const existing: string[] = snap.data().expoPushTokens ?? [];
-    if (!existing.includes(token)) {
-      const { updateDoc, arrayUnion } = await import('firebase/firestore');
-      await updateDoc(userRef, { expoPushTokens: arrayUnion(token) });
-    }
-  }
-}
-
 function AppStack() {
   const { isDark } = useTheme();
+  // Keeps useAuthStore.tier live with RevenueCat for the whole session —
+  // renewals, lapses, refunds and cross-device purchases all land here.
+  useRevenueCatSync();
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -90,43 +71,33 @@ function AppStack() {
 }
 
 export default function RootLayout() {
-  const { setUser, setTier, setInitialized, isInitialized } = useAuthStore();
+  const { setUser, setInitialized, isInitialized } = useAuthStore();
 
   useEffect(() => { SplashScreen.hideAsync(); }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      if (firebaseUser) {
-        const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (snap.exists()) {
-          const data = snap.data();
-          setTier(data.tier ?? 'free');
-          // Hydrate the cached profile — EditProfileSheet, post authoring,
-          // and the profile header all read from this store.
-          useUserStore.getState().setProfile({
-            uid: firebaseUser.uid,
-            // fullName is the current field; displayName is the pre-rename
-            // name still on file for accounts that haven't been re-saved.
-            fullName: data.fullName ?? data.displayName ?? firebaseUser.displayName ?? '',
-            username: data.username ?? '',
-            avatarUrl: data.avatarUrl ?? null,
-            bio: data.bio ?? '',
-            location: data.location ?? '',
-            followersCount: data.followersCount ?? 0,
-            followingCount: data.followingCount ?? 0,
-            createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-          });
+      try {
+        if (firebaseUser) {
+          const { hasProfile, hasSeenOnboarding } = await hydrateSession(firebaseUser);
+          router.replace(resolveAuthRoute({
+            isAuthenticated: true, hasProfile, onboardingComplete: hasSeenOnboarding,
+          }));
+        } else {
+          useUserStore.getState().setProfile(null);
+          router.replace(resolveAuthRoute({ isAuthenticated: false, hasProfile: false, onboardingComplete: false }));
         }
-        registerPushToken(firebaseUser.uid);
-        configureRevenueCat(firebaseUser.uid);
-        const onboardingDone = await AsyncStorage.getItem('onboarding_complete');
-        router.replace(onboardingDone ? '/(tabs)' : '/(auth)/onboarding');
-      } else {
-        useUserStore.getState().setProfile(null);
+      } catch (error) {
+        // hydrateSession's getDoc (or its legacy-migration AsyncStorage read)
+        // can reject — offline being the common case. Without this, setInitialized(true)
+        // below would never run and SplashOverlay (opaque, zIndex 9999) would
+        // never unmount: a dead logo screen with no error, force-quit only.
+        console.warn('[auth] session restore failed; routing to a usable screen:', error);
         router.replace('/(auth)/welcome');
+      } finally {
+        setInitialized(true);
       }
-      setInitialized(true);
     });
     return unsubscribe;
   }, []);

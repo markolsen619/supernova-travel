@@ -718,6 +718,7 @@ export default function NewTripScreen() {
           lat,
           lng,
           countryCode: countryCode.trim() || null,
+          bounds: null,
         },
         additionalDestinations,
         startDate,

@@ -17,6 +17,7 @@ import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
 import { usePoiTapResolver } from '@/hooks/usePoiTapResolver';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
+import { tapBbox, findStopMatchingPlace } from '@/utils/mapInteraction';
 import { lightPresetForNow } from '@/services/mapLighting';
 import { placeToTripActivity } from '@/services/places/googlePlaces';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
@@ -68,7 +69,11 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
     [...day.activities]
       .sort((a, b) => a.order - b.order)
       .forEach((activity) => {
-        if (activity.placeId && activity.lat != null && activity.lng != null) {
+        // Grounded means "has coordinates", not "has a Google placeId". Mapbox-grounded
+        // stops carry coordinates and no Google identity; they are pinnable now and
+        // upgrade to a full Google place via enrichPoiByNameAndCoords only if the user
+        // opens one. Gating on placeId here would hide every Mapbox-grounded pin.
+        if (activity.lat != null && activity.lng != null) {
           stopNumber += 1;
           grounded.push({
             activity,
@@ -80,7 +85,7 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
             lat: activity.lat,
             lng: activity.lng,
           });
-        } else if (!activity.placeId && activity.searchQuery) {
+        } else if (activity.searchQuery) {
           ungrounded.push({ activity, dayId: day.id, dayNumber: day.dayNumber });
         }
       });
@@ -328,7 +333,14 @@ export function TripMapView({
   const handleMapPress = useCallback(
     async (feature: GeoJSON.Feature<GeoJSON.Point, ScreenPointPayload>) => {
       const { screenPointX, screenPointY } = feature.properties;
-      const collection = await mapRef.current?.queryRenderedFeaturesAtPoint([screenPointX, screenPointY]);
+      // Same 44pt rect usePoiTapResolver queries (tapBbox) — not a bare
+      // point. A near-miss 28-44pt from a trip stop used to fail this exact
+      // -hit check on the tighter point query, fall through to the ambient
+      // POI path below, and spend a billed Text Search whose result the
+      // matchingStop check further down would just discard anyway.
+      const collection = await mapRef.current?.queryRenderedFeaturesInRect(
+        tapBbox(screenPointX, screenPointY),
+      );
 
       const nearbyOwnStop = await findOwnStopNearTap(screenPointX, screenPointY, collection);
       if (nearbyOwnStop) {
@@ -340,7 +352,18 @@ export function TripMapView({
       // a non-owner can't write an activity anyway, so there's no reason to
       // spend a Places call resolving one for them.
       if (!isOwner) return;
-      const resolved = await resolvePoiTap(mapRef, feature);
+      // resolvePoiTap can reject: Google Text Search throws on a network
+      // failure and (deliberately) on any non-2xx, so a rate limit or a
+      // provider outage arrives here as an exception. Swallow it into the
+      // same dead-end a miss produces rather than letting it escape as an
+      // unhandled rejection out of MapView's onPress.
+      let resolved: EnrichedPlace | null = null;
+      try {
+        resolved = await resolvePoiTap(mapRef, feature);
+      } catch (err) {
+        console.error('[TripMapView] POI resolution failed:', err);
+        return;
+      }
       if (!resolved) return;
 
       // Neither the exact-feature nor pixel-proximity check caught it, but
@@ -348,11 +371,16 @@ export function TripMapView({
       // existing stops (its rendered label can sit further from our pin
       // than the threshold covers). This costs nothing extra — resolvePoiTap
       // already ran once, cache-first, same as any other tap — it's purely
-      // a local identity check against stops already in memory, preferred
-      // over pixel distance whenever it's available.
-      const matchingStop = grounded.find((s) => s.activity.placeId === resolved.placeId);
-      if (matchingStop) {
-        selectOwnStop(matchingStop);
+      // a local check against stops already in memory. Not a bare placeId
+      // comparison: most stops are Mapbox-grounded and carry no placeId, so
+      // identity alone would miss the majority case and offer "Add to trip"
+      // for a stop the trip already has. See findStopMatchingPlace.
+      const matched = findStopMatchingPlace(
+        grounded.map((s) => ({ placeId: s.activity.placeId, lat: s.lat, lng: s.lng, stop: s })),
+        resolved,
+      );
+      if (matched) {
+        selectOwnStop(matched.stop);
         return;
       }
 
@@ -383,7 +411,8 @@ export function TripMapView({
     async (place: EnrichedPlace) => {
       if (adding) return;
       if (days.length === 0) {
-        const dayId = await addDay(tripId, { dayNumber: 1, date: null, title: '', notes: '' });
+        // First day of the trip always starts at the first (primary) destination.
+        const dayId = await addDay(tripId, { dayNumber: 1, destinationIndex: 0, date: null, title: '', notes: '' });
         await writeActivity(place, dayId);
         hidePoiSheet();
         return;

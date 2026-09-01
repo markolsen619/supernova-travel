@@ -11,6 +11,10 @@ web-build/
 *.key
 *.mobileprovision
 *.orig.*
+# Firebase native config — same project config as .env.local, kept out of the
+# public repo for the same reason. Supply to EAS as a file secret.
+GoogleService-Info.plist
+google-services.json
 # Brainstorm session files
 .superpowers/
 .DS_Store
@@ -22,3 +26,5 @@ android/
 
 expo-env.d.ts
 # @end expo-cli
+# git worktrees for isolated agent work
+.worktrees/

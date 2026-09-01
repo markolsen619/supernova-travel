@@ -9,25 +9,25 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
   Animated,
-  ActivityIndicator,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
-import { CaretLeft, Eye, EyeSlash, CalendarBlank } from 'phosphor-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { auth, db } from '@/services/firebase';
+import { CaretLeft, Eye, EyeSlash } from 'phosphor-react-native';
+import { auth } from '@/services/firebase';
+import { createUserProfile } from '@/services/profile';
 import { useTheme } from '@/hooks/useTheme';
 import { StarMark } from '@/components/ui/StarMark';
 import { DarkColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
+import SocialAuthButtons from '@/components/auth/SocialAuthButtons';
+import UsernameField from '@/components/auth/UsernameField';
+import BirthdayField from '@/components/auth/BirthdayField';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
-import { checkUsernameAvailability, claimUsername, validateUsernameFormat } from '@/services/usernames';
+import { claimUsername } from '@/services/usernames';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -55,41 +55,18 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dob, setDob] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [birthdayValid, setBirthdayValid] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
-  const [usernameFocused, setUsernameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
-  const [usernameError, setUsernameError] = useState<string | null>(null);
-  const [usernameChecking, setUsernameChecking] = useState(false);
-  const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleUsernameChange = useCallback((raw: string) => {
-    const value = raw.toLowerCase().replace(/\s/g, '');
-    setUsername(value);
-    setError('');
-    if (usernameCheckTimer.current) clearTimeout(usernameCheckTimer.current);
-
-    const formatError = validateUsernameFormat(value);
-    if (formatError || !value) {
-      setUsernameError(formatError);
-      setUsernameChecking(false);
-      return;
-    }
-    setUsernameChecking(true);
-    setUsernameError(null);
-    usernameCheckTimer.current = setTimeout(async () => {
-      const available = await checkUsernameAvailability(value);
-      setUsernameChecking(false);
-      setUsernameError(available ? null : 'That username is taken.');
-    }, 500);
-  }, []);
+  const [usernameValid, setUsernameValid] = useState(false);
+  const [usernameBlocking, setUsernameBlocking] = useState(false);
 
   const handleConfirmPasswordChange = useCallback((value: string) => {
     setConfirmPassword(value);
@@ -106,31 +83,13 @@ export default function SignUpScreen() {
     setConfirmPasswordError(password === confirmPassword ? null : "Passwords don't match.");
   }, [password, confirmPassword]);
 
-  const maxDobDate = new Date();
-  maxDobDate.setFullYear(maxDobDate.getFullYear() - 13);
-
-  const isUnder13 = useCallback((date: Date) => {
-    const today = new Date();
-    const age = today.getFullYear() - date.getFullYear();
-    const m = today.getMonth() - date.getMonth();
-    return (m < 0 || (m === 0 && today.getDate() < date.getDate()) ? age - 1 : age) < 13;
-  }, []);
-
   const handleSignUp = useCallback(async () => {
     if (!fullName.trim() || !username.trim() || !email.trim() || !password || !confirmPassword || !dob) {
       setError('Fill in all fields to continue.');
       return;
     }
-    const formatError = validateUsernameFormat(username);
-    if (formatError) {
-      setUsernameError(formatError);
-      return;
-    }
-    if (usernameError || usernameChecking) return;
-    if (isUnder13(dob)) {
-      setError('You must be 13 or older to use Supernova.');
-      return;
-    }
+    if (!usernameValid) return;
+    if (!birthdayValid) return;
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
@@ -157,19 +116,7 @@ export default function SignUpScreen() {
       const claimResult = await claimUsername(user.uid, username, '');
       const claimedUsername = claimResult === 'ok' ? username : '';
 
-      await setDoc(doc(db, 'users', user.uid), {
-        fullName: fullName.trim(),
-        username: claimedUsername,
-        avatarUrl: null,
-        bio: '',
-        location: '',
-        tier: 'free',
-        followersCount: 0,
-        followingCount: 0,
-        createdAt: serverTimestamp(),
-        settings: { theme: 'dark', notificationsEnabled: true, privacy: 'public' },
-        usage: { weeklyAiTrips: 0, weeklyResetAt: null },
-      });
+      await createUserProfile(user.uid, { fullName, username: claimedUsername });
       router.replace('/(auth)/onboarding');
     } catch (e: any) {
       setError(
@@ -180,7 +127,7 @@ export default function SignUpScreen() {
     } finally {
       setLoading(false);
     }
-  }, [fullName, username, usernameError, usernameChecking, email, password, confirmPassword, dob, isUnder13]);
+  }, [fullName, username, usernameValid, email, password, confirmPassword, dob, birthdayValid]);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -191,24 +138,6 @@ export default function SignUpScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowPassword((v) => !v);
   }, []);
-
-  const openDatePicker = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowDatePicker(true);
-  }, []);
-
-  const closeDatePicker = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowDatePicker(false);
-  }, []);
-
-  const onDateChange = useCallback((_: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setShowDatePicker(false);
-    if (selectedDate) setDob(selectedDate);
-  }, []);
-
-  const formatDob = (date: Date) =>
-    date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
     <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -255,41 +184,12 @@ export default function SignUpScreen() {
         </View>
 
         {/* Username */}
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.text.secondary }]}>Username</Text>
-          <View
-            style={[
-              styles.input,
-              styles.usernameRow,
-              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
-              usernameFocused && { borderColor: colors.brand.purple },
-              usernameError && { borderColor: colors.semantic.error },
-            ]}
-          >
-            <Text style={[styles.atSign, { color: colors.text.tertiary }]}>@</Text>
-            <TextInput
-              style={[styles.usernameInput, { color: colors.text.primary }]}
-              value={username}
-              onChangeText={handleUsernameChange}
-              onFocus={() => setUsernameFocused(true)}
-              onBlur={() => setUsernameFocused(false)}
-              placeholder="username"
-              placeholderTextColor={colors.text.tertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={20}
-              returnKeyType="next"
-            />
-            {usernameChecking && <ActivityIndicator size="small" color={colors.text.tertiary} />}
-          </View>
-          {usernameError ? (
-            <Text style={[styles.fieldError, { color: colors.semantic.error }]}>{usernameError}</Text>
-          ) : (
-            <Text style={[styles.fieldHint, { color: colors.text.tertiary }]}>
-              Lowercase letters, numbers, dots, and underscores.
-            </Text>
-          )}
-        </View>
+        <UsernameField
+          value={username}
+          onChangeText={setUsername}
+          onValidityChange={setUsernameValid}
+          onBlockingChange={setUsernameBlocking}
+        />
 
         {/* Email */}
         <View style={styles.field}>
@@ -313,28 +213,8 @@ export default function SignUpScreen() {
           />
         </View>
 
-        {/* Date of Birth */}
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: colors.text.secondary }]}>Date of birth</Text>
-          <TouchableOpacity
-            style={[
-              styles.input,
-              styles.dobRow,
-              { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder },
-            ]}
-            onPress={openDatePicker}
-            activeOpacity={0.8}
-          >
-            <CalendarBlank
-              size={18}
-              color={dob ? colors.text.primary : colors.text.tertiary}
-              weight="regular"
-            />
-            <Text style={[styles.dobText, { color: dob ? colors.text.primary : colors.text.tertiary }]}>
-              {dob ? formatDob(dob) : 'Select your date of birth'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Date of birth */}
+        <BirthdayField value={dob} onChange={setDob} onValidityChange={setBirthdayValid} />
 
         {/* Password */}
         <View style={styles.field}>
@@ -426,11 +306,13 @@ export default function SignUpScreen() {
           label="Create account"
           onPress={handleSignUp}
           loading={loading}
-          disabled={usernameChecking || !!usernameError || !!confirmPasswordError}
+          disabled={usernameBlocking || !!confirmPasswordError}
           fullWidth
           size="lg"
           style={styles.cta}
         />
+
+        <SocialAuthButtons />
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.text.secondary }]}>Already have an account? </Text>
@@ -445,44 +327,6 @@ export default function SignUpScreen() {
         </View>
       </ScrollView>
       </Animated.View>
-
-      {/* iOS date picker in a bottom sheet modal — matches the rest of the
-          (now light) form, not hardcoded dark. */}
-      {Platform.OS === 'ios' && showDatePicker && (
-        <Modal transparent animationType="slide">
-          <View style={styles.pickerOverlay}>
-            <TouchableOpacity style={styles.pickerBackdrop} onPress={closeDatePicker} />
-            <View style={[styles.pickerSheet, { backgroundColor: colors.background.elevated }]}>
-              <View style={[styles.pickerHeader, { borderBottomColor: colors.background.cardBorder }]}>
-                <TouchableOpacity onPress={closeDatePicker} hitSlop={8}>
-                  <Text style={[styles.pickerDone, { color: colors.brand.purple }]}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={dob ?? maxDobDate}
-                mode="date"
-                display="spinner"
-                onChange={onDateChange}
-                maximumDate={maxDobDate}
-                minimumDate={new Date(1900, 0, 1)}
-                textColor={colors.text.primary}
-              />
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Android shows native dialog when showDatePicker is true */}
-      {Platform.OS === 'android' && showDatePicker && (
-        <DateTimePicker
-          value={dob ?? maxDobDate}
-          mode="date"
-          display="default"
-          onChange={onDateChange}
-          maximumDate={maxDobDate}
-          minimumDate={new Date(1900, 0, 1)}
-        />
-      )}
 
       {/* Fades out on first mount only, revealing the light content — the
           arrival counterpart to ai-generating.tsx's fade-out-into-dark. */}
@@ -515,13 +359,7 @@ const styles = StyleSheet.create({
     padding: Spacing['4'],
     fontSize: FontSize.base,
   },
-  dobRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'] },
-  dobText: { fontSize: FontSize.base, flex: 1 },
-  usernameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['1'], paddingVertical: 0 },
-  atSign: { fontSize: FontSize.base },
-  usernameInput: { flex: 1, fontSize: FontSize.base, paddingVertical: Spacing['3'] },
   fieldError: { fontSize: FontSize.xs, marginTop: Spacing['2'] },
-  fieldHint: { fontSize: FontSize.xs, marginTop: Spacing['2'] },
   inputRow: { flexDirection: 'row', gap: Spacing['2'] },
   inputFlex: { flex: 1 },
   eyeBtn: {
@@ -543,25 +381,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: FontSize.sm },
   footerLink: {
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.semiBold,
-  },
-
-  // Date picker modal
-  pickerOverlay: { flex: 1, justifyContent: 'flex-end' },
-  pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  pickerSheet: {
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    paddingBottom: 32,
-  },
-  pickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: Spacing['4'],
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  pickerDone: {
-    fontSize: FontSize.base,
     fontWeight: FontWeight.semiBold,
   },
 });

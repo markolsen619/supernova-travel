@@ -12,3 +12,4 @@ export { onMessageCreated } from './dmMessages';
 export { onLikeCreated, onCommentCreated } from './postEvents';
 export { parseTravelConfirmation } from './parseTravelConfirmation';
 export { getImportQuota } from './getImportQuota';
+export { syncTier } from './syncTier';

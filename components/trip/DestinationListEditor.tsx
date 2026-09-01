@@ -22,7 +22,7 @@ export interface DestinationListEditorProps {
 const DEFAULT_MAX_TOTAL = 10;
 
 function placeSelectionToDestination(s: PlaceSelection): Destination {
-  return { name: s.name, placeId: s.placeId, lat: s.lat, lng: s.lng, countryCode: s.countryCode };
+  return { name: s.name, placeId: s.placeId, lat: s.lat, lng: s.lng, countryCode: s.countryCode, bounds: null };
 }
 
 /** Add/reorder/remove UI for a trip's additional destinations. Shared

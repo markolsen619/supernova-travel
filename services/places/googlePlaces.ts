@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import type { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import type { TripActivity } from '@/types';
+import { buildTextSearchBody, type PlaceBias } from '@/utils/placeQuery';
 
 // COST GUARD: every fetch in this file hits Google Places API (New), which is
 // billable per request/session at tiered SKUs. Field masks below are kept
@@ -44,6 +45,19 @@ const TIER2_FIELDS = [
 export const TIER2_FIELD_MASK = TIER2_FIELDS.join(',');
 // List endpoints (POST /v1/places:searchText) — each field prefixed `places.`.
 const TIER2_LIST_FIELD_MASK = TIER2_FIELDS.map((f) => `places.${f}`).join(',');
+
+// Grounding needs an identity and a position — nothing else. Excluding
+// rating/priceLevel/openingHours/editorialSummary drops the call from the
+// Atmosphere SKU to Text Search Pro ($32/1k, 5,000 free vs 1,000).
+const GROUNDING_FIELDS = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'location',
+  'addressComponents',
+] as const;
+
+export const GROUNDING_LIST_FIELD_MASK = GROUNDING_FIELDS.map((f) => `places.${f}`).join(',');
 
 type RawAddressComponent = { types: string[]; shortText: string };
 type RawLatLng = { latitude?: number; longitude?: number };
@@ -133,24 +147,39 @@ export function placeFromSelection(sel: PlaceSelection): EnrichedPlace | null {
 }
 
 /** Shared Text Search call — both POI-tap grounding and AI-stop grounding
- * (Part B) hit the same endpoint/mask, just with a different query shape. */
+ * (Part B) hit the same endpoint/mask, just with a different query shape.
+ *
+ * Resolves `null` for "Google answered, and there is no such place". THROWS
+ * for "Google did not answer" — a non-2xx (429 rate limit, 403 quota/billing,
+ * any 5xx) as well as the network rejections `fetch` already produces. The
+ * distinction is load-bearing downstream: the AI-stop grounding path persists
+ * a permanent `groundingFailedAt` marker on a null and `selectStopsToGround`
+ * then skips that stop forever, so swallowing a five-minute Google incident
+ * into a null would permanently brand every in-flight trip's stops
+ * unresolvable, recoverable only stop-by-stop by hand. A throw propagates to
+ * the caller's own error handling, which skips the stop without writing a
+ * marker, so the next open retries it. */
 async function textSearchFirstResult(
   body: Record<string, unknown>,
   logLabel: string,
+  fieldMask: string = TIER2_LIST_FIELD_MASK, // default preserves every existing caller
 ): Promise<RawTier2Place | null> {
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': API_KEY,
-      'X-Goog-FieldMask': TIER2_LIST_FIELD_MASK,
+      'X-Goog-FieldMask': fieldMask,
     },
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
-    console.error(`[${logLabel}] HTTP`, res.status, await res.text());
-    return null;
+    const detail = await res.text();
+    console.error(`[${logLabel}] HTTP`, res.status, detail);
+    // Deliberately a throw, not a null — see the note above. "The provider was
+    // unavailable" must never be recorded as "this place does not exist".
+    throw new Error(`[${logLabel}] Places Text Search failed with HTTP ${res.status}`);
   }
 
   const json = (await res.json()) as { places?: RawTier2Place[] };
@@ -197,23 +226,112 @@ export async function enrichPoiByNameAndCoords(
 }
 
 /**
+ * Tap-anywhere fallback — what is physically near these coordinates?
+ *
+ * Mapbox Standard declutters labels aggressively, so most POIs it knows about
+ * are never drawn and therefore never tappable. When a tap finds no rendered
+ * feature, this answers "what is actually here?" instead of the map appearing
+ * broken.
+ *
+ * Uses `places:searchNearby` rather than the shared textSearchFirstResult
+ * helper: that helper hits `places:searchText` and returns a single result,
+ * and here there is no text to search for and several results are wanted.
+ * Same API key, same TIER2 mask, same error posture.
+ *
+ * Call ONLY on a tap that found nothing, and only above the zoom gate — see
+ * shouldFallbackToNearby(). Every call is billed.
+ */
+export async function searchNearbyPlaces(
+  lat: number,
+  lng: number,
+  radiusM: number,
+  maxResults = 5,
+): Promise<EnrichedPlace[]> {
+  // Clamped here, not only in nearbyRadiusForZoom. This function is exported
+  // and every call is billed, so it defends itself rather than trusting each
+  // caller to have clamped first. Google's own limits: radius 0-50000m,
+  // maxResultCount 1-20 — exceeding either is a 400, i.e. a wasted round trip.
+  const radius = Math.min(50000, Math.max(1, radiusM));
+  const count = Math.min(20, Math.max(1, Math.trunc(maxResults)));
+
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': API_KEY,
+        'X-Goog-FieldMask': TIER2_LIST_FIELD_MASK,
+      },
+      body: JSON.stringify({
+        locationRestriction: {
+          circle: { center: { latitude: lat, longitude: lng }, radius },
+        },
+        maxResultCount: count,
+        rankPreference: 'DISTANCE',
+        languageCode: 'en',
+      }),
+    });
+
+    if (!res.ok) {
+      console.error('[searchNearbyPlaces] HTTP', res.status, await res.text());
+      return [];
+    }
+
+    const json = (await res.json()) as { places?: RawTier2Place[] };
+    const places = json.places ?? [];
+
+    return places.map((place) => {
+      const components = place.addressComponents ?? [];
+      return {
+        placeId: place.id ?? '',
+        name: place.displayName?.text ?? '',
+        address: place.formattedAddress ?? '',
+        lat: place.location?.latitude ?? lat,
+        lng: place.location?.longitude ?? lng,
+        countryCode: components.find((c) => c.types.includes('country'))?.shortText ?? null,
+        tier: 'tier2' as const,
+        ...tier2FieldsFromRaw(place),
+      };
+    });
+  } catch (error) {
+    // Offline or DNS failure. An empty list renders the honest "no places
+    // found here" state, which is the right outcome either way.
+    console.error('[searchNearbyPlaces] failed', error);
+    return [];
+  }
+}
+
+/**
  * Lazy grounding for AI-generated stops (Part B) — resolves a Gemini-authored
  * searchQuery string (e.g. "Louvre Museum, Paris") to a real Google place,
- * via the SAME Text Search endpoint/field mask as the POI-tap path above; no
- * second Text Search implementation. Called once per stop, only on first user
- * interaction with an ungrounded activity (tap in the trip view, add-to-trip,
- * show-on-map) — never at generation time. The caller persists the result
+ * via the SAME Text Search endpoint as the POI-tap path above; no second Text
+ * Search implementation. Called once per stop, only on first user interaction
+ * with an ungrounded activity (tap in the trip view, add-to-trip, show-on-map)
+ * — never at generation time. The caller persists the result
  * (useCreateTrip().updateActivity) and caches it (usePlacesStore.setPlace) so
  * a given stop is never resolved twice.
  *
- * Unlike enrichPoiByNameAndCoords, there's no known lat/lng to bias or fall
- * back to — an AI stop with no resolvable location returns null rather than
- * guessing coordinates.
+ * Callers pass the trip destination's centre as `bias` so the search prefers
+ * that region — an unbiased call resolves against the whole planet, which is
+ * how a trip to La Paz, Baja California Sur used to resolve stops in La Paz,
+ * Bolivia.
+ *
+ * `mask` defaults to `'full'` (TIER2, tier: 'tier2') so every existing caller
+ * is unchanged — `useTripCoverResolver` relies on tier2 fields (photoNames)
+ * coming back in this same call to skip a separately-billed enrichPlaceById.
+ * Pass `mask: 'grounding'` when only coordinates are needed: it uses the
+ * cheaper GROUNDING_LIST_FIELD_MASK and returns `tier: 'tier1'` since
+ * rating/photos/hours were never requested.
  */
-export async function enrichPlaceByQuery(query: string): Promise<EnrichedPlace | null> {
+export async function enrichPlaceByQuery(
+  query: string,
+  bias?: PlaceBias | null,
+  mask: 'grounding' | 'full' = 'full',
+): Promise<EnrichedPlace | null> {
   const place = await textSearchFirstResult(
-    { textQuery: query, maxResultCount: 1, languageCode: 'en' },
+    buildTextSearchBody(query, bias),
     'enrichPlaceByQuery',
+    mask === 'grounding' ? GROUNDING_LIST_FIELD_MASK : TIER2_LIST_FIELD_MASK,
   );
   if (!place || place.location?.latitude == null || place.location?.longitude == null) {
     return null;
@@ -230,8 +348,9 @@ export async function enrichPlaceByQuery(query: string): Promise<EnrichedPlace |
     lat: place.location.latitude,
     lng: place.location.longitude,
     countryCode,
-    tier: 'tier2',
-    ...tier2FieldsFromRaw(place),
+    ...(mask === 'grounding'
+      ? { tier: 'tier1' as const }
+      : { tier: 'tier2' as const, ...tier2FieldsFromRaw(place) }),
   };
 }
 
@@ -321,5 +440,6 @@ export function placeToTripActivity(place: EnrichedPlace): Omit<TripActivity, 'i
     searchQuery: null, // already grounded — came from a resolved EnrichedPlace
     visited: false,
     visitedAt: null,
+    groundingFailedAt: null,
   };
 }
