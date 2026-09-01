@@ -314,6 +314,11 @@ export interface TripActivity {
    */
   visited: boolean;
   visitedAt: Timestamp | null;
+  /** Set when both providers failed to ground this stop. Prevents the
+   *  automatic pass from re-billing an unresolvable stop on every trip open —
+   *  the previous in-memory set died on unmount, which was harmless only while
+   *  grounding was user-initiated. */
+  groundingFailedAt: Timestamp | null;
 }
 
 export interface TripDay {

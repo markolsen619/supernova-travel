@@ -270,6 +270,7 @@ export default function TripDetailScreen() {
         mediaUrls: [],
         createdAt: Timestamp.now(),
         searchQuery: null, // manually created — nothing to lazily ground
+        groundingFailedAt: null,
       });
     },
     [id, activeDay, formMode, editingActivity, addActivity, updateActivity],

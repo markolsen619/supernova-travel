@@ -135,6 +135,7 @@ export const generateTrip = functions.https.onCall(
           searchQuery: act.searchQuery,
           visited: false,
           visitedAt: null,
+          groundingFailedAt: null,
         });
       });
     }

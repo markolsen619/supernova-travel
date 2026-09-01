@@ -426,5 +426,6 @@ export function placeToTripActivity(place: EnrichedPlace): Omit<TripActivity, 'i
     searchQuery: null, // already grounded — came from a resolved EnrichedPlace
     visited: false,
     visitedAt: null,
+    groundingFailedAt: null,
   };
 }

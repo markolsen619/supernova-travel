@@ -69,7 +69,11 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
     [...day.activities]
       .sort((a, b) => a.order - b.order)
       .forEach((activity) => {
-        if (activity.placeId && activity.lat != null && activity.lng != null) {
+        // Grounded means "has coordinates", not "has a Google placeId". Mapbox-grounded
+        // stops carry coordinates and no Google identity; they are pinnable now and
+        // upgrade to a full Google place via enrichPoiByNameAndCoords only if the user
+        // opens one. Gating on placeId here would hide every Mapbox-grounded pin.
+        if (activity.lat != null && activity.lng != null) {
           stopNumber += 1;
           grounded.push({
             activity,
@@ -81,7 +85,7 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
             lat: activity.lat,
             lng: activity.lng,
           });
-        } else if (!activity.placeId && activity.searchQuery) {
+        } else if (activity.searchQuery) {
           ungrounded.push({ activity, dayId: day.id, dayNumber: day.dayNumber });
         }
       });
