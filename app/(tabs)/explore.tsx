@@ -10,7 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Bag } from 'phosphor-react-native';
+import { Bag, MapTrifold } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useExplore } from '@/hooks/useExplore';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
@@ -18,6 +18,7 @@ import { TrendingCard } from '@/components/explore/TrendingCard';
 import { UserSuggestion } from '@/components/explore/UserSuggestion';
 import { TripGrid } from '@/components/explore/TripGrid';
 import { SkeletonCard, SkeletonListRow } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { BorderRadius, Spacing } from '@/constants/spacing';
@@ -120,6 +121,10 @@ export default function ExploreScreen() {
     router.push({ pathname: '/(tabs)/search', params: { q: name } });
   }, [router]);
 
+  const handleCreateTrip = useCallback(() => {
+    router.push('/trip/new');
+  }, [router]);
+
   const handleWalletPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(wallet)');
@@ -160,48 +165,54 @@ export default function ExploreScreen() {
         </View>
 
         {/* ── Trending Destinations ── */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
-            Trending destinations
-          </Text>
+        {/* Header and all, hidden when empty — the same shape as People to
+            follow below. Trending is derived from `trips`, so it empties at
+            exactly the same moment Latest trips does; a second empty state
+            here would leave the screen with two competing primary actions. */}
+        {(tripsLoading || trending.length > 0) && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
+              Trending destinations
+            </Text>
 
-          {tripsLoading ? (
-            <View style={styles.trendingScroll}>
-              {[0, 1, 2].map((i) => (
-                <SkeletonCard key={i} width={TRENDING_CARD_WIDTH} height={TRENDING_CARD_WIDTH} radius={BorderRadius.xl} />
-              ))}
-            </View>
-          ) : trending.length > 0 ? (
-            <>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.trendingScroll}
-              >
-                {trending.map((dest) => (
-                  <TrendingCard
-                    key={dest.name}
-                    name={dest.name}
-                    country={dest.country}
-                    photoUrl={dest.photoUrl}
-                    tripCount={dest.tripCount}
-                    onPress={() => handleTrendingPress(dest.name)}
-                  />
+            {tripsLoading ? (
+              <View style={styles.trendingScroll}>
+                {[0, 1, 2].map((i) => (
+                  <SkeletonCard key={i} width={TRENDING_CARD_WIDTH} height={TRENDING_CARD_WIDTH} radius={BorderRadius.xl} />
                 ))}
-              </ScrollView>
-              {trending.some((d) => d.photoUrl) && (
-                <Text style={[styles.attribution, { color: colors.text.tertiary }]}>
-                  Powered by Google
-                </Text>
-              )}
-            </>
-          ) : null}
-        </View>
+              </View>
+            ) : (
+              <>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.trendingScroll}
+                >
+                  {trending.map((dest) => (
+                    <TrendingCard
+                      key={dest.name}
+                      name={dest.name}
+                      country={dest.country}
+                      photoUrl={dest.photoUrl}
+                      tripCount={dest.tripCount}
+                      onPress={() => handleTrendingPress(dest.name)}
+                    />
+                  ))}
+                </ScrollView>
+                {trending.some((d) => d.photoUrl) && (
+                  <Text style={[styles.attribution, { color: colors.text.tertiary }]}>
+                    Powered by Google
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+        )}
 
-        {/* ── Latest Trips ── */}
+        {/* ── Latest trips ── */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
-            Latest Trips
+            Latest trips
           </Text>
 
           {tripsLoading ? (
@@ -210,6 +221,19 @@ export default function ExploreScreen() {
                 <SkeletonCard key={i} width={GRID_ITEM_WIDTH} height={160} radius={BorderRadius.xl} />
               ))}
             </View>
+          ) : trips.length === 0 ? (
+            /* Lives here rather than as a ListEmptyComponent inside TripGrid:
+               components/profile/TripsGrid wraps that same grid for
+               app/user/[uid], where "Create a trip" would be the wrong
+               invitation on someone else's profile. */
+            <EmptyState
+              icon={MapTrifold}
+              title="Be the first to share a trip"
+              description="Set a trip to public and it shows up here for other travelers to discover."
+              actionLabel="Create a trip"
+              onAction={handleCreateTrip}
+              actionHaptic="light"
+            />
           ) : (
             <>
               <TripGrid
