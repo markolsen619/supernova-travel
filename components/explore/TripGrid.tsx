@@ -71,9 +71,14 @@ export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles
 const styles = StyleSheet.create({
   // ITEM_WIDTH above assumes Spacing['6'] of horizontal inset on each side —
   // this was previously missing here, so the grid rendered ~48px narrower
-  // than the screen with unexplained empty space on the right. Explore is
-  // this component's only caller (profile.tsx renders TripCard directly with
-  // its own padding), so there's no double-padding risk in adding it here.
+  // than the screen with unexplained empty space on the right.
+  //
+  // Callers: app/(tabs)/explore.tsx and components/profile/TripsGrid (which
+  // app/user/[uid] renders) — neither adds its own horizontal padding, so
+  // there's no double-padding risk. Because the grid is shared, it
+  // deliberately has no ListEmptyComponent: an empty-state CTA belongs to
+  // the calling screen, since "Create a trip" is wrong on a profile you
+  // don't own. Explore supplies its own.
   contentContainer: {
     gap: Spacing['3'],
     paddingHorizontal: Spacing['6'],
