@@ -74,6 +74,7 @@ export const generateTrip = functions.https.onCall(
         lat: null,
         lng: null,
         countryCode: data.countryCode || null,
+        bounds: null,
       },
       additionalDestinations: data.additionalDestinations ?? [],
       startDate: data.startDate ? admin.firestore.Timestamp.fromDate(new Date(data.startDate)) : null,

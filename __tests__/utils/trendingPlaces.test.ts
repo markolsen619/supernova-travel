@@ -2,7 +2,7 @@ import type { Trip, Destination } from '@/types';
 import { aggregateDestinations } from '@/utils/trendingPlaces';
 
 function dest(over: Partial<Destination> = {}): Destination {
-  return { name: 'Paris', placeId: 'p_paris', lat: 48.8566, lng: 2.3522, countryCode: 'FR', ...over };
+  return { name: 'Paris', placeId: 'p_paris', lat: 48.8566, lng: 2.3522, countryCode: 'FR', bounds: null, ...over };
 }
 
 function trip(over: Partial<Trip> = {}): Trip {

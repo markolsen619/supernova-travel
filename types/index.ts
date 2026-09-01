@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
+import type { PlaceViewportBounds } from '@/services/places/googlePlaces';
 
 export type Tier = 'free' | 'pro' | 'business';
 export type ThemeMode = 'dark' | 'light' | 'system';
@@ -74,6 +75,9 @@ export interface Destination {
   lat: number | null;
   lng: number | null;
   countryCode: string | null;
+  /** Bounding box used to constrain stop grounding to this city. Resolved once
+   *  and persisted; null until then, and for trips created before this field. */
+  bounds: PlaceViewportBounds | null;
 }
 
 export interface Trip {

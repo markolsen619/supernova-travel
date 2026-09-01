@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { usePlacesStore } from '@/stores/usePlacesStore';
 import { enrichPlaceById, enrichPlaceByQuery, photoUrl } from '@/services/places/googlePlaces';
+import { resolveCityBounds } from '@/services/places/mapboxSearch';
 import type { Trip } from '@/types';
 
 /**
@@ -18,15 +19,51 @@ import type { Trip } from '@/types';
  * used to lazily ground AI activity stops), persists the resolved
  * placeId/lat/lng/countryCode, then resolves the photo from that place —
  * so AI trips get real covers too, not just manual ones.
+ *
+ * Alongside the cover backfill, this also backfills `destination.bounds` —
+ * the box a later grounding pass uses to constrain stop search to the right
+ * city. It is deliberately NOT gated behind the cover's `coverImageUrl !==
+ * null` early return: a trip that already has a cover (set manually, or
+ * resolved before this field existed) would otherwise never get bounds,
+ * which would silently fall back to unbiased global search for every
+ * pre-existing trip. Bounds resolution has its own once-per-trip guard
+ * (`attemptedBounds`, mirroring `attempted`) because the two concerns
+ * succeed and fail independently — a photo miss shouldn't block a bounds
+ * hit, and vice versa. Both remain owner-gated.
  */
 export function useTripCoverResolver() {
   const { updateTrip } = useCreateTrip();
   const { getPlace, setPlace } = usePlacesStore();
   const attempted = useRef<Set<string>>(new Set());
+  const attemptedBounds = useRef<Set<string>>(new Set());
+
+  const resolveBounds = useCallback(
+    async (trip: Trip) => {
+      if (trip.destination.bounds) return;
+      if (attemptedBounds.current.has(trip.id)) return;
+      attemptedBounds.current.add(trip.id);
+
+      try {
+        const bounds = await resolveCityBounds(trip.destination.name, trip.destination.countryCode);
+        if (bounds) {
+          await updateTrip(trip.id, {
+            destination: { ...trip.destination, bounds },
+          });
+        }
+      } catch (err) {
+        console.error('[useTripCoverResolver] bounds resolution failed:', err);
+        attemptedBounds.current.delete(trip.id);
+      }
+    },
+    [updateTrip],
+  );
 
   const resolveCover = useCallback(
     async (trip: Trip, isOwner: boolean) => {
       if (!isOwner) return;
+
+      await resolveBounds(trip);
+
       if (trip.coverImageUrl !== null) return;
       if (attempted.current.has(trip.id)) return;
       attempted.current.add(trip.id);
@@ -82,7 +119,7 @@ export function useTripCoverResolver() {
         attempted.current.delete(trip.id);
       }
     },
-    [updateTrip, getPlace, setPlace],
+    [updateTrip, getPlace, setPlace, resolveBounds],
   );
 
   return { resolveCover };
