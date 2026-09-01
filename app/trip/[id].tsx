@@ -333,6 +333,7 @@ export default function TripDetailScreen() {
     const nextDayNumber = trip.days.length + 1;
     await addDay(id, {
       dayNumber: nextDayNumber,
+      destinationIndex: null,
       date: null,
       title: '',
       notes: '',

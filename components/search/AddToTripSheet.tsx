@@ -101,7 +101,14 @@ export function AddToTripSheet({ visible, place, onClose, colors: colorsOverride
         coverImageUrl: null,
         isAiGenerated: false,
       });
-      const dayId = await addDay(tripId, { dayNumber: 1, date: null, title: '', notes: '' });
+      const dayId = await addDay(tripId, {
+        dayNumber: 1,
+        // Quick-create is always single-destination, so day 1 is unambiguously destination 0.
+        destinationIndex: 0,
+        date: null,
+        title: '',
+        notes: '',
+      });
       await addActivity(tripId, dayId, placeToTripActivity(place));
       setAddedTripTitle(title);
     } catch (err) {

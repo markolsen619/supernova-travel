@@ -315,6 +315,9 @@ export interface TripActivity {
 export interface TripDay {
   id: string;
   dayNumber: number;
+  /** Which destination this day belongs to, for multi-city trips. Null on
+   *  older trips; resolveDayDestinationIndices() infers those. */
+  destinationIndex: number | null;
   date: Timestamp | null;
   title: string;
   notes: string;

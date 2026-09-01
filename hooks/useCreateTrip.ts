@@ -197,7 +197,8 @@ export function useCreateTrip() {
     );
     const snap = await getDocs(daysQuery);
     if (!snap.empty) return snap.docs[0].id;
-    return addDay(tripId, { dayNumber: 1, date: null, title: '', notes: '' });
+    // First day of the trip always starts at the first (primary) destination.
+    return addDay(tripId, { dayNumber: 1, destinationIndex: 0, date: null, title: '', notes: '' });
   }
 
   /**

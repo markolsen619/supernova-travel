@@ -99,6 +99,7 @@ export const generateTrip = functions.https.onCall(
       const dayRef = tripRef.collection('days').doc();
       batch.set(dayRef, {
         dayNumber: day.dayNumber,
+        destinationIndex: typeof day.destinationIndex === 'number' ? day.destinationIndex : null,
         date: null,
         title: day.title,
         notes: day.notes,
@@ -254,6 +255,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
   "days": [
     {
       "dayNumber": 1,
+      "destinationIndex": 0,
       "title": "Day theme title",
       "notes": "Brief day overview",
       "activities": [
@@ -280,6 +282,7 @@ Rules:
 - Mix activity types naturally
 - Allocate the ${data.durationDays} total days across all ${cities.length} destinations yourself, in the order listed above — consider how much there typically is to see and do in each place. Do not split evenly by default; weight it realistically based on each destination's size and typical stay length.
 - Visit the destinations strictly in the order listed above — do not reorder them and do not revisit an earlier destination later in the trip
+- destinationIndex is the 0-based index of which destination from the numbered list above this day takes place in — it must be non-decreasing across days, matching the requirement that destinations are visited strictly in the order listed
 - On the FIRST day at each destination after the first, include exactly one "transport"-type activity before any other activity that day, titled like "Travel from {previous destination} to {this destination}". Its searchQuery must name a real, findable transit hub in the PREVIOUS (departure) destination — its main train station or airport (e.g. "Gare de Lyon, Paris") — never the destination just arrived at, and never a generic placeholder
 - Each activity's cost and currency must reflect the LOCAL currency of whichever destination that activity actually takes place in — not one single currency for the whole trip
 - Include at least one meal per day

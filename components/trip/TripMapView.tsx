@@ -391,7 +391,8 @@ export function TripMapView({
     async (place: EnrichedPlace) => {
       if (adding) return;
       if (days.length === 0) {
-        const dayId = await addDay(tripId, { dayNumber: 1, date: null, title: '', notes: '' });
+        // First day of the trip always starts at the first (primary) destination.
+        const dayId = await addDay(tripId, { dayNumber: 1, destinationIndex: 0, date: null, title: '', notes: '' });
         await writeActivity(place, dayId);
         hidePoiSheet();
         return;
