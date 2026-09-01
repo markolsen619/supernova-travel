@@ -47,4 +47,19 @@ describe('resolveDayDestinationIndices', () => {
   it('returns all zeros when the destination list is empty', () => {
     expect(resolveDayDestinationIndices([day(), day()], [])).toEqual([0, 0]);
   });
+
+  it('prefers the longest matching destination name', () => {
+    const days = [day(), day({ activities: [{ type: 'transport', title: 'Travel from Boston to New York' }] })];
+    expect(resolveDayDestinationIndices(days, ['York', 'New York'])).toEqual([0, 1]);
+  });
+
+  it('does not match a city name embedded in a longer word', () => {
+    const days = [day(), day({ activities: [{ type: 'transport', title: 'Travel from Paris to Rometown' }] })];
+    expect(resolveDayDestinationIndices(days, CITIES)).toEqual([0, 0]);
+  });
+
+  it('demotes to inference when an explicit index is not an integer', () => {
+    const days = [day({ destinationIndex: 1.5 }), day()];
+    expect(resolveDayDestinationIndices(days, CITIES)).toEqual([0, 0]);
+  });
 });
