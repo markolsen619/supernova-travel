@@ -37,11 +37,14 @@ import { Avatar } from '@/components/ui/Avatar';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
-import { TripActivity, TripDay } from '@/types';
-import { enrichPlaceByQuery } from '@/services/places/googlePlaces';
+import { TripActivity, TripDay, Destination } from '@/types';
 import { usePlacesStore } from '@/stores/usePlacesStore';
 import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
+import { groundStop, type GroundingContext } from '@/services/places/groundStop';
+import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
+import { resolveDayDestinationIndices } from '@/utils/dayDestination';
+import { selectStopsToGround } from '@/utils/groundingQueue';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -65,6 +68,38 @@ const VISIBILITY_LABEL: Record<string, string> = {
   followers: 'Followers',
   private: 'Private',
 };
+
+// ─── Grounding context (Fix 10) ───────────────────────────────────────────────
+// The primary destination lives at index 0; additionalDestinations[i - 1]
+// holds every index beyond that, mirroring resolveDayDestinationIndices'
+// output. Falls back to trip.destination when an index is out of range
+// (shouldn't happen given resolveDayDestinationIndices' own clamping, but a
+// missing box must never fall through to an unbiased search).
+function destinationAt(
+  trip: { destination: Destination; additionalDestinations: Destination[] },
+  index: number,
+): Destination {
+  return index === 0 ? trip.destination : (trip.additionalDestinations[index - 1] ?? trip.destination);
+}
+
+/**
+ * Derives the Mapbox bbox + Google bias center for a destination. Crucially,
+ * `center` falls back to the destination's own lat/lng when there's no
+ * persisted bounds box yet — groundStop must never receive a null bbox AND a
+ * null center together, since that sends Google an unbiased global search.
+ * That exact gap is how a La Paz, Baja California Sur trip used to resolve
+ * its stops in La Paz, Bolivia.
+ */
+function groundingContextFor(dest: Destination): GroundingContext {
+  const bbox = boundsToBbox(dest.bounds);
+  const center =
+    bbox != null
+      ? bboxCenter(bbox)
+      : dest.lat != null && dest.lng != null
+        ? { lat: dest.lat, lng: dest.lng }
+        : null;
+  return { bbox, center };
+}
 
 // ─── Entrance motion (Fix 5) ──────────────────────────────────────────────────
 // Staggered fade + rise-in for each day section, house spring only (tension
@@ -351,45 +386,119 @@ export default function TripDetailScreen() {
     });
   }, [id, trip, addDay]);
 
-  // ── Lazy grounding (Phase 3 Part B) ──────────────────────────────────────────
-  // Grounds one AI-generated stop — one Text Search, persisted so it's never
-  // resolved again. Shared by the timeline tap-to-locate AND the map's
-  // per-stop / "Locate all" actions (Phase 4 Part C) — one grounding path,
-  // not two.
-  const handleGroundActivity = useCallback(
-    async (activity: TripActivity, dayId: string) => {
-      if (!id || activity.placeId || !activity.searchQuery || resolvingActivityId) return;
-      setResolvingActivityId(activity.id);
-      try {
-        const resolved = await enrichPlaceByQuery(activity.searchQuery);
-        if (!resolved) {
-          console.error('[trip/[id]] could not ground activity:', activity.searchQuery);
-          setUnresolvedActivityIds((prev) => new Set(prev).add(activity.id));
-          return;
-        }
-        await updateActivity(id, dayId, activity.id, {
-          placeId: resolved.placeId,
-          address: resolved.address,
+  // ── Lazy grounding (Phase 3 Part B, Fix 10) ──────────────────────────────────
+  // destinationNames / dayDestinationIndices are the same tiered resolution
+  // (explicit index → transport-marker inference → index 0) used both to bias
+  // a single manual tap and to build the background pass' queue below — one
+  // source of truth for "which city is this day in."
+  const destinationNames = useMemo(
+    () => (trip ? [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)] : []),
+    [trip],
+  );
+  const dayDestinationIndices = useMemo(
+    () => (trip ? resolveDayDestinationIndices(trip.days, destinationNames) : []),
+    [trip, destinationNames],
+  );
+
+  // Grounds one stop and persists the outcome — success writes coordinates,
+  // failure persists `groundingFailedAt` so neither the automatic pass nor a
+  // later "Locate all" re-bills a stop that's already known to be
+  // unresolvable. Shared by the manual tap-to-locate path (handleGroundActivity
+  // below, itself shared with the map's per-stop / "Locate all" actions) AND
+  // the background auto-grounding pass — one write path, not two.
+  const groundAndPersist = useCallback(
+    async (dayId: string, activityId: string, searchQuery: string, ctx: GroundingContext) => {
+      if (!id) return;
+      const resolved = await groundStop(searchQuery, ctx);
+      if (!resolved) {
+        console.error('[trip/[id]] could not ground activity:', searchQuery);
+        setUnresolvedActivityIds((prev) => new Set(prev).add(activityId));
+        await updateActivity(id, dayId, activityId, { groundingFailedAt: Timestamp.now() });
+        return;
+      }
+      await updateActivity(id, dayId, activityId, {
+        placeId: resolved.placeId,
+        address: resolved.address,
+        lat: resolved.lat,
+        lng: resolved.lng,
+      });
+      // Only a Google result carries a real Google placeId — a Mapbox result
+      // would poison the Search screen's place-detail cache (keyed by
+      // placeId) with an entry that has none.
+      if (resolved.source === 'google') {
+        setPlace({
+          placeId: resolved.placeId ?? '',
+          name: resolved.name,
+          address: resolved.address ?? '',
           lat: resolved.lat,
           lng: resolved.lng,
+          countryCode: resolved.countryCode,
+          tier: 'tier1',
         });
-        // Also warm the Search screen's place cache — if the user encounters
-        // this same place there later, it's already resolved (zero extra cost).
-        setPlace(resolved);
-        setUnresolvedActivityIds((prev) => {
-          if (!prev.has(activity.id)) return prev;
-          const next = new Set(prev);
-          next.delete(activity.id);
-          return next;
-        });
+      }
+      setUnresolvedActivityIds((prev) => {
+        if (!prev.has(activityId)) return prev;
+        const next = new Set(prev);
+        next.delete(activityId);
+        return next;
+      });
+    },
+    [id, updateActivity, setPlace],
+  );
+
+  // Grounds one AI-generated stop from a user gesture. Shared by the timeline
+  // tap-to-locate AND the map's per-stop / "Locate all" actions (Phase 4 Part
+  // C) — one grounding path, not two.
+  const handleGroundActivity = useCallback(
+    async (activity: TripActivity, dayId: string) => {
+      if (!id || !trip || activity.placeId || !activity.searchQuery || resolvingActivityId) return;
+      setResolvingActivityId(activity.id);
+      try {
+        const dayIndex = trip.days.findIndex((d) => d.id === dayId);
+        const destinationIndex = dayIndex >= 0 ? (dayDestinationIndices[dayIndex] ?? 0) : 0;
+        const ctx = groundingContextFor(destinationAt(trip, destinationIndex));
+        await groundAndPersist(dayId, activity.id, activity.searchQuery, ctx);
       } catch (err) {
         console.error('[trip/[id]] grounding failed:', err);
       } finally {
         setResolvingActivityId(null);
       }
     },
-    [id, resolvingActivityId, updateActivity, setPlace],
+    [id, trip, resolvingActivityId, dayDestinationIndices, groundAndPersist],
   );
+
+  // ── Background auto-grounding (Fix 10) ───────────────────────────────────────
+  // A freshly generated trip otherwise opens to an empty map, asking the
+  // owner to press "Locate all" to find their own itinerary. Owner-gated and
+  // AI-only, runs once per trip open, strictly sequentially (no concurrency —
+  // this is a background pass nobody is waiting on, so keeping the request
+  // rate low and the code obvious wins over speed). `cancelled` stops the
+  // loop cleanly on unmount/navigation instead of writing into an activity
+  // that's no longer being viewed.
+  //
+  // Deliberately keyed only on [trip?.id, isOwner] — not on `trip` itself,
+  // `dayDestinationIndices`, or `groundAndPersist` — so a write this same
+  // pass makes (which refetches `trip` and recreates those) never restarts
+  // the loop mid-flight. The queue is built once from the trip snapshot at
+  // the moment the effect fires and is not re-read after that.
+  useEffect(() => {
+    if (!trip?.isAiGenerated || !isOwner) return;
+    let cancelled = false;
+
+    (async () => {
+      const queue = selectStopsToGround(trip.days, dayDestinationIndices);
+      for (const stop of queue) {
+        if (cancelled) return;
+        const ctx = groundingContextFor(destinationAt(trip, stop.destinationIndex));
+        await groundAndPersist(stop.dayId, stop.activityId, stop.searchQuery, ctx);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip?.id, isOwner]);
 
   // Timeline tap: ungrounded → ground it in place; already-grounded → jump to
   // the map, centered on its pin (Part C: "tapping an activity in the
