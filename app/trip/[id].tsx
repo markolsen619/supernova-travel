@@ -102,6 +102,21 @@ function groundingContextFor(dest: Destination): GroundingContext {
   return { bbox, center };
 }
 
+/**
+ * Outcome of one grounding lookup — deliberately not a bare `GroundedPlace |
+ * null`. 'skipped' (the in-flight guard fired before any search ran) and
+ * 'failed' (a real lookup came back with nothing) both need to be
+ * distinguishable from each other and from 'resolved': collapsing 'skipped'
+ * into the same null as 'failed' previously let the background pass mistake
+ * "another caller already owns this activity" for "this doesn't exist" and
+ * permanently persist a groundingFailedAt marker on a perfectly resolvable
+ * stop. See groundAndPersist and the background pass below.
+ */
+type GroundingOutcome =
+  | { status: 'resolved'; place: GroundedPlace }
+  | { status: 'failed' }
+  | { status: 'skipped' };
+
 // ─── Entrance motion (Fix 5) ──────────────────────────────────────────────────
 // Staggered fade + rise-in for each day section, house spring only (tension
 // 65 / friction 11) — no shimmer/timing curve. Runs once per mount.
@@ -467,25 +482,32 @@ export default function TripDetailScreen() {
   // per (dayId, activityId, searchQuery). Guarded by `groundingInFlight` so
   // the background pass and "Locate all" can never both start a lookup for
   // the same activity: the ref (not state, so it survives the awaits below)
-  // is checked-and-added before the call and cleared in `finally`. Returns
-  // the resolved place (or null) so a caller grounding a deduplicated group
-  // of stops can apply the same result to the rest of the group without
-  // re-searching — see the background pass below. Shared by the manual
-  // tap-to-locate path (handleGroundActivity below, itself shared with the
-  // map's per-stop / "Locate all" actions) AND the background auto-grounding
-  // pass — one search path, not two.
+  // is checked-and-added before the call and cleared in `finally`. Returns a
+  // GroundingOutcome rather than overloading `null` — 'skipped' (the in-flight
+  // guard fired; nothing was searched, nothing was written) is a materially
+  // different outcome from 'failed' (a real lookup came back with nothing).
+  // Collapsing those into one null previously let a caller grounding a
+  // deduplicated group of stops mistake "someone else already owns this" for
+  // "this doesn't exist" and permanently brand the rest of the group
+  // unresolvable — see the background pass below, which is why this
+  // distinction exists. Shared by the manual tap-to-locate path
+  // (handleGroundActivity below, itself shared with the map's per-stop /
+  // "Locate all" actions) AND the background auto-grounding pass — one
+  // search path, not two.
   const groundAndPersist = useCallback(
-    async (dayId: string, activityId: string, searchQuery: string, ctx: GroundingContext): Promise<GroundedPlace | null> => {
-      if (!id) return null;
-      if (groundingInFlight.current.has(activityId)) return null;
+    async (dayId: string, activityId: string, searchQuery: string, ctx: GroundingContext): Promise<GroundingOutcome> => {
+      if (!id) return { status: 'skipped' };
+      if (groundingInFlight.current.has(activityId)) return { status: 'skipped' };
       groundingInFlight.current.add(activityId);
       try {
         const resolved = await groundStop(searchQuery, ctx);
         if (!resolved) {
           console.error('[trip/[id]] could not ground activity:', searchQuery);
+          await applyGroundingResult(dayId, activityId, null);
+          return { status: 'failed' };
         }
         await applyGroundingResult(dayId, activityId, resolved);
-        return resolved;
+        return { status: 'resolved', place: resolved };
       } finally {
         groundingInFlight.current.delete(activityId);
       }
@@ -549,10 +571,19 @@ export default function TripDetailScreen() {
         try {
           const [first, ...rest] = stop.targets;
           const ctx = groundingContextFor(destinationAt(trip, stop.destinationIndex));
-          const resolved = await groundAndPersist(first.dayId, first.activityId, stop.searchQuery, ctx);
+          const outcome = await groundAndPersist(first.dayId, first.activityId, stop.searchQuery, ctx);
+          // A skip means another path (manual tap or "Locate all") owns this
+          // activity right now and will persist its own result. Fanning `null`
+          // out here would brand every duplicate permanently unresolvable over
+          // a transient collision.
+          if (outcome.status === 'skipped') continue;
           for (const target of rest) {
             if (cancelled) return;
-            await applyGroundingResult(target.dayId, target.activityId, resolved);
+            await applyGroundingResult(
+              target.dayId,
+              target.activityId,
+              outcome.status === 'resolved' ? outcome.place : null,
+            );
           }
         } catch (err) {
           console.error('[trip/[id]] background grounding failed for stop:', stop.searchQuery, err);
