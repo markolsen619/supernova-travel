@@ -18,9 +18,7 @@ export function boundsToBbox(bounds: PlaceViewportBounds | null | undefined): Bb
 
 export function bboxCenter(bbox: Bbox): { lat: number; lng: number } {
   const [w, s, e, n] = bbox;
-  // Round to 15 decimal places to handle floating-point precision
-  const round = (n: number) => Math.round(n * 1e15) / 1e15;
-  return { lng: round((w + e) / 2), lat: round((s + n) / 2) };
+  return { lng: (w + e) / 2, lat: (s + n) / 2 };
 }
 
 /** A box must have area and must not wrap the antimeridian. Mapbox rejects

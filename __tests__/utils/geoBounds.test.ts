@@ -19,7 +19,9 @@ describe('boundsToBbox', () => {
 
 describe('bboxCenter', () => {
   it('returns the midpoint as lat/lng', () => {
-    expect(bboxCenter([-110.42, 24.05, -110.24, 24.22])).toEqual({ lng: -110.33, lat: 24.135 });
+    const c = bboxCenter([-110.42, 24.05, -110.24, 24.22]);
+    expect(c.lng).toBeCloseTo(-110.33, 10);
+    expect(c.lat).toBeCloseTo(24.135, 10);
   });
 });
 
