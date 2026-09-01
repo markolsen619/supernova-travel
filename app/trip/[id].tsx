@@ -331,9 +331,19 @@ export default function TripDetailScreen() {
   const handleAddDay = useCallback(async () => {
     if (!id || !trip) return;
     const nextDayNumber = trip.days.length + 1;
+    // Carry the destination forward rather than writing null. Day 1 of an empty
+    // trip is the primary destination; an appended day continues wherever the
+    // trip currently is. This matters beyond tidiness:
+    // resolveDayDestinationIndices is all-or-nothing, so a single null day
+    // discards every other day's explicit index and demotes the whole itinerary
+    // to transport-marker inference.
+    const destinationIndex =
+      trip.days.length === 0
+        ? 0
+        : trip.days[trip.days.length - 1]?.destinationIndex ?? null;
     await addDay(id, {
       dayNumber: nextDayNumber,
-      destinationIndex: null,
+      destinationIndex,
       date: null,
       title: '',
       notes: '',
