@@ -19,8 +19,16 @@ import {
  * every paying customer stays quota-limited server-side.
  *
  * Setup (RevenueCat dashboard -> Integrations -> Webhooks):
- *   URL:            https://<region>-<project>.cloudfunctions.net/syncTier
- *   Authorization:  the same value as the REVENUECAT_WEBHOOK_SECRET env var
+ *   URL:            take it from the `firebase deploy` output or
+ *                   `firebase functions:list`. A v2 function answers on two
+ *                   hostnames — the Cloud Run service
+ *                   (https://synctier-<hash>-uc.a.run.app) and the Firebase
+ *                   alias (https://us-central1-<project>.cloudfunctions.net/
+ *                   syncTier). Both work. Prefer the alias: no generated hash
+ *                   to mistype, and it survives the underlying service being
+ *                   recreated.
+ *   Authorization:  the REVENUECAT_WEBHOOK_SECRET value, raw, with no
+ *                   "Bearer " prefix — isAuthorized() compares it verbatim.
  */
 
 const WEBHOOK_SECRET = process.env.REVENUECAT_WEBHOOK_SECRET ?? '';
@@ -56,7 +64,11 @@ async function applyTier(
     if (!snap.exists) {
       // A webhook can beat the client's profile write on a brand-new account.
       // Writing a partial doc here would create a user document with no
-      // profile, which every reader would treat as a corrupt account.
+      // profile, which every reader would treat as a corrupt account — so the
+      // caller answers 500 instead and lets RevenueCat redeliver once the
+      // profile exists. Answering 200 here would drop the grant permanently:
+      // there is no reconciliation path, because firestore.rules forbids the
+      // client from writing its own tier.
       return 'no-user' as const;
     }
 
@@ -143,6 +155,18 @@ export const syncTier = functions.https.onRequest(
       }
 
       const result = await applyTier(uid as string, tier, event.event_timestamp_ms, eventId);
+
+      if (result === 'no-user') {
+        // Retryable: the user document should appear within seconds. 500 buys
+        // RevenueCat's backoff schedule; 200 would lose the purchase.
+        functions.logger.warn('[syncTier] no user document yet, asking for redelivery', {
+          type: event.type,
+          uid,
+        });
+        res.status(500).send('User not ready');
+        return;
+      }
+
       functions.logger.info('[syncTier] processed', {
         type: event.type,
         uid,

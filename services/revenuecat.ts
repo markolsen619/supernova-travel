@@ -24,6 +24,34 @@ const API_KEY = TEST_STORE_KEY || PLATFORM_KEY;
 export const isTestStoreKey = (key: string = API_KEY): boolean => key.startsWith('test_');
 
 /**
+ * The guard the comment above promises.
+ *
+ * This exists because of the way API_KEY resolves: TEST_STORE_KEY wins over
+ * the platform keys whenever it is set. Filling in the iOS and Android keys
+ * therefore does NOT switch a build over to real purchases — the test key has
+ * to be removed from the environment as well. A `test_` key can never validate
+ * a real receipt, so a shipped build carrying one shows an empty paywall and
+ * fails every purchase, with no error surfaced anywhere.
+ *
+ * In development a test key is the point, so this is a no-op. In any non-dev
+ * build it logs and reports the key unusable, and configureRevenueCat() then
+ * declines to configure — which surfaces the paywall's empty state rather than
+ * a silently broken purchase flow. It deliberately does not throw: crashing a
+ * paying user is worse than showing them an unavailable paywall.
+ */
+export function assertStoreKeyIsSane(): boolean {
+  if (__DEV__) return true;
+  if (!isTestStoreKey()) return true;
+  console.error(
+    '[revenuecat] EXPO_PUBLIC_REVENUECAT_TEST_KEY is set in a non-development ' +
+      'build. A test_ key cannot validate a real receipt, so nobody can buy ' +
+      'anything. Remove it from .env.local and from the EAS environment, and ' +
+      'set EXPO_PUBLIC_REVENUECAT_IOS_KEY / EXPO_PUBLIC_REVENUECAT_ANDROID_KEY.',
+  );
+  return false;
+}
+
+/**
  * Configure is a once-per-process call. Auth changes go through logIn(), not a
  * second configure() — reconfiguring with a different appUserID is unsupported
  * and silently corrupts the SDK's cached customer state. hydrateSession() runs
@@ -136,6 +164,10 @@ async function configureInternal(uid: string): Promise<void> {
     }
     return;
   }
+
+  // A test key in a shipped build is unusable; refuse rather than configure
+  // the SDK into a state where every purchase fails silently.
+  if (!assertStoreKeyIsSane()) return;
 
   const mod = await loadPurchases();
   if (!mod) return;
