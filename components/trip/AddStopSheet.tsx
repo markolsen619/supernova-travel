@@ -73,11 +73,17 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
   }, [slideAnim, height]);
 
   // A resize leaves the closed sheet parked at the OLD height, which is now
-  // on screen. Re-seed it — but only while the whole modal is closed:
-  // re-seeding while visible (mid-preview) would yank the preview sheet out
-  // of view under the user.
+  // on screen. Re-seed it — but only while the preview sheet itself is
+  // closed: re-seeding while it's mounted (previewPlace set) would yank it
+  // out of view under the user. previewPlace is the sheet's own mount
+  // condition (see the render below), so gating on !visible alone was too
+  // coarse — it missed the "modal open, no preview yet" state, where a
+  // resize would leave slideAnim stale until the next selection popped the
+  // sheet in from the wrong position. previewPlace is only cleared inside
+  // hidePreview's completion callback above, so it still correctly covers
+  // the whole closing animation.
   useDimensionChange((next) => {
-    if (!visible) slideAnim.setValue(next.height);
+    if (!visible || !previewPlace) slideAnim.setValue(next.height);
   });
 
   const handleSelectResult = useCallback(

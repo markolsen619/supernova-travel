@@ -231,17 +231,22 @@ export default function SearchScreen() {
   // is wired from the start (not tuned to iOS alone) — Android resolves
   // pan-over-scroll composition differently, and the Android pass should be a
   // test, not a redesign.
-  // Memoised, with two reactive deps now: height and sheetPeekY (derived from
-  // height) — both of which the clamp/peek-target math below reads directly.
-  // slideAnim is still a useRef(...).current — a stable object identity for
-  // the life of the component — so it alone would never force a rebuild.
-  // sheetBaseY, sheetHeightRef, and scrollRef are refs (read via .current
-  // inside the handlers, so mutating them doesn't require rebuilding this
-  // either). Rebuilding on every render would tear down and reattach the
-  // native gesture handler each time, which is the thing to avoid — but an
-  // actual resize (a foldable's window changing) is rare enough that paying
-  // for one rebuild then, in exchange for the gesture clamping against the
-  // CURRENT screen height instead of a stale one, is the right trade.
+  // Deps: [slideAnim, height, sheetPeekY]. slideAnim is a useRef(...).current
+  // — a stable identity for the life of the component. height and sheetPeekY
+  // (derived from height) are stable across ordinary renders too — they only
+  // change on an actual window resize — so in practice this memo re-evaluates
+  // once per resize, not per render. sheetBaseY, sheetHeightRef, and
+  // scrollRef are refs (read via .current inside the handlers, so mutating
+  // them doesn't require rebuilding this either). When the memo does
+  // re-evaluate, RNGH 2.31 doesn't tear the handler down: useDetectorUpdater
+  // checks needsToReattach first, which is false here (same gesture count,
+  // same handlerName, same runOnJS/shouldUseReanimated), so it takes the
+  // updateHandlers path and reuses the existing handlerTag in place — a drag
+  // already in progress survives the resize. The reason to keep height and
+  // sheetPeekY in the dep list is correctness, not handler churn: without
+  // them, onUpdate's clamp and onEnd's peek-target math would keep using the
+  // window size from mount, capping a drag partway down the screen on a
+  // device that has since grown.
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
