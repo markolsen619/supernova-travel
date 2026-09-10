@@ -163,11 +163,16 @@ export function TripMapView({
     Animated.spring(poiSlideAnim, { toValue: height, ...SPRING }).start(() => setTappedPlace(null));
   }, [poiSlideAnim, height]);
 
-  // A resize leaves the closed sheet parked at the OLD height, which is now
-  // on screen. Re-seed it — but only while closed: re-seeding an open sheet
-  // would yank it out of view under the user.
+  // One resize handler for the whole screen: re-seed the closed POI sheet's
+  // offscreen position (only while closed — re-seeding an open sheet would
+  // yank it out of view under the user) AND refit the camera to the trip's
+  // stops, since a changed viewport means the old camera framing (set by the
+  // effect below, or by a PREVIOUS resize) no longer frames the itinerary.
+  // fitAllStops no-ops when there's nothing grounded yet, so this is safe
+  // even before any stop has been located.
   useDimensionChange((next) => {
     if (!tappedPlace) poiSlideAnim.setValue(next.height);
+    fitAllStops();
   });
 
   const { grounded, ungrounded } = useMemo(() => collectStops(days), [days]);
@@ -231,6 +236,18 @@ export function TripMapView({
     return { type: 'FeatureCollection', features };
   }, [grounded]);
 
+  // Fits the camera to every grounded stop's bounding box — the "frame the
+  // whole itinerary" case, shared by the on-open effect below (its fallback
+  // once focus/single-stop don't apply) and the resize handler above (a
+  // changed viewport means the old camera no longer frames the trip). No-ops
+  // with nothing grounded, so callers don't need their own length check.
+  const fitAllStops = useCallback(() => {
+    if (grounded.length === 0) return;
+    const lats = grounded.map((s) => s.lat);
+    const lngs = grounded.map((s) => s.lng);
+    flyToBounds([Math.max(...lngs), Math.max(...lats)], [Math.min(...lngs), Math.min(...lats)]);
+  }, [grounded, flyToBounds]);
+
   // Fit the camera to all grounded stops on open — or fly straight to a
   // specific one if we arrived here via "show on map" from the timeline.
   useEffect(() => {
@@ -248,9 +265,7 @@ export function TripMapView({
         flyTo(grounded[0].lng, grounded[0].lat, 14);
         return;
       }
-      const lats = grounded.map((s) => s.lat);
-      const lngs = grounded.map((s) => s.lng);
-      flyToBounds([Math.max(...lngs), Math.max(...lats)], [Math.min(...lngs), Math.min(...lats)]);
+      fitAllStops();
       // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fit when the stop SET changes, not on every focus/fly helper identity change
     }, 300);
     return () => clearTimeout(timer);
