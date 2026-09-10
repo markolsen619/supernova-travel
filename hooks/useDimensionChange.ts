@@ -37,6 +37,5 @@ export function useDimensionChange(onChange: (next: Size, prev: Size) => void): 
     // re-fire this effect on every render instead of only on an actual
     // resize. The ref above always has the latest callback by the time this
     // effect can run.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height]);
 }

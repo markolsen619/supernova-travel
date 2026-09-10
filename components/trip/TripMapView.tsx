@@ -236,17 +236,23 @@ export function TripMapView({
     return { type: 'FeatureCollection', features };
   }, [grounded]);
 
-  // Fits the camera to every grounded stop's bounding box — the "frame the
-  // whole itinerary" case, shared by the on-open effect below (its fallback
-  // once focus/single-stop don't apply) and the resize handler above (a
-  // changed viewport means the old camera no longer frames the trip). No-ops
-  // with nothing grounded, so callers don't need their own length check.
+  // Fits the camera to whatever's grounded — a single stop gets the same
+  // deliberate zoom-14 framing used everywhere else for one place (a bounds
+  // box collapses to ne === sw for one point, which Mapbox resolves to a
+  // near-max zoom, not this); two or more get a bounding-box fit. Shared by
+  // the on-open effect below and the resize handler above (a changed
+  // viewport means the old camera no longer frames the trip). No-ops with
+  // nothing grounded, so callers don't need their own length check.
   const fitAllStops = useCallback(() => {
     if (grounded.length === 0) return;
+    if (grounded.length === 1) {
+      flyTo(grounded[0].lng, grounded[0].lat, 14);
+      return;
+    }
     const lats = grounded.map((s) => s.lat);
     const lngs = grounded.map((s) => s.lng);
     flyToBounds([Math.max(...lngs), Math.max(...lats)], [Math.min(...lngs), Math.min(...lats)]);
-  }, [grounded, flyToBounds]);
+  }, [grounded, flyTo, flyToBounds]);
 
   // Fit the camera to all grounded stops on open — or fly straight to a
   // specific one if we arrived here via "show on map" from the timeline.
@@ -260,10 +266,6 @@ export function TripMapView({
           setSelected(focused);
           return;
         }
-      }
-      if (grounded.length === 1) {
-        flyTo(grounded[0].lng, grounded[0].lat, 14);
-        return;
       }
       fitAllStops();
       // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fit when the stop SET changes, not on every focus/fly helper identity change
