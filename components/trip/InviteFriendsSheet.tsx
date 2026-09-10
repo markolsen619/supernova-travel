@@ -11,17 +11,18 @@
  * Same floating bottom-sheet chrome as JournalSheet: Modal → backdrop →
  * BlurView(tint="dark", always — a frosted glass card reads consistently
  * whether the page under it is light chrome or the dark map) → content.
- * Uses an explicit `height`, not `maxHeight` — see JournalSheet's SHEET_HEIGHT
+ * Uses an explicit `height`, not `maxHeight` — see JournalSheet's sheetHeight
  * comment for why a FlashList inside a BlurView needs a resolved size.
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { UsersThree, X } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useFollowConnections } from '@/hooks/useFollow';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
@@ -30,8 +31,6 @@ import { Avatar } from '@/components/ui/Avatar';
 import type { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-
-const SHEET_HEIGHT = Dimensions.get('window').height * 0.6;
 
 interface InviteFriendsSheetProps {
   visible: boolean;
@@ -52,6 +51,8 @@ interface Row {
 export function InviteFriendsSheet({ visible, tripId, collaborators, onClose, colors: colorsOverride }: InviteFriendsSheetProps) {
   const { colors: themeColors } = useTheme();
   const colors = colorsOverride ?? themeColors;
+  const { height } = useLayout();
+  const sheetHeight = height * 0.6;
   const ownUid = useAuthStore((s) => s.user?.uid ?? '');
 
   const { data: connectionUids = [] } = useFollowConnections(visible ? ownUid : null);
@@ -147,7 +148,7 @@ export function InviteFriendsSheet({ visible, tripId, collaborators, onClose, co
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={styles.sheetWrap}>
+        <View style={[styles.sheetWrap, { height: sheetHeight }]}>
           {Platform.OS === 'ios' ? (
             <BlurView intensity={90} tint="dark" style={styles.fill}>
               {sheetContent}
@@ -165,7 +166,6 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheetWrap: {
-    height: SHEET_HEIGHT,
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
     overflow: 'hidden',

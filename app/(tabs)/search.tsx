@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Platform,
   Animated,
-  Dimensions,
   type LayoutChangeEvent,
 } from 'react-native';
 import { MapView } from '@rnmapbox/maps';
@@ -24,6 +23,8 @@ import {
   ScrollView as GestureScrollView,
 } from 'react-native-gesture-handler';
 import { DarkColors } from '@/constants/colors';
+import { useLayout } from '@/hooks/useLayout';
+import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { useSearch } from '@/hooks/useSearch';
 import { useTrendingPlaces } from '@/hooks/useTrendingPlaces';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
@@ -46,22 +47,18 @@ import type * as GeoJSON from 'geojson';
 type Tab = 'Places' | 'Users' | 'Trips';
 const TABS: Tab[] = ['Places', 'Users', 'Trips'];
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// Two positions: expanded (current behaviour) and peek, which leaves the map
-// visible behind roughly two result rows.
-const SHEET_PEEK_Y = SCREEN_HEIGHT * 0.35;
+// The peek Y and the sheet's max height are both derived from the live
+// window height (useLayout, inside the component below) rather than module
+// constants — a foldable can resize the window at runtime, and a
+// module-level Dimensions.get('window') would freeze both at import.
 const SHEET_EXPANDED_Y = 0;
 // The sheet's height is content-driven (bottomSheetInner minHeight: 180, up
-// to BOTTOM_SHEET_MAX_HEIGHT below) — SHEET_PEEK_Y is an absolute
+// to the sheet's max height below) — the peek target is an absolute
 // translation, so a short sheet (a two-row nearby list, an empty state) can
 // translate fully off-screen at "peek", stranding the user with no visible
 // gesture target. The actual peek target is clamped against the sheet's
 // measured height so at least this many points stay on screen.
 const SHEET_PEEK_MIN_VISIBLE = 96;
-// Shared between the style below and the pre-layout fallback so they can't
-// drift apart.
-const BOTTOM_SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.55;
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -71,6 +68,13 @@ export default function SearchScreen() {
   const colors = DarkColors;
   const { cameraRef, flyTo, flyToBounds } = useFlyTo();
   const mapRef = useRef<InstanceType<typeof MapView>>(null);
+  const { height } = useLayout();
+  // Two positions: expanded (current behaviour) and peek, which leaves the
+  // map visible behind roughly two result rows.
+  const sheetPeekY = height * 0.35;
+  // Shared between the sheet's inline maxHeight and the pre-layout fallback
+  // (sheetHeightRef below) so they can't drift apart.
+  const bottomSheetMaxHeight = height * 0.55;
 
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('Places');
@@ -130,7 +134,7 @@ export default function SearchScreen() {
     }, [revealOpacity, revealScale]),
   );
 
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const slideAnim = useRef(new Animated.Value(height)).current;
   // PlaceDetailSheet gets its own value rather than sharing slideAnim.
   // showSheet/hideSheet drive both values together, but the pan gesture below
   // drives slideAnim ALONE — if the two sheets shared one value, dragging the
@@ -140,21 +144,21 @@ export default function SearchScreen() {
   // reachable mounted together — handleMapPress's nearby.length === 1 branch
   // clears any stale nearbyResults before selecting — but that guard is not
   // what this separation depends on; the reasons above hold either way.)
-  const detailSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  // Initialised to SCREEN_HEIGHT, matching slideAnim's own initial value
-  // (the sheet starts hidden). Seeding this to 0 instead would make the
+  const detailSlideAnim = useRef(new Animated.Value(height)).current;
+  // Initialised to the live window height, matching slideAnim's own initial
+  // value (the sheet starts hidden). Seeding this to 0 instead would make the
   // first drag jump a full screen. Written directly by the pan gesture
   // below, so it can't be read back from slideAnim synchronously.
-  const sheetBaseY = useRef(SCREEN_HEIGHT);
+  const sheetBaseY = useRef(height);
   const scrollRef = useRef(null);
   // Measured on every layout of the sheet (content-driven height, capped by
-  // BOTTOM_SHEET_MAX_HEIGHT). Seeded to that same cap so the pre-layout
+  // bottomSheetMaxHeight). Seeded to that same cap so the pre-layout
   // fallback assumes the tallest the sheet can be — the safe direction: it
-  // reproduces today's peek position (SHEET_PEEK_Y) rather than prematurely
+  // reproduces today's peek position (sheetPeekY) rather than prematurely
   // shrinking peek for a sheet that might turn out to be tall. A ref, not
   // state, for the same reason sheetBaseY is a ref: read inside the pan
   // gesture's onEnd without forcing panGesture to rebuild on every layout.
-  const sheetHeightRef = useRef(BOTTOM_SHEET_MAX_HEIGHT);
+  const sheetHeightRef = useRef(bottomSheetMaxHeight);
   const handleSheetLayout = useCallback((e: LayoutChangeEvent) => {
     sheetHeightRef.current = e.nativeEvent.layout.height;
   }, []);
@@ -201,26 +205,55 @@ export default function SearchScreen() {
   }, [slideAnim, detailSlideAnim]);
 
   const hideSheet = useCallback(() => {
-    sheetBaseY.current = SCREEN_HEIGHT;
-    Animated.spring(slideAnim, { toValue: SCREEN_HEIGHT, ...SPRING }).start();
-    Animated.spring(detailSlideAnim, { toValue: SCREEN_HEIGHT, ...SPRING }).start();
-  }, [slideAnim, detailSlideAnim]);
+    sheetBaseY.current = height;
+    Animated.spring(slideAnim, { toValue: height, ...SPRING }).start();
+    Animated.spring(detailSlideAnim, { toValue: height, ...SPRING }).start();
+  }, [slideAnim, detailSlideAnim, height]);
+
+  // A resize leaves the closed sheet parked at the OLD height, which is now
+  // on screen. Re-seed it — but only while closed: re-seeding an open sheet
+  // would yank it out of view under the user's fingers. There's no boolean
+  // "is the sheet open" flag to gate on here — openness is encoded IN
+  // sheetBaseY itself: showSheet sets it to SHEET_EXPANDED_Y, hideSheet sets
+  // it to the (old) screen height. So sheetBaseY still sitting at the
+  // previous height means the sheet was closed; anything else means open or
+  // mid-drag, and this leaves it alone rather than yanking it.
+  useDimensionChange((next, prev) => {
+    // sheetHeightRef is a measurement CACHE (the pre-layout fallback for the
+    // sheet's content-driven height), not a screen position — unlike
+    // sheetBaseY/slideAnim/detailSlideAnim, re-seeding it never moves
+    // anything under the user's fingers, so it isn't gated on the sheet
+    // being closed. It stays consistent with bottomSheetMaxHeight (the
+    // sheet's inline maxHeight, same next.height * 0.55) regardless of
+    // whether the sheet happens to be open, closed, or mid-drag.
+    sheetHeightRef.current = next.height * 0.55;
+
+    if (sheetBaseY.current !== prev.height) return;
+    sheetBaseY.current = next.height;
+    slideAnim.setValue(next.height);
+    detailSlideAnim.setValue(next.height);
+  });
 
   // Drag the results sheet between expanded and peek. simultaneousWithExternalGesture
   // is wired from the start (not tuned to iOS alone) — Android resolves
   // pan-over-scroll composition differently, and the Android pass should be a
   // test, not a redesign.
-  // Memoised: the only reactive value the closures below touch is slideAnim,
-  // which is a useRef(...).current — a stable object identity for the life
-  // of the component — so this never needs to rebuild. sheetBaseY,
-  // sheetHeightRef, and scrollRef are refs (read via .current inside the
-  // handlers, so mutating them doesn't require rebuilding this either).
-  // Rebuilding on every render would tear down and reattach the native
-  // gesture handler each time,
-  // which is the thing to avoid — a wrong dep list here would either defeat
-  // that (rebuild every render anyway) or capture stale snap-point state
-  // worse than not memoising at all, but neither risk applies since nothing
-  // captured here actually varies across renders.
+  // Deps: [slideAnim, height, sheetPeekY]. slideAnim is a useRef(...).current
+  // — a stable identity for the life of the component. height and sheetPeekY
+  // (derived from height) are stable across ordinary renders too — they only
+  // change on an actual window resize — so in practice this memo re-evaluates
+  // once per resize, not per render. sheetBaseY, sheetHeightRef, and
+  // scrollRef are refs (read via .current inside the handlers, so mutating
+  // them doesn't require rebuilding this either). When the memo does
+  // re-evaluate, RNGH 2.31 doesn't tear the handler down: useDetectorUpdater
+  // checks needsToReattach first, which is false here (same gesture count,
+  // same handlerName, same runOnJS/shouldUseReanimated), so it takes the
+  // updateHandlers path and reuses the existing handlerTag in place — a drag
+  // already in progress survives the resize. The reason to keep height and
+  // sheetPeekY in the dep list is correctness, not handler churn: without
+  // them, onUpdate's clamp and onEnd's peek-target math would keep using the
+  // window size from mount, capping a drag partway down the screen on a
+  // device that has since grown.
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
@@ -239,7 +272,7 @@ export default function SearchScreen() {
         .simultaneousWithExternalGesture(scrollRef)
         .onUpdate((e) => {
           const next = sheetBaseY.current + e.translationY;
-          slideAnim.setValue(Math.max(SHEET_EXPANDED_Y, Math.min(SCREEN_HEIGHT, next)));
+          slideAnim.setValue(Math.max(SHEET_EXPANDED_Y, Math.min(height, next)));
         })
         .onEnd((e) => {
           // Clamp against the sheet's own measured height, or a short sheet
@@ -247,7 +280,7 @@ export default function SearchScreen() {
           // off-screen at "peek" — still mounted, still gesture-target-less.
           const peekTarget = Math.max(
             SHEET_EXPANDED_Y,
-            Math.min(SHEET_PEEK_Y, sheetHeightRef.current - SHEET_PEEK_MIN_VISIBLE),
+            Math.min(sheetPeekY, sheetHeightRef.current - SHEET_PEEK_MIN_VISIBLE),
           );
           // Velocity decides, so a flick works as well as a long drag.
           const target =
@@ -261,7 +294,7 @@ export default function SearchScreen() {
           sheetBaseY.current = target;
           Animated.spring(slideAnim, { toValue: target, ...SPRING }).start();
         }),
-    [slideAnim],
+    [slideAnim, height, sheetPeekY],
   );
 
   // ── Type-aware fly-in (Part A) ─────────────────────────────────────────────
@@ -837,7 +870,7 @@ export default function SearchScreen() {
       {showingSheet && (
         <GestureDetector gesture={panGesture}>
           <Animated.View
-            style={[styles.bottomSheet, { transform: [{ translateY: slideAnim }] }]}
+            style={[styles.bottomSheet, { maxHeight: bottomSheetMaxHeight, transform: [{ translateY: slideAnim }] }]}
             onLayout={handleSheetLayout}
           >
             {Platform.OS === 'ios' ? (
@@ -1013,7 +1046,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: BOTTOM_SHEET_MAX_HEIGHT,
+    // maxHeight is dimension-derived (bottomSheetMaxHeight, from useLayout) —
+    // StyleSheet.create is module-level and can't read a hook, so it's
+    // applied as an inline style at the call site instead.
     borderTopLeftRadius: BorderRadius['2xl'] ?? 24,
     borderTopRightRadius: BorderRadius['2xl'] ?? 24,
     overflow: 'hidden',

@@ -5,17 +5,15 @@ import {
   Text,
   Image,
   StyleSheet,
-  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { MapPin } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
+import { twoColumnWidth } from '@/utils/layout';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const CARD_WIDTH = (SCREEN_WIDTH - Spacing['6'] * 2 - Spacing['3']) / 2;
 
 interface TrendingCardProps {
   name: string;
@@ -38,6 +36,8 @@ export function TrendingCard({
   onPress,
 }: TrendingCardProps) {
   const { colors } = useTheme();
+  const { width } = useLayout();
+  const cardWidth = twoColumnWidth(width);
   // A stored photo URL can go stale (Google may rotate photo references) —
   // degrade to the intentional placeholder rather than a broken image.
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -59,7 +59,7 @@ export function TrendingCard({
       <TouchableOpacity
         onPress={handlePress}
         activeOpacity={0.85}
-        style={styles.touchable}
+        style={[styles.touchable, { width: cardWidth }]}
         accessibilityLabel={`Explore ${name}`}
       >
         <Image
@@ -98,7 +98,7 @@ export function TrendingCard({
     <TouchableOpacity
       onPress={handlePress}
       activeOpacity={0.85}
-      style={[styles.touchable, styles.fallback, { backgroundColor: colors.background.sunken }]}
+      style={[styles.touchable, styles.fallback, { width: cardWidth, backgroundColor: colors.background.sunken }]}
       accessibilityLabel={`Explore ${name}`}
     >
       <MapPin size={28} color={colors.text.disabled} weight="duotone" />
@@ -116,7 +116,6 @@ export function TrendingCard({
 
 const styles = StyleSheet.create({
   touchable: {
-    width: CARD_WIDTH,
     aspectRatio: 1,
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',

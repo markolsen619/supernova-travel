@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
-  Dimensions,
   Animated,
 } from 'react-native';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
@@ -23,6 +22,7 @@ import {
   ArrowLeft,
 } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
 import { Button } from '@/components/ui/Button';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
@@ -36,7 +36,6 @@ import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { SPRING } from '@/constants/motion';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
 const TOTAL_STEPS = 4;
 
 
@@ -603,6 +602,7 @@ const review = StyleSheet.create({
 export default function NewTripScreen() {
   const { colors } = useTheme();
   const { createTrip } = useCreateTrip();
+  const { width } = useLayout();
 
   // Step state
   const [step, setStep] = useState(0);
@@ -651,7 +651,7 @@ export default function NewTripScreen() {
   const animatedStyle = { transform: [{ translateX }] };
 
   const goToStep = useCallback((nextStep: number, forward: boolean) => {
-    const direction = forward ? -SCREEN_WIDTH : SCREEN_WIDTH;
+    const direction = forward ? -width : width;
     Animated.spring(translateX, {
       toValue: direction,
       ...SPRING,
@@ -663,7 +663,7 @@ export default function NewTripScreen() {
         ...SPRING,
       }).start();
     });
-  }, [translateX]);
+  }, [translateX, width]);
 
   const canAdvance = () => {
     if (step === 0) return destination.trim().length > 0;

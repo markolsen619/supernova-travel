@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Dimensions,
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -12,6 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Bag, MapTrifold } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
+import { twoColumnWidth } from '@/utils/layout';
 import { useExplore } from '@/hooks/useExplore';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { TrendingCard } from '@/components/explore/TrendingCard';
@@ -24,10 +25,6 @@ import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Trip } from '@/types';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const TRENDING_CARD_WIDTH = (SCREEN_WIDTH - Spacing['6'] * 2 - Spacing['3']) / 2;
-const GRID_ITEM_WIDTH = (SCREEN_WIDTH - Spacing['6'] * 2 - Spacing['3']) / 2;
 
 interface TrendingDestination {
   name: string;
@@ -80,6 +77,8 @@ export default function ExploreScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { width } = useLayout();
+  const gridItemWidth = twoColumnWidth(width);
 
   const { trips, tripsLoading, suggestions, suggestionsLoading } = useExplore();
 
@@ -178,7 +177,7 @@ export default function ExploreScreen() {
             {tripsLoading ? (
               <View style={styles.trendingScroll}>
                 {[0, 1, 2].map((i) => (
-                  <SkeletonCard key={i} width={TRENDING_CARD_WIDTH} height={TRENDING_CARD_WIDTH} radius={BorderRadius.xl} />
+                  <SkeletonCard key={i} width={gridItemWidth} height={gridItemWidth} radius={BorderRadius.xl} />
                 ))}
               </View>
             ) : (
@@ -218,7 +217,7 @@ export default function ExploreScreen() {
           {tripsLoading ? (
             <View style={styles.tripGridSkeleton}>
               {[0, 1, 2, 3].map((i) => (
-                <SkeletonCard key={i} width={GRID_ITEM_WIDTH} height={160} radius={BorderRadius.xl} />
+                <SkeletonCard key={i} width={gridItemWidth} height={160} radius={BorderRadius.xl} />
               ))}
             </View>
           ) : trips.length === 0 ? (

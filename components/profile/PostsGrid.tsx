@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { View, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
@@ -16,12 +16,11 @@ import { SquaresFour } from 'phosphor-react-native';
 
 import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
+import { thirdWidth } from '@/utils/layout';
 import { excludeTripShares } from '@/utils/posts';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CELL = Math.floor(SCREEN_WIDTH / 3);
 
 interface PostDoc {
   id: string;
@@ -47,6 +46,8 @@ interface PostsGridProps {
 
 export function PostsGrid({ uid }: PostsGridProps) {
   const { colors } = useTheme();
+  const { width } = useLayout();
+  const cell = thirdWidth(width);
 
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ['userPosts', uid],
@@ -59,7 +60,7 @@ export function PostsGrid({ uid }: PostsGridProps) {
     return (
       <View style={styles.grid}>
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <SkeletonCard key={i} width={CELL} height={CELL} radius={0} />
+          <SkeletonCard key={i} width={cell} height={cell} radius={0} />
         ))}
       </View>
     );
@@ -80,7 +81,7 @@ export function PostsGrid({ uid }: PostsGridProps) {
       {posts.map((post) => (
         <TouchableOpacity
           key={post.id}
-          style={[styles.cell, { backgroundColor: colors.background.sunken }]}
+          style={{ width: cell, height: cell, backgroundColor: colors.background.sunken }}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push(`/post/${post.id}`);
@@ -105,10 +106,6 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-  },
-  cell: {
-    width: CELL,
-    height: CELL,
   },
   fallback: {
     alignItems: 'center',

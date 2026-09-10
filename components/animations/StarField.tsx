@@ -1,8 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, ViewStyle, Dimensions, Animated } from 'react-native';
+import React, { useEffect, useRef, useMemo } from 'react';
+import { StyleSheet, View, ViewStyle, Animated } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+import { useLayout } from '@/hooks/useLayout';
 
 function lcg(seed: number) {
   let s = seed;
@@ -24,15 +23,15 @@ interface TwinkleData extends StarData {
   delay: number;
 }
 
-function generateStars(count: number): { static: StarData[]; twinkling: TwinkleData[] } {
+function generateStars(count: number, width: number, height: number): { static: StarData[]; twinkling: TwinkleData[] } {
   const rand = lcg(0xdeadbeef);
   const all = Array.from({ length: count }, (_, i) => {
     const rn = rand();
     const r = rn < 0.7 ? 0.8 + rand() * 0.4 : rn < 0.9 ? 1.5 + rand() * 0.5 : 2.5 + rand() * 1.0;
     const staticOpacity = r < 1.5 ? 0.15 + rand() * 0.2 : r < 2.0 ? 0.3 + rand() * 0.3 : 0.5 + rand() * 0.3;
     return {
-      cx: rand() * SCREEN_W,
-      cy: rand() * SCREEN_H,
+      cx: rand() * width,
+      cy: rand() * height,
       r,
       staticOpacity,
       duration: 1800 + rand() * 2400,
@@ -46,8 +45,6 @@ function generateStars(count: number): { static: StarData[]; twinkling: TwinkleD
     static: sorted.slice(20),
   };
 }
-
-const STAR_POOL = generateStars(80);
 
 function TwinkleStar({ star }: { star: TwinkleData }) {
   const opacity = useRef(new Animated.Value(star.staticOpacity * 0.35)).current;
@@ -98,16 +95,26 @@ interface StarFieldProps {
   style?: ViewStyle;
 }
 
+// The pool is deliberately fixed at 80 regardless of `starCount` — every
+// caller slices a subset of this SAME pool (positions, radii, twinkle
+// timing all stay stable as starCount varies), so this is not the same
+// number as starCount and must not be swapped for it.
+const STAR_POOL_SIZE = 80;
+
 export function StarField({ starCount = 80, opacity = 1, animated = true, style }: StarFieldProps) {
-  const maxTwinkling = Math.round((starCount / 80) * 20);
-  const twinklingStars = STAR_POOL.twinkling.slice(0, maxTwinkling);
-  const staticStars = STAR_POOL.static.slice(0, Math.max(0, starCount - maxTwinkling));
+  const { width, height } = useLayout();
+
+  const starPool = useMemo(() => generateStars(STAR_POOL_SIZE, width, height), [width, height]);
+
+  const maxTwinkling = Math.round((starCount / STAR_POOL_SIZE) * 20);
+  const twinklingStars = starPool.twinkling.slice(0, maxTwinkling);
+  const staticStars = starPool.static.slice(0, Math.max(0, starCount - maxTwinkling));
 
   return (
     <View style={[StyleSheet.absoluteFill, style]} pointerEvents="none">
       <Svg
-        width={SCREEN_W}
-        height={SCREEN_H}
+        width={width}
+        height={height}
         style={[StyleSheet.absoluteFill, { opacity }]}
         pointerEvents="none"
       >
