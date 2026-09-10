@@ -5,7 +5,6 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Dimensions,
   TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,14 +13,12 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MapTrifold } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
 import { VideoPlayer } from './VideoPlayer';
 import { FeedActions } from './FeedActions';
 import { Post } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 interface FeedCardProps {
   post: Post;
@@ -68,6 +65,7 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
 export function FeedCard({ post, isActive }: FeedCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
+  const { width, height } = useLayout();
   const [photoIndex, setPhotoIndex] = useState(0);
 
   const handleCommentPress = useCallback(() => {
@@ -79,7 +77,7 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
   const isMultiPhoto = post.mediaType === 'photo' && imageUrls.length > 1;
 
   return (
-    <View style={styles.container}>
+    <View style={{ width, height, backgroundColor: '#000' }}>
       {/* Media layer */}
       {post.mediaType === 'video' ? (
         <VideoPlayer uri={post.mediaUrl} shouldPlay={isActive} isMuted={false} />
@@ -90,7 +88,7 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
           onMomentumScrollEnd={(e) => {
-            setPhotoIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH));
+            setPhotoIndex(Math.round(e.nativeEvent.contentOffset.x / width));
           }}
           style={StyleSheet.absoluteFill}
         >
@@ -98,7 +96,7 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
             <Image
               key={`${uri}-${i}`}
               source={{ uri }}
-              style={styles.carouselImage}
+              style={{ width, height }}
               resizeMode="cover"
             />
           ))}
@@ -117,7 +115,7 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
       {/* Bottom gradient for readability */}
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.75)'] as [string, string, string]}
-        style={styles.gradient}
+        style={[styles.gradient, { height: height * 0.55 }]}
         pointerEvents="none"
       />
 
@@ -154,21 +152,11 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-    backgroundColor: '#000',
-  },
   gradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: SCREEN_HEIGHT * 0.55,
-  },
-  carouselImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
   },
   noMediaFallback: {
     alignItems: 'center',

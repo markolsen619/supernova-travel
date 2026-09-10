@@ -3,11 +3,10 @@ import {
   View,
   Image,
   StyleSheet,
-  Dimensions,
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,16 +19,18 @@ import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { useFeed } from '@/hooks/useFeed';
 import { useTheme } from '@/hooks/useTheme';
 import { useHasUnreadActivity } from '@/hooks/useUnreadActivity';
+import { useLayout } from '@/hooks/useLayout';
+import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { Post } from '@/types';
 import { Spacing } from '@/constants/spacing';
-
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
+  const { width, height } = useLayout();
   const [activeIndex, setActiveIndex] = useState(0);
+  const listRef = useRef<FlashListRef<Post>>(null);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
   const { data: hasUnread = false } = useHasUnreadActivity();
@@ -53,6 +54,17 @@ export default function FeedScreen() {
     },
     []
   );
+
+  // A resize changes the page size, so the list's stored offset now points
+  // somewhere else — unfold while reading post 7 and you land between two
+  // others. Re-apply the active index once the new layout has settled.
+  // Video continuity comes free: isActive is derived from activeIndex.
+  useDimensionChange(() => {
+    if (activeIndex <= 0) return;
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToIndex({ index: activeIndex, animated: false });
+    });
+  });
 
   function handleEndReached() {
     if (hasNextPage && !isFetchingNextPage) {
@@ -119,7 +131,7 @@ export default function FeedScreen() {
       </View>
 
       {isLoading ? (
-        <SkeletonCard width={SCREEN_WIDTH} height={SCREEN_HEIGHT} radius={0} />
+        <SkeletonCard width={width} height={height} radius={0} />
       ) : posts.length === 0 ? (
         <View style={styles.emptyContainer}>
           <EmptyState
@@ -133,6 +145,7 @@ export default function FeedScreen() {
         </View>
       ) : (
         <FlashList
+          ref={listRef}
           data={posts}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
