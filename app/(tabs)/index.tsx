@@ -57,14 +57,28 @@ export default function FeedScreen() {
 
   // A resize changes the page size, so the list's stored offset now points
   // somewhere else — unfold while reading post 7 and you land between two
-  // others. Re-apply the active index once the new layout has settled.
+  // others. Rather than assume one frame is enough for FlashList to
+  // recompute its layout — it recomputes asynchronously, and a scroll issued
+  // too early lands on the wrong post — record the intent here and perform
+  // it when the list reports its new layout.
   // Video continuity comes free: isActive is derived from activeIndex.
+  const pendingRestoreRef = useRef<number | null>(null);
+
   useDimensionChange(() => {
     if (activeIndex <= 0) return;
-    requestAnimationFrame(() => {
-      listRef.current?.scrollToIndex({ index: activeIndex, animated: false });
-    });
+    pendingRestoreRef.current = activeIndex;
   });
+
+  const handleListLayout = useCallback(() => {
+    const index = pendingRestoreRef.current;
+    if (index == null) return;
+    pendingRestoreRef.current = null;
+    // One frame inside the layout callback, so the scroll runs after this
+    // layout pass has committed rather than during it.
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToIndex({ index, animated: false });
+    });
+  }, []);
 
   function handleEndReached() {
     if (hasNextPage && !isFetchingNextPage) {
@@ -156,6 +170,7 @@ export default function FeedScreen() {
           decelerationRate="fast"
           viewabilityConfig={viewabilityConfig.current}
           onViewableItemsChanged={onViewableItemsChanged}
+          onLayout={handleListLayout}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
