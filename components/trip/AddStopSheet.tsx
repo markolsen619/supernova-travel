@@ -14,6 +14,7 @@ import * as Haptics from 'expo-haptics';
 import { X, MagnifyingGlass } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
+import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { usePlaceAutocomplete } from '@/hooks/usePlaceAutocomplete';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { placeFromSelection, placeToTripActivity } from '@/services/places/googlePlaces';
@@ -70,6 +71,14 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
       ...SPRING,
     }).start(() => setPreviewPlace(null));
   }, [slideAnim, height]);
+
+  // A resize leaves the closed sheet parked at the OLD height, which is now
+  // on screen. Re-seed it — but only while the whole modal is closed:
+  // re-seeding while visible (mid-preview) would yank the preview sheet out
+  // of view under the user.
+  useDimensionChange((next) => {
+    if (!visible) slideAnim.setValue(next.height);
+  });
 
   const handleSelectResult = useCallback(
     async (placeId: string) => {

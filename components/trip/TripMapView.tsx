@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import {
   MapView,
   Camera,
@@ -17,6 +17,8 @@ import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
 import { usePoiTapResolver } from '@/hooks/usePoiTapResolver';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
+import { useLayout } from '@/hooks/useLayout';
+import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { tapBbox, findStopMatchingPlace } from '@/utils/mapInteraction';
 import { lightPresetForNow } from '@/services/mapLighting';
 import { placeToTripActivity } from '@/services/places/googlePlaces';
@@ -33,7 +35,6 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
 const INITIAL_ZOOM = 1.5;
 const INITIAL_COORDS: [number, number] = [0, 20];
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
 type ScreenPointPayload = { screenPointX: number; screenPointY: number };
@@ -139,6 +140,7 @@ export function TripMapView({
   // following the (now light-by-default) theme.
   const colors = DarkColors;
   const insets = useSafeAreaInsets();
+  const { height } = useLayout();
   const { cameraRef, flyTo, flyToBounds } = useFlyTo();
   const mapRef = useRef<InstanceType<typeof MapView>>(null);
   const [selected, setSelected] = useState<GroundedStop | null>(null);
@@ -151,15 +153,22 @@ export function TripMapView({
   const [adding, setAdding] = useState(false);
   const [dayPickerVisible, setDayPickerVisible] = useState(false);
   const [pendingPlace, setPendingPlace] = useState<EnrichedPlace | null>(null);
-  const poiSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const poiSlideAnim = useRef(new Animated.Value(height)).current;
 
   const showPoiSheet = useCallback(() => {
     Animated.spring(poiSlideAnim, { toValue: 0, ...SPRING }).start();
   }, [poiSlideAnim]);
 
   const hidePoiSheet = useCallback(() => {
-    Animated.spring(poiSlideAnim, { toValue: SCREEN_HEIGHT, ...SPRING }).start(() => setTappedPlace(null));
-  }, [poiSlideAnim]);
+    Animated.spring(poiSlideAnim, { toValue: height, ...SPRING }).start(() => setTappedPlace(null));
+  }, [poiSlideAnim, height]);
+
+  // A resize leaves the closed sheet parked at the OLD height, which is now
+  // on screen. Re-seed it — but only while closed: re-seeding an open sheet
+  // would yank it out of view under the user.
+  useDimensionChange((next) => {
+    if (!tappedPlace) poiSlideAnim.setValue(next.height);
+  });
 
   const { grounded, ungrounded } = useMemo(() => collectStops(days), [days]);
   // Split what "Locate all" can still usefully try from what already came
