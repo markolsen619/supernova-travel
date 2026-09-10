@@ -5,7 +5,6 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +23,8 @@ import {
 } from 'phosphor-react-native';
 import { excludeTripShares } from '@/utils/posts';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
+import { thirdWidth } from '@/utils/layout';
 import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
@@ -57,9 +58,6 @@ const EMPTY_COPY: Record<TripFilter, { title: string; description: string }> = {
   Current: { title: 'No active trips', description: "Trips you're on now will show up here." },
   Past: { title: 'No completed trips yet', description: 'Your travel history will appear here.' },
 };
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const POST_CELL = Math.floor(SCREEN_WIDTH / 3);
 
 interface PostDoc {
   id: string;
@@ -102,6 +100,8 @@ function ProfileScreenContent() {
   const { colors } = useTheme();
   const { user, tier } = useAuthStore();
   const { profile } = useUserStore();
+  const { width } = useLayout();
+  const postCell = thirdWidth(width);
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('Trips');
   const [tripFilter, setTripFilter] = useState<TripFilter>('Upcoming');
@@ -396,7 +396,7 @@ function ProfileScreenContent() {
           {headerComponent}
           <View style={styles.postGridSkeleton}>
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <SkeletonCard key={i} width={POST_CELL} height={POST_CELL} radius={0} />
+              <SkeletonCard key={i} width={postCell} height={postCell} radius={0} />
             ))}
           </View>
         </View>
@@ -423,7 +423,10 @@ function ProfileScreenContent() {
           }
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[styles.postCell, { backgroundColor: colors.background.sunken }]}
+              style={[
+                styles.postCell,
+                { width: postCell, height: postCell, backgroundColor: colors.background.sunken },
+              ]}
               onPress={() => handlePostPress(item.id)}
               activeOpacity={0.85}
             >
@@ -611,8 +614,6 @@ const styles = StyleSheet.create({
   },
 
   postCell: {
-    width: POST_CELL,
-    height: POST_CELL,
     overflow: 'hidden',
   },
   postCellFallback: {

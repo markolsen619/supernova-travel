@@ -1,17 +1,14 @@
 import React, { useCallback } from 'react';
-import { FlatList, View, StyleSheet, Dimensions } from 'react-native';
+import { FlatList, View, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
+import { twoColumnWidth } from '@/utils/layout';
 import { TripCard } from '@/components/trip/TripCard';
 import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
 import { Spacing } from '@/constants/spacing';
 import { Trip } from '@/types';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
 const NUM_COLUMNS = 2;
-const HORIZONTAL_PADDING = Spacing['6'] * 2;
-const COLUMN_GAP = Spacing['3'];
-const ITEM_WIDTH =
-  (SCREEN_WIDTH - HORIZONTAL_PADDING - COLUMN_GAP) / NUM_COLUMNS;
 
 interface TripGridProps {
   trips: Trip[];
@@ -29,6 +26,8 @@ interface TripGridProps {
 
 export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles }: TripGridProps) {
   const { colors } = useTheme();
+  const { width } = useLayout();
+  const itemWidth = twoColumnWidth(width);
 
   const renderItem = useCallback(
     ({ item }: { item: Trip }) => (
@@ -36,7 +35,7 @@ export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles
         <TripCard
           trip={item}
           onPress={() => onTripPress(item.id)}
-          style={{ width: ITEM_WIDTH }}
+          style={{ width: itemWidth }}
           fallbackCoverUrl={
             item.destination.placeId
               ? destinationPhotos?.get(item.destination.placeId) ?? null
@@ -46,7 +45,7 @@ export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles
         />
       </View>
     ),
-    [onTripPress, destinationPhotos, authorProfiles],
+    [onTripPress, destinationPhotos, authorProfiles, itemWidth],
   );
 
   const keyExtractor = useCallback((item: Trip) => item.id, []);
@@ -69,7 +68,7 @@ export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles
 }
 
 const styles = StyleSheet.create({
-  // ITEM_WIDTH above assumes Spacing['6'] of horizontal inset on each side —
+  // itemWidth (twoColumnWidth) assumes Spacing['6'] of horizontal inset on each side —
   // this was previously missing here, so the grid rendered ~48px narrower
   // than the screen with unexplained empty space on the right.
   //

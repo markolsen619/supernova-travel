@@ -1,16 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import { Link } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { StarField } from '@/components/animations/StarField';
+import { useLayout } from '@/hooks/useLayout';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, LetterSpacing } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 
-const { width } = Dimensions.get('window');
-
 export default function WelcomeScreen() {
+  const { width } = useLayout();
   const logoOpacity     = useRef(new Animated.Value(0)).current;
   const logoTranslateY  = useRef(new Animated.Value(10)).current;
   const taglineOpacity  = useRef(new Animated.Value(0)).current;
@@ -50,7 +50,7 @@ export default function WelcomeScreen() {
         <Animated.View style={{ opacity: logoOpacity, transform: [{ translateY: logoTranslateY }] }}>
           <Image
             source={require('@/assets/images/SupernovaLogo.png')}
-            style={styles.logo}
+            style={[styles.logo, { width: width * 0.975 }]}
             resizeMode="contain"
           />
         </Animated.View>
@@ -92,7 +92,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['8'],
   },
   logo: {
-    width: width * 0.975,
     height: 180,
     marginBottom: Spacing['4'],
   },

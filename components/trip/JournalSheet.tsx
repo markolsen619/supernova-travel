@@ -21,13 +21,13 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { X, Plus, Notebook } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { ThemeColors } from '@/constants/colors';
 import { useJournalEntry, useJournal, MAX_JOURNAL_PHOTOS } from '@/hooks/useJournal';
@@ -39,10 +39,6 @@ import type { TripActivity } from '@/types';
 
 const NOTE_MAX = 280;
 const PHOTO_SIZE = 108;
-// A resolved pixel cap, not a percentage `maxHeight` — Yoga can't
-// auto-measure a `maxHeight`-only (undefined-height) node when its
-// descendants include a BlurView wrapping a FlashList (see sheetWrap).
-const SHEET_HEIGHT = Dimensions.get('window').height * 0.75;
 
 interface JournalSheetProps {
   visible: boolean;
@@ -58,6 +54,11 @@ interface JournalSheetProps {
 export function JournalSheet({ visible, tripId, dayId, activity, isOwner, onClose, colors: colorsOverride }: JournalSheetProps) {
   const { colors: themeColors } = useTheme();
   const colors = colorsOverride ?? themeColors;
+  const { height } = useLayout();
+  // A resolved pixel cap, not a percentage `maxHeight` — Yoga can't
+  // auto-measure a `maxHeight`-only (undefined-height) node when its
+  // descendants include a BlurView wrapping a FlashList (see sheetWrap).
+  const sheetHeight = height * 0.75;
   const uid = useAuthStore((s) => s.user?.uid ?? '');
   const { data: entry, isLoading } = useJournalEntry(tripId, dayId, activity.id, visible);
   const { pickJournalPhotos, saveJournal, uploading, saving } = useJournal();
@@ -241,7 +242,7 @@ export function JournalSheet({ visible, tripId, dayId, activity, isOwner, onClos
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={styles.sheetWrap}>
+        <View style={[styles.sheetWrap, { height: sheetHeight }]}>
           {Platform.OS === 'ios' ? (
             <BlurView intensity={90} tint="dark" style={styles.fill}>
               {sheetContent}
@@ -263,8 +264,7 @@ const styles = StyleSheet.create({
     // FlashList descendant, Yoga can't complete an auto-measured
     // (maxHeight-only, no explicit height) layout pass on this node; it
     // never resolves a size and the whole sheet renders blank. See
-    // SHEET_HEIGHT above.
-    height: SHEET_HEIGHT,
+    // sheetHeight above (applied as an inline style here).
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
     overflow: 'hidden',

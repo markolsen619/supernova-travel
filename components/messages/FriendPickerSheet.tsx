@@ -1,10 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { UsersThree, X, Check } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMutualFriends } from '@/hooks/useMutualFriends';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
@@ -12,8 +13,6 @@ import { useCreateDmThread } from '@/hooks/useDmThreads';
 import { Avatar } from '@/components/ui/Avatar';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-
-const SHEET_HEIGHT = Dimensions.get('window').height * 0.6;
 
 interface FriendPickerSheetProps {
   visible: boolean;
@@ -23,6 +22,8 @@ interface FriendPickerSheetProps {
 
 export function FriendPickerSheet({ visible, onClose, onCreated }: FriendPickerSheetProps) {
   const { colors } = useTheme();
+  const { height } = useLayout();
+  const sheetHeight = height * 0.6;
   const ownUid = useAuthStore((s) => s.user?.uid ?? '');
   const { data: friendUids = [] } = useMutualFriends(visible ? ownUid : null);
   const { data: profiles = {} } = useAuthorProfiles(friendUids);
@@ -127,7 +128,7 @@ export function FriendPickerSheet({ visible, onClose, onCreated }: FriendPickerS
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={styles.sheetWrap}>
+        <View style={[styles.sheetWrap, { height: sheetHeight }]}>
           {Platform.OS === 'ios' ? (
             <BlurView intensity={90} tint="dark" style={styles.fill}>
               {sheetContent}
@@ -145,7 +146,6 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheetWrap: {
-    height: SHEET_HEIGHT,
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
     overflow: 'hidden',

@@ -9,11 +9,11 @@ import {
   Modal,
   Platform,
   Animated,
-  Dimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { X, MagnifyingGlass } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useLayout } from '@/hooks/useLayout';
 import { usePlaceAutocomplete } from '@/hooks/usePlaceAutocomplete';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { placeFromSelection, placeToTripActivity } from '@/services/places/googlePlaces';
@@ -23,8 +23,6 @@ import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddStopSheetProps {
   visible: boolean;
@@ -43,6 +41,7 @@ interface AddStopSheetProps {
  */
 export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: AddStopSheetProps) {
   const { colors } = useTheme();
+  const { height } = useLayout();
   const { addActivity } = useCreateTrip();
   const {
     query,
@@ -56,7 +55,7 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
 
   const [previewPlace, setPreviewPlace] = useState<EnrichedPlace | null>(null);
   const [adding, setAdding] = useState(false);
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const slideAnim = useRef(new Animated.Value(height)).current;
 
   const showPreview = useCallback(() => {
     Animated.spring(slideAnim, {
@@ -67,10 +66,10 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
 
   const hidePreview = useCallback(() => {
     Animated.spring(slideAnim, {
-      toValue: SCREEN_HEIGHT,
+      toValue: height,
       ...SPRING,
     }).start(() => setPreviewPlace(null));
-  }, [slideAnim]);
+  }, [slideAnim, height]);
 
   const handleSelectResult = useCallback(
     async (placeId: string) => {

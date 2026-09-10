@@ -1,24 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, Dimensions, Animated } from 'react-native';
+import { Image, StyleSheet, Animated } from 'react-native';
 import { DarkColors } from '@/constants/colors';
+import { useLayout } from '@/hooks/useLayout';
 import { SPRING, Duration } from '@/constants/motion';
 import { StarField } from '@/components/animations/StarField';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const MINIMUM_MS = 1600;
 const EXIT_MS = 300;
-
-// SupernovaLogo.png is 1200×496 — keep the rendered box aspect-correct so
-// resizeMode="contain" never letterboxes unpredictably.
-const LOGO_WIDTH = SCREEN_WIDTH * 0.6;
-const LOGO_HEIGHT = LOGO_WIDTH * (496 / 1200);
 
 interface SplashOverlayProps {
   visible: boolean;
 }
 
 export function SplashOverlay({ visible }: SplashOverlayProps) {
+  const { width } = useLayout();
+  // SupernovaLogo.png is 1200×496 — keep the rendered box aspect-correct so
+  // resizeMode="contain" never letterboxes unpredictably.
+  const logoWidth = width * 0.6;
+  const logoHeight = logoWidth * (496 / 1200);
   const [isMounted, setIsMounted] = useState(true);
   const [canDismiss, setCanDismiss] = useState(false);
   const hasExited = useRef(false);
@@ -71,7 +70,7 @@ export function SplashOverlay({ visible }: SplashOverlayProps) {
         <Animated.View style={{ opacity: logoOpacity, transform: [{ scale: logoScale }] }}>
           <Image
             source={require('@/assets/images/SupernovaLogo.png')}
-            style={styles.logo}
+            style={{ width: logoWidth, height: logoHeight }}
             resizeMode="contain"
           />
         </Animated.View>
@@ -88,9 +87,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: DarkColors.background.primary,
-  },
-  logo: {
-    width: LOGO_WIDTH,
-    height: LOGO_HEIGHT,
   },
 });
