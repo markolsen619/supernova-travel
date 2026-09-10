@@ -47,12 +47,10 @@ import type * as GeoJSON from 'geojson';
 type Tab = 'Places' | 'Users' | 'Trips';
 const TABS: Tab[] = ['Places', 'Users', 'Trips'];
 
-// Two positions: expanded (current behaviour) and peek, which leaves the map
-// visible behind roughly two result rows. The peek Y and the sheet's max
-// height are both derived from the live window height (useLayout, inside the
-// component below) rather than module constants — a foldable can resize the
-// window at runtime, and a module-level Dimensions.get('window') would freeze
-// both at import.
+// The peek Y and the sheet's max height are both derived from the live
+// window height (useLayout, inside the component below) rather than module
+// constants — a foldable can resize the window at runtime, and a
+// module-level Dimensions.get('window') would freeze both at import.
 const SHEET_EXPANDED_Y = 0;
 // The sheet's height is content-driven (bottomSheetInner minHeight: 180, up
 // to the sheet's max height below) — the peek target is an absolute
@@ -221,6 +219,15 @@ export default function SearchScreen() {
   // previous height means the sheet was closed; anything else means open or
   // mid-drag, and this leaves it alone rather than yanking it.
   useDimensionChange((next, prev) => {
+    // sheetHeightRef is a measurement CACHE (the pre-layout fallback for the
+    // sheet's content-driven height), not a screen position — unlike
+    // sheetBaseY/slideAnim/detailSlideAnim, re-seeding it never moves
+    // anything under the user's fingers, so it isn't gated on the sheet
+    // being closed. It stays consistent with bottomSheetMaxHeight (the
+    // sheet's inline maxHeight, same next.height * 0.55) regardless of
+    // whether the sheet happens to be open, closed, or mid-drag.
+    sheetHeightRef.current = next.height * 0.55;
+
     if (sheetBaseY.current !== prev.height) return;
     sheetBaseY.current = next.height;
     slideAnim.setValue(next.height);

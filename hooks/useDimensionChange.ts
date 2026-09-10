@@ -14,7 +14,16 @@ export function useDimensionChange(onChange: (next: Size, prev: Size) => void): 
   const { width, height } = useWindowDimensions();
   const prev = useRef<Size>({ width, height });
   const cb = useRef(onChange);
-  cb.current = onChange;
+
+  // "Latest ref" pattern, as its own effect declared BEFORE the dimension
+  // effect below — effects run in declaration order, so cb.current is
+  // refreshed before the dimension effect can ever fire. Writing cb.current
+  // directly in the render body (the more common form of this pattern) works
+  // today, but under concurrent rendering a render that gets discarded can
+  // leave cb.current pointing at a closure that never committed.
+  useEffect(() => {
+    cb.current = onChange;
+  });
 
   useEffect(() => {
     const next: Size = { width, height };
@@ -23,5 +32,11 @@ export function useDimensionChange(onChange: (next: Size, prev: Size) => void): 
       prev.current = next;
       cb.current(next, before);
     }
+    // onChange is deliberately excluded — every caller passes an inline
+    // arrow with a fresh identity each render, and including it would
+    // re-fire this effect on every render instead of only on an actual
+    // resize. The ref above always has the latest callback by the time this
+    // effect can run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height]);
 }

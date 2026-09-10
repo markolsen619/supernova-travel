@@ -95,14 +95,20 @@ interface StarFieldProps {
   style?: ViewStyle;
 }
 
+// The pool is deliberately fixed at 80 regardless of `starCount` — every
+// caller slices a subset of this SAME pool (positions, radii, twinkle
+// timing all stay stable as starCount varies), so this is not the same
+// number as starCount and must not be swapped for it.
+const STAR_POOL_SIZE = 80;
+
 export function StarField({ starCount = 80, opacity = 1, animated = true, style }: StarFieldProps) {
   const { width, height } = useLayout();
 
-  const STAR_POOL = useMemo(() => generateStars(80, width, height), [width, height]);
+  const starPool = useMemo(() => generateStars(STAR_POOL_SIZE, width, height), [width, height]);
 
-  const maxTwinkling = Math.round((starCount / 80) * 20);
-  const twinklingStars = STAR_POOL.twinkling.slice(0, maxTwinkling);
-  const staticStars = STAR_POOL.static.slice(0, Math.max(0, starCount - maxTwinkling));
+  const maxTwinkling = Math.round((starCount / STAR_POOL_SIZE) * 20);
+  const twinklingStars = starPool.twinkling.slice(0, maxTwinkling);
+  const staticStars = starPool.static.slice(0, Math.max(0, starCount - maxTwinkling));
 
   return (
     <View style={[StyleSheet.absoluteFill, style]} pointerEvents="none">

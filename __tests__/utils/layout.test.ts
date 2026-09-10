@@ -40,6 +40,11 @@ describe('device classification', () => {
     expect(isLargeScreen(LARGE_SCREEN_MIN, 900)).toBe(true);
     expect(isLargeScreen(LARGE_SCREEN_MIN - 1, 900)).toBe(false);
   });
+
+  it('gives a third column and a reading measure on large screens', () => {
+    expect(gridColumnsFor(626, 890)).toBe(3);
+    expect(contentMaxWidth(626, 890)).toBe(700);
+  });
 });
 
 describe('resize helpers', () => {
