@@ -16,14 +16,21 @@ export const PRO_ENTITLEMENT_ID = 'supernova_pro';
 export const DEFAULT_OFFERING_ID = 'default';
 
 /**
- * Store product identifiers, for reference and for the Cloud Function webhook.
- * The client does NOT look plans up by these — it reads PACKAGE_TYPE off the
- * offering instead, which survives a store-side product rename.
+ * Store product identifiers, for reference only.
+ *
+ * Nothing in the app matches on these. The paywall sorts on PACKAGE_TYPE
+ * (utils/offerings.ts) and purchases by PurchasesPackage, and the webhook
+ * keys off the entitlement, not the SKU — so these strings exist to document
+ * what was created in App Store Connect / Play Console, nothing more.
+ *
+ * They are reverse-DNS because an App Store Connect product identifier is
+ * permanent: it cannot be renamed, and it cannot be reused even after the
+ * product is deleted. Bare names like 'monthly' are a one-way door.
  */
 export const PRODUCT_IDS = {
-  monthly: 'monthly',
-  yearly: 'yearly',
-  lifetime: 'lifetime',
+  monthly: 'com.supernovatravel.app.pro.monthly',
+  yearly: 'com.supernovatravel.app.pro.yearly',
+  lifetime: 'com.supernovatravel.app.pro.lifetime',
 } as const;
 
 /** Display order on the paywall — yearly first, since it's the one to sell. */
