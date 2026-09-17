@@ -2,13 +2,12 @@ import React, { useCallback } from 'react';
 import { FlatList, View, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
-import { twoColumnWidth } from '@/utils/layout';
+import { columnWidth } from '@/utils/layout';
 import { TripCard } from '@/components/trip/TripCard';
 import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
 import { Spacing } from '@/constants/spacing';
 import { Trip } from '@/types';
 
-const NUM_COLUMNS = 2;
 
 interface TripGridProps {
   trips: Trip[];
@@ -26,8 +25,9 @@ interface TripGridProps {
 
 export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles }: TripGridProps) {
   const { colors } = useTheme();
-  const { width } = useLayout();
-  const itemWidth = twoColumnWidth(width);
+  // 2 columns on phones; 3–4 on iPad and the unfolded Duo (utils/layout.ts).
+  const { width, columns } = useLayout();
+  const itemWidth = columnWidth(width, columns);
 
   const renderItem = useCallback(
     ({ item }: { item: Trip }) => (
@@ -52,10 +52,13 @@ export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles
 
   return (
     <FlatList
+      // FlatList can't change numColumns on a live instance; a rotation or
+      // fold that changes the column count remounts it instead.
+      key={`columns-${columns}`}
       data={trips}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      numColumns={NUM_COLUMNS}
+      numColumns={columns}
       columnWrapperStyle={styles.columnWrapper}
       scrollEnabled={false}
       showsVerticalScrollIndicator={false}
@@ -68,7 +71,7 @@ export function TripGrid({ trips, onTripPress, destinationPhotos, authorProfiles
 }
 
 const styles = StyleSheet.create({
-  // itemWidth (twoColumnWidth) assumes Spacing['6'] of horizontal inset on each side —
+  // itemWidth (columnWidth) assumes Spacing['6'] of horizontal inset on each side —
   // this was previously missing here, so the grid rendered ~48px narrower
   // than the screen with unexplained empty space on the right.
   //
@@ -85,7 +88,7 @@ const styles = StyleSheet.create({
   columnWrapper: {
     gap: Spacing['3'],
   },
-  itemWrapper: {
-    flex: 1,
-  },
+  // Fixed width, not flex: 1, so a short last row keeps the cards' size
+  // instead of stretching one card across the whole row.
+  itemWrapper: {},
 });

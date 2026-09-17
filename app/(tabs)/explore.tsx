@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { Bag, MapTrifold } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
-import { twoColumnWidth } from '@/utils/layout';
+import { columnWidth } from '@/utils/layout';
 import { useExplore } from '@/hooks/useExplore';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { TrendingCard } from '@/components/explore/TrendingCard';
@@ -77,8 +77,9 @@ export default function ExploreScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { width } = useLayout();
-  const gridItemWidth = twoColumnWidth(width);
+  const { width, columns } = useLayout();
+  // Must match TrendingCard and TripGrid, which size themselves the same way.
+  const gridItemWidth = columnWidth(width, columns);
 
   const { trips, tripsLoading, suggestions, suggestionsLoading } = useExplore();
 

@@ -24,7 +24,7 @@ import {
 import { excludeTripShares } from '@/utils/posts';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
-import { thirdWidth } from '@/utils/layout';
+import { galleryCellWidth } from '@/utils/layout';
 import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
@@ -100,8 +100,8 @@ function ProfileScreenContent() {
   const { colors } = useTheme();
   const { user, tier } = useAuthStore();
   const { profile } = useUserStore();
-  const { width } = useLayout();
-  const postCell = thirdWidth(width);
+  const { width, galleryColumns } = useLayout();
+  const postCell = galleryCellWidth(width, galleryColumns);
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('Trips');
   const [tripFilter, setTripFilter] = useState<TripFilter>('Upcoming');
