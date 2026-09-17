@@ -28,14 +28,37 @@ service cloud.firestore {
       return ['tier', 'tierEventTimestampMs', 'tierEventId', 'tierUpdatedAt', 'tierReconciledAtMs'];
     }
 
+    // Following someone means updating THEIR followersCount, in the same
+    // transaction that creates or deletes the follow doc (hooks/useFollow.ts).
+    // Allowed only as a +1 that commits alongside a new follow by the caller,
+    // or a -1 alongside its removal, so a count can't be inflated, drained,
+    // or changed on its own. Mirrors the likesCount rule on posts. The -1 also
+    // accepts 0 -> 0, the client's clamp for a count that had drifted.
+    function isFollowCountChange(uid) {
+      let followPath = /databases/$(database)/documents/follows/$(request.auth.uid + '_' + uid);
+      let before = resource.data.get('followersCount', 0);
+      let after = request.resource.data.get('followersCount', 0);
+      return isAuthed()
+        && request.auth.uid != uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount'])
+        && (
+          (!exists(followPath) && existsAfter(followPath) && after == before + 1)
+          || (exists(followPath) && !existsAfter(followPath)
+              && (after == before - 1 || (before == 0 && after == 0)))
+        );
+    }
+
     // Users collection
     match /users/{uid} {
       allow read: if isAuthed();
       // createUserProfile() omits tier; a new account is free by absence.
       allow create: if isOwner(uid)
         && !request.resource.data.keys().hasAny(serverTierFields());
-      allow update: if isOwner(uid)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(serverTierFields());
+      allow update: if (
+          isOwner(uid)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(serverTierFields())
+        )
+        || isFollowCountChange(uid);
       allow delete: if false; // deleteUserData Cloud Function only
 
       // Personalized feed — written exclusively by Cloud Functions (Admin SDK)
@@ -238,10 +261,17 @@ service cloud.firestore {
     }
 
     // Follows
+    // Doc ID is `${followerUid}_${followeeUid}`; isFollowerOf() above and
+    // createDmThread look follows up by that ID, so it has to match the fields.
+    // No update: re-following an existing doc would be a double count.
     match /follows/{docId} {
       allow read: if isAuthed();
-      allow create: if isAuthed() && request.auth.uid == request.resource.data.followerId;
-      allow delete: if isAuthed() && request.auth.uid == resource.data.followerId;
+      allow create: if isAuthed()
+        && request.resource.data.followerUid == request.auth.uid
+        && request.resource.data.followeeUid is string
+        && request.resource.data.followeeUid != request.auth.uid
+        && docId == request.auth.uid + '_' + request.resource.data.followeeUid;
+      allow delete: if isAuthed() && resource.data.followerUid == request.auth.uid;
     }
 
     // Usage quotas — server-side only (Admin SDK)
