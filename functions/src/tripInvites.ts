@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import { notifyUser } from './notify';
+import { isBlockedBetween } from './moderationEvents';
 
 const db = admin.firestore();
 
@@ -39,6 +40,10 @@ export const inviteToTrip = functions.https.onCall(
     }
     if (inviteeUid === inviterUid) {
       throw new functions.https.HttpsError('invalid-argument', "Can't invite yourself");
+    }
+
+    if (await isBlockedBetween(inviterUid, inviteeUid)) {
+      throw new functions.https.HttpsError('permission-denied', "You can't invite this person");
     }
 
     const tripRef = db.doc(`trips/${tripId}`);

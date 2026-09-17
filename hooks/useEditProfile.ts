@@ -11,6 +11,7 @@ import { auth, db, storage } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { checkUsernameAvailability, validateUsernameFormat } from '@/services/usernames';
+import { firstObjectionableField, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 export { validateUsernameFormat, USERNAME_PATTERN } from '@/services/usernames';
 
@@ -112,6 +113,9 @@ export function useEditProfile() {
       if (!user) return 'Sign in to edit your profile.';
       const fullName = input.fullName.trim();
       if (!fullName) return 'Add your full name.';
+      if (firstObjectionableField({ fullName, bio: input.bio, location: input.location })) {
+        return OBJECTIONABLE_TEXT_MESSAGE;
+      }
 
       const newUsername = input.username.trim().toLowerCase();
       const oldUsername = profile?.username ?? '';

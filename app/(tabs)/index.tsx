@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Image,
@@ -17,6 +17,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { useFeed } from '@/hooks/useFeed';
+import { useModeration } from '@/hooks/useModeration';
+import { useContentActions } from '@/components/moderation/useContentActions';
+import { contentKey, filterVisible } from '@/utils/moderation';
 import { useTheme } from '@/hooks/useTheme';
 import { useHasUnreadActivity } from '@/hooks/useUnreadActivity';
 import { useLayout } from '@/hooks/useLayout';
@@ -35,7 +38,28 @@ export default function FeedScreen() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
   const { data: hasUnread = false } = useHasUnreadActivity();
 
-  const posts: Post[] = data?.pages.flatMap((p) => p.posts) ?? [];
+  const moderation = useModeration();
+  const { openActions, reportSheet } = useContentActions();
+  const posts: Post[] = useMemo(
+    () =>
+      filterVisible(data?.pages.flatMap((p) => p.posts) ?? [], moderation, (post) => ({
+        authorUid: post.authorUid,
+        key: contentKey({ type: 'post', id: post.id }),
+        moderationHidden: post.moderationHidden,
+      })),
+    [data, moderation],
+  );
+
+  const handleMorePress = useCallback(
+    (post: Post, anchor: React.RefObject<View | null>) => {
+      openActions({
+        target: { type: 'post', id: post.id, ownerUid: post.authorUid },
+        ownerName: post.authorDisplayName || 'this traveler',
+        anchor,
+      });
+    },
+    [openActions],
+  );
   // The fixed header sits on top of whatever's behind it — almost always a
   // photo/video card, but not during loading/empty. Its dark scrim (needed
   // for the white icons to read over arbitrary media) only makes sense when
@@ -163,7 +187,7 @@ export default function FeedScreen() {
           data={posts}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
-            <FeedCard post={item} isActive={index === activeIndex} />
+            <FeedCard post={item} isActive={index === activeIndex} onMorePress={handleMorePress} />
           )}
           pagingEnabled
           showsVerticalScrollIndicator={false}
@@ -182,6 +206,7 @@ export default function FeedScreen() {
           }
         />
       )}
+      {reportSheet}
     </View>
     </ScreenEntrance>
   );

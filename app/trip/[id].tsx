@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors } from '@/constants/colors';
 
@@ -41,6 +41,9 @@ import { TripActivity, TripDay, Destination } from '@/types';
 import { usePlacesStore } from '@/stores/usePlacesStore';
 import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
+import { useModeration } from '@/hooks/useModeration';
+import { useContentActions } from '@/components/moderation/useContentActions';
+import { contentKey, isContentVisible } from '@/utils/moderation';
 import { groundStop, type GroundingContext } from '@/services/places/groundStop';
 import type { GroundedPlace } from '@/utils/mapboxQuery';
 import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
@@ -247,6 +250,19 @@ export default function TripDetailScreen() {
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
+
+  const moderation = useModeration();
+  const { openActions, reportSheet, unblock } = useContentActions();
+  const moreRef = useRef<View>(null);
+  const authorName = trip ? memberProfiles[trip.authorUid]?.name ?? 'this traveler' : 'this traveler';
+  const handleMore = useCallback(() => {
+    if (!trip) return;
+    openActions({
+      target: { type: 'trip', id: trip.id, ownerUid: trip.authorUid },
+      ownerName: authorName,
+      anchor: moreRef,
+    });
+  }, [trip, authorName, openActions]);
 
   // TM-2b: "current" is derived, never stored — the first not-yet-visited
   // activity in day/order sequence, only while the trip is actually active.
@@ -775,6 +791,41 @@ export default function TripDetailScreen() {
     );
   }
 
+  // Collaborators keep access: they were invited, and hiding a trip they're
+  // helping plan would be stranger than the report.
+  const authorBlocked = moderation.blockedUids.has(trip.authorUid);
+  if (
+    !isOwner &&
+    !isCollaborator &&
+    !isContentVisible(moderation, {
+      authorUid: trip.authorUid,
+      key: contentKey({ type: 'trip', id: trip.id }),
+      moderationHidden: trip.moderationHidden,
+    })
+  ) {
+    return (
+      <View style={[styles.centeredFull, { backgroundColor: colors.background.primary }]}>
+        <EmptyState
+          icon={EyeSlash}
+          title={authorBlocked ? `You blocked ${authorName}` : "This trip isn't available"}
+          description={
+            authorBlocked
+              ? 'Unblock them to see their trips again.'
+              : "It was reported and removed from your feed. We'll review it within 24 hours."
+          }
+          actionLabel="Go back"
+          onAction={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+          actionHaptic="none"
+          secondaryLabel={authorBlocked ? 'Unblock' : undefined}
+          onSecondary={authorBlocked ? () => unblock(trip.authorUid, authorName) : undefined}
+        />
+      </View>
+    );
+  }
+
   const sortedDays = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
   const hasDescription = Boolean(trip.description?.trim());
   const dayCount = sortedDays.length;
@@ -884,7 +935,8 @@ export default function TripDetailScreen() {
             }}
             style={[
               styles.headerBtn,
-              { top: insets.top + Spacing['2'], right: isOwner ? Spacing['4'] + 44 + Spacing['2'] : Spacing['4'] },
+              // Always the second slot: the first is Edit for the owner, More for everyone else.
+              { top: insets.top + Spacing['2'], right: Spacing['4'] + 44 + Spacing['2'] },
             ]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityLabel="Show trip map"
@@ -894,8 +946,22 @@ export default function TripDetailScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Owner-only trip editing — the map toggle above already reserves
-              this slot's width when isOwner. */}
+          {/* Report or block, for anyone else's trip. */}
+          {!isOwner && (
+            <TouchableOpacity
+              ref={moreRef}
+              onPress={handleMore}
+              style={[styles.headerBtn, { top: insets.top + Spacing['2'], right: Spacing['4'] }]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="More options for this trip"
+            >
+              <View style={styles.headerBtnCircle}>
+                <DotsThree size={18} color={colors.text.primary} weight="bold" />
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Owner-only trip editing — the map toggle above reserves this slot. */}
           {isOwner && (
             <TouchableOpacity
               onPress={() => {
@@ -1225,6 +1291,8 @@ export default function TripDetailScreen() {
         collaborators={memberUids}
         onClose={() => setInviteVisible(false)}
       />
+
+      {reportSheet}
     </View>
   );
 }

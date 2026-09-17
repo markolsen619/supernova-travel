@@ -10,6 +10,7 @@ import { configureGoogleSignIn } from '@/services/oauth';
 import { hydrateSession } from '@/services/session';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
+import { useModerationStore } from '@/stores/useModerationStore';
 import { useTheme } from '@/hooks/useTheme';
 import { resolveAuthRoute } from '@/utils/authRoute';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -86,6 +87,7 @@ export default function RootLayout() {
           }));
         } else {
           useUserStore.getState().setProfile(null);
+          useModerationStore.getState().reset();
           router.replace(resolveAuthRoute({ isAuthenticated: false, hasProfile: false, onboardingComplete: false }));
         }
       } catch (error) {

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { router } from 'expo-router';
@@ -14,6 +14,8 @@ import { useMarkMessagesSeen } from '@/hooks/useUnreadActivity';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { FriendPickerSheet } from '@/components/messages/FriendPickerSheet';
 import { formatGroupName } from '@/utils/dm';
+import { useModeration } from '@/hooks/useModeration';
+import { isThreadVisible, notificationActorUid } from '@/utils/moderation';
 import { Avatar } from '@/components/ui/Avatar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonListRow } from '@/components/ui/Skeleton';
@@ -35,7 +37,17 @@ function timeAgo(date: Date): string {
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { data: notifications = [], isLoading } = useNotifications();
+  const moderation = useModeration();
+  const { data: allNotifications = [], isLoading } = useNotifications();
+  // Nothing from someone you blocked: no likes, comments, or invites.
+  const notifications = useMemo(
+    () =>
+      allNotifications.filter((n) => {
+        const actor = notificationActorUid(n as unknown as Record<string, unknown>);
+        return !actor || !moderation.blockedUids.has(actor);
+      }),
+    [allNotifications, moderation],
+  );
   const respond = useRespondToInvite();
   // Local-only, this-session tracking of which invites were just actioned —
   // the notification doc itself doesn't carry a "handled" field (that would
@@ -48,7 +60,11 @@ export default function NotificationsScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const myUid = useAuthStore((s) => s.user?.uid ?? '');
   const markRead = useMarkNotificationsRead();
-  const { data: threads = [], isLoading: threadsLoading } = useDmThreads();
+  const { data: allThreads = [], isLoading: threadsLoading } = useDmThreads();
+  const threads = useMemo(
+    () => allThreads.filter((t) => isThreadVisible(t, myUid, moderation)),
+    [allThreads, myUid, moderation],
+  );
   const markMessagesSeen = useMarkMessagesSeen();
 
   const allOtherUids = Array.from(

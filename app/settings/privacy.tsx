@@ -2,9 +2,11 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { CaretLeft, GlobeHemisphereWest, LockSimple, EyeSlash } from 'phosphor-react-native';
+import { CaretLeft, GlobeHemisphereWest, LockSimple, EyeSlash, Prohibit } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useModerationStore } from '@/stores/useModerationStore';
+import { SettingsRow } from '@/components/settings/SettingsRow';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -29,6 +31,12 @@ const PRIVACY_POINTS = [
 export default function PrivacySettingsScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const blockedCount = useModerationStore((s) => s.blockedUids.length);
+
+  // SettingsRow fires its own haptic.
+  const handleBlockedPress = useCallback(() => {
+    router.push('/settings/blocked');
+  }, []);
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -72,8 +80,17 @@ export default function PrivacySettingsScreen() {
           </View>
         ))}
 
+        <View style={[styles.section, { borderColor: colors.background.cardBorder }]}>
+          <SettingsRow
+            label="Blocked accounts"
+            icon={Prohibit}
+            value={blockedCount > 0 ? String(blockedCount) : undefined}
+            onPress={handleBlockedPress}
+          />
+        </View>
+
         <Text style={[styles.footnote, { color: colors.text.tertiary }]}>
-          Granular privacy controls are on the way — per-trip visibility already works from each trip&apos;s edit screen.
+          Change who can see a trip from its edit screen. To report something, tap the three dots on it.
         </Text>
       </ScrollView>
     </View>
@@ -133,6 +150,12 @@ const styles = StyleSheet.create({
   cardBody: {
     fontSize: FontSize.sm,
     lineHeight: FontSize.sm * 1.5,
+  },
+  section: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: Spacing['5'],
   },
   footnote: {
     fontSize: FontSize.xs,

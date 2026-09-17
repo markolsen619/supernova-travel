@@ -28,6 +28,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 import { claimUsername } from '@/services/usernames';
+import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
@@ -90,6 +91,10 @@ export default function SignUpScreen() {
     }
     if (!usernameValid) return;
     if (!birthdayValid) return;
+    if (containsObjectionableText(fullName)) {
+      setError(OBJECTIONABLE_TEXT_MESSAGE);
+      return;
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;

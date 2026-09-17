@@ -34,6 +34,8 @@ export type PostMediaType = 'photo' | 'video' | 'trip';
 
 export interface Post {
   id: string;
+  /** Set by functions/src/onReportCreated.ts once enough people report it. Hidden from everyone. */
+  moderationHidden?: boolean;
   authorUid: string;
   authorDisplayName: string;
   authorUsername: string;
@@ -59,6 +61,8 @@ export interface Post {
 
 export interface Comment {
   id: string;
+  /** Set by functions/src/onReportCreated.ts once enough people report it. Hidden from everyone. */
+  moderationHidden?: boolean;
   authorUid: string;
   authorDisplayName: string;
   authorAvatarUrl: string | null;
@@ -82,6 +86,8 @@ export interface Destination {
 
 export interface Trip {
   id: string;
+  /** Set by functions/src/onReportCreated.ts once enough people report it. Hidden from everyone. */
+  moderationHidden?: boolean;
   authorUid: string;
   title: string;
   description: string;

@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
+import { isBlockedBetween } from './moderationEvents';
 
 const db = admin.firestore();
 
@@ -55,6 +56,11 @@ export const createDmThread = functions.https.onCall(
     const participants = [callerUid, ...others];
     if (participants.length > MAX_GROUP_SIZE) {
       throw new functions.https.HttpsError('invalid-argument', `Groups are limited to ${MAX_GROUP_SIZE} people`);
+    }
+
+    const blockChecks = await Promise.all(others.map((uid) => isBlockedBetween(callerUid, uid)));
+    if (blockChecks.some(Boolean)) {
+      throw new functions.https.HttpsError('permission-denied', "You can't message this person");
     }
 
     const friendChecks = await Promise.all(others.map((uid) => isMutualFriend(callerUid, uid)));

@@ -23,6 +23,8 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 interface FeedCardProps {
   post: Post;
   isActive: boolean;
+  /** Opens report/block for someone else's post. The screen owns the menu, since cards are recycled. */
+  onMorePress?: (post: Post, anchor: React.RefObject<View | null>) => void;
 }
 
 interface TripInfoBadgeProps {
@@ -62,7 +64,7 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
   );
 }
 
-export function FeedCard({ post, isActive }: FeedCardProps) {
+export function FeedCard({ post, isActive, onMorePress }: FeedCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
   const { width, height } = useLayout();
@@ -146,7 +148,7 @@ export function FeedCard({ post, isActive }: FeedCardProps) {
       )}
 
       {/* Overlaid controls */}
-      <FeedActions post={post} onCommentPress={handleCommentPress} />
+      <FeedActions post={post} onCommentPress={handleCommentPress} onMorePress={onMorePress} />
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { db } from '@/services/firebase';
+import { containsObjectionableText } from '@/utils/contentFilter';
 
 // Lowercase letters, digits, underscore and dot; 3–20 chars. Mirrors the
 // claim-doc ID format in firestore.rules (`usernames/{username}`).
@@ -15,6 +16,10 @@ export function validateUsernameFormat(username: string): string | null {
   if (username.length > 20) return 'At most 20 characters.';
   if (!USERNAME_PATTERN.test(username)) {
     return 'Lowercase letters, numbers, dots, and underscores only.';
+  }
+  // Dots and underscores are word breaks for the filter: "some.slur" counts.
+  if (containsObjectionableText(username.replace(/[._]/g, ' '))) {
+    return 'Choose a different username.';
   }
   return null;
 }

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { algoliasearch } from 'algoliasearch';
 import { Hit } from '@algolia/client-search';
 import { UserProfile, Trip } from '@/types';
+import { useModeration } from '@/hooks/useModeration';
+import { contentKey, filterVisible } from '@/utils/moderation';
 
 const APP_ID = process.env.EXPO_PUBLIC_ALGOLIA_APP_ID ?? '';
 const SEARCH_KEY = process.env.EXPO_PUBLIC_ALGOLIA_SEARCH_KEY ?? '';
@@ -56,9 +58,26 @@ export function useSearch(searchText: string): {
     },
   });
 
+  // Search is Algolia, which knows nothing about who you blocked or what you
+  // reported, so the same filters as every Firestore-backed list apply here.
+  const moderation = useModeration();
+  const users = useMemo(
+    () => (data?.users ?? []).filter((u) => !moderation.blockedUids.has(u.uid)),
+    [data, moderation],
+  );
+  const trips = useMemo(
+    () =>
+      filterVisible(data?.trips ?? [], moderation, (t) => ({
+        authorUid: t.authorUid,
+        key: contentKey({ type: 'trip', id: t.id }),
+        moderationHidden: t.moderationHidden,
+      })),
+    [data, moderation],
+  );
+
   return {
-    users: data?.users ?? [],
-    trips: data?.trips ?? [],
+    users,
+    trips,
     isSearching: isFetching,
   };
 }
