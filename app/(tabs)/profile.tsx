@@ -100,7 +100,7 @@ function ProfileScreenContent() {
   const { colors } = useTheme();
   const { user, tier } = useAuthStore();
   const { profile } = useUserStore();
-  const { width, galleryColumns } = useLayout();
+  const { width, galleryColumns, cardListColumns } = useLayout();
   const postCell = galleryCellWidth(width, galleryColumns);
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('Trips');
@@ -358,7 +358,9 @@ function ProfileScreenContent() {
     return (
       <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
         <FlashList
+          key={`trips-${cardListColumns}`}
           data={filteredTrips}
+          numColumns={cardListColumns}
           keyExtractor={(t) => t.id}
           contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingBottom: 100 }}
           ListHeaderComponent={headerComponent}
@@ -374,6 +376,7 @@ function ProfileScreenContent() {
             />
           }
           renderItem={({ item }) => (
+            <View style={cardListColumns > 1 ? styles.cardCell : undefined}>
             <TripCard
               trip={item}
               onPress={() => router.push(`/trip/${item.id}`)}
@@ -382,6 +385,7 @@ function ProfileScreenContent() {
               // batch lookup needed.
               author={{ name: fullName, avatarUrl: profile?.avatarUrl ?? null }}
             />
+            </View>
           )}
         />
         <EditProfileSheet visible={editSheetVisible} onClose={closeEditSheet} />
@@ -462,7 +466,9 @@ function ProfileScreenContent() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
       <FlashList
+        key={`saved-${cardListColumns}`}
         data={savedTrips}
+        numColumns={cardListColumns}
         keyExtractor={(t) => t.id}
         contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingBottom: 100 }}
         ListHeaderComponent={headerComponent}
@@ -479,6 +485,7 @@ function ProfileScreenContent() {
           />
         }
         renderItem={({ item }) => (
+          <View style={cardListColumns > 1 ? styles.cardCell : undefined}>
           <TripCard
             trip={item}
             onPress={() =>
@@ -490,6 +497,7 @@ function ProfileScreenContent() {
             }
             author={savedAuthorProfiles[item.authorUid] ?? null}
           />
+          </View>
         )}
       />
       <EditProfileSheet visible={editSheetVisible} onClose={closeEditSheet} />
@@ -498,6 +506,11 @@ function ProfileScreenContent() {
 }
 
 const styles = StyleSheet.create({
+  // Gutter between trip cards when the list has more than one column (iPad).
+  cardCell: {
+    flex: 1,
+    marginHorizontal: Spacing['1'] + 2,
+  },
   screen: { flex: 1 },
 
   hero: {

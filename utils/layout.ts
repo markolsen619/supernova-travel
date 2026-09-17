@@ -66,6 +66,15 @@ export function columnWidth(width: number, columns: number): number {
   return (width - Spacing['6'] * 2 - Spacing['3'] * (columns - 1)) / columns;
 }
 
+/**
+ * Columns for a list of full trip cards (profile Trips and Saved). 1 on phones,
+ * unchanged; a single card would otherwise be ~800pt wide on an iPad.
+ */
+export function cardListColumnsFor(width: number, height: number): number {
+  if (!isLargeScreen(width, height)) return 1;
+  return width >= WIDE_SCREEN_MIN ? 3 : 2;
+}
+
 /** Edge-to-edge gallery cells per row (profile posts). 3 on phones, unchanged. */
 export function galleryColumnsFor(width: number, height: number): number {
   if (!isLargeScreen(width, height)) return 3;

@@ -18,6 +18,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePlaceAutocomplete, PlaceSelection, PlaceSuggestion } from '@/hooks/usePlaceAutocomplete';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useLayout } from '@/hooks/useLayout';
 
 export interface DestinationPickerProps {
   visible: boolean;
@@ -27,6 +28,7 @@ export interface DestinationPickerProps {
 
 export function DestinationPicker({ visible, onSelect, onClose }: DestinationPickerProps) {
   const { colors } = useTheme();
+  const { isLarge } = useLayout();
   const { query, setQuery, suggestions, isLoading, error, selectPlace, clearQuery } =
     usePlaceAutocomplete();
   const [isSelecting, setIsSelecting] = useState(false);
@@ -144,6 +146,9 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
       visible={visible}
       animationType="slide"
       transparent={false}
+      // iPad: a centred sheet. Full screen there stretched a search list across
+      // the whole display and slid its header under the status bar.
+      presentationStyle={isLarge ? 'pageSheet' : undefined}
       onRequestClose={handleClose}
     >
       <SafeAreaView style={[styles.root, { backgroundColor: colors.background.primary }]}>

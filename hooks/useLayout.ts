@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
-  isLargeScreen, gridColumnsFor, galleryColumnsFor, contentMaxWidth, contentColumnStyle, feedColumnWidth,
+  isLargeScreen, gridColumnsFor, galleryColumnsFor, cardListColumnsFor, contentMaxWidth, contentColumnStyle, feedColumnWidth,
 } from '@/utils/layout';
 
 /**
@@ -22,6 +22,7 @@ export function useLayout() {
         isLarge: isLargeScreen(width, height),
         columns: gridColumnsFor(width, height),
         galleryColumns: galleryColumnsFor(width, height),
+        cardListColumns: cardListColumnsFor(width, height),
         maxContentWidth,
         /** Spread onto a screen's content container to centre it at the reading measure on large screens. */
         contentColumn: contentColumnStyle(maxContentWidth),

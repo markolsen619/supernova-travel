@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { isUnder13 } from '@/utils/age';
+import { useLayout } from '@/hooks/useLayout';
 
 type BirthdayFieldProps = {
   value: Date | null;
@@ -16,6 +17,7 @@ type BirthdayFieldProps = {
 
 export default function BirthdayField({ value, onChange, onValidityChange }: BirthdayFieldProps) {
   const { colors } = useTheme();
+  const { isLarge } = useLayout();
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const maxDobDate = new Date();
@@ -78,7 +80,7 @@ export default function BirthdayField({ value, onChange, onValidityChange }: Bir
         <Modal transparent animationType="slide">
           <View style={styles.pickerOverlay}>
             <TouchableOpacity style={styles.pickerBackdrop} onPress={closeDatePicker} />
-            <View style={[styles.pickerSheet, { backgroundColor: colors.background.elevated }]}>
+            <View style={[styles.pickerSheet, isLarge && styles.pickerSheetLarge, { backgroundColor: colors.background.elevated }]}>
               <View style={[styles.pickerHeader, { borderBottomColor: colors.background.cardBorder }]}>
                 <TouchableOpacity onPress={closeDatePicker} hitSlop={8}>
                   <Text style={[styles.pickerDone, { color: colors.brand.purple }]}>Done</Text>
@@ -92,6 +94,9 @@ export default function BirthdayField({ value, onChange, onValidityChange }: Bir
                 maximumDate={maxDobDate}
                 minimumDate={new Date(1900, 0, 1)}
                 textColor={colors.text.primary}
+                // The spinner has an intrinsic width; on iPad it would sit in
+                // the sheet's left corner.
+                style={isLarge ? styles.pickerCentered : undefined}
               />
             </View>
           </View>
@@ -137,6 +142,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     paddingBottom: 32,
+  },
+  // iPad: a centred card rather than a sheet spanning the whole screen.
+  pickerSheetLarge: {
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
+  },
+  pickerCentered: {
+    alignSelf: 'center',
   },
   pickerHeader: {
     flexDirection: 'row',

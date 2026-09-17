@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useLayout } from '@/hooks/useLayout';
 
 export interface DatePickerModalProps {
   visible: boolean;
@@ -18,6 +19,7 @@ export interface DatePickerModalProps {
  * uses the exact same affordance. */
 export function DatePickerModal({ visible, date, title, onConfirm, onCancel, minimumDate }: DatePickerModalProps) {
   const { colors } = useTheme();
+  const { isLarge } = useLayout();
   const now = date ?? new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
@@ -37,7 +39,7 @@ export function DatePickerModal({ visible, date, title, onConfirm, onCancel, min
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={dp.overlay}>
-        <View style={[dp.sheet, { backgroundColor: colors.background.elevated }]}>
+        <View style={[dp.sheet, isLarge && dp.sheetLarge, { backgroundColor: colors.background.elevated }]}>
           <Text style={[dp.sheetTitle, { color: colors.text.primary }]}>{title}</Text>
           <Text style={[dp.hint, { color: colors.text.tertiary }]}>Enter date (YYYY · MM · DD)</Text>
           <View style={dp.row}>
@@ -95,6 +97,12 @@ const dp = StyleSheet.create({
     borderTopRightRadius: BorderRadius['2xl'],
     padding: Spacing['6'],
     paddingBottom: Spacing['10'],
+  },
+  // iPad: a centred card rather than a sheet spanning the whole screen.
+  sheetLarge: {
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
   },
   sheetTitle: {
     fontSize: FontSize.lg,

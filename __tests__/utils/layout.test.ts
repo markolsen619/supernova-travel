@@ -1,7 +1,7 @@
 import {
   isLargeScreen, twoColumnWidth, thirdWidth, gridColumnsFor,
   contentMaxWidth, didSizeChange, crossedBreakpoint, LARGE_SCREEN_MIN,
-  columnWidth, galleryColumnsFor, galleryCellWidth, feedColumnWidth, contentColumnStyle, usesReadingColumn,
+  columnWidth, galleryColumnsFor, galleryCellWidth, feedColumnWidth, contentColumnStyle, usesReadingColumn, cardListColumnsFor,
 } from '@/utils/layout';
 
 const IPHONE_WIDTHS = [375, 390, 393, 402, 430];
@@ -28,6 +28,15 @@ describe('the iPhone guarantee', () => {
     expect(columnWidth(w, 2)).toBe(twoColumnWidth(w));
     expect(feedColumnWidth(w, PHONE_H)).toBe(w);
     expect(contentColumnStyle(contentMaxWidth(w, PHONE_H))).toEqual({});
+  });
+
+  it.each(IPHONE_WIDTHS)('keeps trip card lists single-column at %ipt', (w) => {
+    expect(cardListColumnsFor(w, PHONE_H)).toBe(1);
+  });
+
+  it('gives trip card lists 2 columns on iPad portrait and 3 in landscape', () => {
+    expect(cardListColumnsFor(834, 1194)).toBe(2);
+    expect(cardListColumnsFor(1194, 834)).toBe(3);
   });
 
   it('keeps the phone layout in iPad Split View and Slide Over, which are phone-width', () => {

@@ -254,7 +254,7 @@ export default function ExploreScreen() {
         {/* ── People to Follow ── */}
         {(suggestionsLoading || suggestions.length > 0) && (
           <View style={[styles.section, styles.peopleSection]}>
-            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInset, { color: colors.text.secondary }]}>
               People to follow
             </Text>
 
@@ -339,6 +339,14 @@ const styles = StyleSheet.create({
   },
   peopleSection: {
     paddingHorizontal: Spacing['6'],
+    // Left-aligned with the headings, but stops before a follow row stretches
+    // across an iPad. No iPhone reaches it.
+    maxWidth: 640,
+  },
+  // The section already insets its content; without this the title was
+  // indented twice as far as every other section title.
+  sectionTitleInset: {
+    paddingHorizontal: 0,
   },
   tripGridSkeleton: {
     flexDirection: 'row',
