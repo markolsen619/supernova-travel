@@ -1,5 +1,5 @@
 import { PRO_ENTITLEMENT_ID } from '@/constants/revenuecat';
-import { isPurchasesReady } from '@/services/revenuecat';
+import { isPurchasesReady, whenConfigured } from '@/services/revenuecat';
 
 /**
  * RevenueCat's native Paywall and Customer Center.
@@ -19,7 +19,20 @@ import { isPurchasesReady } from '@/services/revenuecat';
  * Both charge through the same offerings and grant the same entitlement.
  */
 
-type PaywallOutcome = 'purchased' | 'restored' | 'cancelled' | 'not_presented' | 'error';
+/**
+ * `not_presented` is RevenueCat's answer when the entitlement is already
+ * active. `unavailable` is ours, for when nothing could be shown at all (SDK
+ * unconfigured, or no native module in this build). They're kept apart because
+ * a quota limit needs opposite responses to them: fix a stale server tier, or
+ * fall back to the app's own paywall. See utils/tierSync.ts.
+ */
+export type PaywallOutcome =
+  | 'purchased'
+  | 'restored'
+  | 'cancelled'
+  | 'not_presented'
+  | 'unavailable'
+  | 'error';
 
 async function loadUI() {
   try {
@@ -47,9 +60,9 @@ function normalize(result: string): PaywallOutcome {
 
 /** Present the dashboard-configured paywall unconditionally. */
 export async function presentRemotePaywall(): Promise<PaywallOutcome> {
-  if (!isPurchasesReady()) return 'not_presented';
+  if (!(await whenConfigured())) return 'unavailable';
   const UI = await loadUI();
-  if (!UI) return 'not_presented';
+  if (!UI) return 'unavailable';
   try {
     return normalize(await UI.presentPaywall({ displayCloseButton: true }));
   } catch (error) {
@@ -64,12 +77,12 @@ export async function presentRemotePaywall(): Promise<PaywallOutcome> {
  * check of its own.
  *
  * Returns 'not_presented' when the user already has Pro, which callers can
- * treat as "proceed".
+ * treat as "proceed", and 'unavailable' when no paywall could be shown.
  */
 export async function presentPaywallIfNeeded(): Promise<PaywallOutcome> {
-  if (!isPurchasesReady()) return 'not_presented';
+  if (!(await whenConfigured())) return 'unavailable';
   const UI = await loadUI();
-  if (!UI) return 'not_presented';
+  if (!UI) return 'unavailable';
   try {
     return normalize(
       await UI.presentPaywallIfNeeded({

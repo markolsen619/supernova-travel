@@ -38,8 +38,8 @@ describe('LOYALTY_ICONS', () => {
 });
 
 describe('PAYWALL_FEATURE_ICONS', () => {
-  it('has 5 entries each with Icon, color, label, description', () => {
-    expect(PAYWALL_FEATURE_ICONS).toHaveLength(5);
+  it('has 3 entries each with Icon, color, label, description', () => {
+    expect(PAYWALL_FEATURE_ICONS).toHaveLength(3);
     PAYWALL_FEATURE_ICONS.forEach((f) => {
       expect(f.Icon).toBeDefined();
       expect(typeof f.color).toBe('string');

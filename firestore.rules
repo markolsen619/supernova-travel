@@ -18,16 +18,24 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/follows/$(request.auth.uid + '_' + authorUid));
     }
 
+    // tier and its bookkeeping are written server-side only (syncTier and
+    // reconcileTier, Admin SDK, which bypasses these rules entirely). The
+    // bookkeeping matters as much as tier itself: both functions discard any
+    // write older than tierEventTimestampMs, so a client that pushed that
+    // cursor into the future would freeze its tier against every later
+    // expiry, refund, and reconcile — Pro forever after cancelling.
+    function serverTierFields() {
+      return ['tier', 'tierEventTimestampMs', 'tierEventId', 'tierUpdatedAt', 'tierReconciledAtMs'];
+    }
+
     // Users collection
     match /users/{uid} {
       allow read: if isAuthed();
-      allow create: if isOwner(uid);
-      // Owner may update any field EXCEPT tier — tier is set server-side only
-      // (the RevenueCat webhook's syncTier Cloud Function, Admin SDK, which
-      // bypasses these rules entirely). Without this carve-out a client could
-      // self-upgrade by writing users/{ownUid}.tier directly.
+      // createUserProfile() omits tier; a new account is free by absence.
+      allow create: if isOwner(uid)
+        && !request.resource.data.keys().hasAny(serverTierFields());
       allow update: if isOwner(uid)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tier']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(serverTierFields());
       allow delete: if false; // deleteUserData Cloud Function only
 
       // Personalized feed — written exclusively by Cloud Functions (Admin SDK)

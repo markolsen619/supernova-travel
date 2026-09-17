@@ -43,6 +43,8 @@ Copy `.env.local.example` to `.env.local` and fill in all keys. Client vars are 
 | `ALGOLIA_ADMIN_KEY` | Cloud Function | Algolia index write access |
 | `AVIATIONSTACK_API_KEY` | Cloud Function | Flight status polling |
 | `GEMINI_API_KEY` | Cloud Function | AI trip generation (never expose to client) |
+| `REVENUECAT_WEBHOOK_SECRET` | Cloud Function | `syncTier` webhook Authorization header |
+| `REVENUECAT_SECRET_API_KEY` | Cloud Function | `reconcileTier` REST lookups: a v1 `sk_…` key, never on the client |
 
 ## Architecture
 
@@ -127,6 +129,8 @@ All functions use Firebase Functions v2.
 - `generateTrip` (`generateTrip.ts`) — HTTPS callable; receives `GenerateTripRequest`, calls Gemini 1.5 Flash, writes `trips` + `days` + `activities` subcollections, enforces weekly quota via `usage_quotas`
 - `checkFlightStatus` (`checkFlightStatus.ts`) — Cloud Scheduler every 30 min; queries upcoming boarding passes, calls AviationStack HTTP API, updates Firestore status, sends Expo push notifications
 - `syncTripToAlgolia` / `syncUserToAlgolia` (`syncAlgolia.ts`) — `onDocumentWritten` triggers; upserts/deletes public trips in the Algolia `trips` index and users in the `users` index
+- `syncTier` (`syncTier.ts`) — RevenueCat webhook; the normal writer of `users/{uid}.tier`, ordered by `tierEventTimestampMs`
+- `reconcileTier` (`reconcileTier.ts`) — HTTPS callable; re-reads the tier from RevenueCat's REST API when a webhook is late or lost. Throttled per user (30s). Pure logic lives in `tierEvents.ts`
 - `types.ts` — shared TypeScript interfaces for Cloud Function request/response shapes
 
 **Never call Gemini or any third-party secret API directly from client code.** All such calls go through Cloud Functions.
@@ -138,6 +142,7 @@ All functions use Firebase Functions v2.
 - `services/gemini.ts` — `callGenerateTrip(request)`: calls the `generateTrip` Cloud Function via `httpsCallable`
 - `services/oauth.ts` — `configureGoogleSignIn()`, `signInWithGoogle()`, `signOutGoogle()`, `isAppleAuthAvailable()`. The **only** file permitted to import a provider SDK. `signInWithGoogle` resolves `null` when the user dismisses the sheet — since v13 the SDK reports cancellation by resolving `{ type: 'cancelled' }`, not by throwing, so cancellation is a return-value check and never a `catch`
 - `services/session.ts` — `hydrateSession(firebaseUser): Promise<boolean>` plus `registerPushToken`. Everything that must happen once a profile document is known to exist (store hydration, `tier`, push token, RevenueCat), returning whether it exists. Called from **two** places: the auth listener and `complete-profile` right after it writes. Both are required — `onAuthStateChanged` does not fire on a Firestore write
+- `services/tier.ts` — `reconcileServerTier(queryClient)`: calls `reconcileTier`, updates `useAuthStore.serverTier`, invalidates the quota queries. Dedupes concurrent callers and never throws. `useAuthStore` holds `tier` (live, from the SDK) and `serverTier` (what Firestore last said); a mismatch triggers this call
 - `services/profile.ts` — `buildUserProfile()` (pure, testable field shape) and `createUserProfile()` (adds `createdAt`, writes with `{ merge: true }`). Sole writer of the new-account `users/{uid}` shape
 
 ### Hooks (`hooks/`)
@@ -157,7 +162,8 @@ All functions use Firebase Functions v2.
 | `useCreateTrip` | Create/update/delete trip + day/activity mutations. `updateTrip()` invalidates `['trip', id]`, `['trips']`, and `['publicTrips']` (prefix match) so a silent backfill (e.g. `useTripCoverResolver`) shows up in every list view, not just the trip's own detail query |
 | `useTripCoverResolver` | `{ resolveCover(trip, isOwner) }` — owner-only, silent, once-ever backfill of a trip's `coverImageUrl` from Google Places. For AI-generated trips (destination is a name only, no `placeId`) it grounds the destination first via `enrichPlaceByQuery`, same lazy-grounding call used for AI activity stops, then resolves the photo. Called from `trip/[id].tsx` (on open) and `profile.tsx` (across the whole trip list, sequentially, on mount) |
 | `useAuthorProfiles(uids)` | Batched `users/{uid}` lookup (`documentId() in [...]`, chunked to 30) → `Record<uid, {name, avatarUrl}>`. Feeds `TripCard`'s `author` prop for lists spanning multiple authors (Saved tab, Explore, public profile) — profile's own Trips tab skips this and uses the already-loaded own profile directly |
-| `useAiGenerateTrip` | AI generation mutation; redirects to `/paywall` on quota exceeded |
+| `useAiGenerateTrip` | AI generation mutation; on quota exceeded opens the hosted paywall via `useLimitPaywall`, then returns to the form |
+| `useLimitPaywall(onReturn?)` | What a server-enforced limit does: hosted RevenueCat paywall → reconcile the server tier on purchase/restore/already-Pro, falling back to `/paywall` if the hosted paywall can't show |
 | `useBoardingPasses` | `{ boardingPasses, isLoading, addPass, deletePass }` |
 | `useReservations` | `{ reservations, isLoading, addReservation, deleteReservation }` |
 | `useLoyaltyPrograms` | `{ loyaltyPrograms, isLoading, addProgram, deleteProgram }` |
@@ -211,7 +217,7 @@ All design tokens live in `constants/`:
   - `RESERVATION_ICONS: Record<ReservationType, { Icon, color }>`
   - `LOYALTY_ICONS: Record<LoyaltyProgram['programType'], { Icon, color }>`
   - `VISIBILITY_ICONS: Record<TripVisibility, { Icon, color }>`
-  - `PAYWALL_FEATURE_ICONS: Array<{ Icon, color, label, description }>` — 6 pro-tier features for paywall screen
+  - `PAYWALL_FEATURE_ICONS: Array<{ Icon, color, label, description }>` — the Pro features the paywall sells (only ones Pro actually unlocks)
   - `TAB_ICONS: Record<string, PhosphorIcon>` — tab bar icons (Create tab uses a gradient `+` circle, not an icon)
   - `PhosphorIcon` — re-exported `Icon` type from `phosphor-react-native`
 
@@ -383,6 +389,7 @@ These rules apply to ALL new code:
 ### Utils
 
 - `utils/age.ts` — `isUnder13(date)`. Tests pin the clock with fake timers; without that, `setFullYear` rolls Feb 29 and flips the birthday boundary
+- `utils/tierSync.ts` — `shouldReconcileTier(clientTier, serverTier)` and `resolveLimitPaywallAction(outcome)`
 - `utils/authRoute.ts` — `resolveAuthRoute({ isAuthenticated, hasProfile, onboardingComplete })`. The profile check precedes the onboarding check deliberately: no `users/{uid}` document means no app entry, whatever the onboarding flag says
 
 **Testing note:** there is no React Native component-testing library in this project. Every test in `__tests__/` is a pure-function test. Push logic out of components into `utils/` or `services/` to make it testable rather than adding a renderer.

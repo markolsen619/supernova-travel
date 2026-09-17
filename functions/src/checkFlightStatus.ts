@@ -78,19 +78,25 @@ export const checkFlightStatus = onSchedule(
       if (newStatus && newStatus !== pass.status) {
         await passDoc.ref.update({ status: newStatus });
 
-        // Fetch user's push tokens
         const userDoc = await db.collection('users').doc(pass.ownerUid).get();
-        const tokens: string[] = userDoc.data()?.expoPushTokens ?? [];
+        const userData = userDoc.data();
+
+        // The status write above is for everyone — the wallet shows it. The
+        // push is Flight Alerts, a Pro feature on the paywall. tier is
+        // server-written (syncTier / reconcileTier), so this can't be spoofed.
+        if ((userData?.tier ?? 'free') === 'free') continue;
+
+        const tokens: string[] = userData?.expoPushTokens ?? [];
 
         const statusMessages: Record<string, string> = {
-          boarded: `Your flight ${pass.flightNumber} is boarding now!`,
+          boarded: `Your flight ${pass.flightNumber} is boarding now.`,
           completed: `Your flight ${pass.flightNumber} has landed.`,
           cancelled: `Your flight ${pass.flightNumber} has been cancelled.`,
         };
 
         const msg = statusMessages[newStatus];
         if (msg && tokens.length > 0) {
-          await sendPushNotification(tokens, 'Flight Update ✈️', msg);
+          await sendPushNotification(tokens, 'Flight update', msg);
         }
       }
     }

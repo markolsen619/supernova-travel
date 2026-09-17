@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FirebaseError } from 'firebase/app';
 import { router } from 'expo-router';
+import { useLimitPaywall } from '@/hooks/useLimitPaywall';
 import { callParseTravelConfirmation } from '@/services/gemini';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useImportDraftStore } from '@/stores/useImportDraftStore';
@@ -10,6 +11,9 @@ export function useParseTravelConfirmation() {
   const queryClient = useQueryClient();
   const uid = useAuthStore((s) => s.user?.uid);
   const setDraft = useImportDraftStore((s) => s.setDraft);
+  // The import screen is the form itself, so the user stays put and can
+  // retry once they've upgraded.
+  const openLimitPaywall = useLimitPaywall();
 
   const mutation = useMutation({
     mutationFn: (request: ParseTravelConfirmationRequest) => callParseTravelConfirmation(request),
@@ -26,10 +30,10 @@ export function useParseTravelConfirmation() {
       }
     },
     onError: (error: unknown) => {
-      // resource-exhausted means free tier's 1/year limit is used — redirect to paywall
+      // resource-exhausted means the free tier's 1/year limit is used
       if (error instanceof FirebaseError && error.code === 'functions/resource-exhausted') {
         if (uid) queryClient.invalidateQueries({ queryKey: ['importQuota', uid] });
-        router.replace('/paywall');
+        openLimitPaywall();
       }
     },
   });

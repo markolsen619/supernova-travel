@@ -70,7 +70,11 @@ export async function hydrateSession(
   if (!snap.exists()) return { hasProfile: false, hasSeenOnboarding: false };
 
   const data = snap.data();
-  useAuthStore.getState().setTier(data.tier ?? 'free');
+  const serverTier = data.tier ?? 'free';
+  useAuthStore.getState().setTier(serverTier);
+  // Set before configureRevenueCat() below, so the SDK's first CustomerInfo
+  // is compared against this user's tier rather than the previous account's.
+  useAuthStore.getState().setServerTier(serverTier);
   // Hydrate the cached profile — EditProfileSheet, post authoring,
   // and the profile header all read from this store.
   useUserStore.getState().setProfile({

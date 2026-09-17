@@ -91,3 +91,61 @@ export function shouldApplyEvent(
   if (lastAppliedTimestampMs === undefined || lastAppliedTimestampMs === null) return true;
   return incomingTimestampMs >= lastAppliedTimestampMs;
 }
+
+// ---------------------------------------------------------------------------
+// Reconciliation (functions/src/reconcileTier.ts)
+// ---------------------------------------------------------------------------
+
+/** One entitlement from RevenueCat's REST v1 GET /subscribers/{app_user_id}. */
+export interface RevenueCatSubscriberEntitlement {
+  /** null for lifetime / non-renewing purchases. */
+  expires_date?: string | null;
+  /** Set while a billing retry is in progress; access continues until it passes. */
+  grace_period_expires_date?: string | null;
+}
+
+/** The subset of the REST v1 subscriber object reconciliation reads. */
+export interface RevenueCatSubscriber {
+  entitlements?: Record<string, RevenueCatSubscriberEntitlement> | null;
+}
+
+/**
+ * The tier RevenueCat's current record implies, as opposed to the tier a
+ * single webhook event implies. The REST response lists entitlements the
+ * subscriber has ever held, expired ones included, so presence alone is not
+ * a grant: expiry has to be checked.
+ *
+ * The grace period counts as access for the same reason BILLING_ISSUE does
+ * not revoke in resolveTierForEvent(): a failed renewal is still being
+ * retried, and the user keeps Pro until the retry window closes.
+ */
+export function tierFromSubscriber(
+  subscriber: RevenueCatSubscriber | null | undefined,
+  nowMs: number,
+): AppTier {
+  const ent = subscriber?.entitlements?.[PRO_ENTITLEMENT_ID];
+  if (!ent) return 'free';
+  if (ent.expires_date === null || ent.expires_date === undefined) return 'pro';
+
+  const expires = Date.parse(ent.expires_date);
+  const grace = ent.grace_period_expires_date ? Date.parse(ent.grace_period_expires_date) : NaN;
+  if (expires > nowMs) return 'pro';
+  if (grace > nowMs) return 'pro';
+  return 'free';
+}
+
+/**
+ * Minimum gap between REST lookups for one user. The client asks for a
+ * reconcile whenever the SDK and Firestore disagree, and a burst of
+ * CustomerInfo updates can do that several times in a second; this keeps a
+ * misbehaving client from spending RevenueCat's API rate limit.
+ */
+export const RECONCILE_COOLDOWN_MS = 30 * 1000;
+
+export function isReconcileThrottled(
+  lastReconciledMs: number | undefined | null,
+  nowMs: number,
+): boolean {
+  if (lastReconciledMs === undefined || lastReconciledMs === null) return false;
+  return nowMs - lastReconciledMs < RECONCILE_COOLDOWN_MS;
+}

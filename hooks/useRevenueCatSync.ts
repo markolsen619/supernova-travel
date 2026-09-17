@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { tierFromCustomerInfo } from '@/services/revenuecat';
 import { CUSTOMER_INFO_QUERY_KEY } from '@/hooks/useCustomerInfo';
+import { reconcileServerTier } from '@/services/tier';
+import { shouldReconcileTier } from '@/utils/tierSync';
 
 /**
  * Keeps useAuthStore.tier in lockstep with RevenueCat, for the lifetime of the
@@ -17,6 +19,10 @@ import { CUSTOMER_INFO_QUERY_KEY } from '@/hooks/useCustomerInfo';
  * users/{uid}.tier is a server-written mirror (functions/src/syncTier.ts) that
  * exists for Cloud Functions to read; it can lag a purchase by a second or two
  * of webhook latency, which is exactly the window this listener covers.
+ *
+ * When the two disagree it also asks the server to reconcile
+ * (functions/src/reconcileTier.ts), so a late or lost webhook can't leave a
+ * paying user rate-limited server-side.
  */
 export function useRevenueCatSync() {
   const setTier = useAuthStore((s) => s.setTier);
@@ -36,9 +42,17 @@ export function useRevenueCatSync() {
       if (cancelled) return;
 
       listener = (info) => {
-        setTier(tierFromCustomerInfo(info as Parameters<typeof tierFromCustomerInfo>[0]));
+        const clientTier = tierFromCustomerInfo(info as Parameters<typeof tierFromCustomerInfo>[0]);
+        setTier(clientTier);
         // Anything rendering subscription detail re-reads on the next paint.
         queryClient.invalidateQueries({ queryKey: CUSTOMER_INFO_QUERY_KEY });
+
+        // The SDK and Firestore disagree: a purchase the webhook hasn't
+        // delivered yet, or a webhook that was lost. Either way the server
+        // is enforcing quotas against the wrong tier, so repair it now.
+        if (shouldReconcileTier(clientTier, useAuthStore.getState().serverTier)) {
+          reconcileServerTier(queryClient);
+        }
       };
       mod.default.addCustomerInfoUpdateListener(
         listener as Parameters<typeof mod.default.addCustomerInfoUpdateListener>[0],
