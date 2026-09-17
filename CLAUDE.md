@@ -279,6 +279,8 @@ Other components:
 - `components/SplashOverlay` — overlay shown during app initialization (before auth resolves)
 - `components/paywall/PaywallFeatureList` — pro tier features list; driven by `PAYWALL_FEATURE_ICONS`
 
+**iPad / large screens** (`utils/layout.ts`, `hooks/useLayout`, `components/layout/ReadingColumn`): `supportsTablet` is on, so App Review runs the app on iPad. `isLargeScreen` = `min(width, height) >= 550` (Split View / Slide Over stay phone). `useLayout()` gives `columns` (Explore grids 2/3/4), `galleryColumns` (profile posts 3/4/5), `cardListColumns` (profile trip lists 1/2/3), `feedWidth` (centred 9:16 feed column), and `contentColumn` (700pt reading measure). Full-screen form/list routes get the column via navigator `screenLayout` + `usesReadingColumn()` — add a new full-screen route there, not inside the screen. Modal routes need nothing: iOS shows them as a ~700pt sheet on iPad. RN `<Modal>`s that aren't transparent sheets should use `presentationStyle={isLarge ? 'pageSheet' : undefined}`. Any width cap must be wider than an iPhone's content area so phones stay identical; tests pin the phone values.
+
 **Platform handling**: iOS tab bar and translucent surfaces use `BlurView`; Android uses solid `rgba(10,10,26,0.95)`. Follow this pattern for any frosted-glass UI.
 
 **List performance**: Use `@shopify/flash-list` (`FlashList`) instead of `FlatList` for all scrollable lists. `react-native-draggable-flatlist` is available for drag-to-reorder (e.g., trip activity ordering).
