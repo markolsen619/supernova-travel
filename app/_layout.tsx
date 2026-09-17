@@ -11,6 +11,7 @@ import { hydrateSession } from '@/services/session';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useModerationStore } from '@/stores/useModerationStore';
+import { useAiConsentStore } from '@/stores/useAiConsentStore';
 import { useTheme } from '@/hooks/useTheme';
 import { resolveAuthRoute } from '@/utils/authRoute';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -88,6 +89,7 @@ export default function RootLayout() {
         } else {
           useUserStore.getState().setProfile(null);
           useModerationStore.getState().reset();
+          useAiConsentStore.getState().setVersion(null);
           router.replace(resolveAuthRoute({ isAuthenticated: false, hasProfile: false, onboardingComplete: false }));
         }
       } catch (error) {

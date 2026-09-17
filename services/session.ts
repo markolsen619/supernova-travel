@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '@/services/firebase';
 import { loadModerationState } from '@/services/moderation';
+import { useAiConsentStore } from '@/stores/useAiConsentStore';
 import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
@@ -76,6 +77,9 @@ export async function hydrateSession(
   // Set before configureRevenueCat() below, so the SDK's first CustomerInfo
   // is compared against this user's tier rather than the previous account's.
   useAuthStore.getState().setServerTier(serverTier);
+  useAiConsentStore.getState().setVersion(
+    typeof data.aiConsentVersion === 'number' ? data.aiConsentVersion : null,
+  );
   // Hydrate the cached profile — EditProfileSheet, post authoring,
   // and the profile header all read from this store.
   useUserStore.getState().setProfile({

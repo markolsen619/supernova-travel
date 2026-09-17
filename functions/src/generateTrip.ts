@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest, GeneratedTrip } from './types';
 import { FREE_TIER_WEEKLY_AI_TRIP_LIMIT, getWeeklyQuotaKey } from './quotaUtils';
+import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
 export const generateTrip = functions.https.onCall(
   { region: 'us-central1', enforceAppCheck: false, timeoutSeconds: 180 },
@@ -16,6 +17,13 @@ export const generateTrip = functions.https.onCall(
 
     // 2. Quota check for free tier
     const userDoc = await db.doc(`users/${uid}`).get();
+
+    // Nothing reaches Gemini without the user's permission (aiConsent.ts).
+    // Checked before the quota, so a refused call never counts against it.
+    if (!hasAiConsent(userDoc.data())) {
+      throw new functions.https.HttpsError('failed-precondition', AI_CONSENT_REQUIRED_MESSAGE);
+    }
+
     const tier = userDoc.data()?.tier ?? 'free';
 
     if (tier === 'free') {

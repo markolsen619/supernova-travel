@@ -20,6 +20,7 @@ import { Destination } from '@/types';
 import { useAiTripQuota } from '@/hooks/useAiTripQuota';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 
 function quotaLabel(
   quota: { limit: number | null; remaining: number | null; resetsAt: string | null } | undefined,
@@ -81,8 +82,14 @@ export default function AiGenerateScreen() {
     router.back();
   }, []);
 
+  const { requireConsent, consentSheet } = useAiConsentGate();
+
   const handleGenerate = () => {
     if (!isValid) return;
+    requireConsent('trip', startGeneration);
+  };
+
+  const startGeneration = () => {
 
     const mustSee = mustSeeInput
       .split(',')
@@ -194,6 +201,7 @@ export default function AiGenerateScreen() {
           fullWidth
         />
       </View>
+      {consentSheet}
     </View>
   );
 }
