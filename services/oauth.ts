@@ -1,9 +1,11 @@
+import { Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import * as Crypto from 'expo-crypto';
 import {
   GoogleAuthProvider,
   OAuthProvider,
+  revokeAccessToken,
   signInWithCredential,
   updateProfile,
   type UserCredential,
@@ -123,4 +125,40 @@ export async function signInWithApple(): Promise<UserCredential | null> {
   }
 
   return userCredential;
+}
+
+/** Whether the signed-in account has Sign in with Apple linked. */
+export function usesAppleSignIn(): boolean {
+  return !!auth.currentUser?.providerData.some((p) => p.providerId === 'apple.com');
+}
+
+/**
+ * Revokes this app's Apple tokens for the signed-in user. Apple requires it
+ * when an account that used Sign in with Apple is deleted, so the app stops
+ * appearing under the user's Apple ID "Sign in with Apple" list.
+ *
+ * Revocation needs a fresh authorization code, so this shows the Apple sheet
+ * once more. Firebase then calls Apple's revoke endpoint using the key set on
+ * the Apple provider in the Firebase console (Authentication → Sign-in method
+ * → Apple → OAuth code flow configuration: Services ID, Apple Team ID, Key ID,
+ * private key). Without that configuration, revokeAccessToken throws.
+ *
+ * Same cancellation contract as signInWithApple: dismissing the sheet is
+ * 'cancelled', not an error.
+ */
+export async function revokeAppleSignIn(): Promise<'revoked' | 'not-apple' | 'cancelled'> {
+  if (Platform.OS !== 'ios' || !usesAppleSignIn()) return 'not-apple';
+
+  let credential;
+  try {
+    credential = await AppleAuthentication.signInAsync({ requestedScopes: [] });
+  } catch (e: any) {
+    if (e?.code === 'ERR_REQUEST_CANCELED') return 'cancelled';
+    throw e;
+  }
+  if (!credential.authorizationCode) {
+    throw new Error('Apple returned no authorization code to revoke');
+  }
+  await revokeAccessToken(auth, credential.authorizationCode);
+  return 'revoked';
 }

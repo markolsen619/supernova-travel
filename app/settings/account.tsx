@@ -29,7 +29,10 @@ export default function AccountSettingsScreen() {
     setDeleteError(null);
     try {
       // On success the auth listener routes to the welcome screen, unmounting this one.
-      await deleteAccount();
+      if ((await deleteAccount()) === 'cancelled') {
+        setIsDeleting(false);
+        setDeleteError('Your account is still here. Confirm with Apple to delete it.');
+      }
     } catch {
       setIsDeleting(false);
       setDeleteError("We couldn't finish deleting your account. Check your connection and try again.");
