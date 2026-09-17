@@ -217,7 +217,7 @@ All design tokens live in `constants/`:
   - `RESERVATION_ICONS: Record<ReservationType, { Icon, color }>`
   - `LOYALTY_ICONS: Record<LoyaltyProgram['programType'], { Icon, color }>`
   - `VISIBILITY_ICONS: Record<TripVisibility, { Icon, color }>`
-  - `PAYWALL_FEATURE_ICONS: Array<{ Icon, color, label, description }>` — 6 pro-tier features for paywall screen
+  - `PAYWALL_FEATURE_ICONS: Array<{ Icon, color, label, description }>` — the Pro features the paywall sells (only ones Pro actually unlocks)
   - `TAB_ICONS: Record<string, PhosphorIcon>` — tab bar icons (Create tab uses a gradient `+` circle, not an icon)
   - `PhosphorIcon` — re-exported `Icon` type from `phosphor-react-native`
 

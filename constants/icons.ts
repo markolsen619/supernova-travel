@@ -59,10 +59,12 @@ export const PAYWALL_FEATURE_ICONS: Array<{
   label: string;
   description: string;
 }> = [
-  { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI Trips',  description: 'Generate trips with Gemini AI as often as you like' },
-  { Icon: Bell,        color: '#fbbf24', label: 'Flight Alerts',       description: 'Boarding, landing and cancellation alerts'          },
-  { Icon: Bag,         color: '#34d399', label: 'Travel Wallet',       description: 'Boarding passes, reservations, loyalty programs'    },
-  { Icon: Star,        color: '#a78bfa', label: 'Priority Support',    description: 'Fast-track responses from the Supernova team'       },
+  // Only what Pro actually unlocks. The wallet itself is free for everyone, and
+  // there is no support tier, so neither is listed: a paywall that sells
+  // features that don't exist is an App Store rejection (guideline 2.3.1).
+  { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI trips',        description: 'Plan with AI as often as you like, not once a week' },
+  { Icon: Bell,        color: '#fbbf24', label: 'Flight alerts',             description: 'Boarding, landing and cancellation alerts'          },
+  { Icon: Bag,         color: '#34d399', label: 'Unlimited booking imports', description: 'Add confirmations to your wallet with no yearly cap' },
 ];
 
 export const EXPENSE_ICONS: Record<ExpenseCategory, IconEntry> = {
