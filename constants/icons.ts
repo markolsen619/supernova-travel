@@ -10,7 +10,6 @@ import {
   MagnifyingGlass,
   User,
   Sparkle,
-  VideoCamera,
   Bell,
   Bag,
   Star,
@@ -61,8 +60,7 @@ export const PAYWALL_FEATURE_ICONS: Array<{
   description: string;
 }> = [
   { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI Trips',  description: 'Generate trips with Gemini AI as often as you like' },
-  { Icon: VideoCamera, color: '#f472b6', label: '30-Second Clips',     description: 'Upload up to 30-second travel video clips'          },
-  { Icon: Bell,        color: '#fbbf24', label: 'Flight Alerts',       description: 'Real-time gate change and delay notifications'      },
+  { Icon: Bell,        color: '#fbbf24', label: 'Flight Alerts',       description: 'Boarding, landing and cancellation alerts'          },
   { Icon: Bag,         color: '#34d399', label: 'Travel Wallet',       description: 'Boarding passes, reservations, loyalty programs'    },
   { Icon: Star,        color: '#a78bfa', label: 'Priority Support',    description: 'Fast-track responses from the Supernova team'       },
 ];
