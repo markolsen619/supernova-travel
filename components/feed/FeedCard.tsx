@@ -67,7 +67,8 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
 export function FeedCard({ post, isActive, onMorePress }: FeedCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
-  const { width, height } = useLayout();
+  // feedWidth is the window width on phones; a centred 9:16 column on large screens.
+  const { feedWidth: width, height } = useLayout();
   const [photoIndex, setPhotoIndex] = useState(0);
 
   const handleCommentPress = useCallback(() => {

@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { Bag, MapTrifold } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
-import { twoColumnWidth } from '@/utils/layout';
+import { columnWidth } from '@/utils/layout';
 import { useExplore } from '@/hooks/useExplore';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { TrendingCard } from '@/components/explore/TrendingCard';
@@ -77,8 +77,9 @@ export default function ExploreScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { width } = useLayout();
-  const gridItemWidth = twoColumnWidth(width);
+  const { width, columns } = useLayout();
+  // Must match TrendingCard and TripGrid, which size themselves the same way.
+  const gridItemWidth = columnWidth(width, columns);
 
   const { trips, tripsLoading, suggestions, suggestionsLoading } = useExplore();
 
@@ -253,7 +254,7 @@ export default function ExploreScreen() {
         {/* ── People to Follow ── */}
         {(suggestionsLoading || suggestions.length > 0) && (
           <View style={[styles.section, styles.peopleSection]}>
-            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInset, { color: colors.text.secondary }]}>
               People to follow
             </Text>
 
@@ -338,6 +339,14 @@ const styles = StyleSheet.create({
   },
   peopleSection: {
     paddingHorizontal: Spacing['6'],
+    // Left-aligned with the headings, but stops before a follow row stretches
+    // across an iPad. No iPhone reaches it.
+    maxWidth: 640,
+  },
+  // The section already insets its content; without this the title was
+  // indented twice as far as every other section title.
+  sectionTitleInset: {
+    paddingHorizontal: 0,
   },
   tripGridSkeleton: {
     flexDirection: 'row',

@@ -106,11 +106,17 @@ const styles = StyleSheet.create({
   actions: {
     paddingHorizontal: Spacing['6'],
     paddingBottom: Spacing['6'],
+    // Buttons stop stretching on iPad. No iPhone is wide enough to reach it.
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   spacer: { height: Spacing['3'] },
   legal: {
     paddingHorizontal: Spacing['6'],
     paddingBottom: Spacing['6'],
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   terms: {
     fontSize: FontSize.xs,

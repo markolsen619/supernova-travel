@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import { MapPin } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
-import { twoColumnWidth } from '@/utils/layout';
+import { columnWidth } from '@/utils/layout';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 
@@ -36,8 +36,8 @@ export function TrendingCard({
   onPress,
 }: TrendingCardProps) {
   const { colors } = useTheme();
-  const { width } = useLayout();
-  const cardWidth = twoColumnWidth(width);
+  const { width, columns } = useLayout();
+  const cardWidth = columnWidth(width, columns);
   // A stored photo URL can go stale (Google may rotate photo references) —
   // degrade to the intentional placeholder rather than a broken image.
   const [photoFailed, setPhotoFailed] = useState(false);

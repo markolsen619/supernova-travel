@@ -11,6 +11,8 @@ import { hydrateSession } from '@/services/session';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useModerationStore } from '@/stores/useModerationStore';
+import { ReadingColumn } from '@/components/layout/ReadingColumn';
+import { usesReadingColumn } from '@/utils/layout';
 import { useAiConsentStore } from '@/stores/useAiConsentStore';
 import { useTheme } from '@/hooks/useTheme';
 import { resolveAuthRoute } from '@/utils/authRoute';
@@ -46,7 +48,12 @@ function AppStack() {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+      <Stack
+        screenOptions={{ headerShown: false, animation: 'fade' }}
+        screenLayout={({ route, children }) =>
+          usesReadingColumn('root', route.name) ? <ReadingColumn>{children}</ReadingColumn> : children
+        }
+      >
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="trip/[id]" options={{ presentation: 'modal' }} />

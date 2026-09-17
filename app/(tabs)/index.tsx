@@ -31,7 +31,7 @@ export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
-  const { width, height } = useLayout();
+  const { height, feedWidth, isLarge } = useLayout();
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<FlashListRef<Post>>(null);
 
@@ -122,7 +122,14 @@ export default function FeedScreen() {
 
   return (
     <ScreenEntrance>
-    <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
+    <View
+      style={[
+        styles.container,
+        // On large screens the feed is a centred column; its surround stays
+        // black so photo and margin read as one immersive surface.
+        { backgroundColor: isLarge && hasContent ? '#000' : colors.background.primary },
+      ]}
+    >
       {/* Header — bare white icons straight on the photo (the header's own
           scrim keeps them legible over bright media); over the light
           empty/loading canvas the scrim is absent, so they flip to dark.
@@ -169,7 +176,7 @@ export default function FeedScreen() {
       </View>
 
       {isLoading ? (
-        <SkeletonCard width={width} height={height} radius={0} />
+        <SkeletonCard width={feedWidth} height={height} radius={0} style={isLarge ? styles.centered : undefined} />
       ) : posts.length === 0 ? (
         <View style={styles.emptyContainer}>
           <EmptyState
@@ -182,6 +189,7 @@ export default function FeedScreen() {
           />
         </View>
       ) : (
+        <View style={isLarge ? [styles.feedColumn, { width: feedWidth }] : styles.fill}>
         <FlashList
           ref={listRef}
           data={posts}
@@ -205,6 +213,7 @@ export default function FeedScreen() {
             ) : null
           }
         />
+        </View>
       )}
       {reportSheet}
     </View>
@@ -215,6 +224,16 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  fill: {
+    flex: 1,
+  },
+  feedColumn: {
+    flex: 1,
+    alignSelf: 'center',
+  },
+  centered: {
+    alignSelf: 'center',
   },
   header: {
     position: 'absolute',

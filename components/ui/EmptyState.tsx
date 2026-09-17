@@ -108,6 +108,9 @@ const styles = StyleSheet.create({
   description: {
     fontSize: FontSize.sm,
     textAlign: 'center',
+    // A readable line on iPad. Wider than any iPhone's content area (430 - 48),
+    // so phones are unaffected.
+    maxWidth: 400,
     marginBottom: Spacing['4'],
   },
   action: {

@@ -68,7 +68,10 @@ export default function SearchScreen() {
   const colors = DarkColors;
   const { cameraRef, flyTo, flyToBounds } = useFlyTo();
   const mapRef = useRef<InstanceType<typeof MapView>>(null);
-  const { height } = useLayout();
+  const { width, height, isLarge } = useLayout();
+  // On large screens the results sheet matches the capped search bar (640pt)
+  // instead of spanning the whole iPad. 0 on phones: unchanged.
+  const sheetInset = isLarge ? Math.max(0, (width - 640) / 2) : 0;
   // Two positions: expanded (current behaviour) and peek, which leaves the
   // map visible behind roughly two result rows.
   const sheetPeekY = height * 0.35;
@@ -804,6 +807,7 @@ export default function SearchScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.tabsScroll}
             contentContainerStyle={styles.tabs}
           >
             {TABS.map((tab) => (
@@ -870,7 +874,7 @@ export default function SearchScreen() {
       {showingSheet && (
         <GestureDetector gesture={panGesture}>
           <Animated.View
-            style={[styles.bottomSheet, { maxHeight: bottomSheetMaxHeight, transform: [{ translateY: slideAnim }] }]}
+            style={[styles.bottomSheet, { left: sheetInset, right: sheetInset, maxHeight: bottomSheetMaxHeight, transform: [{ translateY: slideAnim }] }]}
             onLayout={handleSheetLayout}
           >
             {Platform.OS === 'ios' ? (
@@ -1005,12 +1009,20 @@ const styles = StyleSheet.create({
   // same reasoning as the trip header's photo-overlay buttons. Deliberate,
   // not a leftover magic number.
   searchBarBlur: {
+    // A search field doesn't need 1300pt on an iPad; no iPhone reaches the cap.
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: DarkColors.background.cardBorder,
   },
   searchBarAndroid: {
+    // A search field doesn't need 1300pt on an iPad; no iPhone reaches the cap.
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     borderWidth: 1,
@@ -1030,6 +1042,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
 
+  // Lines the chips up under the capped search bar on iPad.
+  tabsScroll: { width: '100%', maxWidth: 640, alignSelf: 'center', flexGrow: 0 },
   tabs: { gap: Spacing['2'] },
   tab: {
     paddingHorizontal: Spacing['4'],

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import {
-  isLargeScreen, gridColumnsFor, contentMaxWidth,
+  isLargeScreen, gridColumnsFor, galleryColumnsFor, cardListColumnsFor, contentMaxWidth, contentColumnStyle, feedColumnWidth,
 } from '@/utils/layout';
 
 /**
@@ -14,13 +14,21 @@ import {
 export function useLayout() {
   const { width, height } = useWindowDimensions();
   return useMemo(
-    () => ({
-      width,
-      height,
-      isLarge: isLargeScreen(width, height),
-      columns: gridColumnsFor(width, height),
-      maxContentWidth: contentMaxWidth(width, height),
-    }),
+    () => {
+      const maxContentWidth = contentMaxWidth(width, height);
+      return {
+        width,
+        height,
+        isLarge: isLargeScreen(width, height),
+        columns: gridColumnsFor(width, height),
+        galleryColumns: galleryColumnsFor(width, height),
+        cardListColumns: cardListColumnsFor(width, height),
+        maxContentWidth,
+        /** Spread onto a screen's content container to centre it at the reading measure on large screens. */
+        contentColumn: contentColumnStyle(maxContentWidth),
+        feedWidth: feedColumnWidth(width, height),
+      };
+    },
     [width, height],
   );
 }

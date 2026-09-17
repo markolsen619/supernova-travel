@@ -17,7 +17,7 @@ import { SquaresFour } from 'phosphor-react-native';
 import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
-import { thirdWidth } from '@/utils/layout';
+import { galleryCellWidth } from '@/utils/layout';
 import { excludeTripShares } from '@/utils/posts';
 import { contentKey, filterVisible } from '@/utils/moderation';
 import { useModeration } from '@/hooks/useModeration';
@@ -50,8 +50,8 @@ interface PostsGridProps {
 
 export function PostsGrid({ uid }: PostsGridProps) {
   const { colors } = useTheme();
-  const { width } = useLayout();
-  const cell = thirdWidth(width);
+  const { width, galleryColumns } = useLayout();
+  const cell = galleryCellWidth(width, galleryColumns);
 
   const viewerUid = useAuthStore((s) => s.user?.uid ?? '');
   const moderation = useModeration();

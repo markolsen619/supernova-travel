@@ -218,7 +218,8 @@ const styles = StyleSheet.create({
   },
   skipText: { fontSize: FontSize.base, fontWeight: FontWeight.medium },
   flatList: { flex: 1 },
-  controls: { paddingHorizontal: Spacing['6'], paddingBottom: 48, gap: Spacing['5'] },
+  // Same cap as the slide text, so the button lines up with it on iPad.
+  controls: { paddingHorizontal: Spacing['6'], paddingBottom: 48, gap: Spacing['5'], width: '100%', maxWidth: 560, alignSelf: 'center' },
   dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: Spacing['2'] },
   dot: { height: 8, borderRadius: 4 },
   seePlans: {

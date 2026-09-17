@@ -69,5 +69,5 @@ export function OnboardingProSlide({ active }: OnboardingProSlideProps) {
 const styles = StyleSheet.create({
   slide: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing['8'] },
-  listWrap: { paddingHorizontal: Spacing['6'], paddingTop: Spacing['6'] },
+  listWrap: { paddingHorizontal: Spacing['6'], paddingTop: Spacing['6'], width: '100%', maxWidth: 560, alignSelf: 'center' },
 });

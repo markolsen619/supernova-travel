@@ -75,7 +75,8 @@ export function SlideTextBlock({ eyebrow, title, body, active }: SlideTextBlockP
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: Spacing['6'] },
+  // Capped and centred for iPad; no iPhone is wide enough to reach the cap.
+  container: { paddingHorizontal: Spacing['6'], width: '100%', maxWidth: 560, alignSelf: 'center' },
   eyebrow: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.medium,

@@ -15,6 +15,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { TAB_ICONS } from '@/constants/icons';
 import { TAB_BAR_HEIGHT } from '@/constants/layout';
 import { SPRING } from '@/constants/motion';
+import { ReadingColumn } from '@/components/layout/ReadingColumn';
+import { usesReadingColumn } from '@/utils/layout';
 
 const TABS = [
   { name: 'index',   label: 'Feed'    },
@@ -130,6 +132,9 @@ export default function TabLayout() {
     <Tabs
       tabBar={(props) => <FullWidthTabBar {...(props as unknown as TabBarProps)} />}
       screenOptions={{ headerShown: false }}
+      screenLayout={({ route, children }) =>
+        usesReadingColumn('tabs', route.name) ? <ReadingColumn>{children}</ReadingColumn> : children
+      }
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="explore" />
