@@ -179,6 +179,31 @@ verified 2026-09-09. Note this proves the deployed secret matches
 `functions/.env`; it does *not* prove RevenueCat's copy is right. That surfaces
 as `rejected unauthorized webhook call` on the first real event.
 
+### Phase 3b — Tier reconciliation and rules
+
+- [x] **Create a v1 secret API key** in RevenueCat → Project settings → API
+      keys (`sk_…`). Never the public `appl_`/`goog_` key, and never anything
+      `EXPO_PUBLIC_`. Append to `functions/.env` on its own line:
+
+      REVENUECAT_SECRET_API_KEY=sk_…
+
+      Without it `reconcileTier` answers `failed-precondition`. The client
+      treats that as a no-op, so nothing breaks, but nothing gets repaired
+      either.
+
+- [x] **Deploy the callable and the rules together**
+
+      npx firebase deploy --only functions:reconcileTier,functions:checkFlightStatus,firestore:rules
+
+      The rules change is what makes reconciliation trustworthy. It stops the
+      client writing `tierEventTimestampMs` and the other tier bookkeeping
+      fields, which would otherwise let it freeze its own tier.
+
+**Checkpoint:** set `users/{yourUid}.tier` to `free` by hand in the console
+while the SDK reports Pro, then relaunch the app. Within a few seconds the
+tier is back to `pro`, and `functions:log --only reconcileTier` shows
+`corrected a stale tier`.
+
 ---
 
 ## Phase 4 — Client keys and a build
@@ -294,6 +319,8 @@ Everything else on this list fails loudly enough to notice.
 | Plan ordering / savings maths | `utils/offerings.ts` |
 | Error copy | `utils/purchaseErrors.ts` |
 | Webhook | `functions/src/syncTier.ts`, `functions/src/tierEvents.ts` |
+| Reconciliation (lost/late webhooks) | `functions/src/reconcileTier.ts`, `services/tier.ts`, `utils/tierSync.ts` |
+| Quota-limit paywall | `hooks/useLimitPaywall.ts` |
 | Paywall screen | `app/paywall.tsx`, `components/paywall/PlanOption.tsx` |
 
 Three webhook behaviours worth knowing, the first two covered by tests in
@@ -311,12 +338,25 @@ Three webhook behaviours worth knowing, the first two covered by tests in
   would drop the grant permanently — `firestore.rules` forbids the client from
   writing its own `tier`, so there is no path by which the app could repair it.
 
-## Known gap
+## Reconciliation
 
-There is no reconciliation for a webhook that is never delivered at all — an
-outage that outlasts RevenueCat's retry schedule, or a period when the webhook
-URL was wrong. The tier would stay `free` server-side while the SDK reports the
-user as Pro, and nothing would notice. If that ever bites, the fix is a callable
-that reads the subscriber from RevenueCat's REST API and re-applies the tier,
-which the client can invoke when `tierFromCustomerInfo()` disagrees with
-`useAuthStore.tier`. Not worth building before launch; worth knowing exists.
+A webhook that never arrives (an outage longer than RevenueCat's retry
+schedule, or a period when the URL or secret was wrong) used to leave the tier
+stale for good. Now `useAuthStore` holds two tiers: `tier`, which follows the
+SDK live, and `serverTier`, which is whatever `users/{uid}` last reported. When
+a CustomerInfo update makes the two disagree, `useRevenueCatSync` calls
+`reconcileTier`. That function reads the subscriber from RevenueCat's REST API
+and writes the tier. It takes the uid only from `request.auth` and the tier
+only from RevenueCat, so a call can only ever write the truth.
+
+- **Throttled to one lookup per user every 30s** (`tierReconciledAtMs`), claimed
+  in a transaction so concurrent calls can't both get through.
+- **A webhook newer than the REST read wins.** A reconcile write also moves
+  `tierEventTimestampMs` forward, so a stale redelivery can't undo it.
+- **Grace periods count as Pro**, the same way `BILLING_ISSUE` is treated.
+- **A quota limit awaits the reconcile** before returning the user to the form
+  (`useLimitPaywall`). Otherwise their first retry after buying would hit the
+  same limit.
+
+Every `corrected a stale tier` log line means a webhook didn't land, so it's
+worth alerting on.
