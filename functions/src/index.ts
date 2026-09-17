@@ -14,3 +14,4 @@ export { parseTravelConfirmation } from './parseTravelConfirmation';
 export { getImportQuota } from './getImportQuota';
 export { syncTier } from './syncTier';
 export { reconcileTier } from './reconcileTier';
+export { deleteAccount } from './deleteAccount';
