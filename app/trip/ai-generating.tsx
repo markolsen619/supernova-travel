@@ -159,7 +159,7 @@ export default function AiGeneratingScreen() {
         router.replace(`/trip/${tripId}`);
       })
       .catch(() => {
-        // Errors are handled by the mutation's onError (resource-exhausted → paywall)
+        // Errors are handled by the mutation's onError (resource-exhausted → hosted paywall)
         // Other errors are surfaced via the `error` value from the hook
         stopStatusTicker();
       });
@@ -177,7 +177,7 @@ export default function AiGeneratingScreen() {
     error instanceof FirebaseError &&
     error.code === 'functions/resource-exhausted';
 
-  // resource-exhausted is handled in the hook (redirects to /paywall)
+  // resource-exhausted is handled in the hook (hosted paywall, then back to the form)
   // Only render generic error UI for other error types
   if (error && !isResourceExhausted) {
     const message =
