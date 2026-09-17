@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ParseTravelConfirmationRequest, ParseTravelConfirmationResult } from './types';
 import { FREE_TIER_YEARLY_IMPORT_LIMIT, getYearlyQuotaKey } from './quotaUtils';
+import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
 function buildExtractionPrompt(): string {
   return `You are reading a travel booking confirmation (flight, hotel, car rental, restaurant, or event
@@ -80,6 +81,13 @@ export const parseTravelConfirmation = functions.https.onCall(
 
     // 3. Quota check for free tier — 1 per calendar year, not a recurring allowance
     const userDoc = await db.doc(`users/${uid}`).get();
+
+    // The pasted confirmation is personal data; Gemini never sees it without
+    // the user's permission (aiConsent.ts). Checked before the quota.
+    if (!hasAiConsent(userDoc.data())) {
+      throw new functions.https.HttpsError('failed-precondition', AI_CONSENT_REQUIRED_MESSAGE);
+    }
+
     const tier = userDoc.data()?.tier ?? 'free';
 
     if (tier === 'free') {

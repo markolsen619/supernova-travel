@@ -1,12 +1,17 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { CaretLeft, GlobeHemisphereWest, LockSimple, EyeSlash, Prohibit } from 'phosphor-react-native';
+import { CaretLeft, GlobeHemisphereWest, LockSimple, EyeSlash, Prohibit, Sparkle } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useModerationStore } from '@/stores/useModerationStore';
 import { SettingsRow } from '@/components/settings/SettingsRow';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useAiConsentStore } from '@/stores/useAiConsentStore';
+import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
+import { withdrawAiConsent } from '@/services/aiConsent';
+import { hasAiConsent } from '@/utils/aiConsent';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -32,6 +37,33 @@ export default function PrivacySettingsScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const blockedCount = useModerationStore((s) => s.blockedUids.length);
+  const uid = useAuthStore((s) => s.user?.uid ?? '');
+  const aiAllowed = useAiConsentStore((s) => hasAiConsent(s.version));
+  const { requireConsent, consentSheet } = useAiConsentGate();
+
+  // SettingsRow fires its own haptic.
+  const handleAiPress = useCallback(() => {
+    if (!aiAllowed) {
+      requireConsent('trip', () => {});
+      return;
+    }
+    Alert.alert(
+      'Turn off AI data sharing?',
+      'AI trip planning and booking import will ask for permission again before sending anything to Google.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Turn off',
+          style: 'destructive',
+          onPress: () => {
+            withdrawAiConsent(uid).catch(() =>
+              Alert.alert("We couldn't turn it off", 'Check your connection and try again.'),
+            );
+          },
+        },
+      ],
+    );
+  }, [aiAllowed, requireConsent, uid]);
 
   // SettingsRow fires its own haptic.
   const handleBlockedPress = useCallback(() => {
@@ -86,13 +118,21 @@ export default function PrivacySettingsScreen() {
             icon={Prohibit}
             value={blockedCount > 0 ? String(blockedCount) : undefined}
             onPress={handleBlockedPress}
+            showDivider
+          />
+          <SettingsRow
+            label="AI data sharing"
+            icon={Sparkle}
+            value={aiAllowed ? 'Allowed' : 'Off'}
+            onPress={handleAiPress}
           />
         </View>
 
         <Text style={[styles.footnote, { color: colors.text.tertiary }]}>
-          Change who can see a trip from its edit screen. To report something, tap the three dots on it.
+          Change who can see a trip from its edit screen. To report something, tap the three dots on it. AI data sharing sends what you enter in AI features to Google Gemini.
         </Text>
       </ScrollView>
+      {consentSheet}
     </View>
   );
 }

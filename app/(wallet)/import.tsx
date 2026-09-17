@@ -22,6 +22,7 @@ import { useImportQuota } from '@/hooks/useImportQuota';
 import { useParseTravelConfirmation } from '@/hooks/useParseTravelConfirmation';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 
 function quotaLabel(
   quota: { limit: number | null; remaining: number | null; resetsAt: string | null } | undefined,
@@ -80,7 +81,9 @@ export default function ImportScreen() {
     ]);
   }, []);
 
-  const handleImport = useCallback(async () => {
+  const { requireConsent, consentSheet } = useAiConsentGate();
+
+  const runImport = useCallback(async () => {
     if (isPending) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError(null);
@@ -98,6 +101,12 @@ export default function ImportScreen() {
       );
     }
   }, [isPending, text, imageBase64, parseConfirmation]);
+
+  // The confirmation is personal data, so nothing is sent to Gemini until the
+  // user has allowed it (components/ai/AiConsentSheet.tsx).
+  const handleImport = useCallback(() => {
+    requireConsent('import', runImport);
+  }, [requireConsent, runImport]);
 
   const canImport = (text.trim().length > 0 || !!imageBase64) && !isPending;
   const label = quotaLabel(quota);
@@ -179,6 +188,7 @@ export default function ImportScreen() {
           <Text style={[styles.manualLinkText, { color: colors.text.secondary }]}>Enter manually instead</Text>
         </TouchableOpacity>
       </ScrollView>
+      {consentSheet}
     </KeyboardAvoidingView>
   );
 }
