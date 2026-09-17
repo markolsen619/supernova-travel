@@ -131,6 +131,7 @@ All functions use Firebase Functions v2.
 - `syncTripToAlgolia` / `syncUserToAlgolia` (`syncAlgolia.ts`) — `onDocumentWritten` triggers; upserts/deletes public trips in the Algolia `trips` index and users in the `users` index
 - `syncTier` (`syncTier.ts`) — RevenueCat webhook; the normal writer of `users/{uid}.tier`, ordered by `tierEventTimestampMs`
 - `reconcileTier` (`reconcileTier.ts`) — HTTPS callable; re-reads the tier from RevenueCat's REST API when a webhook is late or lost. Throttled per user (30s). Pure logic lives in `tierEvents.ts`
+- `deleteAccount` (`deleteAccount.ts`) — HTTPS callable; App Store 5.1.1(v) in-app account deletion. Removes the caller's traces in others' data (likes + counts, comments, actor notifications, follows + counts, collaborator slots, invites, DMs), then their own content, Storage folders, RevenueCat customer, and finally the Auth user — last, so a failure leaves them signed in to retry. Idempotent. Pure decisions in `accountDeletion.ts`. Its collection-group queries rely on `fieldOverrides` in `firestore.indexes.json`. **Adding a new per-user collection, subcollection, or Storage folder means adding it here too**
 - `types.ts` — shared TypeScript interfaces for Cloud Function request/response shapes
 
 **Never call Gemini or any third-party secret API directly from client code.** All such calls go through Cloud Functions.
@@ -142,6 +143,7 @@ All functions use Firebase Functions v2.
 - `services/gemini.ts` — `callGenerateTrip(request)`: calls the `generateTrip` Cloud Function via `httpsCallable`
 - `services/oauth.ts` — `configureGoogleSignIn()`, `signInWithGoogle()`, `signOutGoogle()`, `isAppleAuthAvailable()`. The **only** file permitted to import a provider SDK. `signInWithGoogle` resolves `null` when the user dismisses the sheet — since v13 the SDK reports cancellation by resolving `{ type: 'cancelled' }`, not by throwing, so cancellation is a return-value check and never a `catch`
 - `services/session.ts` — `hydrateSession(firebaseUser): Promise<boolean>` plus `registerPushToken`. Everything that must happen once a profile document is known to exist (store hydration, `tier`, push token, RevenueCat), returning whether it exists. Called from **two** places: the auth listener and `complete-profile` right after it writes. Both are required — `onAuthStateChanged` does not fire on a Firestore write
+- `services/account.ts` — `deleteAccount()`: calls the callable (540s timeout), then signs out of Google, RevenueCat, and Firebase so the auth listener routes to welcome. The UI is in `app/settings/account.tsx`, which warns subscribers that deletion doesn't cancel Pro
 - `services/tier.ts` — `reconcileServerTier(queryClient)`: calls `reconcileTier`, updates `useAuthStore.serverTier`, invalidates the quota queries. Dedupes concurrent callers and never throws. `useAuthStore` holds `tier` (live, from the SDK) and `serverTier` (what Firestore last said); a mismatch triggers this call
 - `services/profile.ts` — `buildUserProfile()` (pure, testable field shape) and `createUserProfile()` (adds `createdAt`, writes with `{ merge: true }`). Sole writer of the new-account `users/{uid}` shape
 
