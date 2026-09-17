@@ -142,9 +142,9 @@ All functions use Firebase Functions v2.
 - `services/firebase.ts` — `auth`, `db`, `storage`, `functions` singletons
 - `services/revenuecat.ts` — `configureRevenueCat(uid)`: sets log level, calls `Purchases.configure` with platform-specific keys; called in `_layout.tsx` after auth fires
 - `services/gemini.ts` — `callGenerateTrip(request)`: calls the `generateTrip` Cloud Function via `httpsCallable`
-- `services/oauth.ts` — `configureGoogleSignIn()`, `signInWithGoogle()`, `signOutGoogle()`, `isAppleAuthAvailable()`. The **only** file permitted to import a provider SDK. `signInWithGoogle` resolves `null` when the user dismisses the sheet — since v13 the SDK reports cancellation by resolving `{ type: 'cancelled' }`, not by throwing, so cancellation is a return-value check and never a `catch`
+- `services/oauth.ts` — `configureGoogleSignIn()`, `signInWithGoogle()`, `signOutGoogle()`, `isAppleAuthAvailable()`. The **only** file permitted to import a provider SDK. `signInWithGoogle` resolves `null` when the user dismisses the sheet — since v13 the SDK reports cancellation by resolving `{ type: 'cancelled' }`, not by throwing, so cancellation is a return-value check and never a `catch`. `revokeAppleSignIn()` revokes Apple tokens before account deletion (Apple requirement); it needs the Apple provider's OAuth code flow configuration (Services ID, Team ID, Key ID, private key) set in the Firebase console
 - `services/session.ts` — `hydrateSession(firebaseUser): Promise<boolean>` plus `registerPushToken`. Everything that must happen once a profile document is known to exist (store hydration, `tier`, push token, RevenueCat), returning whether it exists. Called from **two** places: the auth listener and `complete-profile` right after it writes. Both are required — `onAuthStateChanged` does not fire on a Firestore write
-- `services/account.ts` — `deleteAccount()`: calls the callable (540s timeout), then signs out of Google, RevenueCat, and Firebase so the auth listener routes to welcome. The UI is in `app/settings/account.tsx`, which warns subscribers that deletion doesn't cancel Pro
+- `services/account.ts` — `deleteAccount(): 'deleted' | 'cancelled'`: revokes Apple tokens for Apple accounts (backing out of the Apple sheet cancels; any other revocation failure is logged and deletion proceeds), calls the callable (540s timeout), then signs out of Google, RevenueCat, and Firebase so the auth listener routes to welcome. The UI is in `app/settings/account.tsx`, which warns subscribers that deletion doesn't cancel Pro
 - `services/tier.ts` — `reconcileServerTier(queryClient)`: calls `reconcileTier`, updates `useAuthStore.serverTier`, invalidates the quota queries. Dedupes concurrent callers and never throws. `useAuthStore` holds `tier` (live, from the SDK) and `serverTier` (what Firestore last said); a mismatch triggers this call
 - `services/profile.ts` — `buildUserProfile()` (pure, testable field shape) and `createUserProfile()` (adds `createdAt`, writes with `{ merge: true }`). Sole writer of the new-account `users/{uid}` shape
 
@@ -397,7 +397,7 @@ These rules apply to ALL new code:
 
 - `UsernameField` — username input with debounced (500ms) live availability check. Props `{ value, onChangeText, onValidityChange, onBlockingChange?, forUid? }`. **`onValidityChange` and `onBlockingChange` are different questions:** `valid` asks "proven available?" (pristine = false), `blocking` asks "actively wrong or pending?" (pristine = false). A submit button gating on `valid` is dead on a fresh form; gate on `blocking`. Pass `forUid` when the user already has a uid, or they'll be told their own username is taken
 - `BirthdayField` — date picker plus the 13+ gate; renders its under-13 message inline at selection time. Props `{ value, onChange, onValidityChange }`
-- `SocialAuthButtons` — divider plus the Google button; owns its error inline. The Apple slot is a real `isAppleAuthAvailable()` check that returns `false` until Phase 2
+- `SocialAuthButtons` — divider plus the Google and Sign in with Apple buttons (Apple shown when `isAppleAuthAvailable()`, i.e. iOS); owns its error inline
 
 ### Utils
 
