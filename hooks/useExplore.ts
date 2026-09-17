@@ -1,9 +1,12 @@
+import { useMemo } from 'react';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { UserProfile, Trip } from '@/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { usePublicTrips } from '@/hooks/useTripList';
+import { useModeration } from '@/hooks/useModeration';
+import { contentKey, filterVisible } from '@/utils/moderation';
 
 export async function fetchUserSuggestions(): Promise<UserProfile[]> {
   const q = query(
@@ -39,7 +42,17 @@ export function useExplore(): {
 } {
   const currentUid = useAuthStore((s) => s.user?.uid ?? null);
 
-  const { data: trips = [], isLoading: tripsLoading } = usePublicTrips(20);
+  const moderation = useModeration();
+  const { data: allTrips = [], isLoading: tripsLoading } = usePublicTrips(20);
+  const trips = useMemo(
+    () =>
+      filterVisible(allTrips, moderation, (t) => ({
+        authorUid: t.authorUid,
+        key: contentKey({ type: 'trip', id: t.id }),
+        moderationHidden: t.moderationHidden,
+      })),
+    [allTrips, moderation],
+  );
 
   const { data: rawSuggestions = [], isLoading: suggestionsLoading } = useQuery({
     queryKey: ['userSuggestions', currentUid ?? 'anon'],
@@ -47,9 +60,10 @@ export function useExplore(): {
     staleTime: 10 * 60 * 1000,
   });
 
-  const suggestions = currentUid
-    ? rawSuggestions.filter((u) => u.uid !== currentUid)
-    : rawSuggestions;
+  const suggestions = useMemo(
+    () => rawSuggestions.filter((u) => u.uid !== currentUid && !moderation.blockedUids.has(u.uid)),
+    [rawSuggestions, currentUid, moderation],
+  );
 
   return { trips, tripsLoading, suggestions, suggestionsLoading };
 }

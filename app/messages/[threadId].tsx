@@ -5,7 +5,7 @@ import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, PaperPlaneRight } from 'phosphor-react-native';
+import { ArrowLeft, PaperPlaneRight, DotsThree, Prohibit } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,6 +14,11 @@ import { useDmThread } from '@/hooks/useDmThreads';
 import { useDmMessages, useSendDmMessage } from '@/hooks/useDmMessages';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { MessageBubble } from '@/components/messages/MessageBubble';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { useContentActions } from '@/components/moderation/useContentActions';
+import { useModeration } from '@/hooks/useModeration';
+import { contentKey, filterVisible } from '@/utils/moderation';
+import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 import { Avatar } from '@/components/ui/Avatar';
 import { formatGroupName } from '@/utils/dm';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -28,7 +33,19 @@ export default function DmThreadScreen() {
   const myUid = useAuthStore((s) => s.user?.uid ?? '');
 
   const { data: thread } = useDmThread(threadId ?? null);
-  const { messages, loading } = useDmMessages(threadId ?? null);
+  const { messages: allMessages, loading } = useDmMessages(threadId ?? null);
+  const moderation = useModeration();
+  const { openActions, reportSheet, unblock } = useContentActions();
+  const headerMoreRef = useRef<View>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const messages = useMemo(
+    () =>
+      filterVisible(allMessages, moderation, (m) => ({
+        authorUid: m.senderUid === myUid ? null : m.senderUid,
+        key: contentKey({ type: 'message', id: m.id, parentId: threadId }),
+      })),
+    [allMessages, moderation, myUid, threadId],
+  );
   const sendMessage = useSendDmMessage(threadId ?? null);
   const [text, setText] = useState('');
   const listRef = useRef<FlashListRef<DmMessage>>(null);
@@ -69,13 +86,48 @@ export default function DmThreadScreen() {
     router.back();
   }, []);
 
+  const directOtherUid = thread?.type === 'direct' ? otherUids[0] : undefined;
+  const directBlocked = !!directOtherUid && moderation.blockedUids.has(directOtherUid);
+
+  const handleMessageMore = useCallback(
+    (message: DmMessage, anchor: React.RefObject<View | null>) => {
+      if (!threadId) return;
+      openActions({
+        target: { type: 'message', id: message.id, parentId: threadId, ownerUid: message.senderUid },
+        ownerName: profiles[message.senderUid]?.name ?? 'this traveler',
+        anchor,
+      });
+    },
+    [threadId, openActions, profiles],
+  );
+
+  const handleHeaderMore = useCallback(() => {
+    if (!directOtherUid) return;
+    openActions({
+      target: { type: 'user', id: directOtherUid, ownerUid: directOtherUid },
+      ownerName: headerName || 'this traveler',
+      anchor: headerMoreRef,
+    });
+  }, [directOtherUid, headerName, openActions]);
+
+  const handleUnblock = useCallback(() => {
+    if (directOtherUid) unblock(directOtherUid, headerName || 'this traveler');
+  }, [directOtherUid, headerName, unblock]);
+
   const handleSend = useCallback(() => {
     if (!text.trim()) return;
+    if (containsObjectionableText(text)) {
+      setSendError(OBJECTIONABLE_TEXT_MESSAGE);
+      return;
+    }
+    setSendError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const toSend = text;
     setText('');
     sendMessage(toSend).catch(() => {
       setText(toSend); // revert — the message wasn't actually sent
+      // Includes the rules refusing a message to someone who blocked you.
+      setSendError("Your message wasn't sent. Try again.");
     });
   }, [text, sendMessage]);
 
@@ -101,10 +153,34 @@ export default function DmThreadScreen() {
         <Text style={[styles.headerName, { color: colors.text.primary }]} numberOfLines={1}>
           {headerName}
         </Text>
-        <View style={styles.backBtn} />
+        {directOtherUid ? (
+          <TouchableOpacity
+            ref={headerMoreRef}
+            onPress={handleHeaderMore}
+            style={styles.moreBtn}
+            accessibilityLabel={`More options for ${headerName || 'this conversation'}`}
+          >
+            <DotsThree size={22} color={colors.text.primary} weight="bold" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.backBtn} />
+        )}
       </View>
 
-      {!loading && (
+      {directBlocked ? (
+        <View style={styles.blocked}>
+          <EmptyState
+            icon={Prohibit}
+            title={`You blocked ${headerName || 'this traveler'}`}
+            description="Unblock them to see this conversation and message each other again."
+            actionLabel="Unblock"
+            onAction={handleUnblock}
+            actionHaptic="none"
+          />
+        </View>
+      ) : null}
+
+      {!loading && !directBlocked && (
         <FlashList
           ref={listRef}
           data={messages}
@@ -115,15 +191,25 @@ export default function DmThreadScreen() {
               message={item}
               isMine={item.senderUid === myUid}
               senderName={thread?.type === 'group' ? profiles[item.senderUid]?.name : undefined}
+              onMore={handleMessageMore}
             />
           )}
         />
       )}
 
+      {sendError && !directBlocked ? (
+        <Text style={[styles.sendError, { color: colors.semantic.error }]} accessibilityLiveRegion="polite">
+          {sendError}
+        </Text>
+      ) : null}
+      {!directBlocked && (
       <View style={[styles.composer, { borderTopColor: colors.background.cardBorder, paddingBottom: insets.bottom + Spacing['3'] }]}>
         <TextInput
           value={text}
-          onChangeText={setText}
+          onChangeText={(t) => {
+            setText(t);
+            if (sendError) setSendError(null);
+          }}
           placeholder="Message"
           placeholderTextColor={colors.text.tertiary}
           style={[styles.input, { color: colors.text.primary, backgroundColor: colors.background.sunken }]}
@@ -139,6 +225,8 @@ export default function DmThreadScreen() {
           <PaperPlaneRight size={18} color={text.trim() ? colors.background.primary : colors.text.disabled} weight="fill" />
         </TouchableOpacity>
       </View>
+      )}
+      {reportSheet}
     </KeyboardAvoidingView>
   );
 }
@@ -154,6 +242,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { width: 32, minHeight: 32, alignItems: 'flex-start', justifyContent: 'center' },
+  moreBtn: { width: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  blocked: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing['5'] },
+  sendError: { fontSize: FontSize.sm, lineHeight: FontSize.sm * 1.5, paddingHorizontal: Spacing['5'], paddingTop: Spacing['2'] },
   groupAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   headerName: { flex: 1, fontSize: FontSize.md, fontWeight: FontWeight.semiBold },
   composer: {

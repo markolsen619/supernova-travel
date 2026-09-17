@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -33,10 +33,15 @@ import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
 import { Comment } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple } from 'phosphor-react-native';
+import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { usePost } from '@/hooks/usePost';
+import { useModeration } from '@/hooks/useModeration';
+import { useContentActions } from '@/components/moderation/useContentActions';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { contentKey, filterVisible, isContentVisible } from '@/utils/moderation';
+import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts?.toDate) return '';
@@ -48,12 +53,24 @@ function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string
   return `${Math.floor(diff / 86400)}d`;
 }
 
-function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId: string; currentUid: string }) {
+function CommentRow({
+  comment,
+  postId,
+  currentUid,
+  onMore,
+}: {
+  comment: Comment;
+  postId: string;
+  currentUid: string;
+  onMore: (comment: Comment, anchor: React.RefObject<View | null>) => void;
+}) {
   const { colors } = useTheme();
   const isMine = !!currentUid && comment.authorUid === currentUid;
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(comment.text);
   const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const moreRef = useRef<View>(null);
 
   const startEdit = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -65,6 +82,11 @@ function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId:
 
   const saveEdit = async () => {
     if (!draft.trim() || saving) return;
+    if (containsObjectionableText(draft)) {
+      setEditError(OBJECTIONABLE_TEXT_MESSAGE);
+      return;
+    }
+    setEditError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaving(true);
     try {
@@ -106,6 +128,9 @@ function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId:
               maxLength={500}
               autoFocus
             />
+            {editError ? (
+              <Text style={[styles.commentError, { color: colors.semantic.error }]}>{editError}</Text>
+            ) : null}
             <View style={styles.commentEditActions}>
               <TouchableOpacity onPress={cancelEdit} hitSlop={8} style={styles.commentEditActionBtn}>
                 <Text style={[styles.commentEditActionText, { color: colors.text.secondary }]}>Cancel</Text>
@@ -126,6 +151,16 @@ function CommentRow({ comment, postId, currentUid }: { comment: Comment; postId:
           <Text style={[styles.commentTime, { color: colors.text.tertiary }]}>
             {formatTimestamp(comment.createdAt as unknown as { toDate?: () => Date })}
           </Text>
+          {!isMine && (
+            <TouchableOpacity
+              ref={moreRef}
+              onPress={() => onMore(comment, moreRef)}
+              accessibilityLabel="More options for this comment"
+              style={styles.commentIconBtn}
+            >
+              <DotsThree size={16} color={colors.text.tertiary} weight="bold" />
+            </TouchableOpacity>
+          )}
           {isMine && (
             <View style={styles.commentOwnerActions}>
               <TouchableOpacity onPress={startEdit} hitSlop={8} accessibilityLabel="Edit comment" style={styles.commentIconBtn}>
@@ -153,8 +188,43 @@ export default function PostDetailScreen() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
   const { data: currentUser } = useUserProfile(uid);
+  const moderation = useModeration();
+  const { openActions, reportSheet, unblock } = useContentActions();
+  const postMoreRef = useRef<View>(null);
+
+  const visibleComments = useMemo(
+    () =>
+      filterVisible(comments, moderation, (c) => ({
+        authorUid: c.authorUid,
+        key: contentKey({ type: 'comment', id: c.id, parentId: id }),
+        moderationHidden: c.moderationHidden,
+      })),
+    [comments, moderation, id],
+  );
+
+  const handleCommentMore = useCallback(
+    (comment: Comment, anchor: React.RefObject<View | null>) => {
+      if (!id) return;
+      openActions({
+        target: { type: 'comment', id: comment.id, parentId: id, ownerUid: comment.authorUid },
+        ownerName: comment.authorDisplayName || 'this traveler',
+        anchor,
+      });
+    },
+    [id, openActions],
+  );
+
+  const handlePostMore = useCallback(() => {
+    if (!post) return;
+    openActions({
+      target: { type: 'post', id: post.id, ownerUid: post.authorUid },
+      ownerName: post.authorDisplayName || 'this traveler',
+      anchor: postMoreRef,
+    });
+  }, [post, openActions]);
   const isOwner = !!post && !!uid && post.authorUid === uid;
 
   // Real-time comments listener
@@ -172,6 +242,11 @@ export default function PostDetailScreen() {
 
   async function handleSubmitComment() {
     if (!commentText.trim() || !uid || !id) return;
+    if (containsObjectionableText(commentText)) {
+      setCommentError(OBJECTIONABLE_TEXT_MESSAGE);
+      return;
+    }
+    setCommentError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSubmitting(true);
     try {
@@ -183,6 +258,9 @@ export default function PostDetailScreen() {
         createdAt: serverTimestamp(),
       });
       setCommentText('');
+    } catch {
+      // Includes the rules refusing a comment on a post whose author blocked you.
+      setCommentError("Your comment wasn't posted. Try again.");
     } finally {
       setSubmitting(false);
     }
@@ -194,6 +272,37 @@ export default function PostDetailScreen() {
         <SkeletonBlock width="100%" height={280} radius={BorderRadius.xl} />
         <SkeletonListRow />
         <SkeletonListRow />
+      </View>
+    );
+  }
+
+  const authorBlocked = !!post && moderation.blockedUids.has(post.authorUid);
+  const postHidden =
+    !!post &&
+    !isOwner &&
+    !isContentVisible(moderation, {
+      authorUid: post.authorUid,
+      key: contentKey({ type: 'post', id: post.id }),
+      moderationHidden: post.moderationHidden,
+    });
+
+  if (postHidden) {
+    return (
+      <View style={[styles.unavailable, { backgroundColor: colors.background.primary, paddingTop: insets.top }]}>
+        <EmptyState
+          icon={EyeSlash}
+          title={authorBlocked ? `You blocked ${post.authorDisplayName || 'this traveler'}` : "This post isn't available"}
+          description={
+            authorBlocked
+              ? 'Unblock them to see their posts, trips, and comments again.'
+              : "It was reported and removed from your feed. We'll review it within 24 hours."
+          }
+          actionLabel="Go back"
+          onAction={() => router.back()}
+          actionHaptic="light"
+          secondaryLabel={authorBlocked ? 'Unblock' : undefined}
+          onSecondary={authorBlocked ? () => unblock(post.authorUid, post.authorDisplayName || 'this traveler') : undefined}
+        />
       </View>
     );
   }
@@ -224,6 +333,15 @@ export default function PostDetailScreen() {
             accessibilityLabel="Edit post"
           >
             <PencilSimple size={20} color={colors.text.primary} weight="regular" />
+          </TouchableOpacity>
+        ) : post ? (
+          <TouchableOpacity
+            ref={postMoreRef}
+            onPress={handlePostMore}
+            style={styles.moreBtn}
+            accessibilityLabel="More options for this post"
+          >
+            <DotsThree size={22} color={colors.text.primary} weight="bold" />
           </TouchableOpacity>
         ) : (
           <View style={styles.backBtn} />
@@ -302,14 +420,22 @@ export default function PostDetailScreen() {
 
         <View style={styles.commentsSection}>
           <Text style={[styles.sectionTitle, { color: colors.text.tertiary }]}>
-            {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
+            {visibleComments.length} {visibleComments.length === 1 ? 'Comment' : 'Comments'}
           </Text>
-          {comments.map((c) => (
-            <CommentRow key={c.id} comment={c} postId={id!} currentUid={uid} />
+          {visibleComments.map((c) => (
+            <CommentRow key={c.id} comment={c} postId={id!} currentUid={uid} onMore={handleCommentMore} />
           ))}
         </View>
       </ScrollView>
 
+      {commentError ? (
+        <Text
+          style={[styles.commentBarError, { color: colors.semantic.error, backgroundColor: colors.background.elevated }]}
+          accessibilityLiveRegion="polite"
+        >
+          {commentError}
+        </Text>
+      ) : null}
       <View
         style={[
           styles.inputBar,
@@ -330,7 +456,10 @@ export default function PostDetailScreen() {
           placeholder="Add a comment..."
           placeholderTextColor={colors.text.tertiary}
           value={commentText}
-          onChangeText={setCommentText}
+          onChangeText={(t) => {
+            setCommentText(t);
+            if (commentError) setCommentError(null);
+          }}
           multiline
           maxLength={500}
         />
@@ -349,12 +478,22 @@ export default function PostDetailScreen() {
           )}
         </TouchableOpacity>
       </View>
+      {reportSheet}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  unavailable: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing['5'] },
+  moreBtn: { width: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  commentError: { fontSize: FontSize.xs, lineHeight: FontSize.xs * 1.5 },
+  commentBarError: {
+    fontSize: FontSize.sm,
+    lineHeight: FontSize.sm * 1.5,
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['2'],
+  },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',

@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '@/services/firebase';
+import { loadModerationState } from '@/services/moderation';
 import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
@@ -91,6 +92,7 @@ export async function hydrateSession(
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
   });
   registerPushToken(firebaseUser.uid);
+  loadModerationState(firebaseUser.uid);
   configureRevenueCat(firebaseUser.uid);
 
   let legacyFlagPresent = false;

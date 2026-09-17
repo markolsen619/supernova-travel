@@ -5,7 +5,7 @@
  * Navigated to via router.push('/user/<uid>') — not part of the tab bar.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { MapPin, Bag, ArrowLeft, UserCircle, ChatCircleDots } from 'phosphor-react-native';
+import { MapPin, Bag, ArrowLeft, UserCircle, ChatCircleDots, DotsThree, Prohibit } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -32,6 +32,9 @@ import { PostsGrid } from '@/components/profile/PostsGrid';
 import { TripsGrid } from '@/components/profile/TripsGrid';
 import { SavedGrid } from '@/components/profile/SavedGrid';
 import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
+import { useContentActions } from '@/components/moderation/useContentActions';
+import { useModeration } from '@/hooks/useModeration';
+import { contentKey, filterVisible } from '@/utils/moderation';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -49,13 +52,26 @@ export default function UserProfileScreen() {
   const { data: isFriend = false } = useIsFriend(uid ?? null);
   const createThread = useCreateDmThread();
 
+  const moderation = useModeration();
+  const { openActions, reportSheet, unblock } = useContentActions();
+  const moreRef = useRef<View>(null);
+  const isBlocked = !!uid && moderation.blockedUids.has(uid);
+
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>('Trips');
   const [editVisible, setEditVisible] = useState(false);
 
   // Filter trips based on ownership — own profile sees all, others see public only
-  const publicTrips = isOwnProfile
-    ? trips
-    : trips.filter((t) => t.visibility === 'public');
+  const publicTrips = useMemo(
+    () =>
+      isOwnProfile
+        ? trips
+        : filterVisible(
+            trips.filter((t) => t.visibility === 'public'),
+            moderation,
+            (t) => ({ authorUid: t.authorUid, key: contentKey({ type: 'trip', id: t.id }), moderationHidden: t.moderationHidden }),
+          ),
+    [isOwnProfile, trips, moderation],
+  );
 
   // Every trip on this screen belongs to this one profile — no batch lookup
   // needed, just this already-loaded profile keyed by its own uid.
@@ -102,6 +118,20 @@ export default function UserProfileScreen() {
     [],
   );
 
+  const handleMore = useCallback(() => {
+    if (!uid || !profile) return;
+    openActions({
+      target: { type: 'user', id: uid, ownerUid: uid },
+      ownerName: profile.fullName || `@${profile.username}`,
+      anchor: moreRef,
+    });
+  }, [uid, profile, openActions]);
+
+  const handleUnblock = useCallback(() => {
+    if (!uid || !profile) return;
+    unblock(uid, profile.fullName || `@${profile.username}`);
+  }, [uid, profile, unblock]);
+
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
@@ -142,6 +172,24 @@ export default function UserProfileScreen() {
     );
   }
 
+  // ── Blocked state ─────────────────────────────────────────────────────────
+  if (isBlocked) {
+    return (
+      <View style={[styles.rootCentered, { backgroundColor: colors.background.primary }]}>
+        <EmptyState
+          icon={Prohibit}
+          title={`You blocked ${profile.fullName || `@${profile.username}`}`}
+          description="They can't follow you, message you, or comment on your posts, and you won't see anything they share."
+          actionLabel="Go back"
+          onAction={handleBack}
+          actionHaptic="none"
+          secondaryLabel="Unblock"
+          onSecondary={handleUnblock}
+        />
+      </View>
+    );
+  }
+
   // ── Full profile ──────────────────────────────────────────────────────────
   return (
     <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
@@ -156,8 +204,19 @@ export default function UserProfileScreen() {
         >
           <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
-        {/* Right spacer for visual balance */}
-        <View style={styles.backSpacer} />
+        {isOwnProfile ? (
+          <View style={styles.backSpacer} />
+        ) : (
+          <TouchableOpacity
+            ref={moreRef}
+            onPress={handleMore}
+            accessibilityRole="button"
+            accessibilityLabel="More options for this account"
+            style={styles.moreBtn}
+          >
+            <DotsThree size={22} color={colors.text.primary} weight="bold" />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Scrollable body */}
@@ -320,6 +379,7 @@ export default function UserProfileScreen() {
 
       {/* Edit profile modal */}
       <EditProfileSheet visible={editVisible} onClose={handleEditProfileClose} />
+      {reportSheet}
     </View>
   );
 }
@@ -354,6 +414,12 @@ const styles = StyleSheet.create({
   },
   backSpacer: {
     width: 60,
+  },
+  moreBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   scrollContent: {
     paddingBottom: Spacing['10'],

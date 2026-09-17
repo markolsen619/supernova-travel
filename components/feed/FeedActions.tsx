@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import {
   Export,
   BookmarkSimple,
   MapPin,
+  DotsThree,
 } from 'phosphor-react-native';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -32,6 +33,7 @@ import { Spacing } from '@/constants/spacing';
 interface FeedActionsProps {
   post: Post;
   onCommentPress: () => void;
+  onMorePress?: (post: Post, anchor: React.RefObject<View | null>) => void;
 }
 
 function likeDocId(uid: string, postId: string) {
@@ -51,7 +53,7 @@ function authorHandle(post: Post): string {
 // video, not app chrome — white + shadow is the correct legibility pattern
 // here regardless of the app's light/dark theme (same reasoning as
 // Instagram/TikTok's overlay controls), so none of this reads from useTheme().
-export function FeedActions({ post, onCommentPress }: FeedActionsProps) {
+export function FeedActions({ post, onCommentPress, onMorePress }: FeedActionsProps) {
   const router = useRouter();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
   const [liked, setLiked] = useState(false);
@@ -121,6 +123,13 @@ export function FeedActions({ post, onCommentPress }: FeedActionsProps) {
     toggleSave();
   }, [toggleSave]);
 
+  const moreRef = useRef<View>(null);
+  const isOwnPost = !!uid && post.authorUid === uid;
+
+  const handleMorePress = useCallback(() => {
+    onMorePress?.(post, moreRef);
+  }, [onMorePress, post]);
+
   const handleAuthorPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/user/${post.authorUid}`);
@@ -182,6 +191,18 @@ export function FeedActions({ post, onCommentPress }: FeedActionsProps) {
             weight={saved ? 'fill' : 'regular'}
           />
         </TouchableOpacity>
+
+        {onMorePress && !isOwnPost ? (
+          <TouchableOpacity
+            ref={moreRef}
+            style={styles.actionBtn}
+            onPress={handleMorePress}
+            hitSlop={10}
+            accessibilityLabel="More options"
+          >
+            <DotsThree size={28} color="rgba(255,255,255,0.9)" weight="bold" />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Bottom caption area */}

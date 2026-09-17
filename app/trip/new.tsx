@@ -35,6 +35,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DatePickerModal } from '@/components/ui/DatePickerModal';
 import { SPRING } from '@/constants/motion';
+import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 const TOTAL_STEPS = 4;
 
@@ -701,6 +702,10 @@ export default function NewTripScreen() {
   }, [step, goToStep]);
 
   const handleCreateTrip = async () => {
+    if (containsObjectionableText(title) || containsObjectionableText(description) || containsObjectionableText(tagsInput)) {
+      setCreateError(OBJECTIONABLE_TEXT_MESSAGE);
+      return;
+    }
     setCreating(true);
     setCreateError('');
     try {

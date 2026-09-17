@@ -132,6 +132,7 @@ All functions use Firebase Functions v2.
 - `syncTier` (`syncTier.ts`) — RevenueCat webhook; the normal writer of `users/{uid}.tier`, ordered by `tierEventTimestampMs`
 - `reconcileTier` (`reconcileTier.ts`) — HTTPS callable; re-reads the tier from RevenueCat's REST API when a webhook is late or lost. Throttled per user (30s). Pure logic lives in `tierEvents.ts`
 - `deleteAccount` (`deleteAccount.ts`) — HTTPS callable; App Store 5.1.1(v) in-app account deletion. Removes the caller's traces in others' data (likes + counts, comments, actor notifications, follows + counts, collaborator slots, invites, DMs), then their own content, Storage folders, RevenueCat customer, and finally the Auth user — last, so a failure leaves them signed in to retry. Idempotent. Pure decisions in `accountDeletion.ts`. Its collection-group queries rely on `fieldOverrides` in `firestore.indexes.json`. **Adding a new per-user collection, subcollection, or Storage folder means adding it here too**
+- `onReportCreated` / `onBlockCreated` (`moderationEvents.ts`) — push `MODERATOR_UIDS` on each report and set `moderationHidden: true` on a post/comment/trip at 3 distinct reports; remove follows both ways on a block. `isBlockedBetween()` also gates `createDmThread` and `inviteToTrip`. Pure decisions in `moderation.ts`. Runbook: `docs/moderation.md`
 - `types.ts` — shared TypeScript interfaces for Cloud Function request/response shapes
 
 **Never call Gemini or any third-party secret API directly from client code.** All such calls go through Cloud Functions.
@@ -263,8 +264,15 @@ Explore components in `components/explore/`:
 - `TrendingCard` — trending trip card
 - `TripGrid` — grid layout for trending trips
 
+Moderation (`components/moderation/`, `utils/moderation.ts`, `utils/contentFilter.ts`) — App Store 1.2 for user-generated content:
+- `useContentActions()` — `{ openActions, reportSheet, unblock }`. `openActions({ target, ownerName, anchor })` shows Report / Block (native action sheet on iOS, anchored for iPad); render `reportSheet` once per screen. No-op on your own content
+- `ReportSheet` — reason picker, then offers to block. Reporting hides the item for the reporter immediately
+- **Every list or screen that shows someone else's content must filter it** with `useModeration()` + `filterVisible`/`isContentVisible` (blocked author, reported by you, or `moderationHidden`). Done in feed, post detail + comments, profiles, trips, Explore, Search (Algolia doesn't know about blocks), notifications, and DMs. A new surface that skips this shows blocked users' content
+- `containsObjectionableText()` runs before captions, comments, messages, trip titles, profile fields, and usernames are saved. Slurs, sexual terms, self-harm incitement only — not everyday profanity. Check travel false positives (Niger, Scunthorpe, #foodporn) in its tests when adding terms
+- State: `users/{uid}/blocked/{uid}`, `users/{uid}/hidden/{contentKey}`, loaded into `useModerationStore` by `hydrateSession`
+
 Legal (`components/legal/`, `constants/legal.ts`):
-- `LegalLinks` — "Terms of use · Privacy policy" as two 44pt tap targets opening in-app browser; takes `color` so pinned-dark screens can use it. On the paywall, welcome, and (as rows) Settings → About. App Store 3.1.2 needs these wherever a subscription is sold. Terms = Apple's standard EULA; the privacy policy is `hosting/privacy.html`, served at `supernova-a2125.web.app/privacy` via Firebase Hosting (`firebase deploy --only hosting`)
+- `LegalLinks` — "Terms of use · Privacy policy" as two 44pt tap targets opening in-app browser; takes `color` so pinned-dark screens can use it. On the paywall, welcome, and (as rows) Settings → About. App Store 3.1.2 needs these wherever a subscription is sold. Terms = `hosting/terms.html` (community guidelines + zero tolerance, incorporates Apple's standard EULA); privacy = `hosting/privacy.html`; both served from `supernova-a2125.web.app` via Firebase Hosting (`firebase deploy --only hosting`)
 
 Other components:
 - `components/SplashOverlay` — overlay shown during app initialization (before auth resolves)

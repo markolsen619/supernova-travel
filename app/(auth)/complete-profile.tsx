@@ -27,6 +27,7 @@ import BirthdayField from '@/components/auth/BirthdayField';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
+import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 // The gate a Firebase-Auth-but-no-Firestore-doc user lands on (OAuth sign-in
 // that skipped the normal sign-up form). No back button on purpose — going
@@ -62,17 +63,19 @@ export default function CompleteProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const nameValid = fullName.trim().length > 0;
+  const nameObjectionable = containsObjectionableText(fullName);
+  const nameValid = fullName.trim().length > 0 && !nameObjectionable;
   const canContinue = nameValid && usernameValid && birthdayValid;
 
   // A disabled Continue with no explanation is a dead end — say exactly
   // what's missing, in the order the fields appear on screen.
   const disabledReason = useMemo(() => {
+    if (nameObjectionable) return OBJECTIONABLE_TEXT_MESSAGE;
     if (!nameValid) return 'Add your name to continue.';
     if (!usernameValid) return 'Choose a username to continue.';
     if (!birthdayValid) return 'Add your date of birth to continue.';
     return null;
-  }, [nameValid, usernameValid, birthdayValid]);
+  }, [nameObjectionable, nameValid, usernameValid, birthdayValid]);
 
   const handleContinue = useCallback(async () => {
     const user = auth.currentUser;

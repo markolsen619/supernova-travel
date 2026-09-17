@@ -6,7 +6,7 @@
  * profile ScrollView, so this is a flex-wrap grid rather than a FlashList.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +19,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { thirdWidth } from '@/utils/layout';
 import { excludeTripShares } from '@/utils/posts';
+import { contentKey, filterVisible } from '@/utils/moderation';
+import { useModeration } from '@/hooks/useModeration';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 
@@ -26,6 +29,7 @@ interface PostDoc {
   id: string;
   mediaUrl?: string;
   mediaType?: string;
+  moderationHidden?: boolean;
 }
 
 async function fetchUserPosts(uid: string): Promise<PostDoc[]> {
@@ -49,12 +53,27 @@ export function PostsGrid({ uid }: PostsGridProps) {
   const { width } = useLayout();
   const cell = thirdWidth(width);
 
-  const { data: posts = [], isLoading } = useQuery({
+  const viewerUid = useAuthStore((s) => s.user?.uid ?? '');
+  const moderation = useModeration();
+  const { data: allPosts = [], isLoading } = useQuery({
     queryKey: ['userPosts', uid],
     queryFn: () => fetchUserPosts(uid),
     enabled: !!uid,
     staleTime: 2 * 60 * 1000,
   });
+  // Your own grid shows everything, including posts moderation took down, so
+  // nothing silently vanishes on you. Other people see the filtered grid.
+  const posts = useMemo(
+    () =>
+      uid === viewerUid
+        ? allPosts
+        : filterVisible(allPosts, moderation, (p) => ({
+            authorUid: uid,
+            key: contentKey({ type: 'post', id: p.id }),
+            moderationHidden: p.moderationHidden,
+          })),
+    [allPosts, moderation, uid, viewerUid],
+  );
 
   if (isLoading) {
     return (

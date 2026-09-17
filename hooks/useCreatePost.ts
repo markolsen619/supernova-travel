@@ -7,6 +7,7 @@ import { uploadPostImage } from '@/services/postMedia';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { Trip } from '@/types';
+import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 interface CreatePhotoPostInput {
   localUris: string[];
@@ -40,6 +41,9 @@ export function useCreatePost() {
 
   async function createPhotoPost(input: CreatePhotoPostInput): Promise<string> {
     if (!user) throw new Error('Not authenticated');
+    if (containsObjectionableText(input.caption) || containsObjectionableText(input.placeName)) {
+      throw new Error(OBJECTIONABLE_TEXT_MESSAGE);
+    }
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -89,6 +93,7 @@ export function useCreatePost() {
 
   async function createTripPost(input: CreateTripPostInput): Promise<string> {
     if (!user) throw new Error('Not authenticated');
+    if (containsObjectionableText(input.caption)) throw new Error(OBJECTIONABLE_TEXT_MESSAGE);
     setIsUploading(true);
 
     try {

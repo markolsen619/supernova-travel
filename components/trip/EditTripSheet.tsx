@@ -31,6 +31,7 @@ import { VISIBILITY_ICONS } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { Trip, TripVisibility } from '@/types';
+import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 const VISIBILITY_OPTIONS: { value: TripVisibility; label: string }[] = [
   { value: 'public', label: 'Public' },
@@ -89,6 +90,10 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     if (saving || deleting) return;
     if (!title.trim()) {
       setTitleError('Give your trip a title.');
+      return;
+    }
+    if (containsObjectionableText(title) || containsObjectionableText(description)) {
+      setSaveError(OBJECTIONABLE_TEXT_MESSAGE);
       return;
     }
     if (startDate && endDate && endDate < startDate) {
