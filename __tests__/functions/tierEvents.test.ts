@@ -6,6 +6,9 @@ import {
   affectsProEntitlement,
   resolveTierForEvent,
   shouldApplyEvent,
+  tierFromSubscriber,
+  isReconcileThrottled,
+  RECONCILE_COOLDOWN_MS,
   RevenueCatEvent,
 } from '../../functions/src/tierEvents';
 
@@ -144,5 +147,68 @@ describe('shouldApplyEvent', () => {
 
   it('applies an event with no timestamp rather than dropping it', () => {
     expect(shouldApplyEvent(undefined, NOW)).toBe(true);
+  });
+});
+
+describe('tierFromSubscriber', () => {
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  it('grants pro for an unexpired subscription', () => {
+    const sub = { entitlements: { supernova_pro: { expires_date: iso(FUTURE) } } };
+    expect(tierFromSubscriber(sub, NOW)).toBe('pro');
+  });
+
+  it('grants pro for a lifetime unlock, which has no expiry', () => {
+    const sub = { entitlements: { supernova_pro: { expires_date: null } } };
+    expect(tierFromSubscriber(sub, NOW)).toBe('pro');
+  });
+
+  it('is free when the entitlement is listed but expired — REST keeps lapsed entitlements', () => {
+    const sub = { entitlements: { supernova_pro: { expires_date: iso(PAST) } } };
+    expect(tierFromSubscriber(sub, NOW)).toBe('free');
+  });
+
+  it('keeps pro through a billing grace period, matching BILLING_ISSUE in the webhook', () => {
+    const sub = {
+      entitlements: {
+        supernova_pro: { expires_date: iso(PAST), grace_period_expires_date: iso(FUTURE) },
+      },
+    };
+    expect(tierFromSubscriber(sub, NOW)).toBe('pro');
+  });
+
+  it('is free once the grace period has also passed', () => {
+    const sub = {
+      entitlements: {
+        supernova_pro: { expires_date: iso(PAST), grace_period_expires_date: iso(PAST) },
+      },
+    };
+    expect(tierFromSubscriber(sub, NOW)).toBe('free');
+  });
+
+  it('ignores other entitlements', () => {
+    const sub = { entitlements: { some_other: { expires_date: iso(FUTURE) } } };
+    expect(tierFromSubscriber(sub, NOW)).toBe('free');
+  });
+
+  it('is free for a subscriber with no entitlements, or none at all', () => {
+    expect(tierFromSubscriber({ entitlements: {} }, NOW)).toBe('free');
+    expect(tierFromSubscriber({}, NOW)).toBe('free');
+    expect(tierFromSubscriber(null, NOW)).toBe('free');
+  });
+});
+
+describe('isReconcileThrottled', () => {
+  it('lets the first reconcile through', () => {
+    expect(isReconcileThrottled(undefined, NOW)).toBe(false);
+    expect(isReconcileThrottled(null, NOW)).toBe(false);
+  });
+
+  it('throttles inside the cooldown', () => {
+    expect(isReconcileThrottled(NOW - 1000, NOW)).toBe(true);
+  });
+
+  it('allows again once the cooldown has elapsed', () => {
+    expect(isReconcileThrottled(NOW - RECONCILE_COOLDOWN_MS, NOW)).toBe(false);
   });
 });
