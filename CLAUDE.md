@@ -261,6 +261,9 @@ Explore components in `components/explore/`:
 - `TrendingCard` — trending trip card
 - `TripGrid` — grid layout for trending trips
 
+Legal (`components/legal/`, `constants/legal.ts`):
+- `LegalLinks` — "Terms of use · Privacy policy" as two 44pt tap targets opening in-app browser; takes `color` so pinned-dark screens can use it. On the paywall, welcome, and (as rows) Settings → About. App Store 3.1.2 needs these wherever a subscription is sold. Terms = Apple's standard EULA; the privacy policy is `hosting/privacy.html`, served at `supernova-a2125.web.app/privacy` via Firebase Hosting (`firebase deploy --only hosting`)
+
 Other components:
 - `components/SplashOverlay` — overlay shown during app initialization (before auth resolves)
 - `components/paywall/PaywallFeatureList` — pro tier features list; driven by `PAYWALL_FEATURE_ICONS`

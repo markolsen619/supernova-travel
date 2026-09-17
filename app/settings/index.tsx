@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 import { X, UserCircle, LockSimple, Sparkle } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
@@ -20,6 +21,7 @@ import { auth } from '@/services/firebase';
 import { signOutGoogle } from '@/services/oauth';
 import { logOutRevenueCat } from '@/services/revenuecat';
 import { presentCustomerCenter } from '@/services/revenuecatUI';
+import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -71,6 +73,16 @@ export default function SettingsScreen() {
   // Center, which owns cancel / change-plan / refund — flows that need
   // StoreKit APIs we don't otherwise expose, and that Apple expects to exist
   // in-app for auto-renewing subscriptions.
+  const handleOpenPrivacyPolicy = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL);
+  }, []);
+
+  const handleOpenTerms = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    WebBrowser.openBrowserAsync(TERMS_OF_USE_URL);
+  }, []);
+
   const handleSubscriptionPress = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (tier === 'free') {
@@ -157,6 +169,8 @@ export default function SettingsScreen() {
         {/* About */}
         <Text style={[styles.sectionHeader, { color: colors.text.tertiary }]}>ABOUT</Text>
         <View style={sectionStyle}>
+          <SettingsRow label="Privacy policy" onPress={handleOpenPrivacyPolicy} showDivider />
+          <SettingsRow label="Terms of use" onPress={handleOpenTerms} showDivider />
           <SettingsRow label="Version" value="1.0.0" />
         </View>
 

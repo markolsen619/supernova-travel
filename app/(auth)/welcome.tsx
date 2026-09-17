@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { View, Text, Image, StyleSheet, Animated } from 'react-native';
 import { Link } from 'expo-router';
 import { Button } from '@/components/ui/Button';
+import { LegalLinks } from '@/components/legal/LegalLinks';
 import { StarField } from '@/components/animations/StarField';
 import { useLayout } from '@/hooks/useLayout';
 import { DarkColors } from '@/constants/colors';
@@ -73,9 +74,10 @@ export default function WelcomeScreen() {
         </Link>
       </Animated.View>
 
-      <Text style={styles.terms}>
-        By continuing, you agree to our Terms of Service and Privacy Policy.
-      </Text>
+      <View style={styles.legal}>
+        <Text style={styles.terms}>By continuing, you agree to the terms of use and privacy policy.</Text>
+        <LegalLinks color={DarkColors.text.tertiary} />
+      </View>
     </View>
   );
 }
@@ -106,12 +108,14 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['6'],
   },
   spacer: { height: Spacing['3'] },
+  legal: {
+    paddingHorizontal: Spacing['6'],
+    paddingBottom: Spacing['6'],
+  },
   terms: {
     fontSize: FontSize.xs,
     color: DarkColors.text.tertiary,
     textAlign: 'center',
-    paddingHorizontal: Spacing['6'],
-    paddingBottom: Spacing['8'],
     lineHeight: 16,
   },
 });

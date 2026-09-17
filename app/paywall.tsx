@@ -10,6 +10,7 @@ import { useOfferings } from '@/hooks/useOfferings';
 import { Button } from '@/components/ui/Button';
 import { PaywallFeatureList } from '@/components/paywall/PaywallFeatureList';
 import { PlanOption } from '@/components/paywall/PlanOption';
+import { LegalLinks } from '@/components/legal/LegalLinks';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { defaultSelectedPlanId } from '@/utils/offerings';
@@ -239,6 +240,8 @@ export default function PaywallScreen() {
             Subscriptions renew automatically until cancelled. Manage or cancel in your store
             account settings. Lifetime is a one-time purchase.
           </Text>
+          {/* App Store 3.1.2: a subscription sale needs working terms and privacy links. */}
+          <LegalLinks color={colors.text.tertiary} />
         </Animated.View>
       </ScrollView>
     </View>
