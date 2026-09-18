@@ -13,6 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "icon": "./assets/images/icon-ios.png",
       "bundleIdentifier": "com.supernovatravel.app",
       "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
