@@ -200,11 +200,26 @@ export interface PostCommentNotification {
   createdAt: Timestamp;
 }
 
+/** `users/{uid}/notifications/{id}` written by the checkFlightStatus
+ * scheduler. The only notification type with no actor — it comes from the
+ * flight poller, not a person, so its row shows a type icon where the others
+ * show an avatar. Written for paid tiers only (the push is a Pro feature). */
+export interface FlightStatusNotification {
+  id: string;
+  type: 'flight_status';
+  passId: string;
+  flightNumber: string;
+  status: BoardingPassStatus;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
 export type AppNotification =
   | TripInviteNotification
   | TripInviteAcceptedNotification
   | PostLikeNotification
-  | PostCommentNotification;
+  | PostCommentNotification
+  | FlightStatusNotification;
 
 // ── Direct messaging ─────────────────────────────────────────────────────
 
@@ -421,8 +436,12 @@ export interface Reservation {
   type: ReservationType;
   title: string;            // e.g. "The Ritz-Carlton, Tokyo"
   confirmationCode: string;
-  checkIn?: string;         // ISO 8601 date
-  checkOut?: string;        // ISO 8601 date
+  /** Calendar date, `YYYY-MM-DD` — a day, not an instant. Read and written
+   * only through utils/calendarDate.ts; storing it as a timestamp makes it
+   * render a day early anywhere behind UTC. */
+  checkIn?: string;
+  /** Calendar date, `YYYY-MM-DD` — see checkIn. */
+  checkOut?: string;
   address?: string;
   notes?: string;
   attachmentUrls?: string[];
@@ -441,7 +460,8 @@ export interface LoyaltyProgram {
   balance: number;
   unit: LoyaltyUnit;
   tier?: LoyaltyTier;
-  expiryDate?: string;      // ISO 8601 date
+  /** Calendar date, `YYYY-MM-DD` — see Reservation.checkIn. */
+  expiryDate?: string;
   isManual: boolean;        // true = user entered manually, false = scanned/synced
   createdAt: string;
 }

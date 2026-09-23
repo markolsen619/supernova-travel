@@ -20,6 +20,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { useRevenueCatSync } from '@/hooks/useRevenueCatSync';
+import { useNotificationRouting } from '@/hooks/useNotificationRouting';
 
 SplashScreen.preventAutoHideAsync();
 configureGoogleSignIn();
@@ -45,6 +46,9 @@ function AppStack() {
   // Keeps useAuthStore.tier live with RevenueCat for the whole session —
   // renewals, lapses, refunds and cross-device purchases all land here.
   useRevenueCatSync();
+  // Sends a tapped notification to the screen it's about. Mounted here, below
+  // the auth listener, so it can wait for routing to settle before navigating.
+  useNotificationRouting();
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />

@@ -14,6 +14,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
+import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
 import { Button } from '@/components/ui/Button';
@@ -77,7 +78,7 @@ export default function AddLoyaltyScreen() {
     setBalanceText(String(existing.balance));
     setUnit(existing.unit);
     setTier(existing.tier ?? 'standard');
-    setExpiryDate(existing.expiryDate ? new Date(existing.expiryDate) : null);
+    setExpiryDate(existing.expiryDate ? parseCalendarDate(existing.expiryDate) : null);
   }, [existing]);
 
   const handleSubmit = useCallback(() => {
@@ -109,7 +110,7 @@ export default function AddLoyaltyScreen() {
       const editFields: Record<string, unknown> = {
         ...baseFields,
         memberNumber: memberNumber.trim() || deleteField(),
-        expiryDate: expiryDate ? expiryDate.toISOString() : deleteField(),
+        expiryDate: expiryDate ? toCalendarDate(expiryDate) : deleteField(),
       };
       updateProgram.mutate(
         { id, ...editFields } as Partial<LoyaltyProgram> & { id: string },
@@ -124,7 +125,7 @@ export default function AddLoyaltyScreen() {
           ownerUid: uid,
           ...baseFields,
           ...(memberNumber.trim() ? { memberNumber: memberNumber.trim() } : {}),
-          ...(expiryDate ? { expiryDate: expiryDate.toISOString() } : {}),
+          ...(expiryDate ? { expiryDate: toCalendarDate(expiryDate) } : {}),
           isManual: true,
           createdAt: new Date().toISOString(),
         },

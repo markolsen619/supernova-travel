@@ -125,9 +125,10 @@ export default function FeedScreen() {
     <View
       style={[
         styles.container,
-        // On large screens the feed is a centred column; its surround stays
-        // black so photo and margin read as one immersive surface.
-        { backgroundColor: isLarge && hasContent ? '#000' : colors.background.primary },
+        // The card is full-bleed on every size now (see feedColumnWidth), so
+        // nothing of this surface shows behind it while there are posts. It
+        // still backs the empty and loading states, which are light.
+        { backgroundColor: colors.background.primary },
       ]}
     >
       {/* Header — bare white icons straight on the photo (the header's own

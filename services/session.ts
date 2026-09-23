@@ -1,10 +1,9 @@
 import { User } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '@/services/firebase';
 import { loadModerationState } from '@/services/moderation';
+import { registerPushTokenIfGranted } from '@/services/push';
 import { useAiConsentStore } from '@/stores/useAiConsentStore';
 import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -13,29 +12,6 @@ import { useUserStore } from '@/stores/useUserStore';
 // Pre-namespacing (per-uid) onboarding flag. Never write this key again —
 // it survives only as a one-time migration source inside hydrateSession.
 const LEGACY_ONBOARDING_KEY = 'onboarding_complete';
-
-export async function registerPushToken(uid: string) {
-  if (Platform.OS === 'web') return;
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== 'granted') return;
-
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
-  // Store token on the user document for Cloud Function flight alerts
-  const userRef = doc(db, 'users', uid);
-  const snap = await getDoc(userRef);
-  if (snap.exists()) {
-    const existing: string[] = snap.data().expoPushTokens ?? [];
-    if (!existing.includes(token)) {
-      const { updateDoc: updateTokenDoc, arrayUnion } = await import('firebase/firestore');
-      await updateTokenDoc(userRef, { expoPushTokens: arrayUnion(token) });
-    }
-  }
-}
 
 /**
  * Pure resolution of whether a user has completed onboarding, given their
@@ -95,7 +71,9 @@ export async function hydrateSession(
     followingCount: data.followingCount ?? 0,
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
   });
-  registerPushToken(firebaseUser.uid);
+  // Non-prompting on purpose: the permission ask now happens at a moment
+  // that explains itself (services/push.ts), not cold during onboarding.
+  registerPushTokenIfGranted(firebaseUser.uid);
   loadModerationState(firebaseUser.uid);
   configureRevenueCat(firebaseUser.uid);
 

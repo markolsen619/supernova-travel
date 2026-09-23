@@ -13,6 +13,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
+import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
 import { useTheme } from '@/hooks/useTheme';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
@@ -60,8 +61,8 @@ export default function AddReservationScreen() {
     setConfirmationCode(existing.confirmationCode);
     setAddress(existing.address ?? '');
     setNotes(existing.notes ?? '');
-    setCheckIn(existing.checkIn ? new Date(existing.checkIn) : null);
-    setCheckOut(existing.checkOut ? new Date(existing.checkOut) : null);
+    setCheckIn(existing.checkIn ? parseCalendarDate(existing.checkIn) : null);
+    setCheckOut(existing.checkOut ? parseCalendarDate(existing.checkOut) : null);
   }, [existing]);
 
   useEffect(() => {
@@ -71,8 +72,8 @@ export default function AddReservationScreen() {
     if (draft.fields.confirmationCode) setConfirmationCode(draft.fields.confirmationCode);
     if (draft.fields.address) setAddress(draft.fields.address);
     if (draft.fields.notes) setNotes(draft.fields.notes);
-    if (draft.fields.checkIn) setCheckIn(new Date(draft.fields.checkIn));
-    if (draft.fields.checkOut) setCheckOut(new Date(draft.fields.checkOut));
+    if (draft.fields.checkIn) setCheckIn(parseCalendarDate(draft.fields.checkIn));
+    if (draft.fields.checkOut) setCheckOut(parseCalendarDate(draft.fields.checkOut));
     clearDraft();
   }, [draftParam, draft, clearDraft]);
 
@@ -109,8 +110,8 @@ export default function AddReservationScreen() {
       // untouched).
       const editFields: Record<string, unknown> = {
         ...baseFields,
-        checkIn: checkIn ? checkIn.toISOString() : deleteField(),
-        checkOut: checkOut ? checkOut.toISOString() : deleteField(),
+        checkIn: checkIn ? toCalendarDate(checkIn) : deleteField(),
+        checkOut: checkOut ? toCalendarDate(checkOut) : deleteField(),
         address: address.trim() || deleteField(),
         notes: notes.trim() || deleteField(),
       };
@@ -126,8 +127,8 @@ export default function AddReservationScreen() {
         {
           ownerUid: uid,
           ...baseFields,
-          ...(checkIn ? { checkIn: checkIn.toISOString() } : {}),
-          ...(checkOut ? { checkOut: checkOut.toISOString() } : {}),
+          ...(checkIn ? { checkIn: toCalendarDate(checkIn) } : {}),
+          ...(checkOut ? { checkOut: toCalendarDate(checkOut) } : {}),
           ...(address.trim() ? { address: address.trim() } : {}),
           ...(notes.trim() ? { notes: notes.trim() } : {}),
           createdAt: new Date().toISOString(),

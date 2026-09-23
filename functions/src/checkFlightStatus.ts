@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import * as https from 'https';
+import { notifyUser } from './notify';
 
 const db = admin.firestore();
 
@@ -29,31 +29,6 @@ async function fetchFlightStatus(flightNumber: string, date: string): Promise<st
         } catch { resolve(null); }
       });
     }).on('error', () => resolve(null));
-  });
-}
-
-// Send Expo push notification
-async function sendPushNotification(tokens: string[], title: string, body: string): Promise<void> {
-  const messages = tokens
-    .filter((t) => t.startsWith('ExponentPushToken['))
-    .map((to) => ({ to, title, body, sound: 'default' }));
-
-  if (messages.length === 0) return;
-
-  const payload = JSON.stringify(messages);
-  return new Promise((resolve) => {
-    const req = https.request(
-      {
-        hostname: 'exp.host',
-        path: '/--/api/v2/push/send',
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
-      },
-      () => resolve()
-    );
-    req.on('error', () => resolve());
-    req.write(payload);
-    req.end();
   });
 }
 
@@ -86,8 +61,6 @@ export const checkFlightStatus = onSchedule(
         // server-written (syncTier / reconcileTier), so this can't be spoofed.
         if ((userData?.tier ?? 'free') === 'free') continue;
 
-        const tokens: string[] = userData?.expoPushTokens ?? [];
-
         const statusMessages: Record<string, string> = {
           boarded: `Your flight ${pass.flightNumber} is boarding now.`,
           completed: `Your flight ${pass.flightNumber} has landed.`,
@@ -95,8 +68,20 @@ export const checkFlightStatus = onSchedule(
         };
 
         const msg = statusMessages[newStatus];
-        if (msg && tokens.length > 0) {
-          await sendPushNotification(tokens, 'Flight update', msg);
+        if (msg) {
+          // notifyUser, not a bare push: a missed or permission-denied push
+          // would otherwise leave the status change visible only inside the
+          // wallet. It re-reads this user doc, which is one extra read per
+          // changed flight — cheap next to the AviationStack call above.
+          await notifyUser(pass.ownerUid, {
+            notification: {
+              type: 'flight_status',
+              passId: passDoc.id,
+              flightNumber: pass.flightNumber,
+              status: newStatus,
+            },
+            push: { title: 'Flight update', body: msg },
+          });
         }
       }
     }

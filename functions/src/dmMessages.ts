@@ -52,6 +52,11 @@ export const onMessageCreated = onDocumentCreated(
 
     const text: string = message.text ?? '';
     const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text;
-    await sendPushNotification(tokens, senderName, preview);
+    // No notifications doc for DMs (see the header comment), so the routing
+    // data is built here rather than derived by notifyUser's pushDataFor.
+    await sendPushNotification(tokens, senderName, preview, {
+      type: 'direct',
+      threadId,
+    });
   },
 );
