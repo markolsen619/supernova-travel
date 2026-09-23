@@ -45,8 +45,8 @@ For a reservation:
   "fields": {
     "title": "The Ritz-Carlton, Tokyo",
     "confirmationCode": "RT4821",
-    "checkIn": "2026-08-15T00:00:00.000Z",
-    "checkOut": "2026-08-18T00:00:00.000Z",
+    "checkIn": "2026-08-15",
+    "checkOut": "2026-08-18",
     "address": "9 Chome-7-1 Ginzaa, Tokyo",
     "notes": "Any other relevant detail worth keeping, e.g. room type or special requests"
   }
@@ -55,7 +55,12 @@ For a reservation:
 Rules:
 - "fields" only contains keys you actually found — omit anything not confidently present in the source
 - origin/destination airport codes are 3-letter IATA codes
-- All date/time fields are ISO 8601 strings
+- departureTime and arrivalTime are full ISO 8601 timestamps: a flight leaves at
+  one instant worldwide
+- checkIn and checkOut are calendar dates, "YYYY-MM-DD" with no time and no
+  timezone: a 15 August check-in is 15 August wherever the guest is reading it.
+  Never emit midnight-UTC for these — it renders as the 14th anywhere in the
+  Americas
 - flightNumber and origin/destination are uppercase
 - If you truly cannot identify what kind of booking this is at all, return {"kind": "reservation", "reservationType": "activity", "fields": {}}`;
 }

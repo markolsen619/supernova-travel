@@ -220,29 +220,47 @@ row that scheduler has ever had.
 
 ---
 
-## Known issues found but not fixed
+## Calendar dates vs instants
 
-### AI-imported reservation dates are a day early outside UTC+
+A check-in, a check-out and a loyalty expiry are **calendar dates**: 15 October
+is the same day in Lisbon and San Diego. They used to be stored as instants and
+rendered with `new Date(value).toLocaleDateString(...)`, which converts to the
+device's timezone — so anywhere behind UTC they displayed a day early. The
+worst case was AI import: `parseTravelConfirmation` asked Gemini for
+`"2026-08-15T00:00:00.000Z"`, so every imported reservation was wrong across
+the Americas, on a feature sold as one of three Pro benefits.
 
-`components/wallet/ReservationCard.tsx` formats with
-`new Date(isoDate).toLocaleDateString(...)`. A **date-only** or UTC-midnight
-ISO string parses as UTC midnight per spec and then renders in local time, so
-anywhere behind UTC it shows the previous day.
+Fixed 2026-09-23. `utils/calendarDate.ts` is now the only way these fields are
+read or written:
 
-- **Manual entry is safe.** `app/(wallet)/reservation/add.tsx` stores
-  `checkIn.toISOString()` from a local `Date`, so PDT 15 Oct becomes
-  `...T07:00:00Z` and renders back as 15 Oct.
-- **AI import is not.** `functions/src/parseTravelConfirmation.ts:48` shows
-  Gemini `"checkIn": "2026-08-15T00:00:00.000Z"` — UTC midnight. Every
-  AI-imported reservation is a day early for users in the Americas, and
-  "unlimited booking imports" is one of the three Pro selling points.
+- stored as `YYYY-MM-DD` — no time, no timezone
+- `toCalendarDate(date)` writes the **local** calendar day (not
+  `toISOString().slice(0, 10)`, which would record tomorrow during an American
+  evening)
+- `parseCalendarDate` / `formatCalendarDate` also accept the old full-ISO rows
+  and read their UTC calendar day, so legacy data renders correctly without a
+  migration
 
-Not patched here because the tidy fix is a data-model change: a check-in is a
-**calendar date**, not an instant, so it should be stored `YYYY-MM-DD` and
-formatted as a calendar date. Formatting in UTC instead would fix the Americas
-and break UTC+ timezones, so it is not a safe one-liner.
+The four seeded rows were migrated to `YYYY-MM-DD` anyway, so the database
+holds one shape. `orderBy('checkIn')` still sorts correctly — ISO dates sort
+lexicographically.
 
----
+**A flight's `departureTime`/`arrivalTime` stay full timestamps.** A departure
+really does happen at one instant worldwide; only calendar dates changed.
+
+Verified on an iPad in PDT: a `2026-10-16T00:00:00.000Z` row — the exact shape
+Gemini used to emit — now renders "Oct 16, 2026" where it previously showed
+Oct 15.
+
+### Still outstanding: trip dates
+
+`Trip.startDate`/`endDate` are Firestore `Timestamp`s written from a local
+`Date` and rendered with `toDate().toLocaleDateString(...)`. Same class of
+problem, but it only misreads if the user changes timezone between creating and
+viewing a trip, and the fix touches seven components (`TripCard`,
+`trip/[id]`, `DayTimeline`, `DayPickerSheet`, `EditTripSheet`,
+`TripRecapSheet`, `post/create-trip`). Left alone deliberately — it is a
+travel-day-only bug, not a wrong-on-arrival one.
 
 ## Decisions taken, worth revisiting
 

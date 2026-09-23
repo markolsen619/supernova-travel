@@ -17,6 +17,7 @@ import { useReservations } from '@/hooks/useReservations';
 import { RESERVATION_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { ReservationType } from '@/types';
+import { formatCalendarDate } from '@/utils/calendarDate';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -31,16 +32,13 @@ const TYPE_LABELS: Record<ReservationType, string> = {
 
 function formatDate(isoDate?: string): string {
   if (!isoDate) return '—';
-  try {
-    return new Date(isoDate).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  } catch {
-    return isoDate;
-  }
+  // Calendar date, not an instant — see utils/calendarDate.ts.
+  return formatCalendarDate(isoDate, {
+    weekday: 'short',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 export default function ReservationDetailScreen() {

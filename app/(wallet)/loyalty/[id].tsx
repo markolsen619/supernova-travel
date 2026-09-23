@@ -16,6 +16,7 @@ import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useLoyaltyPrograms } from '@/hooks/useLoyaltyPrograms';
 import { LoyaltyCard } from '@/components/wallet/LoyaltyCard';
 import { PointsBalance } from '@/components/wallet/PointsBalance';
+import { formatCalendarDate } from '@/utils/calendarDate';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -28,12 +29,8 @@ const PROGRAM_TYPE_LABELS: Record<string, string> = {
 };
 
 function formatExpiryDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
+  // An expiry is a calendar date, not an instant — see utils/calendarDate.ts.
+  return formatCalendarDate(dateStr, { month: 'short', day: '2-digit', year: 'numeric' });
 }
 
 export default function LoyaltyDetailScreen() {

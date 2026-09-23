@@ -5,6 +5,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import { RESERVATION_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
+import { formatCalendarDate } from '@/utils/calendarDate';
 
 interface ReservationCardProps {
   reservation: Reservation;
@@ -12,12 +13,9 @@ interface ReservationCardProps {
 }
 
 function formatDate(isoDate: string): string {
-  try {
-    const date = new Date(isoDate);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return isoDate;
-  }
+  // A check-in is a calendar date, so it must not shift with the device's
+  // timezone — see utils/calendarDate.ts.
+  return formatCalendarDate(isoDate, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function ReservationCard({ reservation, onPress }: ReservationCardProps) {

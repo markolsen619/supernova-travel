@@ -436,8 +436,12 @@ export interface Reservation {
   type: ReservationType;
   title: string;            // e.g. "The Ritz-Carlton, Tokyo"
   confirmationCode: string;
-  checkIn?: string;         // ISO 8601 date
-  checkOut?: string;        // ISO 8601 date
+  /** Calendar date, `YYYY-MM-DD` — a day, not an instant. Read and written
+   * only through utils/calendarDate.ts; storing it as a timestamp makes it
+   * render a day early anywhere behind UTC. */
+  checkIn?: string;
+  /** Calendar date, `YYYY-MM-DD` — see checkIn. */
+  checkOut?: string;
   address?: string;
   notes?: string;
   attachmentUrls?: string[];
@@ -456,7 +460,8 @@ export interface LoyaltyProgram {
   balance: number;
   unit: LoyaltyUnit;
   tier?: LoyaltyTier;
-  expiryDate?: string;      // ISO 8601 date
+  /** Calendar date, `YYYY-MM-DD` — see Reservation.checkIn. */
+  expiryDate?: string;
   isManual: boolean;        // true = user entered manually, false = scanned/synced
   createdAt: string;
 }
