@@ -18,6 +18,46 @@ configuration you actually ship, so nothing has to be redone before launch.
 > still *looks* like it works — the UI flips to Pro — but the tier never
 > persists, which is the exact bug this work fixed.
 
+## Where this stands (2026-09-22)
+
+**Phases 0–4 are done and verified in both dashboards.** Paid Applications
+Agreement Active, all three products **Ready to Submit**, entitlement
+`supernova_pro` attached to all six products (three App Store, three Test
+Store), the `default` offering current with `$rc_monthly` / `$rc_annual` /
+`$rc_lifetime`, the webhook live and answering 200 to a real RevenueCat
+delivery, and `EXPO_PUBLIC_REVENUECAT_IOS_KEY` set in both `.env.local` and the
+EAS `production` environment with the test key commented out.
+
+**What is left is Phase 5 and one build**, neither of which can be done from
+this machine's Xcode:
+
+1. `eas build --profile production --platform ios` — no production build has
+   ever been made, so nothing has been uploaded to App Store Connect.
+2. The sandbox purchase walk-through below. **No purchase event has ever
+   reached `syncTier`** — only the curl tests and the dashboard's test event,
+   which deliberately writes nothing. Phase 5 is the only thing that exercises
+   `applyTier()` against a real receipt.
+
+**The hosted paywall is now attached** (2026-09-22). The `default` offering
+previously had none, which meant `presentPaywallIfNeeded()` threw,
+`normalize()` mapped it to `'error'`, and `resolveLimitPaywallAction()` sent
+every quota interception to the `/paywall` fallback. The app worked, so nothing
+ever reported it — but the second paywall the architecture is built around had
+never once been shown.
+
+The published paywall is **"Supernova Pro — limit interception"**, a
+components-based paywall on the `default` offering, styled to the light
+editorial system (canvas `#FBF9F5`, near-black `#1F1C19` CTA, `#7F77DD`
+selection) and carrying the same copy as `app/paywall.tsx`.
+
+> **Check the legal links after any paywall edit.** The RevenueCat template
+> ships with `https://example.com` on both the Terms and Privacy buttons. They
+> are now set to `https://supernova-a2125.web.app/terms` and `/privacy`, but
+> nothing in the dashboard validates them and they are not in version control —
+> unlike `app/paywall.tsx`, which imports from `constants/legal.ts`. A paywall
+> that sells a subscription behind a dead terms link is an App Store 3.1.2
+> rejection.
+
 ---
 
 ## Why this was needed
@@ -41,12 +81,12 @@ for it, but it had never been built.
 for all of it is the same: StoreKit returns zero products, the paywall shows its
 empty state, and nothing anywhere reports an error.
 
-- [ ] **Paid Apple Developer Program membership**, active.
+- [x] **Paid Apple Developer Program membership**, active.
 
-- [ ] **App Store Connect app record** for `com.supernovatravel.app`.
+- [x] **App Store Connect app record** for `com.supernovatravel.app`.
       Products cannot exist without one.
 
-- [ ] **Agreements, Tax, and Banking → Paid Applications Agreement is `Active`.**
+- [x] **Agreements, Tax, and Banking → Paid Applications Agreement is `Active`.**
 
       Not "in progress", not "pending contact info" — Active, with banking and
       tax forms complete. Until it is, every in-app purchase query returns an
@@ -65,11 +105,11 @@ StoreKit treats them as alternatives to each other — a user moving from monthl
 to yearly is an upgrade within the group, not two live subscriptions. Lifetime
 is a non-consumable and sits outside any group.
 
-- [ ] **Subscription group** — name it `Supernova Pro`.
+- [x] **Subscription group** — name it `Supernova Pro`.
 
-- [ ] `com.supernovatravel.app.pro.monthly` — auto-renewable, 1 month, in the group.
-- [ ] `com.supernovatravel.app.pro.yearly` — auto-renewable, 1 year, in the same group.
-- [ ] `com.supernovatravel.app.pro.lifetime` — **non-consumable**, not in the group.
+- [x] `com.supernovatravel.app.pro.monthly` — auto-renewable, 1 month, in the group.
+- [x] `com.supernovatravel.app.pro.yearly` — auto-renewable, 1 year, in the same group.
+- [x] `com.supernovatravel.app.pro.lifetime` — **non-consumable**, not in the group.
 
 > **Product identifiers are permanent.** App Store Connect will not let you
 > rename one, and will not let you reuse it even after deleting the product.
@@ -80,9 +120,9 @@ is a non-consumable and sits outside any group.
 Each product also needs, or it stays in **Missing Metadata** and is never
 returned to the SDK:
 
-- [ ] Reference name and price (pick a price tier for every territory).
-- [ ] At least one localization — display name and description.
-- [ ] A review screenshot (subscriptions only).
+- [x] Reference name and price (pick a price tier for every territory).
+- [x] At least one localization — display name and description.
+- [x] A review screenshot (subscriptions only).
 
 **Checkpoint:** all three products read **Ready to Submit**, not Missing
 Metadata.
@@ -91,24 +131,24 @@ Metadata.
 
 ## Phase 2 — Wire up RevenueCat
 
-- [ ] **Add the iOS app** in RevenueCat with bundle id `com.supernovatravel.app`.
+- [x] **Add the iOS app** in RevenueCat with bundle id `com.supernovatravel.app`.
 
-- [ ] **Upload the In-App Purchase Key.** App Store Connect → Users and Access →
+- [x] **Upload the In-App Purchase Key.** App Store Connect → Users and Access →
       Integrations → In-App Purchase, generate a key, download the `.p8` (once
       only) and upload it to RevenueCat. Without it RevenueCat cannot receive
       App Store Server Notifications, so renewals and refunds never reach the
       webhook — purchases work, and then quietly stop being tracked.
 
-- [ ] **Import the three products** into RevenueCat with the exact identifiers
+- [x] **Import the three products** into RevenueCat with the exact identifiers
       above.
 
-- [ ] **Create the entitlement `supernova_pro`** and attach all three products.
+- [x] **Create the entitlement `supernova_pro`** and attach all three products.
 
       A typo here fails silently — no error, no empty state, the paywall simply
       never unlocks. The previous code checked `'pro'`, which is why this
       matters.
 
-- [ ] **Build the `default` offering** with three packages, using RevenueCat's
+- [x] **Build the `default` offering** with three packages, using RevenueCat's
       **standard** package types:
   - Annual → `…pro.yearly`
   - Monthly → `…pro.monthly`
@@ -118,7 +158,7 @@ Metadata.
       a store-side rename is harmless — but a *custom* package type sorts to the
       bottom instead of its slot.
 
-- [ ] **Mark the offering current.**
+- [x] **Mark the offering current.**
 
 **Checkpoint:** the offering lists three packages and is marked *current*.
 
@@ -152,7 +192,7 @@ Metadata.
       Both work. Use the alias: no generated hash to mistype, and it survives
       the underlying Cloud Run service being recreated.
 
-- [ ] **Point RevenueCat at it.** Integrations → Webhooks. Paste the URL and set
+- [x] **Point RevenueCat at it.** Integrations → Webhooks. Paste the URL and set
       the **Authorization header value** to the secret above, raw, with no
       `Bearer` prefix — `isAuthorized()` compares the header verbatim.
 
@@ -175,9 +215,18 @@ Metadata.
       stale and the revoke path looks broken.
 
 **Checkpoint:** A returns 401 and B/C return 200 with `result: "applied"` —
-verified 2026-09-09. Note this proves the deployed secret matches
-`functions/.env`; it does *not* prove RevenueCat's copy is right. That surfaces
-as `rejected unauthorized webhook call` on the first real event.
+verified 2026-09-09.
+
+**RevenueCat's own copy of the secret is now proven too** (2026-09-22). The
+dashboard's Integrations → Webhooks → *Send test event* returned **200**, and
+`functions:log --only syncTier` shows no `rejected unauthorized webhook call`.
+A mismatched header would have answered 401 there, so the last unverified link
+in the chain is closed.
+
+A `TEST` event is safe to re-send at any time: it carries
+`entitlement_ids: null`, so `affectsProEntitlement()` is false,
+`resolveTierForEvent()` returns null, and the function answers 200 without
+touching Firestore. It exercises auth and reachability only.
 
 ### Phase 3b — Tier reconciliation and rules
 
@@ -208,15 +257,15 @@ tier is back to `pro`, and `functions:log --only reconcileTier` shows
 
 ## Phase 4 — Client keys and a build
 
-- [ ] **Copy the Apple App Store public SDK key** from RevenueCat → API keys.
+- [x] **Copy the Apple App Store public SDK key** from RevenueCat → API keys.
       It starts `appl_`. This is the *public* key and belongs in the client;
       the secret key never does.
 
-- [ ] **Fill `.env.local`:**
+- [x] **Fill `.env.local`:**
 
       EXPO_PUBLIC_REVENUECAT_IOS_KEY=appl_…
 
-- [ ] **Clear `EXPO_PUBLIC_REVENUECAT_TEST_KEY` in `.env.local`.**
+- [x] **Clear `EXPO_PUBLIC_REVENUECAT_TEST_KEY` in `.env.local`.**
 
       It is currently set. `services/revenuecat.ts` resolves
       `API_KEY = TEST_STORE_KEY || PLATFORM_KEY`, so the test key **wins** —
@@ -229,7 +278,7 @@ tier is back to `pro`, and `functions:log --only reconcileTier` shows
       silently. It is deliberately a no-op in development, where a test key is
       the point.
 
-- [ ] **Mirror both into EAS** so cloud builds get them:
+- [x] **Mirror both into EAS** so cloud builds get them:
 
       eas secret:create --scope project --name EXPO_PUBLIC_REVENUECAT_IOS_KEY --value appl_…
 
