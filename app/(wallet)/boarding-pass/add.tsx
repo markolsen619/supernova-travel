@@ -17,6 +17,7 @@ import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { maybePromptForPush } from '@/services/push';
 import { useImportDraftStore } from '@/stores/useImportDraftStore';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { combineDateAndTime } from '@/utils/date';
@@ -51,6 +52,7 @@ const INITIAL_FORM: FormState = {
 export default function AddBoardingPassScreen() {
   const { colors } = useTheme();
   const { user } = useAuthStore();
+  const tier = useAuthStore((s) => s.tier);
   const { boardingPasses, addPass, updatePass } = useBoardingPasses();
   const { id, draft: draftParam } = useLocalSearchParams<{ id?: string; draft?: string }>();
   const draft = useImportDraftStore((s) => s.draft);
@@ -161,12 +163,18 @@ export default function AddBoardingPassScreen() {
           createdAt: new Date().toISOString(),
         },
         {
-          onSuccess: () => router.back(),
+          onSuccess: () => {
+            router.back();
+            // The moment flight alerts become worth something to this user.
+            // Pro-gated inside: checkFlightStatus skips free tiers, so asking
+            // a free user here would promise a notification they can't get.
+            maybePromptForPush(user.uid, tier, 'boarding_pass_added');
+          },
           onError: () => Alert.alert('Save failed', "The pass didn't save. Try again."),
         },
       );
     }
-  }, [form, user, departureDate, departureTime, isEditMode, id, updatePass, addPass]);
+  }, [form, user, tier, departureDate, departureTime, isEditMode, id, updatePass, addPass]);
 
   const inputStyle = [
     styles.input,

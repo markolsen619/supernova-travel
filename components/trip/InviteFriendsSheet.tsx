@@ -24,6 +24,7 @@ import { UsersThree, X } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { maybePromptForPush } from '@/services/push';
 import { useFollowConnections } from '@/hooks/useFollow';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { useTripInvites, useInviteFriend } from '@/hooks/useTripInvites';
@@ -54,6 +55,7 @@ export function InviteFriendsSheet({ visible, tripId, collaborators, onClose, co
   const { height } = useLayout();
   const sheetHeight = height * 0.6;
   const ownUid = useAuthStore((s) => s.user?.uid ?? '');
+  const tier = useAuthStore((s) => s.tier);
 
   const { data: connectionUids = [] } = useFollowConnections(visible ? ownUid : null);
   const candidateUids = useMemo(
@@ -88,7 +90,11 @@ export function InviteFriendsSheet({ visible, tripId, collaborators, onClose, co
 
   const handleInvite = (uid: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    inviteFriend.mutate(uid);
+    inviteFriend.mutate(uid, {
+      // Receiving an invite happens server-side; sending one is the closest
+      // client-side moment where a reply is expected.
+      onSuccess: () => maybePromptForPush(ownUid, tier, 'trip_invite_sent'),
+    });
   };
 
   const sheetContent = (

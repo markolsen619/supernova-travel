@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import * as https from 'https';
+import { pushDataFor } from './pushData';
 
 const db = admin.firestore();
 
@@ -33,13 +34,31 @@ export async function notifyUser(uid: string, payload: NotifyPayload): Promise<v
 
   const userDoc = await db.collection('users').doc(uid).get();
   const tokens: string[] = userDoc.data()?.expoPushTokens ?? [];
-  await sendPushNotification(tokens, payload.push.title, payload.push.body);
+  // Routing data is derived from the notification doc rather than passed in,
+  // so an in-app-routable notification is always push-routable too.
+  await sendPushNotification(
+    tokens,
+    payload.push.title,
+    payload.push.body,
+    pushDataFor(payload.notification),
+  );
 }
 
-export async function sendPushNotification(tokens: string[], title: string, body: string): Promise<void> {
+/**
+ * @param data routing payload delivered to the client as
+ * `response.notification.request.content.data` and resolved by
+ * utils/notificationRoute.ts. Omitted for a push with nowhere to go — the
+ * client then just opens the app normally.
+ */
+export async function sendPushNotification(
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+): Promise<void> {
   const messages = tokens
     .filter((t) => t.startsWith('ExponentPushToken['))
-    .map((to) => ({ to, title, body, sound: 'default' }));
+    .map((to) => ({ to, title, body, sound: 'default', ...(data ? { data } : {}) }));
 
   if (messages.length === 0) return;
 

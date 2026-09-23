@@ -200,11 +200,26 @@ export interface PostCommentNotification {
   createdAt: Timestamp;
 }
 
+/** `users/{uid}/notifications/{id}` written by the checkFlightStatus
+ * scheduler. The only notification type with no actor — it comes from the
+ * flight poller, not a person, so its row shows a type icon where the others
+ * show an avatar. Written for paid tiers only (the push is a Pro feature). */
+export interface FlightStatusNotification {
+  id: string;
+  type: 'flight_status';
+  passId: string;
+  flightNumber: string;
+  status: BoardingPassStatus;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
 export type AppNotification =
   | TripInviteNotification
   | TripInviteAcceptedNotification
   | PostLikeNotification
-  | PostCommentNotification;
+  | PostCommentNotification
+  | FlightStatusNotification;
 
 // ── Direct messaging ─────────────────────────────────────────────────────
 

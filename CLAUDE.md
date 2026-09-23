@@ -54,7 +54,7 @@ File-based routing under `app/`. App bundle ID: `com.supernovatravel.app`. React
 
 ```
 app/
-├── _layout.tsx                    # Root layout — auth listener, RevenueCat init, push token
+├── _layout.tsx                    # Root layout — auth listener, RevenueCat init, notification tap routing
 ├── (auth)/
 │   ├── _layout.tsx
 │   ├── welcome.tsx
@@ -90,7 +90,9 @@ app/
 └── paywall.tsx                    # RevenueCat paywall (modal)
 ```
 
-**Auth routing is centralised in `app/_layout.tsx`** via a single `onAuthStateChanged` listener. On sign-in it calls `configureRevenueCat(uid)`, registers the Expo push token, fetches the user's `tier`, then `router.replace('/(tabs)')`. On sign-out: `router.replace('/(auth)/welcome')`. There is no route guard middleware.
+**Auth routing is centralised in `app/_layout.tsx`** via a single `onAuthStateChanged` listener. On sign-in it calls `configureRevenueCat(uid)`, refreshes the Expo push token *if already granted* (it never prompts — see `services/push.ts`), fetches the user's `tier`, then `router.replace('/(tabs)')`. On sign-out: `router.replace('/(auth)/welcome')`. There is no route guard middleware.
+
+`_layout.tsx` also mounts `useNotificationRouting()`, which sends a tapped notification to its screen. That listener must wait for the auth listener above: the `router.replace('/(tabs)')` on sign-in discards any navigation made before it, so a cold-start tap is **held** until the root navigator is mounted and auth has settled.
 
 Path alias `@/` maps to the project root (see `tsconfig.json`).
 
@@ -127,7 +129,8 @@ Firestore collections:
 All functions use Firebase Functions v2.
 
 - `generateTrip` (`generateTrip.ts`) — HTTPS callable; receives `GenerateTripRequest`, calls Gemini 1.5 Flash, writes `trips` + `days` + `activities` subcollections, enforces weekly quota via `usage_quotas`
-- `checkFlightStatus` (`checkFlightStatus.ts`) — Cloud Scheduler every 30 min; queries upcoming boarding passes, calls AviationStack HTTP API, updates Firestore status, sends Expo push notifications
+- `checkFlightStatus` (`checkFlightStatus.ts`) — Cloud Scheduler every 30 min; queries upcoming boarding passes, calls AviationStack HTTP API, updates Firestore status, then `notifyUser` (in-app row + push). The status write is for every tier; the **push and the row are Pro-only**
+- `notify.ts` / `pushData.ts` — `notifyUser(uid, payload)` writes the in-app notification doc and sends the push. The push's `data` (what the client taps through on) is derived from the notification doc by `pushDataFor()`, a whitelist of `type` + one id — never a spread of the doc, which holds display fields and would eat Expo's 4KiB payload cap. `pushData.ts` imports no firebase-admin so it stays unit-testable
 - `syncTripToAlgolia` / `syncUserToAlgolia` (`syncAlgolia.ts`) — `onDocumentWritten` triggers; upserts/deletes public trips in the Algolia `trips` index and users in the `users` index
 - `syncTier` (`syncTier.ts`) — RevenueCat webhook; the normal writer of `users/{uid}.tier`, ordered by `tierEventTimestampMs`
 - `reconcileTier` (`reconcileTier.ts`) — HTTPS callable; re-reads the tier from RevenueCat's REST API when a webhook is late or lost. Throttled per user (30s). Pure logic lives in `tierEvents.ts`
@@ -144,7 +147,8 @@ All functions use Firebase Functions v2.
 - `services/revenuecat.ts` — `configureRevenueCat(uid)`: sets log level, calls `Purchases.configure` with platform-specific keys; called in `_layout.tsx` after auth fires
 - `services/gemini.ts` — `callGenerateTrip(request)`: calls the `generateTrip` Cloud Function via `httpsCallable`
 - `services/oauth.ts` — `configureGoogleSignIn()`, `signInWithGoogle()`, `signOutGoogle()`, `isAppleAuthAvailable()`. The **only** file permitted to import a provider SDK. `signInWithGoogle` resolves `null` when the user dismisses the sheet — since v13 the SDK reports cancellation by resolving `{ type: 'cancelled' }`, not by throwing, so cancellation is a return-value check and never a `catch`. `revokeAppleSignIn()` revokes Apple tokens before account deletion (Apple requirement); it needs the Apple provider's OAuth code flow configuration (Services ID, Team ID, Key ID, private key) set in the Firebase console
-- `services/session.ts` — `hydrateSession(firebaseUser): Promise<boolean>` plus `registerPushToken`. Everything that must happen once a profile document is known to exist (store hydration, `tier`, push token, RevenueCat), returning whether it exists. Called from **two** places: the auth listener and `complete-profile` right after it writes. Both are required — `onAuthStateChanged` does not fire on a Firestore write
+- `services/session.ts` — `hydrateSession(firebaseUser): Promise<boolean>`. Everything that must happen once a profile document is known to exist (store hydration, `tier`, push token, RevenueCat), returning whether it exists. Called from **two** places: the auth listener and `complete-profile` right after it writes. Both are required — `onAuthStateChanged` does not fire on a Firestore write
+- `services/push.ts` — `registerPushTokenIfGranted(uid)` (never prompts; called by `hydrateSession` so an existing grantee's new device still gets pushes) and `maybePromptForPush(uid, tier, trigger)`. **Do not ask for notification permission anywhere else.** iOS allows one system sheet per install, so the ask fires at a moment that explains itself — a Pro user saving a boarding pass, a DM sent, a trip invite sent — never cold during onboarding. Never throws; a failed prompt must not break the action the user actually performed
 - `services/account.ts` — `deleteAccount(): 'deleted' | 'cancelled'`: revokes Apple tokens for Apple accounts (backing out of the Apple sheet cancels; any other revocation failure is logged and deletion proceeds), calls the callable (540s timeout), then signs out of Google, RevenueCat, and Firebase so the auth listener routes to welcome. The UI is in `app/settings/account.tsx`, which warns subscribers that deletion doesn't cancel Pro
 - `services/tier.ts` — `reconcileServerTier(queryClient)`: calls `reconcileTier`, updates `useAuthStore.serverTier`, invalidates the quota queries. Dedupes concurrent callers and never throws. `useAuthStore` holds `tier` (live, from the SDK) and `serverTier` (what Firestore last said); a mismatch triggers this call
 - `services/profile.ts` — `buildUserProfile()` (pure, testable field shape) and `createUserProfile()` (adds `createdAt`, writes with `{ merge: true }`). Sole writer of the new-account `users/{uid}` shape
@@ -172,6 +176,7 @@ All functions use Firebase Functions v2.
 | `useReservations` | `{ reservations, isLoading, addReservation, deleteReservation }` |
 | `useLoyaltyPrograms` | `{ loyaltyPrograms, isLoading, addProgram, deleteProgram }` |
 | `usePurchases` | `{ purchasePro, restorePurchases, isLoading, error }` |
+| `useNotificationRouting` | Nothing — mounted once in `app/_layout.tsx`. Routes a tapped notification (warm or cold-start) once navigation and auth have settled |
 
 ### Tier / Monetisation
 
@@ -407,5 +412,7 @@ These rules apply to ALL new code:
 - `utils/age.ts` — `isUnder13(date)`. Tests pin the clock with fake timers; without that, `setFullYear` rolls Feb 29 and flips the birthday boundary
 - `utils/tierSync.ts` — `shouldReconcileTier(clientTier, serverTier)` and `resolveLimitPaywallAction(outcome)`
 - `utils/authRoute.ts` — `resolveAuthRoute({ isAuthenticated, hasProfile, onboardingComplete })`. The profile check precedes the onboarding check deliberately: no `users/{uid}` document means no app entry, whatever the onboarding flag says
+- `utils/notificationRoute.ts` — `resolveNotificationRoute(data)`. The single table mapping a notification `type` + id to an href, shared by the push tap (`useNotificationRouting`) and the in-app list (`app/notifications.tsx`) so the two can't drift. Returns `null` for an unknown type or missing id — an older build must survive a notification type shipped after it. **Adding a notification type means adding it here and in `functions/src/pushData.ts`**, which are separate TypeScript projects and cannot share a module
+- `utils/pushPrompt.ts` — `shouldPromptForPush({ trigger, tier, permission, alreadyAsked })`. Returns false for a free user adding a boarding pass, because `checkFlightStatus` sends the flight push to paid tiers only: asking would promise a notification they can't receive
 
 **Testing note:** there is no React Native component-testing library in this project. Every test in `__tests__/` is a pure-function test. Push logic out of components into `utils/` or `services/` to make it testable rather than adding a renderer.

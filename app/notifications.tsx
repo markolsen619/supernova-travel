@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
@@ -21,7 +21,17 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonListRow } from '@/components/ui/Skeleton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { ACTIVITY_ICONS } from '@/constants/icons';
+import { resolveNotificationRoute } from '@/utils/notificationRoute';
 import type { AppNotification } from '@/types';
+
+/** Mirrors checkFlightStatus's push copy, minus the "Your flight" prefix —
+ *  the flight number is already the bolded subject of the row. */
+const FLIGHT_STATUS_COPY: Record<string, string> = {
+  boarded: 'is boarding now',
+  completed: 'has landed',
+  cancelled: 'was cancelled',
+};
 
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -120,6 +130,15 @@ export default function NotificationsScreen() {
     [respond],
   );
 
+  /** Routes through the same resolver the push tap uses, so a notification
+   *  can't be openable in one place and dead in the other. */
+  const openNotification = useCallback((item: AppNotification) => {
+    const route = resolveNotificationRoute(item);
+    if (!route) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(route as Href); // runtime-built route; see useNotificationRouting
+  }, []);
+
   const renderItem = useCallback(
     ({ item }: { item: AppNotification }) => {
       if (item.type === 'trip_invite') {
@@ -169,10 +188,7 @@ export default function NotificationsScreen() {
         return (
           <TouchableOpacity
             style={[styles.row, { borderColor: colors.background.cardBorder }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push(`/post/${item.postId}`);
-            }}
+            onPress={() => openNotification(item)}
             activeOpacity={0.7}
           >
             <Avatar uri={item.likerAvatarUrl} name={item.likerName} size="sm" />
@@ -193,10 +209,7 @@ export default function NotificationsScreen() {
         return (
           <TouchableOpacity
             style={[styles.row, { borderColor: colors.background.cardBorder }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push(`/post/${item.postId}`);
-            }}
+            onPress={() => openNotification(item)}
             activeOpacity={0.7}
           >
             <Avatar uri={item.commenterAvatarUrl} name={item.commenterName} size="sm" />
@@ -213,14 +226,37 @@ export default function NotificationsScreen() {
         );
       }
 
-      // trip_invite_accepted
+      if (item.type === 'flight_status') {
+        const { Icon, color } = ACTIVITY_ICONS.flight;
+        return (
+          <TouchableOpacity
+            style={[styles.row, { borderColor: colors.background.cardBorder }]}
+            onPress={() => openNotification(item)}
+            activeOpacity={0.7}
+          >
+            {/* A type icon, not an avatar: no person sent this. */}
+            <View style={[styles.iconBubble, { backgroundColor: `${color}1F` }]}>
+              <Icon size={16} color={color} weight="duotone" />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]}>
+                <Text style={styles.rowBold}>{item.flightNumber}</Text>{' '}
+                {FLIGHT_STATUS_COPY[item.status] ?? 'has an update'}
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+
+      if (item.type !== 'trip_invite_accepted') return null;
+
       return (
         <TouchableOpacity
           style={[styles.row, { borderColor: colors.background.cardBorder }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push(`/trip/${item.tripId}`);
-          }}
+          onPress={() => openNotification(item)}
           activeOpacity={0.7}
         >
           <Avatar uri={item.accepterAvatarUrl} name={item.accepterName} size="sm" />
@@ -235,7 +271,7 @@ export default function NotificationsScreen() {
         </TouchableOpacity>
       );
     },
-    [colors, handled, handleRespond],
+    [colors, handled, handleRespond, openNotification],
   );
 
   return (
@@ -404,6 +440,8 @@ const styles = StyleSheet.create({
   rowBold: { fontWeight: FontWeight.semiBold },
   rowTime: { fontSize: FontSize.xs },
   postThumb: { width: 40, height: 40, borderRadius: BorderRadius.sm },
+  // 32pt to match Avatar size="sm", so avatar rows and icon rows align.
+  iconBubble: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   resultText: { fontSize: FontSize.xs, marginTop: Spacing['1'] },
   actionRow: { flexDirection: 'row', gap: Spacing['2'], marginTop: Spacing['2'] },
   acceptBtn: {

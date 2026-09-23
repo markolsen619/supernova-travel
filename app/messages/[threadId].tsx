@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { maybePromptForPush } from '@/services/push';
 import { useDmThread } from '@/hooks/useDmThreads';
 import { useDmMessages, useSendDmMessage } from '@/hooks/useDmMessages';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
@@ -31,6 +32,7 @@ export default function DmThreadScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const myUid = useAuthStore((s) => s.user?.uid ?? '');
+  const tier = useAuthStore((s) => s.tier);
 
   const { data: thread } = useDmThread(threadId ?? null);
   const { messages: allMessages, loading } = useDmMessages(threadId ?? null);
@@ -124,12 +126,21 @@ export default function DmThreadScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const toSend = text;
     setText('');
-    sendMessage(toSend).catch(() => {
-      setText(toSend); // revert — the message wasn't actually sent
-      // Includes the rules refusing a message to someone who blocked you.
-      setSendError("Your message wasn't sent. Try again.");
-    });
-  }, [text, sendMessage]);
+    // Two callbacks rather than .then().catch(): the prompt must not fire on
+    // a send that failed, and a rejection here must still reach the revert.
+    sendMessage(toSend).then(
+      () => {
+        // You've just sent something and are now waiting on a reply — the
+        // moment notifications explain themselves.
+        maybePromptForPush(myUid, tier, 'dm_sent');
+      },
+      () => {
+        setText(toSend); // revert — the message wasn't actually sent
+        // Includes the rules refusing a message to someone who blocked you.
+        setSendError("Your message wasn't sent. Try again.");
+      },
+    );
+  }, [text, sendMessage, myUid, tier]);
 
   return (
     <KeyboardAvoidingView
