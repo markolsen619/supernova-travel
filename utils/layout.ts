@@ -87,15 +87,23 @@ export function galleryCellWidth(width: number, columns: number): number {
 }
 
 /**
- * Width of the feed's photo column. The whole window on phones, as today. On
- * large screens a centred column keeping the phone's 9:16 proportion: a
- * full-bleed card on a squarer canvas crops photos hard, and photography is
- * the point of the feed. The surround stays black, so it still reads as one
- * immersive surface.
+ * Width of the feed's photo card: always the full window width.
+ *
+ * This used to cap large screens at a centred 9:16 column, on the reasoning
+ * that a full-bleed card "crops photos hard" on a squarer canvas. That holds
+ * only for 9:16 media. `FeedCard` fits with `cover`, so the crop is whatever
+ * the card's aspect differs from the photo's — and real travel photography is
+ * mostly 4:3 landscape, which the narrow column punished worst. On a 12.9"
+ * iPad (1024x1366) a 4:3 photo lost 58% of its width in the 9:16 column
+ * versus 44% at full bleed, and the leftover 128pt gutters rendered pure
+ * black on an otherwise light, warm app.
+ *
+ * The trade is explicit: 9:16 media now crops ~25% of its height on an iPad
+ * instead of fitting exactly. Landscape stills win, vertical video loses a
+ * little. Revisit together with `cover` if the feed ever leads with video.
  */
-export function feedColumnWidth(width: number, height: number): number {
-  if (!isLargeScreen(width, height)) return width;
-  return Math.round(Math.min(width, (height * 9) / 16));
+export function feedColumnWidth(width: number, _height: number): number {
+  return width;
 }
 
 /** Max measure for reading surfaces. null on phones = no constraint. */

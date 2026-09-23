@@ -83,10 +83,15 @@ describe('device classification', () => {
     }
   });
 
-  it('gives the feed a 9:16 column on large screens, never wider than the window', () => {
-    expect(feedColumnWidth(834, 1194)).toBe(672);
-    expect(feedColumnWidth(1194, 834)).toBe(469);
+  // The feed card is full-bleed everywhere. It used to cap large screens at a
+  // centred 9:16 column, which cropped 4:3 landscape stills harder than full
+  // bleed does and left pure-black gutters on a light app — see
+  // feedColumnWidth's comment for the trade this makes against 9:16 media.
+  it('gives the feed the whole window width on every screen size', () => {
+    expect(feedColumnWidth(834, 1194)).toBe(834);
+    expect(feedColumnWidth(1194, 834)).toBe(1194);
     expect(feedColumnWidth(600, 2000)).toBe(600);
+    expect(feedColumnWidth(1024, 1366)).toBe(1024);
   });
 
   it('centres a capped column on large screens', () => {
