@@ -113,6 +113,7 @@ export default function PackingListScreen() {
       )}
 
       <ScrollView
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{ paddingHorizontal: Spacing['5'], paddingBottom: insets.bottom + Spacing['8'] }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

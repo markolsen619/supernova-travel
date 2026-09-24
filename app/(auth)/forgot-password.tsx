@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { ArrowLeft } from 'phosphor-react-native';
 import { auth } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
+import { DismissKeyboardView } from '@/components/ui/DismissKeyboardView';
 import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -38,7 +39,9 @@ export default function ForgotPasswordScreen() {
 
   return (
     <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.container}>
+      {/* No list on this screen, so there is nothing to drag — tapping the
+          empty space is the dismissal path. */}
+      <DismissKeyboardView style={styles.container}>
         <TouchableOpacity onPress={handleBack} style={styles.back} hitSlop={8} accessibilityLabel="Back">
           <ArrowLeft size={20} color={colors.text.primary} weight="bold" />
         </TouchableOpacity>
@@ -77,7 +80,7 @@ export default function ForgotPasswordScreen() {
         {sent && (
           <Button label="Back to sign in" onPress={() => router.replace('/(auth)/sign-in')} variant="secondary" fullWidth size="lg" />
         )}
-      </View>
+      </DismissKeyboardView>
     </KeyboardAvoidingView>
   );
 }

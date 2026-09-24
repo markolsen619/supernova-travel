@@ -145,6 +145,7 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <ScrollView
+            keyboardDismissMode="on-drag"
             contentContainerStyle={[
               styles.scrollContent,
               { paddingTop: insets.top + Spacing['2'], paddingBottom: insets.bottom + Spacing['6'] },

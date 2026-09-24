@@ -135,6 +135,9 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
           renderItem={renderSuggestion}
           keyExtractor={(item) => item.placeId}
           keyboardShouldPersistTaps="handled"
+          // Place suggestions arrive as you type, so the keyboard is always
+          // up and covering them. Dragging the list means "let me read these".
+          keyboardDismissMode="on-drag"
           contentContainerStyle={styles.listContent}
         />
       </View>

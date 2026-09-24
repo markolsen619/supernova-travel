@@ -146,6 +146,7 @@ export default function AiGenerateScreen() {
         keyboardVerticalOffset={0}
       >
         <NestableScrollContainer
+          keyboardDismissMode="on-drag"
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"

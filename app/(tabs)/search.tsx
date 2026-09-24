@@ -885,11 +885,19 @@ export default function SearchScreen() {
                     reads ref.current.handlerTag, which only RNGH's ScrollView
                     exposes — a plain RN ScrollView ref has no handlerTag, so
                     the simultaneous-gesture list would silently resolve to
-                    empty and the sheet drag / list scroll would fight. */}
+                    empty and the sheet drag / list scroll would fight.
+
+                    keyboardDismissMode="on-drag" (both platform branches):
+                    results are debounced in as you type, so the user never
+                    presses the return key and the keyboard stays up covering
+                    the sheet. Dragging the results is the unambiguous signal
+                    that they want to read them. persistTaps stays "handled"
+                    so the first tap on a result still registers. */}
                 <GestureScrollView
                   ref={scrollRef}
                   style={styles.resultsList}
                   keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
                 >
@@ -905,6 +913,7 @@ export default function SearchScreen() {
                   ref={scrollRef}
                   style={styles.resultsList}
                   keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['6'] }}
                 >

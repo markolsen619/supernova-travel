@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, TextInput, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { DismissKeyboardView } from '@/components/ui/DismissKeyboardView';
 import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -38,7 +39,7 @@ export function DatePickerModal({ visible, date, title, onConfirm, onCancel, min
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <View style={dp.overlay}>
+      <DismissKeyboardView style={dp.overlay}>
         <View style={[dp.sheet, isLarge && dp.sheetLarge, { backgroundColor: colors.background.elevated }]}>
           <Text style={[dp.sheetTitle, { color: colors.text.primary }]}>{title}</Text>
           <Text style={[dp.hint, { color: colors.text.tertiary }]}>Enter date (YYYY · MM · DD)</Text>
@@ -85,7 +86,7 @@ export function DatePickerModal({ visible, date, title, onConfirm, onCancel, min
             <Button label="Set date" variant="primary" onPress={handleConfirm} haptic="light" style={dp.actionBtn} />
           </View>
         </View>
-      </View>
+      </DismissKeyboardView>
     </Modal>
   );
 }

@@ -16,6 +16,7 @@ import {
 import { TrashSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
+import { DismissKeyboardView } from '@/components/ui/DismissKeyboardView';
 import { ACTIVITY_ICONS } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -193,6 +194,11 @@ export function ActivityFormSheet({
             { backgroundColor: colors.background.elevated, transform: [{ translateY }] },
           ]}
         >
+          {/* Tapping empty space in the sheet dismisses the keyboard. The
+              backdrop above closes the whole sheet, which would throw away
+              what was typed — that is not a dismissal path for a form.
+              Carries sheetContainer's gap so spacing is unchanged. */}
+          <DismissKeyboardView style={styles.sheetBody}>
           <View style={[styles.sheetHandle, { backgroundColor: colors.background.cardBorder }]} />
 
           <View style={styles.titleRow}>
@@ -351,6 +357,7 @@ export function ActivityFormSheet({
               </Text>
             )}
           </TouchableOpacity>
+          </DismissKeyboardView>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -367,6 +374,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['8'],
     gap: Spacing['3'],
   },
+  sheetBody: { gap: Spacing['3'] },
   sheetHandle: {
     width: 40,
     height: 4,

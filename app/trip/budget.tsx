@@ -160,6 +160,7 @@ export default function BudgetScreen() {
       </View>
 
       <FlashList
+        keyboardDismissMode="on-drag"
         data={expenses}
         keyExtractor={(e) => e.id}
         renderItem={renderExpense}

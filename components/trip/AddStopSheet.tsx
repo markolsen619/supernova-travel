@@ -13,6 +13,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { X, MagnifyingGlass } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { DismissKeyboardView } from '@/components/ui/DismissKeyboardView';
 import { useLayout } from '@/hooks/useLayout';
 import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { usePlaceAutocomplete } from '@/hooks/usePlaceAutocomplete';
@@ -136,7 +137,7 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
+      <DismissKeyboardView style={[styles.screen, { backgroundColor: colors.background.primary }]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
@@ -216,7 +217,7 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
             addToTripLabel={adding ? 'Adding…' : `Add to Day ${dayNumber}`}
           />
         ) : null}
-      </View>
+      </DismissKeyboardView>
     </Modal>
   );
 }

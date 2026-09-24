@@ -147,6 +147,7 @@ export function JournalSheet({ visible, tripId, dayId, activity, isOwner, onClos
           {/* Photo rail */}
           {(photoUrls.length > 0 || isOwner) && (
             <FlashList
+              keyboardDismissMode="on-drag"
               horizontal
               style={styles.photoList}
               data={isOwner && photoUrls.length < MAX_JOURNAL_PHOTOS ? [...photoUrls, '__add__'] : photoUrls}

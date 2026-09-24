@@ -842,6 +842,7 @@ export default function NewTripScreen() {
       >
         <Animated.View style={[styles.flex, animatedStyle]}>
           <NestableScrollContainer
+            keyboardDismissMode="on-drag"
             style={styles.flex}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"

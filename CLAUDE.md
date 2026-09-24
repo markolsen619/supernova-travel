@@ -237,6 +237,7 @@ UI primitives in `components/ui/`:
 - `Avatar` — sizes: `xs | sm | md | lg | xl`; props: `uri?`, `name`, `size`
 - `Badge` — pill/tag component
 - `TypeIconBubble` — 44×24 icon bubble for activity/reservation type; uses `ACTIVITY_ICONS`/`RESERVATION_ICONS` maps
+- `DismissKeyboardView` — a `View` whose empty space dismisses the keyboard on tap. For screens with no scrollable to drag (see Architecture Rule 14). Inner touchables are unaffected; it is `accessible={false}` so VoiceOver doesn't read it as one screen-sized button. When the container it replaces used `gap`, move the `gap` onto this wrapper or the spacing collapses
 
 Feed components in `components/feed/`:
 - `FeedCard` — travel post card (photo/video + author metadata, like/comment counts)
@@ -401,6 +402,8 @@ These rules apply to ALL new code:
 11. **Icon + color pairs**: always pull from `constants/icons.ts` maps (`ACTIVITY_ICONS`, `RESERVATION_ICONS`, etc.) — never hard-code icon components or hex colors for typed entities inline
 12. **Lists**: use `FlashList` from `@shopify/flash-list` — not `FlatList` — for all scrollable content lists
 13. **`TripActivity.startTime` / `endTime`** are wall-clock strings (`"14:30"`), not Firestore Timestamps — never coerce them to Date objects
+14. **Every keyboard needs a way down.** Any scrollable that shares a screen with a `TextInput` sets `keyboardDismissMode="on-drag"` — `ScrollView`, `FlashList`, RNGH's `GestureScrollView`, and `NestableScrollContainer` (`react-native-draggable-flatlist`) all take it. Pair it with `keyboardShouldPersistTaps="handled"` where taps land on results: the two solve opposite halves of the problem, the first dismissing on drag and the second keeping the tap from being swallowed. A screen with **no** scrollable wraps its content in `DismissKeyboardView` instead, since there is nothing to drag. This is not optional — search results were rendering underneath a keyboard that could not be dismissed, and `DatePickerModal`'s `number-pad` fields have no return key at all
+15. **`router.dismissAll()`, not `navigate`, to finish a modal flow.** Eleven root routes are `presentation: 'modal'`, and route navigation does not unwind the modal stack — `navigate('/')` from two modals deep switches the tab *behind* the cards and leaves them on screen. Use `if (router.canDismiss()) router.dismissAll()` then navigate to the destination tab
 
 ### Auth components (`components/auth/`)
 

@@ -196,6 +196,9 @@ export default function DmThreadScreen() {
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
+          // Scrolling back through the thread with the composer focused should
+          // get the keyboard out of the way, not fight it.
+          keyboardDismissMode="on-drag"
           contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingVertical: Spacing['3'] }}
           renderItem={({ item }) => (
             <MessageBubble
