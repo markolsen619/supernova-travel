@@ -64,6 +64,14 @@ export default function CreatePhotoScreen() {
         caption,
         placeName: placeName.trim() || null,
       });
+      // Posting happens two modals deep: the feed pushes /add-to-feed, which
+      // pushes this screen, and both are presentation: 'modal' on the root
+      // stack. navigate('/') alone switches the underlying tab but leaves both
+      // modal cards on screen, so the user had to dismiss each one by hand to
+      // see the post they just made. dismissAll() drops the whole modal stack
+      // back to the tabs; navigate('/') then guarantees the FEED tab
+      // specifically, since /add-to-feed can be opened from any tab.
+      if (router.canDismiss()) router.dismissAll();
       router.navigate('/');
     } catch (e: unknown) {
       Alert.alert('Upload failed', e instanceof Error ? e.message : 'Check your connection and try again.');
@@ -94,6 +102,7 @@ export default function CreatePhotoScreen() {
       </View>
 
       <ScrollView
+        keyboardDismissMode="on-drag"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
