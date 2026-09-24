@@ -45,14 +45,30 @@ export async function hydrateSession(
 ): Promise<{ hasProfile: boolean; hasSeenOnboarding: boolean }> {
   const userRef = doc(db, 'users', firebaseUser.uid);
   const snap = await getDoc(userRef);
-  if (!snap.exists()) return { hasProfile: false, hasSeenOnboarding: false };
+  const data = snap.exists() ? snap.data() : null;
 
-  const data = snap.data();
-  const serverTier = data.tier ?? 'free';
+  // Tier state and the purchase SDK bind to ANY signed-in uid, document or
+  // not. This block sits above the early return deliberately.
+  //
+  // Email sign-up is why. createUserWithEmailAndPassword fires
+  // onAuthStateChanged BEFORE createUserProfile writes users/{uid}, so the
+  // first hydrateSession here sees no document — and sign-up.tsx then routes
+  // to onboarding without ever calling hydrateSession again (only
+  // complete-profile, on the OAuth path, does that). While
+  // configureRevenueCat() lived below the return, the SDK kept whatever
+  // appUserID it already held, which after a sign-out is an anonymous one
+  // (logOutRevenueCat calls Purchases.logOut()). A purchase made in that
+  // session then reached syncTier with no uid to map it onto: the user was
+  // charged and stayed on the free tier. Do not move this below the return.
+  const serverTier = data?.tier ?? 'free';
   useAuthStore.getState().setTier(serverTier);
-  // Set before configureRevenueCat() below, so the SDK's first CustomerInfo
-  // is compared against this user's tier rather than the previous account's.
+  // Set before configureRevenueCat(), so the SDK's first CustomerInfo is
+  // compared against this user's tier rather than the previous account's.
   useAuthStore.getState().setServerTier(serverTier);
+  configureRevenueCat(firebaseUser.uid);
+
+  if (!data) return { hasProfile: false, hasSeenOnboarding: false };
+
   useAiConsentStore.getState().setVersion(
     typeof data.aiConsentVersion === 'number' ? data.aiConsentVersion : null,
   );
@@ -75,7 +91,6 @@ export async function hydrateSession(
   // that explains itself (services/push.ts), not cold during onboarding.
   registerPushTokenIfGranted(firebaseUser.uid);
   loadModerationState(firebaseUser.uid);
-  configureRevenueCat(firebaseUser.uid);
 
   let legacyFlagPresent = false;
   if (!('hasSeenOnboarding' in data)) {
