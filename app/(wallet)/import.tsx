@@ -119,6 +119,7 @@ export default function ImportScreen() {
       <WalletHeader title="Import" onBack={handleBack} />
 
       <ScrollView
+        keyboardDismissMode="on-drag"
         style={styles.scroll}
         contentContainerStyle={{ padding: Spacing['4'], paddingBottom: 100 }}
         keyboardShouldPersistTaps="handled"

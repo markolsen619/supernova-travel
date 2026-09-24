@@ -130,6 +130,7 @@ export default function CompleteProfileScreen() {
     <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Animated.View style={[styles.flex, { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] }]}>
       <ScrollView
+        keyboardDismissMode="on-drag"
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

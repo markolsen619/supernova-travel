@@ -185,6 +185,7 @@ export default function EditPostScreen() {
       </View>
 
       <ScrollView
+        keyboardDismissMode="on-drag"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"

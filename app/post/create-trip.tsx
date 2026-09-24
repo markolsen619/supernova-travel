@@ -96,6 +96,9 @@ export default function CreateTripPostScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await createTripPost({ trip: selectedTrip, caption });
+      // Two modals deep (feed -> /add-to-feed -> here), so navigate('/') alone
+      // leaves both cards stacked over the feed — see create-photo.tsx.
+      if (router.canDismiss()) router.dismissAll();
       router.navigate('/');
     } catch (e: unknown) {
       Alert.alert('Share failed', e instanceof Error ? e.message : 'Check your connection and try again.');
@@ -151,6 +154,7 @@ export default function CreateTripPostScreen() {
         </View>
       ) : (
         <FlashList
+          keyboardDismissMode="on-drag"
           data={trips}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (

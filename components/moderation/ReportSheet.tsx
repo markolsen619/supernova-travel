@@ -121,6 +121,7 @@ export function ReportSheet({ target, ownerName, onClose }: ReportSheetProps) {
       <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <ScrollView
+            keyboardDismissMode="on-drag"
             contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing['6'] }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}

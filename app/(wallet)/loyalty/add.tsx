@@ -181,6 +181,7 @@ export default function AddLoyaltyScreen() {
       />
 
       <ScrollView
+        keyboardDismissMode="on-drag"
         style={styles.scroll}
         contentContainerStyle={{ padding: Spacing['4'], paddingBottom: 100 }}
         keyboardShouldPersistTaps="handled"

@@ -348,7 +348,7 @@ export default function PostDetailScreen() {
         )}
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
         {post?.mediaUrl ? (
           <Image source={{ uri: post.mediaUrl }} style={styles.media} resizeMode="cover" />
         ) : null}
