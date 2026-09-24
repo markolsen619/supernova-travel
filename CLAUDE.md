@@ -61,7 +61,8 @@ app/
 │   ├── sign-in.tsx
 │   ├── sign-up.tsx
 │   ├── forgot-password.tsx
-│   └── complete-profile.tsx       # Gate: authenticated but no users/{uid} doc
+│   ├── complete-profile.tsx       # Gate: authenticated but no users/{uid} doc
+│   └── onboarding.tsx             # 5 slides after sign-up; sets users/{uid}.hasSeenOnboarding
 ├── (tabs)/
 │   ├── _layout.tsx                # Tab bar: Feed, Explore, Create, Search, Profile
 │   ├── index.tsx                  # Feed
@@ -158,7 +159,7 @@ All functions use Firebase Functions v2.
 | Hook | Returns |
 |---|---|
 | `useTheme` | `{ colors, isDark, mode }` — resolves system theme |
-| `useFeed` | Infinite-paginated personalized feed posts (TanStack Query) |
+| `useFeed(tab)` | Infinite-paginated feed posts (TanStack Query). **Not personalized** — `'forYou'` queries the `posts` collection globally by `createdAt desc`, with no follow filter, so every user sees every post. The `users/{uid}/feed` fan-out is still a TODO in `hooks/useFeed.ts`. `'following'` is a placeholder that returns only your own posts, and is currently unreachable: `app/(tabs)/index.tsx` hardcodes `useFeed('forYou')` |
 | `usePost(id)` | Single post query by ID |
 | `useSearch(text)` | `{ users, trips, isSearching }` — Algolia v5, 350ms debounce |
 | `useExplore` | `{ trips, tripsLoading, suggestions, suggestionsLoading }` |
