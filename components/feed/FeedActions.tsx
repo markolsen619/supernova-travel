@@ -26,12 +26,21 @@ import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSavePost } from '@/hooks/useSavePost';
 import { Avatar } from '@/components/ui/Avatar';
+import { resolvePostAuthor } from '@/utils/postAuthor';
+import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
 import { Post } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
 interface FeedActionsProps {
   post: Post;
+  /**
+   * Name and avatar resolved by the screen, preferring the author's live
+   * profile over the post's denormalized copy. Passed in rather than
+   * fetched here: a profile read inside a recycled list cell is the
+   * cost/perf footgun TripCard's `author` prop already avoids.
+   */
+  author?: AuthorInfo;
   onCommentPress: () => void;
   onMorePress?: (post: Post, anchor: React.RefObject<View | null>) => void;
 }
@@ -53,7 +62,8 @@ function authorHandle(post: Post): string {
 // video, not app chrome — white + shadow is the correct legibility pattern
 // here regardless of the app's light/dark theme (same reasoning as
 // Instagram/TikTok's overlay controls), so none of this reads from useTheme().
-export function FeedActions({ post, onCommentPress, onMorePress }: FeedActionsProps) {
+export function FeedActions({ post, author, onCommentPress, onMorePress }: FeedActionsProps) {
+  const resolvedAuthor = resolvePostAuthor(post, author);
   const router = useRouter();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
   const [liked, setLiked] = useState(false);
@@ -145,7 +155,7 @@ export function FeedActions({ post, onCommentPress, onMorePress }: FeedActionsPr
           hitSlop={10}
           accessibilityLabel={`View ${post.authorDisplayName}'s profile`}
         >
-          <Avatar uri={post.authorAvatarUrl} name={post.authorDisplayName} size="sm" />
+          <Avatar uri={resolvedAuthor.avatarUrl} name={resolvedAuthor.name} size="sm" />
         </TouchableOpacity>
 
         <TouchableOpacity

@@ -23,6 +23,7 @@ import { contentKey, filterVisible } from '@/utils/moderation';
 import { useTheme } from '@/hooks/useTheme';
 import { useHasUnreadActivity } from '@/hooks/useUnreadActivity';
 import { useLayout } from '@/hooks/useLayout';
+import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { Post } from '@/types';
 import { Spacing } from '@/constants/spacing';
@@ -49,6 +50,14 @@ export default function FeedScreen() {
       })),
     [data, moderation],
   );
+
+  // A post's authorDisplayName/authorAvatarUrl are frozen at creation time,
+  // so anyone who posted before setting a profile photo — or who has changed
+  // it since — shows stale initials here while their profile screen shows the
+  // real thing. One batched `in` query per 30 distinct authors keeps these
+  // honest; the same hook TripCard already uses for exactly this.
+  const authorUids = useMemo(() => posts.map((p) => p.authorUid), [posts]);
+  const { data: authorProfiles = {} } = useAuthorProfiles(authorUids);
 
   const handleMorePress = useCallback(
     (post: Post, anchor: React.RefObject<View | null>) => {
@@ -196,7 +205,12 @@ export default function FeedScreen() {
           data={posts}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
-            <FeedCard post={item} isActive={index === activeIndex} onMorePress={handleMorePress} />
+            <FeedCard
+              post={item}
+              isActive={index === activeIndex}
+              author={authorProfiles[item.authorUid]}
+              onMorePress={handleMorePress}
+            />
           )}
           pagingEnabled
           showsVerticalScrollIndicator={false}
