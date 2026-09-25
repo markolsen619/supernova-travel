@@ -31,3 +31,12 @@ expo-env.d.ts
 
 # Firebase Hosting deploy cache
 .firebase/
+
+# Firebase Admin service account keys. *.key above does not catch these —
+# they are .json, and Google's default download name is a long
+# <project>-firebase-adminsdk-<hash>.json. Committing one grants full
+# database and storage access to anyone who can read the repo.
+*serviceAccount*.json
+*service-account*.json
+*-firebase-adminsdk-*.json
+firebase-adminsdk-*.json
