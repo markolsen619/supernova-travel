@@ -1,7 +1,11 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { notifyUser } from './notify';
-import { groupPassesByFlight, shouldPollFlight } from './flightPolling';
+import {
+  filterPassesForPaidOwners,
+  groupPassesByFlight,
+  shouldPollFlight,
+} from './flightPolling';
 
 const db = admin.firestore();
 
@@ -53,11 +57,33 @@ export const checkFlightStatus = onSchedule(
     // ~48 times over its last day.
     const candidates = snap.docs.map((doc) => ({
       doc,
+      ownerUid: doc.data().ownerUid as string,
       flightNumber: doc.data().flightNumber as string,
       departureTime: doc.data().departureTime as string,
     }));
 
-    const due = groupPassesByFlight(candidates).filter((group) => {
+    // Live flight status is a paid feature, so decide who qualifies BEFORE
+    // spending anything. This used to run after the API call, with only the
+    // push suppressed — which is the expensive way round: a free user's
+    // flight cost exactly as much to poll as a subscriber's.
+    //
+    // One getAll for the distinct owners. A Firestore read is orders of
+    // magnitude cheaper than an AviationStack call, so reading every owner
+    // to skip even a few flights pays for itself immediately.
+    const ownerUids = [...new Set(candidates.map((c) => c.ownerUid).filter(Boolean))];
+    const tierByUid = new Map<string, string | undefined>();
+    if (ownerUids.length > 0) {
+      const userDocs = await db.getAll(
+        ...ownerUids.map((uid) => db.collection('users').doc(uid)),
+      );
+      for (const userDoc of userDocs) {
+        tierByUid.set(userDoc.id, userDoc.data()?.tier as string | undefined);
+      }
+    }
+
+    const payingCandidates = filterPassesForPaidOwners(candidates, tierByUid);
+
+    const due = groupPassesByFlight(payingCandidates).filter((group) => {
       const hoursUntil =
         (new Date(group.passes[0].departureTime).getTime() - now.getTime()) / 3_600_000;
       return shouldPollFlight(hoursUntil, now);
@@ -74,13 +100,9 @@ export const checkFlightStatus = onSchedule(
 
         await passDoc.ref.update({ status: newStatus });
 
-        const userDoc = await db.collection('users').doc(pass.ownerUid).get();
-        const userData = userDoc.data();
-
-        // The status write above is for everyone — the wallet shows it. The
-        // push is Flight Alerts, a Pro feature on the paywall. tier is
-        // server-written (syncTier / reconcileTier), so this can't be spoofed.
-        if ((userData?.tier ?? 'free') === 'free') continue;
+        // No tier re-check here: filterPassesForPaidOwners above already
+        // dropped every free owner, before anything was spent. tier is
+        // server-written (syncTier / reconcileTier), so it can't be spoofed.
 
         const statusMessages: Record<string, string> = {
           boarded: `Your flight ${pass.flightNumber} is boarding now.`,
