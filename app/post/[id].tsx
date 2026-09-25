@@ -36,6 +36,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { resolvePostAuthor } from '@/utils/postAuthor';
 import { usePost } from '@/hooks/usePost';
 import { useModeration } from '@/hooks/useModeration';
 import { useContentActions } from '@/components/moderation/useContentActions';
@@ -191,6 +192,14 @@ export default function PostDetailScreen() {
   const [commentError, setCommentError] = useState<string | null>(null);
 
   const { data: currentUser } = useUserProfile(uid);
+  // Same staleness as the feed: the post's denormalized copy is frozen at
+  // creation, so read the author's live profile and fall back to it.
+  const { data: authorProfile } = useUserProfile(post?.authorUid ?? '');
+  const author = post
+    ? resolvePostAuthor(post, authorProfile
+        ? { name: authorProfile.fullName, avatarUrl: authorProfile.avatarUrl }
+        : undefined)
+    : null;
   const moderation = useModeration();
   const { openActions, reportSheet, unblock } = useContentActions();
   const postMoreRef = useRef<View>(null);
@@ -362,10 +371,10 @@ export default function PostDetailScreen() {
                 router.push(`/user/${post.authorUid}`);
               }}
             >
-              <Avatar uri={post.authorAvatarUrl} name={post.authorDisplayName} size="sm" />
+              <Avatar uri={author?.avatarUrl ?? null} name={author?.name ?? post.authorDisplayName} size="sm" />
               <View>
                 <Text style={[styles.authorName, { color: colors.text.primary }]}>
-                  {post.authorDisplayName}
+                  {author?.name ?? post.authorDisplayName}
                 </Text>
                 {/* Old posts denormalized the uid into authorUsername — never
                     show a raw uid as a handle */}

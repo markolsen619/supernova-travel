@@ -17,12 +17,15 @@ import { useLayout } from '@/hooks/useLayout';
 import { VideoPlayer } from './VideoPlayer';
 import { FeedActions } from './FeedActions';
 import { Post } from '@/types';
+import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
 interface FeedCardProps {
   post: Post;
   isActive: boolean;
+  /** Resolved by the screen — see FeedActions. */
+  author?: AuthorInfo;
   /** Opens report/block for someone else's post. The screen owns the menu, since cards are recycled. */
   onMorePress?: (post: Post, anchor: React.RefObject<View | null>) => void;
 }
@@ -64,7 +67,7 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
   );
 }
 
-export function FeedCard({ post, isActive, onMorePress }: FeedCardProps) {
+export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
   // feedWidth is the window width on phones; a centred 9:16 column on large screens.
@@ -149,7 +152,7 @@ export function FeedCard({ post, isActive, onMorePress }: FeedCardProps) {
       )}
 
       {/* Overlaid controls */}
-      <FeedActions post={post} onCommentPress={handleCommentPress} onMorePress={onMorePress} />
+      <FeedActions post={post} author={author} onCommentPress={handleCommentPress} onMorePress={onMorePress} />
     </View>
   );
 }
