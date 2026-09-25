@@ -26,6 +26,8 @@ import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { DayTimeline } from '@/components/trip/DayTimeline';
 import { ActivityFormSheet, type ActivityFormData } from '@/components/trip/ActivityFormSheet';
 import { AddStopSheet } from '@/components/trip/AddStopSheet';
+import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
+import { activityToPlace, canShowPlaceSheet } from '@/utils/activityPlace';
 import { EditTripSheet } from '@/components/trip/EditTripSheet';
 import { JournalSheet } from '@/components/trip/JournalSheet';
 import { TripRecapSheet } from '@/components/trip/TripRecapSheet';
@@ -243,6 +245,29 @@ export default function TripDetailScreen() {
   // TM-3: journal sheet for a visited stop — reachable from both the
   // timeline and the map, so it's owned here and rendered in both branches.
   const [journalActivity, setJournalActivity] = useState<{ activity: TripActivity; dayId: string } | null>(null);
+
+  // The tapped stop's place sheet. Its own Animated.Value rather than sharing
+  // one with another sheet — see search.tsx, where sharing would have dragged
+  // two sheets at once.
+  const [placeActivity, setPlaceActivity] = useState<TripActivity | null>(null);
+  const placeSlideAnim = useRef(new Animated.Value(600)).current;
+
+  const handleDismissPlace = useCallback(() => {
+    Animated.spring(placeSlideAnim, { toValue: 600, ...SPRING }).start(() => {
+      setPlaceActivity(null);
+    });
+  }, [placeSlideAnim]);
+
+  // "Show on map" from inside the sheet — the pin is still one tap away for
+  // anyone who wanted it, it just isn't the default any more.
+  const handleShowPlaceOnMap = useCallback(() => {
+    const activityId = placeActivity?.id;
+    handleDismissPlace();
+    if (activityId) {
+      setFocusActivityId(activityId);
+      setViewMode('map');
+    }
+  }, [placeActivity, handleDismissPlace]);
   // TM-3d: trip recap
   const [recapVisible, setRecapVisible] = useState(false);
   // Invite friends (request/accept) — owner or existing collaborator only
@@ -668,7 +693,7 @@ export default function TripDetailScreen() {
       // Grounded means "has coordinates", not "has a Google placeId" — a
       // Mapbox-grounded stop has no placeId but is fully pinnable (mirrors
       // TripMapView's collectStops predicate).
-      const isGrounded = activity.lat != null && activity.lng != null;
+      const isGrounded = canShowPlaceSheet(activity);
       // TM-3c: a visited, grounded stop opens its journal ("your visit")
       // instead of jumping to the map — that's now the more useful default
       // once there's something personal to see there.
@@ -677,6 +702,16 @@ export default function TripDetailScreen() {
         return;
       }
       if (isGrounded) {
+        // The place sheet, not the map. Flying to a pin is what made a trip
+        // full of hand-picked places look like circles on a map — the sheet
+        // leads with photos, which is the house rule for any place screen.
+        // "Show on map" lives inside the sheet for anyone who wanted the pin.
+        const place = activityToPlace(activity);
+        if (place) {
+          setPlaceActivity(activity);
+          Animated.spring(placeSlideAnim, { toValue: 0, ...SPRING }).start();
+          return;
+        }
         setFocusActivityId(activity.id);
         setViewMode('map');
         return;
@@ -1245,6 +1280,21 @@ export default function TripDetailScreen() {
           dayId={addStopDay.id}
           dayNumber={addStopDay.dayNumber}
           onClose={handleCloseAddStop}
+        />
+      ) : null}
+
+      {/* ── Place sheet for a tapped stop ──
+          Photos, rating, hours and address for the place itself. Reuses the
+          globe's sheet (third consumer, after search and AddStopSheet) so
+          there is one place-rendering component, not three. */}
+      {placeActivity ? (
+        <PlaceDetailSheet
+          place={activityToPlace(placeActivity)!}
+          slideAnim={placeSlideAnim}
+          bottomInset={insets.bottom}
+          onDismiss={handleDismissPlace}
+          onAddToTrip={handleShowPlaceOnMap}
+          addToTripLabel="Show on map"
         />
       ) : null}
 

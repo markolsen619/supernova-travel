@@ -394,5 +394,28 @@ service cloud.firestore {
       allow read, update, delete: if isAuthed() && isOwner(resource.data.ownerUid);
       allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid;
     }
+
+    // Shared cache of Google Places tier2 data, keyed by Google's own place id
+    // (see services/places/placeCache.ts). Deliberately global and not
+    // per-user: the first person to open a place pays Google for it, everyone
+    // after reads Firestore, which is orders of magnitude cheaper.
+    //
+    // Any signed-in user may write, because the client is what makes the
+    // Google call. That is a real trade — a determined user could write junk
+    // into a place entry. Accepted because the blast radius is a wrong photo
+    // or rating on a place card, never anything about another user's data,
+    // and routing this through a Cloud Function would add an invocation cost
+    // to the very call we are trying to make cheap. cachedAt must be the
+    // server's clock so a forged future timestamp cannot pin an entry past
+    // its TTL, and no document may carry a uid, which keeps this from being
+    // repurposed as unvalidated user-owned storage.
+    match /places/{placeId} {
+      allow read: if isAuthed();
+      allow create, update: if isAuthed()
+        && request.resource.data.cachedAt == request.time
+        && !('ownerUid' in request.resource.data)
+        && !('uid' in request.resource.data);
+      allow delete: if false;
+    }
   }
 }
