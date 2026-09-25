@@ -20,7 +20,6 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Supernova needs camera access to capture travel photos and clips.",
         "NSPhotoLibraryUsageDescription": "Supernova needs photo library access to share your travel memories.",
-        "NSLocationWhenInUseUsageDescription": "If you choose to, Supernova uses your location while the app is open to show places near you.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
@@ -100,12 +99,6 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY"
-        }
-      ],
       "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",
