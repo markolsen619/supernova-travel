@@ -17,6 +17,7 @@ import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { BoardingPassCard } from '@/components/wallet/BoardingPassCard';
 import { BarcodeDisplay } from '@/components/wallet/BarcodeDisplay';
+import { FlightStatusUpsell } from '@/components/wallet/FlightStatusUpsell';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { SPRING } from '@/constants/motion';
@@ -151,6 +152,11 @@ export default function BoardingPassDetailScreen() {
         ) : (
           <BoardingPassCard pass={pass} onPress={() => {}} />
         )}
+
+        {/* Why this pass never changes status on a free account. Renders
+            nothing for paid users. Sits directly under the pass, where the
+            question occurs, rather than beside the edit/delete actions. */}
+        <FlightStatusUpsell />
 
         {/* Edit button */}
         <TouchableOpacity
