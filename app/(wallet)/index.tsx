@@ -211,7 +211,11 @@ const styles = StyleSheet.create({
   segments: {
     flexDirection: 'row',
     gap: Spacing['2'],
-    paddingHorizontal: Spacing['4'],
+    // paddingTop was missing entirely, so the pills sat flush against the
+    // header's hairline. paddingHorizontal moves 16 -> 20 to meet the design
+    // system's screen-margin floor and line up with WalletHeader's nav row.
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['5'],
     paddingBottom: Spacing['4'],
   },
   segmentPill: {
