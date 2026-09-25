@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
   Animated,
+  Keyboard,
   type LayoutChangeEvent,
 } from 'react-native';
 import { MapView } from '@rnmapbox/maps';
@@ -273,6 +274,23 @@ export default function SearchScreen() {
         // bearing, not a default.
         .runOnJS(true)
         .simultaneousWithExternalGesture(scrollRef)
+        // Dragging the sheet dismisses the keyboard.
+        //
+        // The GestureScrollView inside carries keyboardDismissMode="on-drag",
+        // but that is a ScrollView behaviour: it only fires when the SCROLL
+        // VIEW itself scrolls. Here the drag is usually claimed by this pan
+        // gesture moving the sheet between peek and expanded — especially
+        // when the list is short or already at the top — so the scroll view
+        // never moves and the keyboard never goes away. Results are debounced
+        // in as the user types, so they never press the return key either,
+        // and the keyboard ends up covering the very results it produced.
+        //
+        // Dragging the sheet is an unambiguous "let me look at these", so
+        // dismiss here rather than relying on the scroll view winning the
+        // gesture. Safe on the JS thread because of .runOnJS(true) above.
+        .onStart(() => {
+          Keyboard.dismiss();
+        })
         .onUpdate((e) => {
           const next = sheetBaseY.current + e.translationY;
           slideAnim.setValue(Math.max(SHEET_EXPANDED_Y, Math.min(height, next)));
@@ -488,6 +506,9 @@ export default function SearchScreen() {
       // user must never wonder if the tap registered.
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       firePulse(screenPointX, screenPointY);
+      // Reaching past the keyboard to tap the globe means they're done typing.
+      // There is no scrollable under the map, so on-drag can't cover this.
+      Keyboard.dismiss();
 
       // Logged unconditionally (not just on a POI hit) — distinguishes "the
       // tap never registered" from "it registered but found no POI feature
