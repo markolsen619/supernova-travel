@@ -45,6 +45,19 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING, Duration, fadeTo } from '@/constants/motion';
 import type * as GeoJSON from 'geojson';
 
+/**
+ * Map and POI tap diagnostics.
+ *
+ * These distinguish "the tap never registered" from "it registered but found
+ * no POI feature there", which look identical from the outside and are the
+ * first thing you want when a tap seems to do nothing. Worth keeping — but
+ * worth keeping out of production, where they are noise in a user's console
+ * and leak coordinates into logs.
+ */
+const mapLog = (...args: unknown[]) => {
+  if (__DEV__) mapLog(...args);
+};
+
 type Tab = 'Places' | 'Users' | 'Trips';
 const TABS: Tab[] = ['Places', 'Users', 'Trips'];
 
@@ -514,14 +527,14 @@ export default function SearchScreen() {
       // tap never registered" from "it registered but found no POI feature
       // at that point" (e.g. zoomed too far out for Standard to render POI
       // labels), which previously looked identical from the outside.
-      console.log('[Map tap]', { screenPointX, screenPointY, tapLat, tapLng, hasRef: !!mapRef.current });
+      mapLog('[Map tap]', { screenPointX, screenPointY, tapLat, tapLng, hasRef: !!mapRef.current });
 
       const collection = await mapRef.current?.queryRenderedFeaturesInRect(
         tapBbox(screenPointX, screenPointY),
       );
       const poi = extractPoiFromFeatures(collection, tapLat, tapLng);
       if (!poi) {
-        console.log('[Map tap] no POI feature at this point —', collection?.features?.length ?? 0, 'features found');
+        mapLog('[Map tap] no POI feature at this point —', collection?.features?.length ?? 0, 'features found');
 
         const zoom = zoomRef.current;
 
@@ -539,14 +552,14 @@ export default function SearchScreen() {
 
       // A real POI was found — drop any stale nearby list.
       setNearbyResults(null);
-      console.log('[POI tap]', poi.name, poi.lat, poi.lng);
+      mapLog('[POI tap]', poi.name, poi.lat, poi.lng);
 
       // 1. Reconciliation cache: do we already know the placeId for this POI?
       const cachedId = getRecon(poi.cacheKey);
       if (cachedId) {
         const cached = getPlace(cachedId);
         if (cached?.tier === 'tier2') {
-          console.log('[POI tap] cache hit (tier2) →', cachedId);
+          mapLog('[POI tap] cache hit (tier2) →', cachedId);
           setSelectedPlace(cached);
           flyToPlace(cached);
           showSheet();
@@ -560,7 +573,7 @@ export default function SearchScreen() {
       try {
         enriched = await enrichPoiByNameAndCoords(poi.name, poi.lat, poi.lng);
       } catch (err) {
-        console.log('[POI tap] Text Search failed —', err);
+        mapLog('[POI tap] Text Search failed —', err);
       } finally {
         setEnriching(false);
       }
@@ -581,7 +594,7 @@ export default function SearchScreen() {
       // below it, a nearby search would be as arbitrary and billed as it is
       // in the miss case, so show the honest empty state instead of firing
       // one.
-      console.log('[POI tap] Text Search found nothing for', poi.name, '— falling back to nearby search');
+      mapLog('[POI tap] Text Search found nothing for', poi.name, '— falling back to nearby search');
       const zoom = zoomRef.current;
       if (shouldFallbackToNearby(zoom)) {
         await runNearbySearchFallback(poi.lat, poi.lng, zoom);
