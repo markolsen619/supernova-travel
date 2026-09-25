@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { notifyUser } from './notify';
+import { groupPassesByFlight, shouldPollFlight } from './flightPolling';
 
 const db = admin.firestore();
 
@@ -45,12 +46,32 @@ export const checkFlightStatus = onSchedule(
       .where('departureTime', '<=', in24h.toISOString())
       .get();
 
-    for (const passDoc of snap.docs) {
-      const pass = passDoc.data();
-      const departureDate = pass.departureTime.slice(0, 10); // YYYY-MM-DD
-      const newStatus = await fetchFlightStatus(pass.flightNumber, departureDate);
+    // One API call per real flight, not per passenger, and only when this run
+    // is due for that flight (see flightPolling.ts). Previously every pass in
+    // the 24h window cost a call every 30 minutes — ten passengers on one
+    // flight meant ten identical requests, and a single flight was polled
+    // ~48 times over its last day.
+    const candidates = snap.docs.map((doc) => ({
+      doc,
+      flightNumber: doc.data().flightNumber as string,
+      departureTime: doc.data().departureTime as string,
+    }));
 
-      if (newStatus && newStatus !== pass.status) {
+    const due = groupPassesByFlight(candidates).filter((group) => {
+      const hoursUntil =
+        (new Date(group.passes[0].departureTime).getTime() - now.getTime()) / 3_600_000;
+      return shouldPollFlight(hoursUntil, now);
+    });
+
+    for (const group of due) {
+      const newStatus = await fetchFlightStatus(group.flightNumber, group.departureDate);
+      if (!newStatus) continue;
+
+      // One lookup, applied to every passenger on that flight.
+      for (const { doc: passDoc } of group.passes) {
+        const pass = passDoc.data();
+        if (newStatus === pass.status) continue;
+
         await passDoc.ref.update({ status: newStatus });
 
         const userDoc = await db.collection('users').doc(pass.ownerUid).get();
