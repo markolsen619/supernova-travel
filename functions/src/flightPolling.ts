@@ -19,6 +19,38 @@ export interface PollablePass {
   departureTime: string;
 }
 
+/** The tiers that pay. Anything else, including nothing, does not. */
+const PAID_TIERS = new Set(['pro', 'business']);
+
+/**
+ * Whether a tier string entitles the user to live flight status.
+ *
+ * Fails closed on purpose. `createUserProfile` deliberately omits `tier` for
+ * new accounts — every reader defaults a missing field to free — so an absent
+ * value is the ordinary shape of a free user, not a broken document. A tier
+ * this build has never heard of is treated the same way: a typo or a future
+ * value must not hand out a paid feature by accident.
+ */
+export function isPaidTier(tier: string | null | undefined): boolean {
+  return typeof tier === 'string' && PAID_TIERS.has(tier);
+}
+
+/**
+ * Passes worth spending an AviationStack call on.
+ *
+ * Live flight status is a paid feature, so a free user's flight is never
+ * polled — previously it was polled at full cost and simply had its push
+ * suppressed afterwards, which is the expensive way round. An owner missing
+ * from `tierByUid` (deleted account, unreadable document) is dropped too:
+ * an unknown owner must not cost money.
+ */
+export function filterPassesForPaidOwners<T extends { ownerUid: string }>(
+  passes: T[],
+  tierByUid: Map<string, string | null | undefined>,
+): T[] {
+  return passes.filter((pass) => isPaidTier(tierByUid.get(pass.ownerUid)));
+}
+
 export interface FlightGroup<T extends PollablePass> {
   /** Normalised, as sent to the API. */
   flightNumber: string;

@@ -1,6 +1,12 @@
 // Relative path, not @/: functions/ is a separate npm package, and
 // flightPolling.ts imports no firebase-admin so it can be tested here.
-import { flightKey, groupPassesByFlight, shouldPollFlight } from '../../functions/src/flightPolling';
+import {
+  filterPassesForPaidOwners,
+  flightKey,
+  groupPassesByFlight,
+  isPaidTier,
+  shouldPollFlight,
+} from '../../functions/src/flightPolling';
 
 type Pass = { id: string; flightNumber: string; departureTime: string };
 
@@ -79,5 +85,52 @@ describe('shouldPollFlight', () => {
 
   it('does not poll a flight that has already departed', () => {
     expect(shouldPollFlight(-0.1, at('2026-10-15T08:00:00.000Z'))).toBe(false);
+  });
+});
+
+describe('isPaidTier', () => {
+  it('treats pro and business as paid', () => {
+    expect(isPaidTier('pro')).toBe(true);
+    expect(isPaidTier('business')).toBe(true);
+  });
+
+  it('treats free as unpaid', () => {
+    expect(isPaidTier('free')).toBe(false);
+  });
+
+  it('treats a missing tier as unpaid', () => {
+    // createUserProfile deliberately omits `tier` on new accounts, so an
+    // absent field is the normal shape for a free user, not a broken doc.
+    expect(isPaidTier(undefined)).toBe(false);
+    expect(isPaidTier(null)).toBe(false);
+  });
+
+  it('treats an unrecognised tier as unpaid', () => {
+    // Fail closed: a typo or a tier this build predates must not hand out
+    // a paid feature.
+    expect(isPaidTier('platinum')).toBe(false);
+  });
+});
+
+describe('filterPassesForPaidOwners', () => {
+  const passes = [
+    { id: 'a', ownerUid: 'paid', flightNumber: 'TP204', departureTime: '2026-10-15T09:30:00.000Z' },
+    { id: 'b', ownerUid: 'freeloader', flightNumber: 'TP204', departureTime: '2026-10-15T09:30:00.000Z' },
+    { id: 'c', ownerUid: 'unknown', flightNumber: 'BA478', departureTime: '2026-10-15T11:00:00.000Z' },
+  ];
+
+  it('keeps only passes owned by paid users', () => {
+    const tiers = new Map([['paid', 'pro'], ['freeloader', 'free']]);
+    expect(filterPassesForPaidOwners(passes, tiers).map((p) => p.id)).toEqual(['a']);
+  });
+
+  it('drops a pass whose owner could not be read', () => {
+    // A deleted or unreadable user doc must not cost an API call.
+    const tiers = new Map([['paid', 'pro'], ['freeloader', 'free']]);
+    expect(filterPassesForPaidOwners(passes, tiers).some((p) => p.id === 'c')).toBe(false);
+  });
+
+  it('returns nothing when no owner is paid', () => {
+    expect(filterPassesForPaidOwners(passes, new Map([['freeloader', 'free']]))).toEqual([]);
   });
 });
