@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable, Alert } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +7,8 @@ import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus } from 'phosph
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useNotifications, useMarkNotificationsRead } from '@/hooks/useNotifications';
+import { canDeleteNotification } from '@/utils/notificationActions';
+import { useDeleteNotification, useNotifications, useMarkNotificationsRead } from '@/hooks/useNotifications';
 import { useRespondToInvite } from '@/hooks/useTripInvites';
 import { useDmThreads } from '@/hooks/useDmThreads';
 import { useMarkMessagesSeen } from '@/hooks/useUnreadActivity';
@@ -139,12 +140,53 @@ export default function NotificationsScreen() {
     router.push(route as Href); // runtime-built route; see useNotificationRouting
   }, []);
 
+  const deleteNotification = useDeleteNotification();
+
+  // Long-press, not swipe. These rows carry inline Accept/Decline buttons,
+  // and a swipe gesture over them fights the buttons and the list scroll for
+  // the same touch. A held press has no such conflict and is the affordance
+  // that was asked for.
+  const confirmDelete = useCallback(
+    (item: AppNotification) => {
+      // A pending trip invite is the one row that must stay: the invitation
+      // lives server-side, but this screen is the only place to accept it
+      // from. See utils/notificationActions.ts.
+      if (!canDeleteNotification(item, handled)) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Alert.alert('Remove notification', 'This only clears it from your list.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => deleteNotification.mutate(item.id),
+        },
+      ]);
+    },
+    [handled, deleteNotification],
+  );
+
+  // Shared by every Activity row — four branches rendered identical props.
+  const rowProps = useCallback(
+    (item: AppNotification) => ({
+      style: [styles.row, { borderColor: colors.background.cardBorder }],
+      onPress: () => openNotification(item),
+      onLongPress: () => confirmDelete(item),
+      delayLongPress: 400,
+      activeOpacity: 0.7,
+    }),
+    [colors.background.cardBorder, openNotification, confirmDelete],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: AppNotification }) => {
       if (item.type === 'trip_invite') {
         const result = handled[item.id];
         return (
-          <View style={[styles.row, { borderColor: colors.background.cardBorder }]}>
+          <Pressable
+            style={[styles.row, { borderColor: colors.background.cardBorder }]}
+            onLongPress={() => confirmDelete(item)}
+            delayLongPress={400}
+          >
             <Avatar uri={item.inviterAvatarUrl} name={item.inviterName} size="sm" />
             <View style={styles.rowText}>
               <Text style={[styles.rowBody, { color: colors.text.primary }]}>
@@ -180,17 +222,13 @@ export default function NotificationsScreen() {
                 </View>
               )}
             </View>
-          </View>
+          </Pressable>
         );
       }
 
       if (item.type === 'post_like') {
         return (
-          <TouchableOpacity
-            style={[styles.row, { borderColor: colors.background.cardBorder }]}
-            onPress={() => openNotification(item)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity {...rowProps(item)}>
             <Avatar uri={item.likerAvatarUrl} name={item.likerName} size="sm" />
             <View style={styles.rowText}>
               <Text style={[styles.rowBody, { color: colors.text.primary }]}>
@@ -207,11 +245,7 @@ export default function NotificationsScreen() {
 
       if (item.type === 'post_comment') {
         return (
-          <TouchableOpacity
-            style={[styles.row, { borderColor: colors.background.cardBorder }]}
-            onPress={() => openNotification(item)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity {...rowProps(item)}>
             <Avatar uri={item.commenterAvatarUrl} name={item.commenterName} size="sm" />
             <View style={styles.rowText}>
               <Text style={[styles.rowBody, { color: colors.text.primary }]}>
@@ -229,11 +263,7 @@ export default function NotificationsScreen() {
       if (item.type === 'flight_status') {
         const { Icon, color } = ACTIVITY_ICONS.flight;
         return (
-          <TouchableOpacity
-            style={[styles.row, { borderColor: colors.background.cardBorder }]}
-            onPress={() => openNotification(item)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity {...rowProps(item)}>
             {/* A type icon, not an avatar: no person sent this. */}
             <View style={[styles.iconBubble, { backgroundColor: `${color}1F` }]}>
               <Icon size={16} color={color} weight="duotone" />
@@ -254,11 +284,7 @@ export default function NotificationsScreen() {
       if (item.type !== 'trip_invite_accepted') return null;
 
       return (
-        <TouchableOpacity
-          style={[styles.row, { borderColor: colors.background.cardBorder }]}
-          onPress={() => openNotification(item)}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity {...rowProps(item)}>
           <Avatar uri={item.accepterAvatarUrl} name={item.accepterName} size="sm" />
           <View style={styles.rowText}>
             <Text style={[styles.rowBody, { color: colors.text.primary }]}>
@@ -271,7 +297,11 @@ export default function NotificationsScreen() {
         </TouchableOpacity>
       );
     },
-    [colors, handled, handleRespond, openNotification],
+    // confirmDelete and rowProps both close over `handled`. Omitting them
+    // would leave a just-answered invite un-deletable until an unrelated
+    // render happened to refresh this callback.
+    // openNotification is reached through rowProps now, which lists it itself.
+    [colors, handled, handleRespond, confirmDelete, rowProps],
   );
 
   return (

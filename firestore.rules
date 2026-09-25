@@ -83,9 +83,17 @@ service cloud.firestore {
         allow read: if isOwner(uid);
         // Content is Cloud-Functions-only (Admin SDK); the owner may only
         // ever flip their own `read` field, never author/edit a notification.
-        allow create, delete: if false;
+        allow create: if false;
         allow update: if isOwner(uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        // Deletion IS the owner's to make — it is their own inbox, and a list
+        // that only ever grows is one people stop opening. Authoring stays
+        // closed above: they can remove a row, never write or rewrite one.
+        // Nothing else depends on the row surviving; a trip invite lives
+        // server-side against the trip, so deleting its notification loses
+        // the shortcut, not the invitation (see utils/notificationActions.ts,
+        // which declines to offer delete on one still awaiting an answer).
+        allow delete: if isOwner(uid);
       }
 
       // Saved trips
