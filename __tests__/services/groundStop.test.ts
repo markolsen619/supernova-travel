@@ -1,3 +1,16 @@
+// googlePlaces.ts now reaches Firestore through placeCache.ts (the shared
+// cross-user place cache), so importing anything from it pulls in
+// @/services/firebase and the AsyncStorage native module, neither of which
+// exists under Jest's node environment. Mocked exactly as
+// __tests__/services/session.test.ts does — this only unblocks module
+// loading; no Firestore call is exercised here.
+jest.mock('@/services/firebase', () => ({ auth: {}, db: {}, storage: {}, functions: {} }));
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+}));
+
 import { groundStop } from '@/services/places/groundStop';
 import type { GroundedPlace } from '@/utils/mapboxQuery';
 

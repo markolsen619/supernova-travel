@@ -3,6 +3,7 @@ import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import type { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import type { TripActivity } from '@/types';
 import { buildTextSearchBody, type PlaceBias } from '@/utils/placeQuery';
+import { readCachedPlace, writeCachedPlace } from '@/services/places/placeCache';
 
 // COST GUARD: every fetch in this file hits Google Places API (New), which is
 // billable per request/session at tiered SKUs. Field masks below are kept
@@ -397,6 +398,12 @@ export function tier2FieldsFromRaw(place: RawTier2Place): Partial<EnrichedPlace>
  * session already closed when the Tier 1 Details call fired on selection).
  */
 export async function enrichPlaceById(placeId: string): Promise<Partial<EnrichedPlace> | null> {
+  // Shared cross-user cache first. This is the app's costliest call — the
+  // tier2 mask puts it in the Atmosphere SKU — and without this every user
+  // paid it again for every place, every session. See placeCache.ts.
+  const cached = await readCachedPlace(placeId);
+  if (cached) return cached;
+
   const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
     headers: {
       'X-Goog-Api-Key': API_KEY,
@@ -410,7 +417,10 @@ export async function enrichPlaceById(placeId: string): Promise<Partial<Enriched
   }
 
   const place = (await res.json()) as RawTier2Place;
-  return tier2FieldsFromRaw(place);
+  const fields = tier2FieldsFromRaw(place);
+  // Fire-and-forget — the user already has their data.
+  writeCachedPlace(placeId, fields);
+  return fields;
 }
 
 /** Builds a Places photo media URL. Call lazily at render time — only for the
