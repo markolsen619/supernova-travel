@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { X, UserCircle, LockSimple, Sparkle } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { CancelReasonSheet } from '@/components/settings/CancelReasonSheet';
+import { recordCancellationFeedback } from '@/services/cancellation';
 import { useThemeStore, ThemeMode } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/Button';
@@ -82,6 +84,34 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     WebBrowser.openBrowserAsync(TERMS_OF_USE_URL);
   }, []);
+
+  const [cancelVisible, setCancelVisible] = useState(false);
+
+  // Cancelling lands in the same Customer Center as "Subscription" — this row
+  // exists so the way out is findable rather than behind a word that reads
+  // like billing details. Apple expects cancellation to be reachable in-app
+  // without obstruction, and "obvious" is part of that.
+  const handleCancelPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCancelVisible(true);
+  }, []);
+
+  const handleCancelContinue = useCallback(
+    async (reason: string | null, note: string) => {
+      setCancelVisible(false);
+      // Fire-and-forget. A failed write must never stand between someone and
+      // cancelling; the feedback is ours to lose, not theirs.
+      recordCancellationFeedback({ tier, reason, note });
+      const presented = await presentCustomerCenter();
+      if (!presented) {
+        Alert.alert(
+          'Not available here',
+          'Subscription management needs a full build of the app. Manage your plan in your store account settings.',
+        );
+      }
+    },
+    [tier],
+  );
 
   const handleSubscriptionPress = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -163,7 +193,11 @@ export default function SettingsScreen() {
             icon={Sparkle}
             value={capitalizedTier}
             onPress={handleSubscriptionPress}
+            showDivider={tier !== 'free'}
           />
+          {tier !== 'free' ? (
+            <SettingsRow label="Cancel Supernova Pro" onPress={handleCancelPress} />
+          ) : null}
         </View>
 
         {/* About */}
@@ -186,6 +220,13 @@ export default function SettingsScreen() {
           />
         </View>
       </ScrollView>
+
+      {/* Asked on the way out, never in the way of it. */}
+      <CancelReasonSheet
+        visible={cancelVisible}
+        onClose={() => setCancelVisible(false)}
+        onContinue={handleCancelContinue}
+      />
     </View>
   );
 }
