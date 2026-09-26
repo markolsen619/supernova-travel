@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { MapView } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +27,7 @@ import {
 import { DarkColors } from '@/constants/colors';
 import { useLayout } from '@/hooks/useLayout';
 import { useDimensionChange } from '@/hooks/useDimensionChange';
+import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useSearch } from '@/hooks/useSearch';
 import { useTrendingPlaces } from '@/hooks/useTrendingPlaces';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
@@ -92,6 +94,12 @@ export default function SearchScreen() {
   // Shared between the sheet's inline maxHeight and the pre-layout fallback
   // (sheetHeightRef below) so they can't drift apart.
   const bottomSheetMaxHeight = height * 0.55;
+
+  const keyboardVisible = useKeyboardVisible();
+  // The floating tab bar, not just the safe-area inset. This screen lives
+  // inside the tab navigator, so a sheet anchored to bottom: 0 has its last
+  // ~50pt — which is where its primary button sits — hidden behind the bar.
+  const tabBarHeight = useBottomTabBarHeight();
 
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('Places');
@@ -517,11 +525,18 @@ export default function SearchScreen() {
       // Acknowledge the tap in the same frame it happens, before any await.
       // Whether it resolves to a POI, to nearby results, or to nothing, the
       // user must never wonder if the tap registered.
+      // With the keyboard up, this tap MEANS "put the keyboard away" — it is
+      // not also a request to search here. Consume it and return: the rest of
+      // this handler ends in a nearby-search whose no-POI branch calls
+      // setSelectedPlace(null), so letting it run would close the place card
+      // the user was reading. First tap dismisses, second tap acts.
+      if (keyboardVisible) {
+        Keyboard.dismiss();
+        return;
+      }
+
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       firePulse(screenPointX, screenPointY);
-      // Reaching past the keyboard to tap the globe means they're done typing.
-      // There is no scrollable under the map, so on-drag can't cover this.
-      Keyboard.dismiss();
 
       // Logged unconditionally (not just on a POI hit) — distinguishes "the
       // tap never registered" from "it registered but found no POI feature
@@ -605,7 +620,9 @@ export default function SearchScreen() {
         showSheet();
       }
     },
-    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse, runNearbySearchFallback],
+    // keyboardVisible must be listed, or the early return above reads the
+    // value from whenever this callback was last built rather than now.
+    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse, runNearbySearchFallback, keyboardVisible],
   );
 
   // ── Flow C: nearby-results row tap ────────────────────────────────────────
@@ -966,7 +983,7 @@ export default function SearchScreen() {
         <PlaceDetailSheet
           place={selectedPlace}
           slideAnim={detailSlideAnim}
-          bottomInset={insets.bottom}
+          bottomInset={tabBarHeight}
           onDismiss={handleDismissPlace}
           colors={DarkColors}
         />
