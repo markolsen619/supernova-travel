@@ -37,6 +37,7 @@ Copy `.env.local.example` to `.env.local` and fill in all keys. Client vars are 
 | `EXPO_PUBLIC_REVENUECAT_IOS_KEY` | client | RevenueCat iOS SDK |
 | `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` | client | RevenueCat Android SDK |
 | `EXPO_PUBLIC_ALGOLIA_APP_ID` | client | Algolia search app ID |
+| `EXPO_PUBLIC_BOOKING_AFFILIATE_ID` | client | Booking.com affiliate `aid`. **Optional** — without it the booking button still links out, it just earns nothing |
 | `EXPO_PUBLIC_ALGOLIA_SEARCH_KEY` | client | Algolia **Search-Only** key (never Admin) |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | client | Google Sign-In. Required **even on iOS** — it is the audience Firebase validates the ID token against. The iOS client ID is read from `GoogleService-Info.plist`, not from env |
 | `ALGOLIA_APP_ID` | Cloud Function | Algolia sync (Admin key context) |

@@ -39,6 +39,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
+import { toCalendarDate } from '@/utils/calendarDate';
 import { TripActivity, TripDay, Destination } from '@/types';
 import { usePlacesStore } from '@/stores/usePlacesStore';
 import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
@@ -1312,6 +1313,13 @@ export default function TripDetailScreen() {
           onDismiss={handleDismissPlace}
           onAddToTrip={handleShowPlaceOnMap}
           addToTripLabel="Show on map"
+          // The stop's own type picks the destination — a hotel goes to
+          // Booking.com with these dates, anything else to its Maps entry.
+          booking={{
+            type: placeActivity.type,
+            checkIn: trip?.startDate ? toCalendarDate(trip.startDate.toDate()) : null,
+            checkOut: trip?.endDate ? toCalendarDate(trip.endDate.toDate()) : null,
+          }}
         />
       ) : null}
 
