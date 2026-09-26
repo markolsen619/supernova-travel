@@ -61,33 +61,42 @@ describe('aiTripQuotaPolicy', () => {
     expect(policy.resetsAt.toISOString()).toBe('2026-10-01T00:00:00.000Z');
   });
 
-  it('gives a paid account one trip per calendar week', () => {
+  it('gives a paid account unlimited generation behind a fair-use ceiling', () => {
     const policy = aiTripQuotaPolicy('pro', now);
-    expect(policy.limit).toBe(1);
-    expect(policy.window).toBe('week');
-    // Monday of the week containing Fri 2026-09-25.
-    expect(policy.quotaKey).toBe('ai_trips_2026-09-21');
+    expect(policy.fairUse).toBe(true);
+    expect(policy.window).toBe('month');
+    // High enough that no real user reaches it — it exists to stop a script,
+    // not to ration an enthusiast.
+    expect(policy.limit).toBeGreaterThanOrEqual(20);
+  });
+
+  it('does not mark the free tier as fair-use', () => {
+    // free is a real cap the user is meant to feel and upgrade past; paid is
+    // a ceiling they should never notice. The UI reads this to decide
+    // whether to show a countdown at all.
+    expect(aiTripQuotaPolicy('free', now).fairUse).toBe(false);
   });
 
   it('treats business the same as pro', () => {
-    expect(aiTripQuotaPolicy('business', now).window).toBe('week');
+    expect(aiTripQuotaPolicy('business', now).fairUse).toBe(true);
   });
 
   it('treats a missing tier as free', () => {
     // createUserProfile omits `tier` for new accounts, so absent is the
     // ordinary shape of a free user rather than a broken document.
-    expect(aiTripQuotaPolicy(undefined, now).window).toBe('month');
-    expect(aiTripQuotaPolicy(null, now).window).toBe('month');
+    expect(aiTripQuotaPolicy(undefined, now).fairUse).toBe(false);
+    expect(aiTripQuotaPolicy(null, now).fairUse).toBe(false);
   });
 
   it('treats an unrecognised tier as free', () => {
-    // Fail closed: a typo must not hand out the more generous window.
-    expect(aiTripQuotaPolicy('platinum', now).window).toBe('month');
+    // Fail closed: a typo must not hand out the generous ceiling.
+    expect(aiTripQuotaPolicy('platinum', now).limit).toBe(1);
   });
 
-  it('uses a different key for free and paid in the same moment', () => {
-    // The windows must not share a counter, or upgrading mid-month would
-    // arrive with the free tier's usage already spent against it.
+  it('uses a different key for free and paid in the same month', () => {
+    // Both are monthly now, so without separate keys upgrading mid-month
+    // would arrive with the free tier's spent generation already counted
+    // against the new ceiling.
     expect(aiTripQuotaPolicy('free', now).quotaKey).not.toBe(
       aiTripQuotaPolicy('pro', now).quotaKey,
     );

@@ -9,8 +9,10 @@ export interface AiTripQuotaResponse {
   remaining: number;
   /** ISO timestamp of the next reset. */
   resetsAt: string;
-  /** Which window the tier gets: free is monthly, paid is weekly. */
+  /** Both tiers are monthly. */
   window: QuotaWindow;
+  /** True when `limit` is an anti-abuse ceiling, not a ration — see quotaUtils. */
+  fairUse: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export const getAiTripQuota = functions.https.onCall(
       remaining: Math.max(0, policy.limit - used),
       resetsAt: policy.resetsAt.toISOString(),
       window: policy.window,
+      fairUse: policy.fairUse,
     };
   }
 );

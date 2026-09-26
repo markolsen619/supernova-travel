@@ -62,7 +62,7 @@ export const PAYWALL_FEATURE_ICONS: Array<{
   // Only what Pro actually unlocks. The wallet itself is free for everyone, and
   // there is no support tier, so neither is listed: a paywall that sells
   // features that don't exist is an App Store rejection (guideline 2.3.1).
-  { Icon: Sparkle,     color: '#a78bfa', label: 'Weekly AI itineraries',     description: 'A new AI trip every week, instead of one a month' },
+  { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI trips',        description: 'Plan as many itineraries as you like, not one a month' },
   { Icon: Bell,        color: '#fbbf24', label: 'Flight alerts',             description: 'Boarding, landing and cancellation alerts'          },
   { Icon: Bag,         color: '#34d399', label: 'Unlimited booking imports', description: 'Add confirmations to your wallet with no yearly cap' },
 ];

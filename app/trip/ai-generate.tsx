@@ -25,25 +25,32 @@ import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 /**
  * The quota line under the generate button.
  *
- * Says "this week" or "this month" from the server's own `window` rather than
- * assuming either — free is monthly and paid is weekly, and hardcoding one
- * would tell half the users the wrong thing. There is no unlimited branch any
- * more: every tier is metered (see functions/src/quotaUtils.ts).
+ * Free and paid read the same field and present it oppositely. The free cap
+ * is meant to be felt — it is the reason to upgrade — so it counts down. The
+ * paid ceiling is meant never to be noticed, so it says "Unlimited" and only
+ * names a number in the one case where someone actually reached it.
  */
 function quotaLabel(
-  quota: { limit: number; remaining: number; resetsAt: string; window: 'week' | 'month' } | undefined,
+  quota:
+    | { limit: number; remaining: number; resetsAt: string; window: 'week' | 'month'; fairUse: boolean }
+    | undefined,
 ): string | null {
   if (!quota) return null; // still loading — show nothing rather than a placeholder flash
+
+  const resetDate = () =>
+    new Date(quota.resetsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  if (quota.fairUse) {
+    return quota.remaining > 0
+      ? 'Unlimited AI trips'
+      : `Fair-use limit reached — resets ${resetDate()}`;
+  }
 
   const period = quota.window === 'month' ? 'this month' : 'this week';
   if (quota.remaining > 0) {
     return `${quota.remaining} AI trip${quota.remaining === 1 ? '' : 's'} left ${period}`;
   }
-
-  const resetDate = new Date(quota.resetsAt).toLocaleDateString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric',
-  });
-  return `None left ${period} — resets ${resetDate}`;
+  return `None left ${period} — resets ${resetDate()}`;
 }
 
 function diffDays(start: Date | null, end: Date | null): number | null {

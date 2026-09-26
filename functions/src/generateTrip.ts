@@ -36,9 +36,11 @@ export const generateTrip = functions.https.onCall(
     if (used >= policy.limit) {
       throw new functions.https.HttpsError(
         'resource-exhausted',
-        policy.window === 'month'
-          ? 'Free accounts can generate one AI trip a month. Pro gives you one a week.'
-          : 'You have used this week\'s AI trip. It resets Monday.',
+        policy.fairUse
+          // A subscriber should essentially never see this. If they do, say
+          // what it is rather than implying their plan is rationed.
+          ? 'That is a lot of itineraries this month. The fair-use limit resets at the start of next month.'
+          : 'Free accounts get one AI trip a month. Pro gives you unlimited.',
       );
     }
 
