@@ -20,7 +20,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Supernova needs camera access to capture travel photos and clips.",
         "NSPhotoLibraryUsageDescription": "Supernova needs photo library access to share your travel memories.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "If you choose to, Supernova uses your location while the app is open to show places near you."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
