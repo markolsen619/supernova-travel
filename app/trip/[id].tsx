@@ -17,7 +17,7 @@ import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
-import { DarkColors } from '@/constants/colors';
+import { DarkColors, LightColors } from '@/constants/colors';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -159,6 +159,19 @@ function AnimatedDaySection({
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
+
+/**
+ * Icon colour for the floating header buttons (back, map, edit, more).
+ *
+ * Fixed dark, NOT colors.text.primary. headerBtnCircle is a deliberately
+ * theme-independent light circle — it has to stay legible over an arbitrary
+ * cover photo, which a themed surface cannot. Pairing it with the themed text
+ * colour meant a near-white icon on a near-white circle in dark mode: the
+ * back, map and edit buttons were invisible to anyone not on the light theme.
+ *
+ * The circle is light in every theme, so its contents are too.
+ */
+const HEADER_ICON = LightColors.text.primary;
 
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -718,7 +731,11 @@ export default function TripDetailScreen() {
       }
       handleGroundActivity(activity, dayId);
     },
-    [handleGroundActivity],
+    // placeSlideAnim is a useRef(...).current — a stable identity for the life
+    // of the component, so listing it changes nothing at runtime. Listed anyway
+    // rather than silenced: an exhaustive-deps warning left standing is one
+    // nobody reads when it later flags something real.
+    [handleGroundActivity, placeSlideAnim],
   );
 
   const handleOpenJournal = useCallback((activity: TripActivity, dayId: string) => {
@@ -774,7 +791,7 @@ export default function TripDetailScreen() {
           accessibilityLabel="Go back"
         >
           <View style={styles.headerBtnCircle}>
-            <ArrowLeft size={18} color={colors.text.primary} weight="bold" />
+            <ArrowLeft size={18} color={HEADER_ICON} weight="bold" />
           </View>
         </TouchableOpacity>
         <SkeletonBlock height={HEADER_IMAGE_HEIGHT} radius={0} />
@@ -958,7 +975,7 @@ export default function TripDetailScreen() {
             accessibilityLabel="Go back"
           >
             <View style={styles.headerBtnCircle}>
-              <ArrowLeft size={18} color={colors.text.primary} weight="bold" />
+              <ArrowLeft size={18} color={HEADER_ICON} weight="bold" />
             </View>
           </TouchableOpacity>
 
@@ -977,7 +994,7 @@ export default function TripDetailScreen() {
             accessibilityLabel="Show trip map"
           >
             <View style={styles.headerBtnCircle}>
-              <MapTrifold size={18} color={colors.text.primary} weight="bold" />
+              <MapTrifold size={18} color={HEADER_ICON} weight="bold" />
             </View>
           </TouchableOpacity>
 
@@ -991,7 +1008,7 @@ export default function TripDetailScreen() {
               accessibilityLabel="More options for this trip"
             >
               <View style={styles.headerBtnCircle}>
-                <DotsThree size={18} color={colors.text.primary} weight="bold" />
+                <DotsThree size={18} color={HEADER_ICON} weight="bold" />
               </View>
             </TouchableOpacity>
           )}
@@ -1008,7 +1025,7 @@ export default function TripDetailScreen() {
               accessibilityLabel="Edit trip"
             >
               <View style={styles.headerBtnCircle}>
-                <PencilSimple size={18} color={colors.text.primary} weight="bold" />
+                <PencilSimple size={18} color={HEADER_ICON} weight="bold" />
               </View>
             </TouchableOpacity>
           )}
@@ -1383,10 +1400,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    // Fixed light-translucent circle + dark icon (set at each call site via
-    // colors.text.primary) — legible over BOTH a photo (helped by the scrim
-    // above it) and the plain placeholder, unlike a fixed dark overlay which
-    // reads as a grey blob with no photo behind it.
+    // Fixed light-translucent circle + fixed dark icon (HEADER_ICON above) —
+    // legible over BOTH a photo (helped by the scrim above it) and the plain
+    // placeholder, unlike a fixed dark overlay which reads as a grey blob
+    // with no photo behind it. Both halves must be theme-independent: this
+    // circle stays light in dark mode, so a themed icon disappears into it.
     backgroundColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
