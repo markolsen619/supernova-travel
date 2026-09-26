@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { StarMark } from '@/components/ui/StarMark';
+import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import type { PhosphorIcon } from '@/constants/icons';
@@ -67,7 +67,10 @@ export function WalletHeader({ title, onBack, rightAction, eyebrow }: WalletHead
           <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{eyebrow}</Text>
         ) : null}
         <View style={styles.titleRow}>
-          <StarMark size={26} />
+          {/* The shared mark, not a literal size — Explore and Profile use
+              the same component, and a hand-typed number here is exactly how
+              this drifted to 26 against their 70 in the first place. */}
+          <ScreenHeaderStar />
           <Text
             style={[styles.title, { color: colors.text.primary }]}
             numberOfLines={1}
