@@ -12,7 +12,22 @@
  * unmetered one.
  */
 export const FREE_TIER_MONTHLY_AI_TRIP_LIMIT = 1;
-export const PAID_TIER_WEEKLY_AI_TRIP_LIMIT = 1;
+
+/**
+ * Pro is unlimited, with a fair-use ceiling — not a ration.
+ *
+ * gemini-2.5-flash costs on the order of a cent or two per itinerary, and AI
+ * activities are written with lat: null and grounded lazily by the client, so
+ * a generation makes NO Places calls. A subscriber would need well over a
+ * hundred generations a month to cost more than they pay.
+ *
+ * So the number that matters is the one a script reaches and a person never
+ * does. 30/month is roughly 45 cents of worst case per subscriber and about
+ * ten times any plausible real usage. It exists to stop abuse, not to make an
+ * enthusiast think about it. If usage data later says otherwise, raise it —
+ * it is one constant.
+ */
+export const PAID_TIER_MONTHLY_FAIR_USE_LIMIT = 30;
 
 /** @deprecated Free tier moved to a monthly window. Kept so an older client
  *  importing it still compiles; read aiTripQuotaPolicy() instead. */
@@ -96,6 +111,16 @@ export interface AiTripQuotaPolicy {
   quotaKey: string;
   /** When the window rolls over. */
   resetsAt: Date;
+  /**
+   * True when `limit` is an anti-abuse ceiling rather than a ration.
+   *
+   * The free cap is meant to be felt — it is the reason to upgrade, so the UI
+   * counts it down. The paid ceiling is meant never to be noticed, so the UI
+   * says "unlimited" and only mentions a number if someone somehow reaches
+   * it. Same field, opposite presentation, which is why this flag exists
+   * rather than the client inferring it from the tier.
+   */
+  fairUse: boolean;
 }
 
 const PAID_TIERS = new Set(['pro', 'business']);
@@ -121,17 +146,22 @@ export function aiTripQuotaPolicy(
 ): AiTripQuotaPolicy {
   const paid = typeof tier === 'string' && PAID_TIERS.has(tier);
 
+  // Both windows are monthly, but the counters are deliberately separate:
+  // upgrading mid-month must not arrive with the free tier's spent
+  // generation already counted against the new ceiling.
   return paid
     ? {
-        limit: PAID_TIER_WEEKLY_AI_TRIP_LIMIT,
-        window: 'week',
-        quotaKey: `ai_trips_${getWeekStart().toISOString().split('T')[0]}`,
-        resetsAt: getNextWeekStart(),
+        limit: PAID_TIER_MONTHLY_FAIR_USE_LIMIT,
+        window: 'month',
+        quotaKey: getMonthlyQuotaKey('ai_trips_pro', now),
+        resetsAt: getNextMonthStart(now),
+        fairUse: true,
       }
     : {
         limit: FREE_TIER_MONTHLY_AI_TRIP_LIMIT,
         window: 'month',
         quotaKey: getMonthlyQuotaKey('ai_trips', now),
         resetsAt: getNextMonthStart(now),
+        fairUse: false,
       };
 }

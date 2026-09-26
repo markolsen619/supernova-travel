@@ -30,8 +30,10 @@ export interface AiTripQuota {
   remaining: number;
   /** ISO timestamp of the next reset. */
   resetsAt: string;
-  /** free = monthly, pro/business = weekly. Read this rather than assuming. */
+  /** Both tiers are monthly. */
   window: 'week' | 'month';
+  /** True for paid: `limit` is an anti-abuse ceiling, so show "unlimited". */
+  fairUse: boolean;
 }
 
 export interface ImportQuota {
