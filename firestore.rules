@@ -403,6 +403,21 @@ service cloud.firestore {
       allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid;
     }
 
+    // Why someone cancelled Pro. Create-only from the client and unreadable
+    // by it, the same shape as `reports` — nobody reads this in the app; it
+    // is for the console. Kept deliberately small: a uid, the tier they were
+    // on, one of a fixed set of reasons (or none), and a capped note. Writing
+    // it must never be able to delay or block a cancellation, which is why
+    // the client fires it and moves on without awaiting.
+    match /cancellation_feedback/{feedbackId} {
+      allow create: if isAuthed()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 500
+        && request.resource.data.keys().hasOnly(['uid', 'tier', 'reason', 'note', 'createdAt']);
+      allow read, update, delete: if false;
+    }
+
     // Shared cache of Google Places tier2 data, keyed by Google's own place id
     // (see services/places/placeCache.ts). Deliberately global and not
     // per-user: the first person to open a place pays Google for it, everyone
