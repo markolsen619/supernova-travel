@@ -17,14 +17,21 @@ export interface GenerateTripRequest {
   preferences: string;
 }
 
+/**
+ * Mirrors AiTripQuotaResponse in functions/src/getAiTripQuota.ts.
+ *
+ * No nullable "unlimited" fields any more: every tier is metered, because
+ * Gemini bills per call and an uncapped paid tier is an uncapped bill. Paid
+ * buys a shorter window, not an unmetered one.
+ */
 export interface AiTripQuota {
   tier: 'free' | 'pro' | 'business';
-  /** null = unlimited (pro/business) */
-  limit: number | null;
-  /** null = unlimited (pro/business) */
-  remaining: number | null;
-  /** ISO timestamp of the next reset, null = unlimited */
-  resetsAt: string | null;
+  limit: number;
+  remaining: number;
+  /** ISO timestamp of the next reset. */
+  resetsAt: string;
+  /** free = monthly, pro/business = weekly. Read this rather than assuming. */
+  window: 'week' | 'month';
 }
 
 export interface ImportQuota {

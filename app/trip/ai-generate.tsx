@@ -22,19 +22,28 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 
+/**
+ * The quota line under the generate button.
+ *
+ * Says "this week" or "this month" from the server's own `window` rather than
+ * assuming either — free is monthly and paid is weekly, and hardcoding one
+ * would tell half the users the wrong thing. There is no unlimited branch any
+ * more: every tier is metered (see functions/src/quotaUtils.ts).
+ */
 function quotaLabel(
-  quota: { limit: number | null; remaining: number | null; resetsAt: string | null } | undefined,
+  quota: { limit: number; remaining: number; resetsAt: string; window: 'week' | 'month' } | undefined,
 ): string | null {
   if (!quota) return null; // still loading — show nothing rather than a placeholder flash
-  if (quota.limit === null) return 'Unlimited AI trips';
-  if ((quota.remaining ?? 0) > 0) {
-    const n = quota.remaining ?? 0;
-    return `${n} free trip${n === 1 ? '' : 's'} left this week`;
+
+  const period = quota.window === 'month' ? 'this month' : 'this week';
+  if (quota.remaining > 0) {
+    return `${quota.remaining} AI trip${quota.remaining === 1 ? '' : 's'} left ${period}`;
   }
-  const resetDate = quota.resetsAt
-    ? new Date(quota.resetsAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    : 'next week';
-  return `0 left this week — resets ${resetDate}`;
+
+  const resetDate = new Date(quota.resetsAt).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+  });
+  return `None left ${period} — resets ${resetDate}`;
 }
 
 function diffDays(start: Date | null, end: Date | null): number | null {

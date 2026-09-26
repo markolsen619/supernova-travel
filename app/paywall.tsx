@@ -160,7 +160,7 @@ export default function PaywallScreen() {
               Travel without limits
             </Text>
             <Text style={[styles.heroSubtitle, { color: colors.text.secondary }]}>
-              Unlimited AI itineraries, and every trip you plan in one place.
+              A new AI itinerary every week, and every trip you plan in one place.
             </Text>
           </View>
 

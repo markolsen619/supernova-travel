@@ -1,15 +1,16 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
-import { FREE_TIER_WEEKLY_AI_TRIP_LIMIT, getNextWeekStart, getWeeklyQuotaKey } from './quotaUtils';
+import { aiTripQuotaPolicy, type QuotaWindow } from './quotaUtils';
 
 export interface AiTripQuotaResponse {
   tier: 'free' | 'pro' | 'business';
-  /** null = unlimited (pro/business) */
-  limit: number | null;
-  /** null = unlimited (pro/business) */
-  remaining: number | null;
-  /** ISO timestamp of the next reset (next Monday 00:00 UTC), null = unlimited */
-  resetsAt: string | null;
+  /** Generations allowed in the window. Never null — every tier is metered. */
+  limit: number;
+  remaining: number;
+  /** ISO timestamp of the next reset. */
+  resetsAt: string;
+  /** Which window the tier gets: free is monthly, paid is weekly. */
+  window: QuotaWindow;
 }
 
 /**
@@ -31,20 +32,19 @@ export const getAiTripQuota = functions.https.onCall(
     const userDoc = await db.doc(`users/${uid}`).get();
     const tier = (userDoc.data()?.tier ?? 'free') as AiTripQuotaResponse['tier'];
 
-    if (tier !== 'free') {
-      return { tier, limit: null, remaining: null, resetsAt: null };
-    }
-
+    // No unlimited branch any more: paid is metered too, just on a weekly
+    // window instead of a monthly one. Same policy object generateTrip
+    // enforces with, so these two can't disagree.
+    const policy = aiTripQuotaPolicy(tier);
     const quotaDoc = await db.doc(`usage_quotas/${uid}`).get();
-    const quotaData = quotaDoc.data() ?? {};
-    const used = quotaData[getWeeklyQuotaKey('ai_trips')] ?? 0;
-    const remaining = Math.max(0, FREE_TIER_WEEKLY_AI_TRIP_LIMIT - used);
+    const used = (quotaDoc.data() ?? {})[policy.quotaKey] ?? 0;
 
     return {
       tier,
-      limit: FREE_TIER_WEEKLY_AI_TRIP_LIMIT,
-      remaining,
-      resetsAt: getNextWeekStart().toISOString(),
+      limit: policy.limit,
+      remaining: Math.max(0, policy.limit - used),
+      resetsAt: policy.resetsAt.toISOString(),
+      window: policy.window,
     };
   }
 );
