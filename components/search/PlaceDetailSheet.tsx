@@ -14,10 +14,13 @@ import { SPRING } from '@/constants/motion';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { MapPin, X, ArrowRight, NavigationArrow, Star, Clock, Plus } from 'phosphor-react-native';
+import { MapPin, X, ArrowRight, NavigationArrow, Star, Clock, Plus, Ticket } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import type { ThemeColors } from '@/constants/colors';
 import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
+import type { ActivityType } from '@/types';
+import { buildBookingAction } from '@/utils/bookingLinks';
+import * as WebBrowser from 'expo-web-browser';
 import { enrichPlaceById, photoUrl } from '@/services/places/googlePlaces';
 import { AddToTripSheet } from '@/components/search/AddToTripSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -38,6 +41,14 @@ interface Props {
   onAddToTrip?: (place: EnrichedPlace) => void;
   /** Overrides the "Add to Trip" button label — e.g. "Add to This Day". */
   addToTripLabel?: string;
+  /**
+   * What kind of stop this is, and the trip's dates, when the sheet was
+   * opened from an itinerary. Drives the booking hand-off: hotels go to
+   * Booking.com with those dates prefilled, everything else to Maps.
+   * Omitted on the globe, where a tapped place belongs to no trip yet and
+   * there are no dates to carry.
+   */
+  booking?: { type: ActivityType | null; checkIn: string | null; checkOut: string | null };
   /**
    * Override the resolved theme palette — search.tsx renders this sheet over
    * its always-dark globe, where useTheme() would otherwise follow the
@@ -80,6 +91,7 @@ export function PlaceDetailSheet({
   onDismiss,
   onAddToTrip,
   addToTripLabel,
+  booking,
   colors: colorsOverride,
 }: Props) {
   const { colors: themeColors } = useTheme();
@@ -184,6 +196,28 @@ export function PlaceDetailSheet({
         }),
     [slideAnim, onDismiss],
   );
+
+  // Booking hand-off. Only when the caller said what kind of stop this is —
+  // the globe has no trip and no dates, so it shows no booking button.
+  const bookingAction = booking
+    ? buildBookingAction({
+        type: booking.type,
+        placeId: displayPlace.placeId,
+        name: displayPlace.name,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        affiliateId: process.env.EXPO_PUBLIC_BOOKING_AFFILIATE_ID ?? null,
+      })
+    : null;
+
+  const handleBook = useCallback(() => {
+    if (!bookingAction) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // In-app browser, not Linking.openURL: the user comes back with a tap
+    // rather than having to find the app again, which is the difference
+    // between booking and abandoning.
+    WebBrowser.openBrowserAsync(bookingAction.url);
+  }, [bookingAction]);
 
   const typeLabel = humanizeType(displayPlace.primaryType);
   const hoursLine = todaysHoursLine(displayPlace.openingHours);
@@ -292,8 +326,22 @@ export function PlaceDetailSheet({
       ) : null}
 
       {/* CTAs */}
+      {bookingAction ? (
+        <TouchableOpacity
+          style={[styles.planBtn, { backgroundColor: colors.brand.purple }]}
+          onPress={handleBook}
+          activeOpacity={0.85}
+          accessibilityRole="link"
+          accessibilityLabel={bookingAction.label}
+        >
+          <Ticket size={18} color="#ffffff" weight="bold" />
+          <Text style={styles.planBtnText}>{bookingAction.label}</Text>
+          <ArrowRight size={16} color="rgba(255,255,255,0.7)" weight="bold" />
+        </TouchableOpacity>
+      ) : null}
+
       <TouchableOpacity
-        style={[styles.planBtn, { backgroundColor: colors.brand.purple }]}
+        style={[bookingAction ? styles.addToTripBtn : styles.planBtn, bookingAction ? { borderColor: colors.brand.purple } : { backgroundColor: colors.brand.purple }]}
         onPress={handlePlanTrip}
         activeOpacity={0.85}
       >
