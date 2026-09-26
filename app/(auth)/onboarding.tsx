@@ -12,6 +12,7 @@ import {
   Animated,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/services/firebase';
@@ -62,6 +63,7 @@ function DotItem({ active }: { active: boolean }) {
 
 export default function OnboardingScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<FlatList<number>>(null);
@@ -105,9 +107,17 @@ export default function OnboardingScreen() {
     [width]
   );
 
+  // Every slide anchors its photo or avatar grid to the top of the screen with
+  // a percentage height, so without this inset the imagery runs under the
+  // status bar and Dynamic Island — cropping exactly the part of a face or a
+  // skyline the slide exists to show. One wrapper here rather than the same
+  // inset repeated in five components, each of which would have to remember.
   const renderSlide = useCallback(
     ({ item: index }: ListRenderItemInfo<number>) => {
       const active = index === activeIndex;
+      // Named slideContent, not content — `content` is already the
+      // useOnboardingContent() result in this scope.
+      const slideContent = ((): React.ReactElement => {
       switch (index) {
         case 0:
           return (
@@ -147,8 +157,10 @@ export default function OnboardingScreen() {
         default:
           return <OnboardingProSlide active={active} />;
       }
+      })();
+      return <View style={{ flex: 1, paddingTop: insets.top }}>{slideContent}</View>;
     },
-    [activeIndex, content.communityAvatars, scrollX]
+    [activeIndex, content.communityAvatars, scrollX, insets.top]
   );
 
   const isLast = activeIndex === SLIDE_COUNT - 1;
