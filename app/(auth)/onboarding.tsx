@@ -19,6 +19,7 @@ import { auth, db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
 import { useOnboardingContent } from '@/hooks/useOnboardingContent';
 import { OnboardingPhotoSlide } from '@/components/onboarding/OnboardingPhotoSlide';
+import { OnboardingTripsSlide } from '@/components/onboarding/OnboardingTripsSlide';
 import { OnboardingWalletSlide } from '@/components/onboarding/OnboardingWalletSlide';
 import { OnboardingCommunitySlide } from '@/components/onboarding/OnboardingCommunitySlide';
 import { OnboardingProSlide } from '@/components/onboarding/OnboardingProSlide';
@@ -120,17 +121,10 @@ export default function OnboardingScreen() {
       const slideContent = ((): React.ReactElement => {
       switch (index) {
         case 0:
-          return (
-            <OnboardingPhotoSlide
-              heroSource={require('@/assets/onboarding/explore.png')}
-              eyebrow="Explore"
-              title="Find your next trip"
-              body="Scroll real itineraries from other travelers and save the ones that catch your eye."
-              active={active}
-              scrollX={scrollX}
-              index={index}
-            />
-          );
+          // Real trips, actually scrolling — see OnboardingTripsSlide for why
+          // this is rendered rather than photographed. Falls back to the
+          // static hero on its own when there is nothing to show.
+          return <OnboardingTripsSlide active={active} />;
         case 1:
           return (
             <OnboardingPhotoSlide
