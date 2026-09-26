@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Animated,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { SPRING } from '@/constants/motion';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -147,6 +149,42 @@ export function PlaceDetailSheet({
 
   const handleCloseAddToTrip = useCallback(() => setAddToTripVisible(false), []);
 
+  // Swipe down to dismiss.
+  //
+  // All three consumers (the globe, AddStopSheet, a trip stop) animate this
+  // sheet in to translateY 0 and out to their own off-screen value, so the
+  // gesture only ever needs to know "shown is 0" and hand the dismissal back
+  // via onDismiss — each parent already owns its own exit animation.
+  //
+  // runOnJS(true) is load-bearing, not stylistic: slideAnim is a plain React
+  // Native Animated.Value, and react-native-reanimated's babel plugin
+  // auto-workletizes these callbacks, which would move setValue onto the UI
+  // thread and throw. Same reasoning as the globe's results-sheet pan.
+  const sheetHeight = useRef(0);
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .onUpdate((e) => {
+          // Downward only. Dragging up would lift the sheet off its anchor
+          // and reveal the screen behind its bottom edge.
+          slideAnim.setValue(Math.max(0, e.translationY));
+        })
+        .onEnd((e) => {
+          // A flick counts even if it barely moved — matching how the results
+          // sheet reads velocity, so the two feel like the same surface.
+          const dismissed =
+            e.velocityY > 600 || e.translationY > Math.max(120, sheetHeight.current * 0.3);
+          if (dismissed) {
+            onDismiss();
+            return;
+          }
+          Animated.spring(slideAnim, { toValue: 0, ...SPRING }).start();
+        }),
+    [slideAnim, onDismiss],
+  );
+
   const typeLabel = humanizeType(displayPlace.primaryType);
   const hoursLine = todaysHoursLine(displayPlace.openingHours);
   const priceLabel = displayPlace.priceLevel ? PRICE_LEVEL_LABELS[displayPlace.priceLevel] : null;
@@ -284,7 +322,11 @@ export function PlaceDetailSheet({
 
   return (
     <>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+      <GestureDetector gesture={panGesture}>
+      <Animated.View
+        style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
+        onLayout={(e) => { sheetHeight.current = e.nativeEvent.layout.height; }}
+      >
         {Platform.OS === 'ios' ? (
           <BlurView intensity={80} tint="dark" style={styles.fill}>
             {sheetContent}
@@ -295,6 +337,7 @@ export function PlaceDetailSheet({
           </View>
         )}
       </Animated.View>
+      </GestureDetector>
 
       {onAddToTrip ? null : (
         <AddToTripSheet
@@ -325,7 +368,9 @@ const styles = StyleSheet.create({
   handle: {
     width: 36,
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    // Was decorative; the sheet is draggable now, so it is a real
+    // affordance and reads a little stronger.
+    backgroundColor: 'rgba(255,255,255,0.35)',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: Spacing['2'],
