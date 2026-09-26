@@ -1,4 +1,5 @@
 import * as functions from 'firebase-functions/v2';
+import { isPaidTier } from './flightPolling';
 import * as admin from 'firebase-admin';
 import { notifyUser } from './notify';
 import { isBlockedBetween } from './moderationEvents';
@@ -55,6 +56,23 @@ export const inviteToTrip = functions.https.onCall(
     if (!canManageTrip(trip, inviterUid)) {
       throw new functions.https.HttpsError('permission-denied', "You aren't on this trip");
     }
+
+    // Travelling together — and with it the shared packing list and shared
+    // budget, which only exist once a trip has collaborators — is a paid
+    // feature. Enforced here rather than only in the UI: the callable is the
+    // sole way a collaborator is ever added (firestore.rules keeps
+    // trips/{id}/invites write-closed), so this is the real boundary.
+    //
+    // Checked on the INVITER only. Being invited is free: a paid user
+    // bringing friends along should not require those friends to subscribe,
+    // or the feature sells nothing.
+    const inviterDoc = await db.doc(`users/${inviterUid}`).get();
+    if (!isPaidTier(inviterDoc.data()?.tier)) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Sharing a trip is a Pro feature. Upgrade to plan together, split a budget and share a packing list.',
+      );
+    }
     if ((trip.collaborators ?? []).includes(inviteeUid)) {
       return { status: 'already_member' as const };
     }
@@ -66,7 +84,8 @@ export const inviteToTrip = functions.https.onCall(
       return { status: existingStatus as 'pending' | 'accepted' };
     }
 
-    const [inviterDoc] = await Promise.all([db.doc(`users/${inviterUid}`).get()]);
+    // Reuses the document already read for the tier gate above — the inviter
+    // cannot have changed between the two.
     const inviterData = inviterDoc.data() ?? {};
     const inviterName: string = inviterData.fullName ?? inviterData.displayName ?? 'A traveler';
     const inviterAvatarUrl: string | null = inviterData.avatarUrl ?? null;

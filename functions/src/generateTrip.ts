@@ -2,7 +2,7 @@ import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest, GeneratedTrip } from './types';
-import { FREE_TIER_WEEKLY_AI_TRIP_LIMIT, getWeeklyQuotaKey } from './quotaUtils';
+import { aiTripQuotaPolicy } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
 export const generateTrip = functions.https.onCall(
@@ -26,16 +26,20 @@ export const generateTrip = functions.https.onCall(
 
     const tier = userDoc.data()?.tier ?? 'free';
 
-    if (tier === 'free') {
-      const quotaDoc = await db.doc(`usage_quotas/${uid}`).get();
-      const quotaData = quotaDoc.data() ?? {};
-      const weeklyCount = quotaData[getWeeklyQuotaKey('ai_trips')] ?? 0;
-      if (weeklyCount >= FREE_TIER_WEEKLY_AI_TRIP_LIMIT) {
-        throw new functions.https.HttpsError(
-          'resource-exhausted',
-          'Free tier limit: 1 AI trip per week. Upgrade to Pro for unlimited.'
-        );
-      }
+    // Every tier is metered now, not just free — Gemini bills per call, so an
+    // uncapped paid tier is an uncapped bill. Paid buys a shorter window
+    // (weekly vs monthly), not an unmetered one. aiTripQuotaPolicy is shared
+    // with getAiTripQuota so the count the UI shows cannot drift from this.
+    const policy = aiTripQuotaPolicy(tier);
+    const quotaDoc = await db.doc(`usage_quotas/${uid}`).get();
+    const used = (quotaDoc.data() ?? {})[policy.quotaKey] ?? 0;
+    if (used >= policy.limit) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        policy.window === 'month'
+          ? 'Free accounts can generate one AI trip a month. Pro gives you one a week.'
+          : 'You have used this week\'s AI trip. It resets Monday.',
+      );
     }
 
     // 3. Parse and validate input
@@ -149,13 +153,13 @@ export const generateTrip = functions.https.onCall(
     }
     await batch.commit();
 
-    // 7. Update quota for free tier
-    if (tier === 'free') {
-      await db.doc(`usage_quotas/${uid}`).set(
-        { [getWeeklyQuotaKey('ai_trips')]: admin.firestore.FieldValue.increment(1) },
-        { merge: true }
-      );
-    }
+    // 7. Count it, whatever the tier. Must use the SAME policy key the check
+    //    above read, or a paid user's generation would be counted into the
+    //    free tier's monthly bucket and never limit anything.
+    await db.doc(`usage_quotas/${uid}`).set(
+      { [policy.quotaKey]: admin.firestore.FieldValue.increment(1) },
+      { merge: true }
+    );
 
     return { tripId: tripRef.id };
   }

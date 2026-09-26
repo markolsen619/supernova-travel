@@ -77,7 +77,7 @@ export default function CreateScreen() {
             </View>
             <Text style={styles.heroTitle}>Generate with AI</Text>
             <Text style={styles.heroDesc}>
-              {tier === 'free' ? '1 free trip per week with Gemini AI' : 'Unlimited AI trips with Gemini AI'}
+              {tier === 'free' ? 'One AI trip a month with Gemini' : 'One AI trip a week with Gemini'}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
