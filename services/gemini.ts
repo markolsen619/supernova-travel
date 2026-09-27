@@ -1,5 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
+import { normalizeAiTripQuota } from '@/utils/aiTripQuota';
 import { GenerateTripRequest, AiTripQuota, ParseTravelConfirmationRequest, ParseTravelConfirmationResult, ImportQuota } from '@/types/ai';
 
 export async function callGenerateTrip(
@@ -15,9 +16,9 @@ export async function callGenerateTrip(
 }
 
 export async function callGetAiTripQuota(): Promise<AiTripQuota> {
-  const fn = httpsCallable<undefined, AiTripQuota>(functions, 'getAiTripQuota');
+  const fn = httpsCallable<undefined, Parameters<typeof normalizeAiTripQuota>[0]>(functions, 'getAiTripQuota');
   const result = await fn();
-  return result.data;
+  return normalizeAiTripQuota(result.data);
 }
 
 export async function callParseTravelConfirmation(
