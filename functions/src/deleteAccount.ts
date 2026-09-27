@@ -157,6 +157,27 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
   await db.recursiveDelete(db.doc(`users/${uid}`));
 }
 
+/**
+ * Un-links this user from any cancellation feedback they left.
+ *
+ * Anonymised rather than deleted. The whole point of collecting "why are you
+ * leaving" is the aggregate — deleting it on account deletion would
+ * systematically erase exactly the feedback from the people who left hardest,
+ * which is the feedback worth having.
+ *
+ * Stripping the uid is enough: what remains is a tier, a reason and a note
+ * with nothing tying it to a person, so it is no longer their data. The app's
+ * own copy promises to "permanently remove your account and everything in
+ * it", and after this there is nothing of theirs left in it.
+ */
+async function anonymizeCancellationFeedback(db: Db, uid: string): Promise<void> {
+  const snap = await db.collection('cancellation_feedback').where('uid', '==', uid).get();
+  if (snap.empty) return;
+  const batch = db.batch();
+  snap.docs.forEach((d) => batch.update(d.ref, { uid: null }));
+  await batch.commit();
+}
+
 async function removeStorage(uid: string): Promise<void> {
   const bucket = admin.storage().bucket();
   for (const prefix of userStoragePrefixes(uid)) {
@@ -206,6 +227,7 @@ export const deleteAccount = functions.https.onCall(
       await removeFromOthersTrips(db, uid, pendingInviteTripIds);
       await removeFromThreads(db, uid);
       await removeOwnContent(db, uid);
+      await anonymizeCancellationFeedback(db, uid);
       await removeStorage(uid);
       await removeRevenueCatCustomer(uid);
 
