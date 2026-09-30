@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 
 type Segment = 'all' | 'flights' | 'reservations' | 'loyalty';
 
@@ -45,8 +46,15 @@ export default function WalletHubScreen() {
     setSegment(s);
   }, []);
 
+  const allowance = useWalletAllowance();
+
   const handleAdd = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Free plan: two items in total; past that, adding is Pro.
+    if (!allowance.canAdd) {
+      allowance.openPaywall();
+      return;
+    }
     if (segment === 'loyalty') {
       // Import only produces boarding passes/reservations (see the design
       // spec's scope split) — from the Loyalty segment, manual entry is the
@@ -56,7 +64,7 @@ export default function WalletHubScreen() {
       return;
     }
     router.push('/(wallet)/import');
-  }, [segment]);
+  }, [segment, allowance]);
 
   const showFlights = segment === 'all' || segment === 'flights';
   const showReservations = segment === 'all' || segment === 'reservations';
@@ -84,6 +92,21 @@ export default function WalletHubScreen() {
         onBack={handleBack}
         rightAction={{ icon: Plus, onPress: handleAdd, label: 'Add to wallet' }}
       />
+
+      {/* Free plan: say where the allowance stands before it's hit, not after. */}
+      {!allowance.isPro && !isLoading ? (
+        <TouchableOpacity
+          onPress={allowance.openPaywall}
+          style={styles.planRow}
+          accessibilityRole="button"
+          accessibilityLabel={`Free plan, ${Math.min(allowance.total, allowance.limit)} of ${allowance.limit} items used. Get Pro for an unlimited wallet`}
+        >
+          <Text style={[styles.planText, { color: colors.text.tertiary }]}>
+            {`FREE PLAN · ${Math.min(allowance.total, allowance.limit)} OF ${allowance.limit} ITEMS`}
+          </Text>
+          <Text style={[styles.planLink, { color: colors.brand.purple }]}>Get unlimited</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* Segmented control */}
       <View style={styles.segments}>
@@ -206,6 +229,15 @@ export default function WalletHubScreen() {
 }
 
 const styles = StyleSheet.create({
+  planRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing['5'],
+    minHeight: 44,
+  },
+  planText: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.08 * FontSize.xs },
+  planLink: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   container: { flex: 1 },
   scroll: { flex: 1 },
   segments: {

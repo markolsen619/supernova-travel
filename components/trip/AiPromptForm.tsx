@@ -18,6 +18,8 @@ import { DateRangeField } from '@/components/ui/DateRangeField';
 import { VISIBILITY_ICONS, type PhosphorIcon } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useProGate } from '@/hooks/useProGate';
+import { Badge } from '@/components/ui/Badge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,6 +103,7 @@ export function AiPromptForm({
   onPlaceSelect,
 }: AiPromptFormProps) {
   const { colors } = useTheme();
+  const { isPro, openPaywall } = useProGate();
   const [pickerVisible, setPickerVisible] = useState(false);
   // Today, fixed for the life of the form — a trip generated now can't start yesterday.
   const [today] = useState(() => new Date());
@@ -214,10 +217,25 @@ export function AiPromptForm({
       {isPlaceSelected && (
         <View style={styles.field}>
           <Text style={[styles.label, { color: colors.text.secondary }]}>Additional destinations (optional)</Text>
-          <DestinationListEditor
-            destinations={additionalDestinations}
-            onChange={onAdditionalDestinationsChange}
-          />
+          {isPro ? (
+            <DestinationListEditor
+              destinations={additionalDestinations}
+              onChange={onAdditionalDestinationsChange}
+            />
+          ) : (
+            // Multi-city trips are Pro (enforced by generateTrip too).
+            <TouchableOpacity
+              style={[styles.pickerBtn, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
+              onPress={openPaywall}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Add another city. Pro feature"
+            >
+              <MapPin size={16} color={colors.text.tertiary} weight="regular" />
+              <Text style={[styles.pickerBtnText, { color: colors.text.secondary }]}>Add another city</Text>
+              <Badge variant="pro" />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 

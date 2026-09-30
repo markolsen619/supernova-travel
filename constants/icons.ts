@@ -10,6 +10,8 @@ import {
   MagnifyingGlass,
   User,
   Sparkle,
+  UsersThree,
+  MapTrifold,
   Bell,
   Bag,
   Star,
@@ -59,12 +61,14 @@ export const PAYWALL_FEATURE_ICONS: Array<{
   label: string;
   description: string;
 }> = [
-  // Only what Pro actually unlocks. The wallet itself is free for everyone, and
-  // there is no support tier, so neither is listed: a paywall that sells
-  // features that don't exist is an App Store rejection (guideline 2.3.1).
-  { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI trips',        description: 'Plan as many itineraries as you like, not one a month' },
-  { Icon: Bell,        color: '#fbbf24', label: 'Flight alerts',             description: 'Boarding, landing and cancellation alerts'          },
-  { Icon: Bag,         color: '#34d399', label: 'Unlimited booking imports', description: 'Add confirmations to your wallet with no yearly cap' },
+  // Only what Pro actually unlocks — the same rules as utils/proFeatures and
+  // the server gates. A paywall selling features that don't exist is an App
+  // Store rejection (guideline 2.3.1).
+  { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI trips', description: 'Plan as many itineraries as you like, not one a month' },
+  { Icon: MapTrifold,  color: '#60a5fa', label: 'Multi-city trips',   description: 'Let AI route a trip through several cities and countries' },
+  { Icon: UsersThree,  color: '#f472b6', label: 'Travel together',    description: 'Invite friends to plan, split a budget and share a packing list' },
+  { Icon: Bag,         color: '#34d399', label: 'Unlimited wallet',   description: 'Every pass, booking and loyalty card, plus AI import from confirmations' },
+  { Icon: Bell,        color: '#fbbf24', label: 'Flight alerts',      description: 'Boarding, landing and cancellation alerts' },
 ];
 
 export const EXPENSE_ICONS: Record<ExpenseCategory, IconEntry> = {

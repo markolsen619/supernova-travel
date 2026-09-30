@@ -38,8 +38,20 @@ describe('LOYALTY_ICONS', () => {
 });
 
 describe('PAYWALL_FEATURE_ICONS', () => {
-  it('has 3 entries each with Icon, color, label, description', () => {
-    expect(PAYWALL_FEATURE_ICONS).toHaveLength(3);
+  it('sells exactly what Pro unlocks, in order', () => {
+    // Keep in step with utils/proFeatures and the server gates — a paywall
+    // selling a feature Pro doesn't unlock is an App Store 2.3.1 rejection.
+    expect(PAYWALL_FEATURE_ICONS.map((f) => f.label)).toEqual([
+      'Unlimited AI trips',
+      'Multi-city trips',
+      'Travel together',
+      'Unlimited wallet',
+      'Flight alerts',
+    ]);
+  });
+
+  it('has 5 entries each with Icon, color, label, description', () => {
+    expect(PAYWALL_FEATURE_ICONS).toHaveLength(5);
     PAYWALL_FEATURE_ICONS.forEach((f) => {
       expect(f.Icon).toBeDefined();
       expect(typeof f.color).toBe('string');

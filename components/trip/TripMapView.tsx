@@ -11,11 +11,14 @@ import {
   RasterDemSource,
   Terrain,
   Atmosphere,
+  Images,
+  Image as MapImage,
+  SymbolLayer,
   type LineLayerStyle,
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause } from 'phosphor-react-native';
+import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat } from 'phosphor-react-native';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -33,7 +36,8 @@ import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
-import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
+import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, zoomForLeg, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
+import { routeFeatures } from '@/utils/routeFeatures';
 import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive } from '@/utils/flyover';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -312,30 +316,13 @@ export function TripMapView({
     [actualMode, actualPath, actualStops, dayPaths, palette.actual],
   );
 
-  // flightIndex ties a line to the flyover; -1 = never flown. In Actual mode
-  // the planned days stay underneath, faded.
-  const routesCollection: GeoJSON.FeatureCollection = useMemo(() => {
-    const planned = dayPaths
-      .map((d, i) => ({ d, i }))
-      .filter(({ d }) => d.path.coordinates.length > 1)
-      .map(({ d, i }) => ({
-        type: 'Feature' as const,
-        geometry: { type: 'LineString' as const, coordinates: d.path.coordinates },
-        properties: { dayId: d.dayId, color: d.color, flightIndex: actualMode ? -1 : i, faded: actualMode },
-      }));
-    if (!actualMode || actualPath.coordinates.length < 2) return { type: 'FeatureCollection', features: planned };
-    return {
-      type: 'FeatureCollection',
-      features: [
-        ...planned,
-        {
-          type: 'Feature' as const,
-          geometry: { type: 'LineString' as const, coordinates: actualPath.coordinates },
-          properties: { dayId: 'actual', color: palette.actual, flightIndex: 0, faded: false },
-        },
-      ],
-    };
-  }, [dayPaths, actualMode, actualPath, palette.actual]);
+  // One line per leg (road, rail, ferry or flight). flightIndex ties a line
+  // to the flyover's sequence; -1 = never flown. In Actual mode the planned
+  // days stay underneath, faded.
+  const routesCollection: GeoJSON.FeatureCollection = useMemo(() => routeFeatures([
+    ...dayPaths.map((d, i) => ({ path: d.path, color: d.color, flightIndex: actualMode ? -1 : i, faded: actualMode })),
+    ...(actualMode ? [{ path: actualPath, color: palette.actual, flightIndex: 0, faded: false }] : []),
+  ]), [dayPaths, actualMode, actualPath, palette.actual]);
 
   // Markers are native views — only worth their cost close in. Tracked as a
   // boolean flipped at the threshold, not the live zoom, so a pinch doesn't
@@ -389,48 +376,116 @@ export function TripMapView({
     return () => cancelAnimationFrame(frame);
   }, [flyover.status, durations]);
 
-  // Camera follows the drawing head a few times a second; easeTo smooths between.
+  // Camera: settles on each day's first stop during its hold, then follows
+  // the drawing head once a second with a matching one-second glide — slow
+  // enough for tiles to load. Zoom and tilt come from the leg: close on a
+  // walk, pulled back so a whole flight, train or ferry ride fits.
   useEffect(() => {
     if (flyover.status !== 'playing') return;
     const day = flightPaths[flyover.dayIndex];
     if (!day || day.path.coordinates.length < 2) return;
-    const move = () => {
-      const { point, bearing } = pointAlongPath(day.path.coordinates, flyoverRef.current.progress);
+    const move = (durationMs: number) => {
+      const { progress } = flyoverRef.current;
+      const li = legAtProgress(day.path, progress);
+      const leg = day.path.legs[li];
+      if (!leg) return;
+      const legCoords = day.path.coordinates.slice(leg.from, leg.to + 1);
+      const span = leg.endFraction - leg.startFraction || 1;
+      const t = Math.min(1, Math.max(0, (progress - leg.startFraction) / span));
+      const { point, bearing } = pointAlongPath(legCoords, t);
+      const airborne = leg.travel === 'flight';
       cameraRef.current?.setCamera({
         centerCoordinate: point,
-        zoomLevel: 13.5,
-        pitch: 62,
-        heading: bearing,
-        animationDuration: 350,
+        zoomLevel: zoomForLeg(leg.travel, leg.meters),
+        pitch: airborne ? 40 : 58,
+        // A long flight is framed north-up; spinning the globe with its heading is dizzying.
+        heading: airborne ? 0 : bearing,
+        animationDuration: durationMs,
         animationMode: 'easeTo',
       });
     };
-    move();
-    const id = setInterval(move, 350);
+    move(1400);
+    const id = setInterval(() => move(1000), 1000);
     return () => clearInterval(id);
   }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef]);
 
-  // Route styles depend only on which day is flying — memoised so the
-  // flyover's per-tick re-render doesn't re-send them to the map.
-  const casingStyle = useMemo<LineLayerStyle>(() => ({
-    lineColor: ['get', 'color'],
-    lineWidth: 9,
-    lineOpacity: ['case', ['get', 'faded'], 0.06, flying ? ['case', ['<=', ['get', 'flightIndex'], flyover.dayIndex], 0.22, 0] : 0.22],
-    lineBlur: 4,
-    lineCap: 'round',
-    lineJoin: 'round',
-    lineEmissiveStrength: 1,
-    lineOcclusionOpacity: 0.6,
-  }), [flying, flyover.dayIndex]);
-  const lineStyle = useMemo<LineLayerStyle>(() => ({
-    lineColor: ['get', 'color'],
-    lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 3, 16, 6],
-    lineOpacity: ['case', ['get', 'faded'], 0.25, flying ? ['case', ['<', ['get', 'flightIndex'], flyover.dayIndex], 0.95, 0] : 0.95],
-    lineCap: 'round',
-    lineJoin: 'round',
-    lineEmissiveStrength: 1,
-    lineOcclusionOpacity: 0.6,
-  }), [flying, flyover.dayIndex]);
+  // The leg being drawn, and how far along it the head is.
+  const flyPath = flightPaths[flyover.dayIndex]?.path;
+  const curLeg = flying && flyPath ? legAtProgress(flyPath, flyover.progress) : -1;
+  const activeLeg = flyPath && curLeg >= 0 ? flyPath.legs[curLeg] : undefined;
+  const legT = activeLeg
+    ? Math.min(1, Math.max(0, (flyover.progress - activeLeg.startFraction) / (activeLeg.endFraction - activeLeg.startFraction || 1)))
+    : 0;
+
+  // Route styles change only at day and leg boundaries — memoised so the
+  // flyover's per-tick re-render doesn't re-send them to the map. While
+  // flying, earlier days and earlier legs of today are drawn; the rest wait.
+  const routeStyles = useMemo(() => {
+    const shown = flying
+      ? ['any',
+          ['<', ['get', 'flightIndex'], flyover.dayIndex],
+          ['all', ['==', ['get', 'flightIndex'], flyover.dayIndex], ['<', ['get', 'legIdx'], curLeg]]]
+      : true;
+    const opacity = (full: number, faded: number) =>
+      ['case', ['get', 'faded'], faded, flying ? ['case', shown, full, 0] : full];
+    const base = { lineColor: ['get', 'color'], lineEmissiveStrength: 1, lineOcclusionOpacity: 0.6 };
+    return {
+      casing: { ...base, lineWidth: 9, lineOpacity: opacity(0.22, 0.06), lineBlur: 4, lineCap: 'round', lineJoin: 'round' },
+      road: { ...base, lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 3, 16, 6], lineOpacity: opacity(0.95, 0.25), lineCap: 'round', lineJoin: 'round' },
+      // Rail: long dashes. Ferry: a dotted wake across the water.
+      rail: { ...base, lineWidth: 3.5, lineOpacity: opacity(0.95, 0.25), lineDasharray: [2, 1.2] },
+      ferry: { ...base, lineWidth: 4, lineOpacity: opacity(0.95, 0.25), lineDasharray: [0.2, 1.8], lineCap: 'round' },
+      // A flight's ground track, faint, under the lifted arc.
+      flightShadow: { ...base, lineWidth: 1.5, lineOpacity: opacity(0.35, 0.1), lineDasharray: [1, 2.5] },
+      // The arc itself rises off the ground: lineZOffset peaks at `alt` mid-leg.
+      flight: {
+        ...base,
+        lineWidth: 3,
+        lineOpacity: opacity(0.95, 0.25),
+        lineCap: 'round',
+        lineElevationReference: 'sea',
+        lineZOffset: ['*', ['get', 'alt'], 4, ['line-progress'], ['-', 1, ['line-progress']]],
+      },
+    // Built from composed expressions the Mapbox types can't follow; each
+    // is a valid style-spec expression (checked on device).
+    } as unknown as Record<'casing' | 'road' | 'rail' | 'ferry' | 'flightShadow' | 'flight', LineLayerStyle>;
+  }, [flying, flyover.dayIndex, curLeg]);
+
+  // Only the leg under the drawing head is trimmed, so each one draws itself
+  // in turn (lineTrimOffset hides [t, 1]; needs lineMetrics on the source).
+  const activeFilter = useMemo(
+    () => ['all', ['==', ['get', 'flightIndex'], flying ? flyover.dayIndex : -2], ['==', ['get', 'legIdx'], curLeg]],
+    [flying, flyover.dayIndex, curLeg],
+  );
+
+  // The vehicle riding the current leg — a plane, train or boat — rising and
+  // landing with the arc on a flight.
+  const vehicleCollection: GeoJSON.FeatureCollection = useMemo(() => {
+    // Flights only: a plane has to ride the lifted arc, which needs symbolZOffset.
+    if (!flying || !flyPath || !activeLeg || activeLeg.travel !== 'flight') {
+      return { type: 'FeatureCollection', features: [] };
+    }
+    const legCoords = flyPath.coordinates.slice(activeLeg.from, activeLeg.to + 1);
+    const { point, bearing } = pointAlongPath(legCoords, legT);
+    const z = activeLeg.travel === 'flight' ? flightAltitudeMeters(activeLeg.meters) * 4 * legT * (1 - legT) : 0;
+    return {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: point },
+        properties: { icon: `vehicle-${activeLeg.travel}`, bearing: activeLeg.travel === 'flight' ? bearing : 0, z },
+      }],
+    };
+  }, [flying, flyPath, activeLeg, legT]);
+
+  // Trains and ferries stay on the ground, so a native marker carries them —
+  // the same choice as the stop dots, which render reliably where point
+  // layers didn't in testing.
+  const groundVehicle = useMemo(() => {
+    if (!flying || !flyPath || !activeLeg || (activeLeg.travel !== 'train' && activeLeg.travel !== 'ferry')) return null;
+    const legCoords = flyPath.coordinates.slice(activeLeg.from, activeLeg.to + 1);
+    return { travel: activeLeg.travel, point: pointAlongPath(legCoords, legT).point };
+  }, [flying, flyPath, activeLeg, legT]);
 
   // Where each stop sits on its day's path, so it can appear as the line reaches it.
   const stopProgress = useMemo(() => {
@@ -824,21 +879,26 @@ export function TripMapView({
                 our own layers near-black. */}
             <LineLayer
               id="trip-routes-casing"
-              style={casingStyle}
+              filter={['in', ['get', 'travel'], ['literal', ['walk', 'drive']]]}
+              style={routeStyles.casing}
             />
             <LineLayer
               id="trip-routes-line"
               aboveLayerID="trip-routes-casing"
-              style={lineStyle}
+              filter={['in', ['get', 'travel'], ['literal', ['walk', 'drive']]]}
+              style={routeStyles.road}
             />
-            {/* The day being flown: drawn in its own colour up to the drawing
-                head (lineTrimOffset hides [progress, 1] — needs lineMetrics).
-                Always mounted, invisible when idle, so the flyover never adds
-                or removes layers mid-animation. */}
+            <LineLayer id="trip-routes-rail" aboveLayerID="trip-routes-line" filter={['==', ['get', 'travel'], 'train']} style={routeStyles.rail} />
+            <LineLayer id="trip-routes-ferry" aboveLayerID="trip-routes-rail" filter={['==', ['get', 'travel'], 'ferry']} style={routeStyles.ferry} />
+            <LineLayer id="trip-routes-flight-shadow" aboveLayerID="trip-routes-ferry" filter={['==', ['get', 'travel'], 'flight']} style={routeStyles.flightShadow} />
+            <LineLayer id="trip-routes-flight" aboveLayerID="trip-routes-flight-shadow" filter={['==', ['get', 'travel'], 'flight']} style={routeStyles.flight} />
+            {/* The leg being drawn. Always mounted, invisible when idle, so the
+                flyover never adds or removes layers mid-animation. A flight
+                draws its lifted arc; anything else draws along the ground. */}
             <LineLayer
               id="trip-routes-active"
-              aboveLayerID="trip-routes-line"
-              filter={['==', ['get', 'flightIndex'], flying ? flyover.dayIndex : -2]}
+              aboveLayerID="trip-routes-flight"
+              filter={['all', activeFilter, ['!=', ['get', 'travel'], 'flight']]}
               style={{
                 lineColor: ['get', 'color'],
                 lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 4, 16, 7],
@@ -847,11 +907,58 @@ export function TripMapView({
                 lineEmissiveStrength: 1,
                 lineOcclusionOpacity: 0.6,
                 lineOpacity: flying ? 1 : 0,
-                lineTrimOffset: [Math.min(1, flyover.progress), 1],
+                lineTrimOffset: [legT, 1],
+              }}
+            />
+            <LineLayer
+              id="trip-routes-active-flight"
+              aboveLayerID="trip-routes-active"
+              filter={['all', activeFilter, ['==', ['get', 'travel'], 'flight']]}
+              style={{
+                lineColor: ['get', 'color'],
+                lineWidth: 3.5,
+                lineCap: 'round',
+                lineEmissiveStrength: 1,
+                lineOpacity: flying ? 1 : 0,
+                lineElevationReference: 'sea',
+                lineZOffset: ['*', ['get', 'alt'], 4, ['line-progress'], ['-', 1, ['line-progress']]],
+                lineTrimOffset: [legT, 1],
               }}
             />
           </ShapeSource>
         )}
+
+        {/* Vehicle icons, rendered from the app's own Phosphor icons. */}
+        <Images>
+          <MapImage name="vehicle-flight">
+            <View collapsable={false} style={[styles.vehicle, { backgroundColor: palette.actual }]}>
+              <Airplane size={20} color="#ffffff" weight="fill" />
+            </View>
+          </MapImage>
+        </Images>
+        {groundVehicle ? (
+          <MarkerView coordinate={groundVehicle.point} allowOverlap>
+            <View style={[styles.vehicle, { backgroundColor: flyDay?.color ?? palette.days[0] }]}>
+              {groundVehicle.travel === 'train'
+                ? <Train size={20} color="#ffffff" weight="fill" />
+                : <Boat size={20} color="#ffffff" weight="fill" />}
+            </View>
+          </MarkerView>
+        ) : null}
+        <ShapeSource id="trip-vehicle" shape={vehicleCollection}>
+          <SymbolLayer
+            id="trip-vehicle-icon"
+            style={{
+              iconImage: ['get', 'icon'],
+              iconRotate: ['get', 'bearing'],
+              iconRotationAlignment: 'map',
+              iconAllowOverlap: true,
+              iconIgnorePlacement: true,
+              iconEmissiveStrength: 1,
+              symbolZOffset: ['get', 'z'],
+            }}
+          />
+        </ShapeSource>
 
         {pointsCollection.features.length > 0 && (
           <ShapeSource id="trip-stops" shape={pointsCollection}>
@@ -1279,6 +1386,15 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['2'],
   },
   headerRight: { flexDirection: 'row', gap: Spacing['2'] },
+  vehicle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
   modeSwitch: {
     position: 'absolute',
     alignSelf: 'center',

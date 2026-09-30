@@ -22,6 +22,7 @@ import { LOYALTY_ICONS } from '@/constants/icons';
 import { LoyaltyUnit, LoyaltyTier, LoyaltyProgram } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 
 type ProgramType = LoyaltyProgram['programType'];
 
@@ -58,6 +59,8 @@ export default function AddLoyaltyScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   const isEditMode = !!id;
+  // Free plan: two wallet items in total (utils/proFeatures). Edits are always allowed.
+  const allowance = useWalletAllowance();
   const existing = id ? loyaltyPrograms.find((p) => p.id === id) : undefined;
 
   const [programName, setProgramName] = useState('');
@@ -118,6 +121,10 @@ export default function AddLoyaltyScreen() {
         },
       );
     } else {
+      if (!allowance.canAdd) {
+        allowance.openPaywall();
+        return;
+      }
       addProgram.mutate(
         {
           ownerUid: uid,
@@ -133,7 +140,7 @@ export default function AddLoyaltyScreen() {
         },
       );
     }
-  }, [programName, programType, memberNumber, balanceText, unit, tier, expiryDate, uid, isEditMode, id, addProgram, updateProgram]);
+  }, [programName, programType, memberNumber, balanceText, unit, tier, expiryDate, uid, isEditMode, id, addProgram, updateProgram, allowance]);
 
   const inputStyle = [
     styles.input,

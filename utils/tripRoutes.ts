@@ -33,6 +33,20 @@ export interface MissingLeg {
   b: RouteStop;
 }
 
+/** How a leg is travelled — decides its route, its line style and its flyover vehicle. */
+export type Travel = 'walk' | 'drive' | 'flight' | 'train' | 'ferry';
+
+export interface PathLeg {
+  travel: Travel;
+  /** Inclusive indices into BuiltPath.coordinates. */
+  from: number;
+  to: number;
+  meters: number;
+  /** Where the leg starts and ends along the whole path, 0 → 1. */
+  startFraction: number;
+  endFraction: number;
+}
+
 export interface BuiltPath {
   /** [lng, lat], the whole path in order. */
   coordinates: [number, number][];
@@ -41,6 +55,7 @@ export interface BuiltPath {
   meters: number;
   /** Walking/driving legs with no cached route yet — drawn as arcs meanwhile. */
   missing: MissingLeg[];
+  legs: PathLeg[];
 }
 
 type LatLng = { lat: number; lng: number };
@@ -59,15 +74,32 @@ export function haversineMeters(a: LatLng, b: LatLng): number {
 }
 
 const WATER_CROSSING = /\b(ferry|boat|catamaran|cruise)\b/i;
+const RAIL = /\b(train|rail|railway|tram|metro)\b/i;
 
-export function legMode(a: RouteStop, b: RouteStop): LegMode {
-  if (a.type === 'flight' || b.type === 'flight') return 'arc';
+/**
+ * How a leg is travelled. Read from the stops' own wording first (the AI
+ * writes "Flight to Madrid", "Train to Sintra", "Ferry to Coronado"), then
+ * from distance: nothing over 400 km is driven.
+ */
+export function legTravel(a: RouteStop, b: RouteStop): Travel {
+  if (a.type === 'flight' || b.type === 'flight') return 'flight';
   for (const s of [a, b]) {
-    if (s.type === 'transport' && WATER_CROSSING.test(`${s.title} ${s.notes}`)) return 'arc';
+    if (s.type !== 'transport') continue;
+    const text = `${s.title} ${s.notes}`;
+    if (WATER_CROSSING.test(text)) return 'ferry';
+    if (RAIL.test(text)) return 'train';
   }
   const meters = haversineMeters(a, b);
-  if (meters > ARC_MIN_METERS) return 'arc';
-  return meters < WALK_MAX_METERS ? 'walking' : 'driving';
+  if (meters > ARC_MIN_METERS) return 'flight';
+  return meters < WALK_MAX_METERS ? 'walk' : 'drive';
+}
+
+/** Walks and drives are routed on real paths; everything else is an arc (no rail or sea routing). */
+export function legMode(a: RouteStop, b: RouteStop): LegMode {
+  const travel = legTravel(a, b);
+  if (travel === 'walk') return 'walking';
+  if (travel === 'drive') return 'driving';
+  return 'arc';
 }
 
 export function legKey(mode: LegMode, a: LatLng, b: LatLng): string {
@@ -130,15 +162,18 @@ function lineMeters(coords: [number, number][]): number {
 }
 
 export function buildPath(stops: RouteStop[], cache: LegCache): BuiltPath {
-  if (stops.length === 0) return { coordinates: [], stopFractions: [], meters: 0, missing: [] };
+  if (stops.length === 0) return { coordinates: [], stopFractions: [], meters: 0, missing: [], legs: [] };
   const coordinates: [number, number][] = [[stops[0].lng, stops[0].lat]];
   const stopMeters: number[] = [0];
   const missing: MissingLeg[] = [];
+  const legSpans: { travel: Travel; from: number; to: number; meters: number }[] = [];
   let meters = 0;
 
   for (let i = 1; i < stops.length; i++) {
     const a = stops[i - 1], b = stops[i];
+    const travel = legTravel(a, b);
     const mode = legMode(a, b);
+    const legFrom = coordinates.length - 1;
     const key = legKey(mode, a, b);
     const cached = cache[key];
     let leg: [number, number][];
@@ -168,10 +203,12 @@ export function buildPath(stops: RouteStop[], cache: LegCache): BuiltPath {
     }
     meters += legM;
     stopMeters.push(meters);
+    legSpans.push({ travel, from: legFrom, to: coordinates.length - 1, meters: legM });
   }
 
   const stopFractions = stopMeters.map((m) => (meters === 0 ? 0 : m / meters));
-  return { coordinates, stopFractions, meters, missing };
+  const legs = legSpans.map((l, i) => ({ ...l, startFraction: stopFractions[i], endFraction: stopFractions[i + 1] }));
+  return { coordinates, stopFractions, meters, missing, legs };
 }
 
 export function pointAlongPath(coords: [number, number][], t: number): { point: [number, number]; bearing: number } {
@@ -243,4 +280,28 @@ export function legsToFetch(missing: MissingLeg[], cache: LegCache, attempted: S
     if (!cache[m.key] && !attempted.has(m.key) && !byKey.has(m.key)) byKey.set(m.key, m);
   }
   return [...byKey.values()];
+}
+
+/** The leg the drawing head is on at progress t (0 → 1), or -1 for a path with no legs. */
+export function legAtProgress(path: BuiltPath, t: number): number {
+  if (path.legs.length === 0) return -1;
+  const i = path.legs.findIndex((l) => t < l.endFraction);
+  return i === -1 ? path.legs.length - 1 : i;
+}
+
+/** Cruising height for a flight arc drawn off the ground, in metres: higher for longer flights. */
+export function flightAltitudeMeters(meters: number): number {
+  return Math.round(Math.min(150_000, Math.max(3_000, meters * 0.06)));
+}
+
+/**
+ * Flyover camera zoom for a leg: close enough to read the streets on a walk,
+ * pulled back so a whole train, ferry or flight fits on screen — the camera
+ * outrunning the tiles at street zoom is what made the first flyover blur.
+ */
+export function zoomForLeg(travel: Travel, meters: number): number {
+  if (travel === 'walk') return 15;
+  const km = Math.max(0.5, meters / 1000);
+  if (travel === 'drive') return Math.min(14, Math.max(10, 15 - Math.log2(km / 2)));
+  return Math.min(9, Math.max(2.5, 11.5 - Math.log2(km / 10)));
 }

@@ -21,6 +21,7 @@ import { useParseTravelConfirmation } from '@/hooks/useParseTravelConfirmation';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
+import { useProGate } from '@/hooks/useProGate';
 
 function quotaLabel(
   quota: { limit: number | null; remaining: number | null; resetsAt: string | null } | undefined,
@@ -80,6 +81,7 @@ export default function ImportScreen() {
   }, []);
 
   const { requireConsent, consentSheet } = useAiConsentGate();
+  const { requirePro } = useProGate();
 
   const runImport = useCallback(async () => {
     if (isPending) return;
@@ -103,8 +105,9 @@ export default function ImportScreen() {
   // The confirmation is personal data, so nothing is sent to Gemini until the
   // user has allowed it (components/ai/AiConsentSheet.tsx).
   const handleImport = useCallback(() => {
-    requireConsent('import', runImport);
-  }, [requireConsent, runImport]);
+    // AI import is Pro; manual entry stays free (within the wallet allowance).
+    requirePro(() => requireConsent('import', runImport));
+  }, [requirePro, requireConsent, runImport]);
 
   const canImport = (text.trim().length > 0 || !!imageBase64) && !isPending;
   const label = quotaLabel(quota);
