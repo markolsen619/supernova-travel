@@ -1,0 +1,1065 @@
+[
+  {
+    "slug": "lisbon",
+    "name": "Lisbon",
+    "countryCode": "PT",
+    "countryName": "Portugal",
+    "continentChip": "europe",
+    "vibes": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 82,
+    "query": "Lisbon, Portugal",
+    "styles": [
+      "cultural",
+      "budget",
+      "family"
+    ]
+  },
+  {
+    "slug": "porto",
+    "name": "Porto",
+    "countryCode": "PT",
+    "countryName": "Portugal",
+    "continentChip": "europe",
+    "vibes": [
+      "food",
+      "culture"
+    ],
+    "popularity": 70,
+    "query": "Porto, Portugal",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "barcelona",
+    "name": "Barcelona",
+    "countryCode": "ES",
+    "countryName": "Spain",
+    "continentChip": "europe",
+    "vibes": [
+      "beaches",
+      "food",
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 90,
+    "query": "Barcelona, Spain",
+    "styles": [
+      "cultural",
+      "budget",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "madrid",
+    "name": "Madrid",
+    "countryCode": "ES",
+    "countryName": "Spain",
+    "continentChip": "europe",
+    "vibes": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 78,
+    "query": "Madrid, Spain",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "seville",
+    "name": "Seville",
+    "countryCode": "ES",
+    "countryName": "Spain",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "food"
+    ],
+    "popularity": 68,
+    "query": "Seville, Spain",
+    "styles": [
+      "cultural",
+      "family"
+    ]
+  },
+  {
+    "slug": "paris",
+    "name": "Paris",
+    "countryCode": "FR",
+    "countryName": "France",
+    "continentChip": "europe",
+    "vibes": [
+      "food",
+      "culture"
+    ],
+    "popularity": 98,
+    "query": "Paris, France",
+    "styles": [
+      "cultural",
+      "luxury",
+      "family"
+    ]
+  },
+  {
+    "slug": "amsterdam",
+    "name": "Amsterdam",
+    "countryCode": "NL",
+    "countryName": "Netherlands",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "nightlife",
+      "food"
+    ],
+    "popularity": 85,
+    "query": "Amsterdam, Netherlands",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "london",
+    "name": "London",
+    "countryCode": "GB",
+    "countryName": "United Kingdom",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "food",
+      "nightlife"
+    ],
+    "popularity": 97,
+    "query": "London, United Kingdom",
+    "styles": [
+      "cultural",
+      "family",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "edinburgh",
+    "name": "Edinburgh",
+    "countryCode": "GB",
+    "countryName": "United Kingdom",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "nature"
+    ],
+    "popularity": 66,
+    "query": "Edinburgh, United Kingdom",
+    "styles": [
+      "cultural",
+      "adventure"
+    ]
+  },
+  {
+    "slug": "dublin",
+    "name": "Dublin",
+    "countryCode": "IE",
+    "countryName": "Ireland",
+    "continentChip": "europe",
+    "vibes": [
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 64,
+    "query": "Dublin, Ireland",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "rome",
+    "name": "Rome",
+    "countryCode": "IT",
+    "countryName": "Italy",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "food"
+    ],
+    "popularity": 95,
+    "query": "Rome, Italy",
+    "styles": [
+      "cultural",
+      "family",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "florence",
+    "name": "Florence",
+    "countryCode": "IT",
+    "countryName": "Italy",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "food"
+    ],
+    "popularity": 80,
+    "query": "Florence, Italy",
+    "styles": [
+      "cultural",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "amalfi-coast",
+    "name": "Amalfi Coast",
+    "countryCode": "IT",
+    "countryName": "Italy",
+    "continentChip": "europe",
+    "vibes": [
+      "beaches",
+      "food",
+      "nature"
+    ],
+    "popularity": 76,
+    "query": "Amalfi, Italy",
+    "styles": [
+      "luxury",
+      "cultural"
+    ]
+  },
+  {
+    "slug": "venice",
+    "name": "Venice",
+    "countryCode": "IT",
+    "countryName": "Italy",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "food"
+    ],
+    "popularity": 84,
+    "query": "Venice, Italy",
+    "styles": [
+      "cultural",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "santorini",
+    "name": "Santorini",
+    "countryCode": "GR",
+    "countryName": "Greece",
+    "continentChip": "europe",
+    "vibes": [
+      "beaches",
+      "food"
+    ],
+    "popularity": 79,
+    "query": "Santorini, Greece",
+    "styles": [
+      "luxury",
+      "adventure"
+    ]
+  },
+  {
+    "slug": "athens",
+    "name": "Athens",
+    "countryCode": "GR",
+    "countryName": "Greece",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "food"
+    ],
+    "popularity": 74,
+    "query": "Athens, Greece",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "dubrovnik",
+    "name": "Dubrovnik",
+    "countryCode": "HR",
+    "countryName": "Croatia",
+    "continentChip": "europe",
+    "vibes": [
+      "beaches",
+      "culture"
+    ],
+    "popularity": 65,
+    "query": "Dubrovnik, Croatia",
+    "styles": [
+      "cultural",
+      "adventure"
+    ]
+  },
+  {
+    "slug": "prague",
+    "name": "Prague",
+    "countryCode": "CZ",
+    "countryName": "Czechia",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 77,
+    "query": "Prague, Czechia",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "vienna",
+    "name": "Vienna",
+    "countryCode": "AT",
+    "countryName": "Austria",
+    "continentChip": "europe",
+    "vibes": [
+      "culture",
+      "food"
+    ],
+    "popularity": 72,
+    "query": "Vienna, Austria",
+    "styles": [
+      "cultural",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "budapest",
+    "name": "Budapest",
+    "countryCode": "HU",
+    "countryName": "Hungary",
+    "continentChip": "europe",
+    "vibes": [
+      "nightlife",
+      "culture",
+      "food"
+    ],
+    "popularity": 73,
+    "query": "Budapest, Hungary",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "berlin",
+    "name": "Berlin",
+    "countryCode": "DE",
+    "countryName": "Germany",
+    "continentChip": "europe",
+    "vibes": [
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 75,
+    "query": "Berlin, Germany",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "copenhagen",
+    "name": "Copenhagen",
+    "countryCode": "DK",
+    "countryName": "Denmark",
+    "continentChip": "europe",
+    "vibes": [
+      "food",
+      "culture"
+    ],
+    "popularity": 63,
+    "query": "Copenhagen, Denmark",
+    "styles": [
+      "cultural",
+      "family"
+    ]
+  },
+  {
+    "slug": "reykjavik",
+    "name": "Reykjavík",
+    "countryCode": "IS",
+    "countryName": "Iceland",
+    "continentChip": "europe",
+    "vibes": [
+      "nature",
+      "adventure"
+    ],
+    "popularity": 67,
+    "query": "Reykjavik, Iceland",
+    "styles": [
+      "adventure",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "interlaken",
+    "name": "Swiss Alps (Interlaken)",
+    "countryCode": "CH",
+    "countryName": "Switzerland",
+    "continentChip": "europe",
+    "vibes": [
+      "adventure",
+      "nature"
+    ],
+    "popularity": 69,
+    "query": "Interlaken, Switzerland",
+    "styles": [
+      "adventure",
+      "luxury",
+      "family"
+    ]
+  },
+  {
+    "slug": "tokyo",
+    "name": "Tokyo",
+    "countryCode": "JP",
+    "countryName": "Japan",
+    "continentChip": "asia",
+    "vibes": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 96,
+    "query": "Tokyo, Japan",
+    "styles": [
+      "cultural",
+      "family",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "kyoto",
+    "name": "Kyoto",
+    "countryCode": "JP",
+    "countryName": "Japan",
+    "continentChip": "asia",
+    "vibes": [
+      "culture",
+      "food",
+      "nature"
+    ],
+    "popularity": 86,
+    "query": "Kyoto, Japan",
+    "styles": [
+      "cultural",
+      "family"
+    ]
+  },
+  {
+    "slug": "seoul",
+    "name": "Seoul",
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "continentChip": "asia",
+    "vibes": [
+      "food",
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 80,
+    "query": "Seoul, South Korea",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "bangkok",
+    "name": "Bangkok",
+    "countryCode": "TH",
+    "countryName": "Thailand",
+    "continentChip": "asia",
+    "vibes": [
+      "food",
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 88,
+    "query": "Bangkok, Thailand",
+    "styles": [
+      "budget",
+      "cultural"
+    ]
+  },
+  {
+    "slug": "chiang-mai",
+    "name": "Chiang Mai",
+    "countryCode": "TH",
+    "countryName": "Thailand",
+    "continentChip": "asia",
+    "vibes": [
+      "nature",
+      "food",
+      "adventure"
+    ],
+    "popularity": 66,
+    "query": "Chiang Mai, Thailand",
+    "styles": [
+      "adventure",
+      "budget"
+    ]
+  },
+  {
+    "slug": "bali",
+    "name": "Bali",
+    "countryCode": "ID",
+    "countryName": "Indonesia",
+    "continentChip": "asia",
+    "vibes": [
+      "beaches",
+      "nature",
+      "adventure"
+    ],
+    "popularity": 89,
+    "query": "Bali, Indonesia",
+    "styles": [
+      "adventure",
+      "luxury",
+      "budget"
+    ]
+  },
+  {
+    "slug": "singapore",
+    "name": "Singapore",
+    "countryCode": "SG",
+    "countryName": "Singapore",
+    "continentChip": "asia",
+    "vibes": [
+      "food",
+      "culture"
+    ],
+    "popularity": 81,
+    "query": "Singapore",
+    "styles": [
+      "family",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "hanoi",
+    "name": "Hanoi",
+    "countryCode": "VN",
+    "countryName": "Vietnam",
+    "continentChip": "asia",
+    "vibes": [
+      "food",
+      "culture"
+    ],
+    "popularity": 70,
+    "query": "Hanoi, Vietnam",
+    "styles": [
+      "budget",
+      "cultural"
+    ]
+  },
+  {
+    "slug": "ho-chi-minh-city",
+    "name": "Ho Chi Minh City",
+    "countryCode": "VN",
+    "countryName": "Vietnam",
+    "continentChip": "asia",
+    "vibes": [
+      "food",
+      "nightlife"
+    ],
+    "popularity": 64,
+    "query": "Ho Chi Minh City, Vietnam",
+    "styles": [
+      "budget",
+      "cultural"
+    ]
+  },
+  {
+    "slug": "hong-kong",
+    "name": "Hong Kong",
+    "countryCode": "HK",
+    "countryName": "Hong Kong",
+    "continentChip": "asia",
+    "vibes": [
+      "food",
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 78,
+    "query": "Hong Kong",
+    "styles": [
+      "cultural",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "new-york-city",
+    "name": "New York City",
+    "countryCode": "US",
+    "countryName": "United States",
+    "continentChip": "americas",
+    "vibes": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 99,
+    "query": "New York, United States",
+    "styles": [
+      "cultural",
+      "family",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "san-francisco",
+    "name": "San Francisco",
+    "countryCode": "US",
+    "countryName": "United States",
+    "continentChip": "americas",
+    "vibes": [
+      "food",
+      "culture",
+      "nature"
+    ],
+    "popularity": 80,
+    "query": "San Francisco, United States",
+    "styles": [
+      "cultural",
+      "adventure"
+    ]
+  },
+  {
+    "slug": "los-angeles",
+    "name": "Los Angeles",
+    "countryCode": "US",
+    "countryName": "United States",
+    "continentChip": "americas",
+    "vibes": [
+      "beaches",
+      "food",
+      "nightlife"
+    ],
+    "popularity": 85,
+    "query": "Los Angeles, United States",
+    "styles": [
+      "family",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "maui",
+    "name": "Maui",
+    "countryCode": "US",
+    "countryName": "United States",
+    "continentChip": "americas",
+    "vibes": [
+      "beaches",
+      "nature",
+      "adventure"
+    ],
+    "popularity": 78,
+    "query": "Maui, Hawaii, United States",
+    "styles": [
+      "adventure",
+      "luxury",
+      "family"
+    ]
+  },
+  {
+    "slug": "new-orleans",
+    "name": "New Orleans",
+    "countryCode": "US",
+    "countryName": "United States",
+    "continentChip": "americas",
+    "vibes": [
+      "food",
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 68,
+    "query": "New Orleans, United States",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "chicago",
+    "name": "Chicago",
+    "countryCode": "US",
+    "countryName": "United States",
+    "continentChip": "americas",
+    "vibes": [
+      "food",
+      "culture"
+    ],
+    "popularity": 70,
+    "query": "Chicago, United States",
+    "styles": [
+      "cultural",
+      "family"
+    ]
+  },
+  {
+    "slug": "vancouver",
+    "name": "Vancouver",
+    "countryCode": "CA",
+    "countryName": "Canada",
+    "continentChip": "americas",
+    "vibes": [
+      "nature",
+      "food"
+    ],
+    "popularity": 71,
+    "query": "Vancouver, Canada",
+    "styles": [
+      "adventure",
+      "family"
+    ]
+  },
+  {
+    "slug": "banff",
+    "name": "Banff",
+    "countryCode": "CA",
+    "countryName": "Canada",
+    "continentChip": "americas",
+    "vibes": [
+      "nature",
+      "adventure"
+    ],
+    "popularity": 72,
+    "query": "Banff, Canada",
+    "styles": [
+      "adventure",
+      "family"
+    ]
+  },
+  {
+    "slug": "mexico-city",
+    "name": "Mexico City",
+    "countryCode": "MX",
+    "countryName": "Mexico",
+    "continentChip": "americas",
+    "vibes": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 79,
+    "query": "Mexico City, Mexico",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "tulum",
+    "name": "Tulum",
+    "countryCode": "MX",
+    "countryName": "Mexico",
+    "continentChip": "americas",
+    "vibes": [
+      "beaches",
+      "nature"
+    ],
+    "popularity": 74,
+    "query": "Tulum, Mexico",
+    "styles": [
+      "adventure",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "baja-california-sur",
+    "name": "Baja California Sur",
+    "countryCode": "MX",
+    "countryName": "Mexico",
+    "continentChip": "americas",
+    "vibes": [
+      "beaches",
+      "adventure",
+      "nature"
+    ],
+    "popularity": 70,
+    "query": "Baja California Sur, Mexico",
+    "styles": [
+      "adventure",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "cartagena",
+    "name": "Cartagena",
+    "countryCode": "CO",
+    "countryName": "Colombia",
+    "continentChip": "americas",
+    "vibes": [
+      "beaches",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 66,
+    "query": "Cartagena, Colombia",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "cusco",
+    "name": "Cusco",
+    "countryCode": "PE",
+    "countryName": "Peru",
+    "continentChip": "americas",
+    "vibes": [
+      "adventure",
+      "culture",
+      "nature"
+    ],
+    "popularity": 73,
+    "query": "Cusco, Peru",
+    "styles": [
+      "adventure",
+      "cultural"
+    ]
+  },
+  {
+    "slug": "buenos-aires",
+    "name": "Buenos Aires",
+    "countryCode": "AR",
+    "countryName": "Argentina",
+    "continentChip": "americas",
+    "vibes": [
+      "food",
+      "nightlife",
+      "culture"
+    ],
+    "popularity": 72,
+    "query": "Buenos Aires, Argentina",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "rio-de-janeiro",
+    "name": "Rio de Janeiro",
+    "countryCode": "BR",
+    "countryName": "Brazil",
+    "continentChip": "americas",
+    "vibes": [
+      "beaches",
+      "nightlife",
+      "nature"
+    ],
+    "popularity": 82,
+    "query": "Rio de Janeiro, Brazil",
+    "styles": [
+      "adventure",
+      "budget"
+    ]
+  },
+  {
+    "slug": "patagonia",
+    "name": "Patagonia",
+    "countryCode": "AR",
+    "countryName": "Argentina",
+    "continentChip": "americas",
+    "vibes": [
+      "nature",
+      "adventure"
+    ],
+    "popularity": 62,
+    "query": "El Calafate, Argentina",
+    "styles": [
+      "adventure",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "marrakech",
+    "name": "Marrakech",
+    "countryCode": "MA",
+    "countryName": "Morocco",
+    "continentChip": "africa-middle-east",
+    "vibes": [
+      "culture",
+      "food"
+    ],
+    "popularity": 75,
+    "query": "Marrakech, Morocco",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "cape-town",
+    "name": "Cape Town",
+    "countryCode": "ZA",
+    "countryName": "South Africa",
+    "continentChip": "africa-middle-east",
+    "vibes": [
+      "nature",
+      "beaches",
+      "food",
+      "adventure"
+    ],
+    "popularity": 77,
+    "query": "Cape Town, South Africa",
+    "styles": [
+      "adventure",
+      "luxury",
+      "family"
+    ]
+  },
+  {
+    "slug": "cairo",
+    "name": "Cairo",
+    "countryCode": "EG",
+    "countryName": "Egypt",
+    "continentChip": "africa-middle-east",
+    "vibes": [
+      "culture"
+    ],
+    "popularity": 70,
+    "query": "Cairo, Egypt",
+    "styles": [
+      "cultural",
+      "family"
+    ]
+  },
+  {
+    "slug": "dubai",
+    "name": "Dubai",
+    "countryCode": "AE",
+    "countryName": "United Arab Emirates",
+    "continentChip": "africa-middle-east",
+    "vibes": [
+      "beaches",
+      "nightlife",
+      "food"
+    ],
+    "popularity": 84,
+    "query": "Dubai, United Arab Emirates",
+    "styles": [
+      "luxury",
+      "family"
+    ]
+  },
+  {
+    "slug": "istanbul",
+    "name": "Istanbul",
+    "countryCode": "TR",
+    "countryName": "Türkiye",
+    "continentChip": "africa-middle-east",
+    "vibes": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 86,
+    "query": "Istanbul, Türkiye",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "zanzibar",
+    "name": "Zanzibar",
+    "countryCode": "TZ",
+    "countryName": "Tanzania",
+    "continentChip": "africa-middle-east",
+    "vibes": [
+      "beaches",
+      "nature"
+    ],
+    "popularity": 60,
+    "query": "Zanzibar, Tanzania",
+    "styles": [
+      "luxury",
+      "adventure"
+    ]
+  },
+  {
+    "slug": "sydney",
+    "name": "Sydney",
+    "countryCode": "AU",
+    "countryName": "Australia",
+    "continentChip": "oceania",
+    "vibes": [
+      "beaches",
+      "food",
+      "nightlife"
+    ],
+    "popularity": 88,
+    "query": "Sydney, Australia",
+    "styles": [
+      "family",
+      "adventure",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "melbourne",
+    "name": "Melbourne",
+    "countryCode": "AU",
+    "countryName": "Australia",
+    "continentChip": "oceania",
+    "vibes": [
+      "food",
+      "culture",
+      "nightlife"
+    ],
+    "popularity": 75,
+    "query": "Melbourne, Australia",
+    "styles": [
+      "cultural",
+      "budget"
+    ]
+  },
+  {
+    "slug": "queenstown",
+    "name": "Queenstown",
+    "countryCode": "NZ",
+    "countryName": "New Zealand",
+    "continentChip": "oceania",
+    "vibes": [
+      "adventure",
+      "nature"
+    ],
+    "popularity": 73,
+    "query": "Queenstown, New Zealand",
+    "styles": [
+      "adventure",
+      "luxury"
+    ]
+  },
+  {
+    "slug": "fiji",
+    "name": "Fiji",
+    "countryCode": "FJ",
+    "countryName": "Fiji",
+    "continentChip": "oceania",
+    "vibes": [
+      "beaches",
+      "nature"
+    ],
+    "popularity": 64,
+    "query": "Nadi, Fiji",
+    "styles": [
+      "luxury",
+      "family"
+    ]
+  }
+]
