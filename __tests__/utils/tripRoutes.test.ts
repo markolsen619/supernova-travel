@@ -1,5 +1,5 @@
 import {
-  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath,
+  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath, markerStops, overviewDots,
   type RouteStop, type LegCache,
 } from '@/utils/tripRoutes';
 
@@ -123,5 +123,35 @@ describe('pointAlongPath', () => {
     expect(mid.point[0]).toBeCloseTo(0, 5);
     expect(mid.point[1]).toBeCloseTo(0.5, 2);
     expect(mid.bearing).toBeCloseTo(0, 0); // heading north
+  });
+});
+
+describe('markerStops', () => {
+  const many = Array.from({ length: 45 }, (_, i) => ({ id: `s${i}`, dayId: i < 5 ? 'd1' : 'd2' }));
+
+  it('shows none at overview zoom', () => {
+    expect(markerStops(10.9, many.slice(0, 3), null)).toEqual([]);
+  });
+
+  it('shows every stop close in when there are 40 or fewer', () => {
+    expect(markerStops(11, many.slice(0, 40), null)).toHaveLength(40);
+  });
+
+  it('past 40, shows only the selected day, or none without a selection', () => {
+    expect(markerStops(14, many, 'd1').map((s) => s.id)).toEqual(['s0', 's1', 's2', 's3', 's4']);
+    expect(markerStops(14, many, null)).toEqual([]);
+  });
+});
+
+describe('overviewDots', () => {
+  const stops = Array.from({ length: 41 }, (_, i) => ({ id: `s${i}`, dayId: 'd1' }));
+
+  it('draws every stop as a dot at overview when there are 40 or fewer', () => {
+    expect(overviewDots(false, stops.slice(0, 40))).toHaveLength(40);
+  });
+
+  it('draws none close in (markers take over) or past 40 stops (the circle layer does)', () => {
+    expect(overviewDots(true, stops.slice(0, 3))).toEqual([]);
+    expect(overviewDots(false, stops)).toEqual([]);
   });
 });

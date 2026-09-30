@@ -6,8 +6,11 @@ import {
   StyleImport,
   ShapeSource,
   CircleLayer,
-  SymbolLayer,
   LineLayer,
+  MarkerView,
+  RasterDemSource,
+  Terrain,
+  Atmosphere,
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -28,7 +31,9 @@ import { StopStateBubble } from '@/components/trip/StopStateBubble';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { SPRING } from '@/constants/motion';
-import { TripDay, TripActivity } from '@/types';
+import { TripDay, TripActivity, TripStatus } from '@/types';
+import { buildPath, markerStops, overviewDots, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
+import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -94,6 +99,10 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
   return { grounded, ungrounded };
 }
 
+function toRouteStop(s: GroundedStop): RouteStop {
+  return { id: s.activity.id, type: s.activity.type, title: s.activity.title, notes: s.activity.notes ?? '', lat: s.lat, lng: s.lng };
+}
+
 interface TripMapViewProps {
   tripId: string;
   tripTitle: string;
@@ -118,6 +127,10 @@ interface TripMapViewProps {
   /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
   currentActivityId?: string | null;
   onBack: () => void;
+  /** Owner or collaborator — only they fetch and cache missing routes. */
+  canEditRoutes: boolean;
+  tripStatus: TripStatus;
+  tripEndDate: Date | null;
 }
 
 export function TripMapView({
@@ -134,6 +147,7 @@ export function TripMapView({
   onOpenJournal,
   currentActivityId,
   onBack,
+  canEditRoutes,
 }: TripMapViewProps) {
   // Always-dark immersive screen (Architecture Rule 3) — the trip map is
   // atmosphere, not app chrome, so this hardcodes DarkColors rather than
@@ -193,7 +207,7 @@ export function TripMapView({
         geometry: { type: 'Point', coordinates: [stop.lng, stop.lat] },
         properties: {
           activityId: stop.activity.id,
-          color: ACTIVITY_ICONS[stop.activity.type].color,
+          color: stop.dayColor,
           stopNumber: stop.stopNumber,
           visited: stop.visited,
           isCurrent: stop.activity.id === currentActivityId,
@@ -203,38 +217,54 @@ export function TripMapView({
     [grounded, currentActivityId],
   );
 
-  // TM-2c: the signature "how far along" view — each day's path is broken
-  // into per-segment pieces (not one polyline per day) so the line itself
-  // can flip from traveled to upcoming exactly where the journey currently
-  // stands. A segment counts as traveled only when BOTH its endpoints are
-  // visited; touching even one not-yet-visited stop makes it upcoming. Still
-  // a straight connector between consecutive stops — a real routed path
-  // (roads, turn-by-turn) would need a directions-API call per day, a cost
-  // decision this doesn't make.
-  const routesCollection: GeoJSON.FeatureCollection = useMemo(() => {
+  // Each day's stops as one routed path. Legs follow real roads/footpaths
+  // once cached (hooks/useTripRoutes → Mapbox Directions, fetched once per
+  // leg, ever); until then, and for flights/ferries, they're smooth arcs.
+  const stopsByDay = useMemo(() => {
     const byDay = new Map<string, GroundedStop[]>();
-    grounded.forEach((stop) => {
-      const list = byDay.get(stop.dayId) ?? [];
-      list.push(stop);
-      byDay.set(stop.dayId, list);
-    });
-    const features: GeoJSON.Feature[] = [];
-    byDay.forEach((stops) => {
-      for (let i = 0; i < stops.length - 1; i++) {
-        const a = stops[i];
-        const b = stops[i + 1];
-        features.push({
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: [[a.lng, a.lat], [b.lng, b.lat]] },
-          properties: {
-            color: a.dayColor,
-            segmentType: a.visited && b.visited ? 'traveled' : 'upcoming',
-          },
-        });
-      }
-    });
-    return { type: 'FeatureCollection', features };
+    grounded.forEach((s) => byDay.set(s.dayId, [...(byDay.get(s.dayId) ?? []), s]));
+    return [...byDay.entries()];
   }, [grounded]);
+
+  // Built once against an empty cache only to learn which legs are missing.
+  const allMissing = useMemo(
+    () => stopsByDay.flatMap(([, stops]) => buildPath(stops.map(toRouteStop), {}).missing),
+    [stopsByDay],
+  );
+  const { cache } = useTripRoutes(tripId, allMissing, canEditRoutes);
+
+  const dayPaths = useMemo(
+    () => stopsByDay.map(([dayId, stops]) => ({
+      dayId,
+      color: stops[0].dayColor,
+      stops,
+      path: buildPath(stops.map(toRouteStop), cache),
+    })),
+    [stopsByDay, cache],
+  );
+
+  const routesCollection: GeoJSON.FeatureCollection = useMemo(() => ({
+    type: 'FeatureCollection',
+    features: dayPaths
+      .map((d, dayIndex) => ({ d, dayIndex }))
+      .filter(({ d }) => d.path.coordinates.length > 1)
+      .map(({ d, dayIndex }) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'LineString' as const, coordinates: d.path.coordinates },
+        properties: { dayId: d.dayId, dayIndex, color: d.color },
+      })),
+  }), [dayPaths]);
+
+  // Markers are native views — only worth their cost close in. Tracked as a
+  // boolean flipped at the threshold, not the live zoom, so a pinch doesn't
+  // re-render the map every frame.
+  const [closeIn, setCloseIn] = useState(false);
+  const handleCameraChanged = useCallback((state: { properties: { zoom: number } }) => {
+    const next = state.properties.zoom >= MARKER_MIN_ZOOM;
+    setCloseIn((prev) => (prev === next ? prev : next));
+  }, []);
+  const visibleMarkers = markerStops(closeIn ? MARKER_MIN_ZOOM : 0, grounded, selected?.dayId ?? null);
+  const visibleDots = overviewDots(closeIn, grounded);
 
   // Fits the camera to whatever's grounded — a single stop gets the same
   // deliberate zoom-14 framing used everywhere else for one place (a bounds
@@ -513,6 +543,7 @@ export function TripMapView({
         styleURL={STANDARD_STYLE}
         projection="mercator"
         onPress={handleMapPress}
+        onCameraChanged={handleCameraChanged}
         // Mapbox ToS requires the wordmark + attribution on-map
         logoEnabled
         logoPosition={{ bottom: 24, left: 8 }}
@@ -533,6 +564,12 @@ export function TripMapView({
             show3dBuildings: true,
           }}
         />
+        {/* 3D terrain and sky — part of the map load already paid for, so the
+            immersion costs nothing extra. */}
+        <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14}>
+          <Terrain style={{ exaggeration: 1.3 }} />
+        </RasterDemSource>
+        <Atmosphere style={{ range: [0.8, 8], horizonBlend: 0.12, starIntensity: 0.12 }} />
         <Camera
           ref={cameraRef}
           defaultSettings={{ centerCoordinate: INITIAL_COORDS, zoomLevel: INITIAL_ZOOM }}
@@ -543,60 +580,78 @@ export function TripMapView({
             curated, already-resolved trip stops, never a filter/style change
             to Standard's own POI layers and never raw unresolved Google data. */}
         {routesCollection.features.length > 0 && (
-          <ShapeSource id="trip-routes" shape={routesCollection}>
-            {/* Traveled: solid, full-strength — the "how far along" line.
-                Upcoming: dashed and lower-opacity, but the SAME day color
-                (not a separate muted palette) so it's still legible over
-                both a bright "day" preset and the dark "night" one — the
-                dash pattern itself, not opacity alone, carries the "not yet"
-                meaning. One LineLayer, data-driven on segmentType, so the
-                boundary between the two never has to be manually tracked. */}
+          <ShapeSource id="trip-routes" shape={routesCollection} lineMetrics>
+            {/* A soft wide casing under a crisp line reads as a glowing route
+                on both the day and night presets and over terrain. Emissive
+                strength 1 keeps Standard's dusk/night lighting from shading
+                our own layers near-black. */}
+            <LineLayer
+              id="trip-routes-casing"
+              style={{ lineColor: ['get', 'color'], lineWidth: 9, lineOpacity: 0.22, lineBlur: 4, lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1, lineOcclusionOpacity: 0.6 }}
+            />
             <LineLayer
               id="trip-routes-line"
-              style={{
-                lineColor: ['get', 'color'],
-                lineWidth: ['case', ['==', ['get', 'segmentType'], 'traveled'], 3.5, 2.5],
-                lineOpacity: ['case', ['==', ['get', 'segmentType'], 'traveled'], 0.9, 0.55],
-                lineDasharray: ['case', ['==', ['get', 'segmentType'], 'traveled'], ['literal', [1, 0]], ['literal', [2, 2]]],
-                lineCap: 'round',
-                lineJoin: 'round',
-              }}
+              aboveLayerID="trip-routes-casing"
+              style={{ lineColor: ['get', 'color'], lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 3, 16, 6], lineOpacity: 0.95, lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1, lineOcclusionOpacity: 0.6 }}
             />
           </ShapeSource>
         )}
 
         {pointsCollection.features.length > 0 && (
           <ShapeSource id="trip-stops" shape={pointsCollection}>
-            {/* Three pin states (TM-2b): planned = hollow (colored stroke,
-                transparent fill); current = hollow + a wider white ring —
-                "next up"; visited = solid fill, matching the timeline row's
-                filled treatment. */}
+            {/* Fallback dots for trips past MARKER_MAX_COUNT stops, and the
+                features tap handling finds by activityId. Smaller trips draw
+                their overview dots as native views below (overviewDots). */}
             <CircleLayer
               id="trip-stops-circle"
+              maxZoomLevel={MARKER_MIN_ZOOM}
               style={{
-                circleRadius: ['case', ['get', 'isCurrent'], 13, 11],
-                circleColor: ['case', ['get', 'visited'], ['get', 'color'], 'rgba(0,0,0,0)'],
-                circleStrokeWidth: ['case', ['get', 'isCurrent'], 3, ['get', 'visited'], 2, 2.5],
-                circleStrokeColor: ['case', ['get', 'visited'], '#ffffff', ['get', 'isCurrent'], '#ffffff', ['get', 'color']],
-              }}
-            />
-            {/* Order-within-day number, stacked on the circle — a dark halo
-                keeps white text legible regardless of fill/stroke color or
-                whether the pin is hollow (planned) or filled (visited). */}
-            <SymbolLayer
-              id="trip-stops-number"
-              style={{
-                textField: ['to-string', ['get', 'stopNumber']],
-                textSize: 11,
-                textColor: '#ffffff',
-                textHaloColor: 'rgba(0,0,0,0.55)',
-                textHaloWidth: 1,
-                textAllowOverlap: true,
-                textIgnorePlacement: true,
+                circleRadius: 6,
+                circleColor: ['get', 'color'],
+                circleStrokeWidth: 2,
+                circleStrokeColor: '#ffffff',
+                circleEmissiveStrength: 1,
               }}
             />
           </ShapeSource>
         )}
+
+        {visibleDots.map((stop) => (
+          <MarkerView key={`dot-${stop.activity.id}`} coordinate={[stop.lng, stop.lat]} allowOverlap>
+            <TouchableOpacity
+              onPress={() => selectOwnStop(stop)}
+              hitSlop={14}
+              accessibilityLabel={`Stop ${stop.stopNumber}: ${stop.activity.title}`}
+              style={[styles.dot, { backgroundColor: stop.dayColor }, stop.visited && styles.dotVisited]}
+            />
+          </MarkerView>
+        ))}
+
+        {visibleMarkers.map((stop) => {
+          const { Icon, color } = ACTIVITY_ICONS[stop.activity.type];
+          return (
+            <MarkerView key={stop.activity.id} coordinate={[stop.lng, stop.lat]} allowOverlap>
+              <TouchableOpacity
+                onPress={() => selectOwnStop(stop)}
+                accessibilityLabel={`Stop ${stop.stopNumber}: ${stop.activity.title}`}
+                style={[styles.marker, { borderColor: stop.dayColor, backgroundColor: colors.background.elevated }]}
+              >
+                <StopStateBubble
+                  Icon={Icon}
+                  color={color}
+                  visited={stop.visited}
+                  isCurrent={stop.activity.id === currentActivityId}
+                  bubbleSize={32}
+                  iconSize={18}
+                  surfaceColor={colors.background.elevated}
+                />
+                <View style={[styles.markerBadge, { backgroundColor: stop.dayColor }]}>
+                  <Text style={styles.markerBadgeText}>{stop.stopNumber}</Text>
+                </View>
+              </TouchableOpacity>
+            </MarkerView>
+          );
+        })}
       </MapView>
 
       {/* Header */}
@@ -766,6 +821,45 @@ export function TripMapView({
 }
 
 const styles = StyleSheet.create({
+  // A solid disc with a day-coloured ring — a bare bubble disappeared
+  // against dark 3D buildings.
+  marker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 3,
+    borderRadius: 24,
+    borderWidth: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#000000',
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  dotVisited: { width: 16, height: 16, borderRadius: 8 },
+  markerBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
+  markerBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: FontWeight.bold },
   container: { flex: 1, backgroundColor: DarkColors.background.primary },
 
   header: {

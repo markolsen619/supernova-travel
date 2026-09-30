@@ -945,6 +945,9 @@ export default function TripDetailScreen() {
           onToggleVisited={isOwner ? handleToggleVisited : undefined}
           onOpenJournal={handleOpenJournal}
           currentActivityId={currentActivityId}
+          canEditRoutes={isOwner || isCollaborator}
+          tripStatus={trip.status}
+          tripEndDate={trip.endDate ? trip.endDate.toDate() : null}
           onBack={() => {
             setViewMode('timeline');
             setFocusActivityId(null);

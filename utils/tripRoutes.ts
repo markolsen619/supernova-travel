@@ -183,3 +183,22 @@ export function pointAlongPath(coords: [number, number][], t: number): { point: 
   }
   return { point: coords[coords.length - 1], bearing: 0 };
 }
+
+/** Native marker views are costly: shown only close in, and past 40 stops only for the selected day. */
+export const MARKER_MIN_ZOOM = 11;
+export const MARKER_MAX_COUNT = 40;
+export function markerStops<T extends { dayId: string }>(zoom: number, stops: T[], selectedDayId: string | null): T[] {
+  if (zoom < MARKER_MIN_ZOOM) return [];
+  if (stops.length <= MARKER_MAX_COUNT) return stops;
+  return selectedDayId ? stops.filter((s) => s.dayId === selectedDayId) : [];
+}
+
+/**
+ * Stops drawn as small native dots at overview zoom. Native views rather than
+ * a CircleLayer, which drew nothing on the trip map in testing; past
+ * MARKER_MAX_COUNT the CircleLayer is the (cheaper) fallback.
+ */
+export function overviewDots<T>(closeIn: boolean, stops: T[]): T[] {
+  if (closeIn || stops.length > MARKER_MAX_COUNT) return [];
+  return stops;
+}
