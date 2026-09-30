@@ -279,6 +279,31 @@ service cloud.firestore {
         allow read: if canReadTrip();
         allow create, update, delete: if canWriteTrip();
       }
+
+      // Cached road/walking routes for the trip map — one doc, `cache`,
+      // holding every leg (hooks/useTripRoutes). Anyone who can see the trip
+      // can read its routes; only people who can edit it pay to fetch them.
+      match /routes/{docId} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        function canReadTrip() {
+          return parentTrip().data.visibility == 'public'
+            || isOwner(parentTrip().data.authorUid)
+            || (parentTrip().data.visibility == 'followers' && isFollowerOf(parentTrip().data.authorUid))
+            || request.auth.uid in parentTrip().data.collaborators;
+        }
+        function canWriteTrip() {
+          return isAuthed() && (
+            isOwner(parentTrip().data.authorUid)
+            || request.auth.uid in parentTrip().data.collaborators
+          );
+        }
+
+        allow read: if canReadTrip();
+        allow create, update: if canWriteTrip() && docId == 'cache';
+        allow delete: if false;
+      }
     }
 
     // Username claims — doc ID is the lowercase username, payload is the
