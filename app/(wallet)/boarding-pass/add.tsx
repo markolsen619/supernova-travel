@@ -22,6 +22,7 @@ import { combineDateAndTime } from '@/utils/date';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { BoardingPass } from '@/types';
+import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 
 interface FormState {
   airline: string;
@@ -57,6 +58,8 @@ export default function AddBoardingPassScreen() {
   const clearDraft = useImportDraftStore((s) => s.clearDraft);
 
   const isEditMode = !!id;
+  // Free plan: two wallet items in total (utils/proFeatures). Edits are always allowed.
+  const allowance = useWalletAllowance();
   const existing = id ? boardingPasses.find((p) => p.id === id) : undefined;
 
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
@@ -150,6 +153,10 @@ export default function AddBoardingPassScreen() {
         },
       );
     } else {
+      if (!allowance.canAdd) {
+        allowance.openPaywall();
+        return;
+      }
       addPass.mutate(
         {
           ownerUid: user.uid,
@@ -172,7 +179,7 @@ export default function AddBoardingPassScreen() {
         },
       );
     }
-  }, [form, user, tier, departureDate, departureTime, isEditMode, id, updatePass, addPass]);
+  }, [form, user, tier, departureDate, departureTime, isEditMode, id, updatePass, addPass, allowance]);
 
   const inputStyle = [
     styles.input,

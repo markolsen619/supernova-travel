@@ -56,6 +56,8 @@ import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
 import { tripPlaceLabel } from '@/utils/tripRegion';
 import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '@/utils/tripStatus';
+import { useProGate } from '@/hooks/useProGate';
+import { Badge } from '@/components/ui/Badge';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -288,6 +290,7 @@ export default function TripDetailScreen() {
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
+  const { isPro, requirePro } = useProGate();
   // Upcoming → Live → Completed from the trip's dates (utils/tripStatus).
   const tripStatus = trip
     ? displayStatus({ status: trip.status, startDate: toDateOrNull(trip.startDate), endDate: toDateOrNull(trip.endDate) }, new Date())
@@ -1169,14 +1172,16 @@ export default function TripDetailScreen() {
             <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setInviteVisible(true);
+                // Travelling together is Pro (inviteToTrip enforces it too).
+                requirePro(() => setInviteVisible(true));
               }}
               style={[styles.chip, { backgroundColor: colors.background.sunken }]}
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-              accessibilityLabel="Invite friends"
+              accessibilityLabel={isPro ? 'Invite friends' : 'Invite friends. Pro feature'}
             >
               <UsersThree size={13} color={colors.text.secondary} weight="duotone" />
               <Text style={[styles.chipText, { color: colors.text.primary }]}>Invite</Text>
+              {!isPro ? <Badge variant="pro" /> : null}
             </TouchableOpacity>
           )}
 

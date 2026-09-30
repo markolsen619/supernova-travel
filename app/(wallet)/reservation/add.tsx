@@ -23,6 +23,7 @@ import { RESERVATION_ICONS } from '@/constants/icons';
 import { ReservationType, Reservation } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 
 const RESERVATION_TYPES: { type: ReservationType; label: string }[] = [
   { type: 'hotel', label: 'Hotel' },
@@ -42,6 +43,8 @@ export default function AddReservationScreen() {
   const clearDraft = useImportDraftStore((s) => s.clearDraft);
 
   const isEditMode = !!id;
+  // Free plan: two wallet items in total (utils/proFeatures). Edits are always allowed.
+  const allowance = useWalletAllowance();
   const existing = id ? reservations.find((r) => r.id === id) : undefined;
 
   const [type, setType] = useState<ReservationType>('hotel');
@@ -121,6 +124,10 @@ export default function AddReservationScreen() {
         },
       );
     } else {
+      if (!allowance.canAdd) {
+        allowance.openPaywall();
+        return;
+      }
       addReservation.mutate(
         {
           ownerUid: uid,
@@ -137,7 +144,7 @@ export default function AddReservationScreen() {
         },
       );
     }
-  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation]);
+  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance]);
 
   const inputStyle = [
     styles.input,

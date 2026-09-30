@@ -102,7 +102,7 @@ export const parseTravelConfirmation = functions.https.onCall(
       if (yearlyCount >= FREE_TIER_YEARLY_IMPORT_LIMIT) {
         throw new functions.https.HttpsError(
           'resource-exhausted',
-          'Free tier limit: 1 wallet import per year. Upgrade to Pro for unlimited.'
+          'Importing bookings with AI is a Pro feature. You can still add them by hand.'
         );
       }
     }

@@ -32,7 +32,13 @@ export const PAID_TIER_MONTHLY_FAIR_USE_LIMIT = 30;
 /** @deprecated Free tier moved to a monthly window. Kept so an older client
  *  importing it still compiles; read aiTripQuotaPolicy() instead. */
 export const FREE_TIER_WEEKLY_AI_TRIP_LIMIT = 1;
-export const FREE_TIER_YEARLY_IMPORT_LIMIT = 1;
+/** AI import (parseTravelConfirmation) is Pro-only: free accounts get none. */
+export const FREE_TIER_YEARLY_IMPORT_LIMIT = 0;
+
+/** Multi-city AI trips (extra destinations) are Pro; a single city is free. */
+export function multiCityAllowed(tier: string | null | undefined, additionalDestinations: number): boolean {
+  return additionalDestinations === 0 || tier === 'pro' || tier === 'business';
+}
 
 /** Start of the current calendar week (Monday 00:00 UTC) — NOT a rolling 7-day window. */
 export function getWeekStart(): Date {

@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest, GeneratedTrip } from './types';
 import { resolveTripVisibility, resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES } from './promptRules';
-import { aiTripQuotaPolicy } from './quotaUtils';
+import { multiCityAllowed, aiTripQuotaPolicy } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
 export const generateTrip = functions.https.onCall(
@@ -26,6 +26,19 @@ export const generateTrip = functions.https.onCall(
     }
 
     const tier = userDoc.data()?.tier ?? 'free';
+
+    // Multi-city trips are Pro. Checked before the quota so a refusal never
+    // uses up the month's free trip. 'permission-denied' + this message is
+    // what the app turns into its paywall.
+    const extraDestinations = Array.isArray((request.data as GenerateTripRequest)?.additionalDestinations)
+      ? (request.data as GenerateTripRequest).additionalDestinations.length
+      : 0;
+    if (!multiCityAllowed(tier, extraDestinations)) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Multi-city trips are a Pro feature. Upgrade to plan a route through several places.',
+      );
+    }
 
     // Every tier is metered now, not just free — Gemini bills per call, so an
     // uncapped paid tier is an uncapped bill. Paid buys a shorter window
