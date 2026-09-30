@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Seeds the editorial destination catalog. Idempotent: re-run to fill gaps.
 //   node scripts/seed-destinations.mjs --dry-run          # plan only, no writes, no paid calls
-//   node scripts/seed-destinations.mjs --only lisbon      # one destination
+//   node scripts/seed-destinations.mjs --only lisbon      # one destination (or a comma-separated list)
 //   node scripts/seed-destinations.mjs --limit 2          # first N destinations
 //   node scripts/seed-destinations.mjs                    # everything, then aggregate
 //   node scripts/seed-destinations.mjs --reground --only lisbon  # re-place stops of existing editorial trips (no AI cost)
@@ -22,7 +22,8 @@ const lib = (m) => require(join(root, 'functions', 'lib', m));
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry-run');
 const REGROUND = args.includes('--reground');
-const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
+// One slug or a comma-separated list: --only lisbon,kyoto
+const only = args.includes('--only') ? new Set(args[args.indexOf('--only') + 1].split(',')) : null;
 const limit = args.includes('--limit') ? Number(args[args.indexOf('--limit') + 1]) : Infinity;
 
 function envFile(path) {
@@ -206,7 +207,11 @@ async function regroundDestination(entry) {
 
 const uid = await editorialUid();
 const gemini = new GoogleGenerativeAI(GEMINI).getGenerativeModel({ model: 'gemini-2.5-flash' });
-const targets = catalog.filter((e) => !only || e.slug === only).slice(0, limit);
+const targets = catalog.filter((e) => !only || only.has(e.slug)).slice(0, limit);
+if (only) {
+  const unknown = [...only].filter((slug) => !catalog.some((e) => e.slug === slug));
+  if (unknown.length) throw new Error(`Not in the catalog: ${unknown.join(', ')}`);
+}
 console.log(`${DRY ? '[dry run] ' : ''}Seeding ${targets.length} destination(s) as ${uid}`);
 for (const entry of targets) {
   console.log(`• ${entry.name}`);
