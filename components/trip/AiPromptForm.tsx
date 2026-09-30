@@ -13,9 +13,9 @@ import { TravelStyle, TripPace } from '@/types/ai';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { DestinationPicker } from '@/components/ui/DestinationPicker';
 import { DestinationListEditor } from '@/components/trip/DestinationListEditor';
-import { Destination } from '@/types';
+import { Destination, TripVisibility } from '@/types';
 import { DateRangeField } from '@/components/ui/DateRangeField';
-import type { PhosphorIcon } from '@/constants/icons';
+import { VISIBILITY_ICONS, type PhosphorIcon } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -32,12 +32,14 @@ export interface AiPromptFormProps {
   onEndDateChange: (d: Date | null) => void;
   travelStyles: TravelStyle[];
   pace: TripPace;
+  visibility: TripVisibility;
   mustSeeInput: string;
   preferences: string;
   onDestinationChange: (v: string) => void;
   onCountryCodeChange: (v: string) => void;
   onTravelStylesChange: (v: TravelStyle[]) => void;
   onPaceChange: (v: TripPace) => void;
+  onVisibilityChange: (v: TripVisibility) => void;
   onMustSeeChange: (v: string) => void;
   onPreferencesChange: (v: string) => void;
   destinationPlaceId?: string | null;
@@ -56,6 +58,15 @@ const TRAVEL_STYLES: { value: TravelStyle; label: string; Icon: PhosphorIcon }[]
 
 /** The generator's cap — generateTrip plans at most two weeks at a time. */
 export const MAX_AI_TRIP_DAYS = 14;
+
+// Followers first: it's the default, and the reason the choice exists —
+// AI trips used to be private with no way to say otherwise, so friends never
+// saw them on a profile.
+const VISIBILITY_OPTIONS: { value: TripVisibility; label: string; hint: string }[] = [
+  { value: 'followers', label: 'Followers', hint: 'People who follow you can see it' },
+  { value: 'public', label: 'Public', hint: 'Anyone can find it in Explore and Search' },
+  { value: 'private', label: 'Private', hint: 'Only you' },
+];
 
 const PACE_OPTIONS: { value: TripPace; label: string; hint: string }[] = [
   { value: 'relaxed', label: 'Relaxed', hint: 'Fewer stops, more downtime' },
@@ -76,12 +87,14 @@ export function AiPromptForm({
   onEndDateChange,
   travelStyles,
   pace,
+  visibility,
   mustSeeInput,
   preferences,
   onDestinationChange,
   onCountryCodeChange,
   onTravelStylesChange,
   onPaceChange,
+  onVisibilityChange,
   onMustSeeChange,
   onPreferencesChange,
   destinationPlaceId,
@@ -127,6 +140,11 @@ export function AiPromptForm({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onTravelStylesChange(selected ? travelStyles.filter((s) => s !== v) : [...travelStyles, v]);
   }, [travelStyles, onTravelStylesChange]);
+
+  const handleVisibilitySelect = useCallback((v: TripVisibility) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onVisibilityChange(v);
+  }, [onVisibilityChange]);
 
   const handlePaceSelect = useCallback((v: TripPace) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -274,6 +292,39 @@ export function AiPromptForm({
         </View>
         <Text style={[styles.hint, { color: colors.text.tertiary }]}>
           {PACE_OPTIONS.find((o) => o.value === pace)?.hint}
+        </Text>
+      </View>
+
+      {/* Visibility */}
+      <View style={styles.field}>
+        <Text style={[styles.label, { color: colors.text.secondary }]}>Who can see it</Text>
+        <View style={styles.styleGrid}>
+          {VISIBILITY_OPTIONS.map((option) => {
+            const active = visibility === option.value;
+            const { Icon, color } = VISIBILITY_ICONS[option.value];
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.stylePill,
+                  { backgroundColor: active ? `${colors.brand.purple}1F` : colors.background.card, borderColor: active ? colors.brand.purple : colors.background.cardBorder },
+                ]}
+                onPress={() => handleVisibilitySelect(option.value)}
+                activeOpacity={0.7}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
+                accessibilityLabel={`${option.label} visibility`}
+              >
+                <Icon size={16} color={active ? color : colors.text.secondary} weight={active ? 'duotone' : 'regular'} />
+                <Text style={[styles.styleLabel, { color: active ? colors.brand.purple : colors.text.secondary }]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <Text style={[styles.hint, { color: colors.text.tertiary }]}>
+          {VISIBILITY_OPTIONS.find((o) => o.value === visibility)?.hint}
         </Text>
       </View>
 

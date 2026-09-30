@@ -13,6 +13,8 @@ export interface GenerateTripRequest {
   /** Every style picked. Absent from clients older than 1.0.1 — see resolveTravelStyles(). */
   travelStyles?: GenerateTripRequest['travelStyle'][];
   pace: 'relaxed' | 'moderate' | 'packed';
+  /** Absent from clients older than 1.0.1 — see resolveTripVisibility(). */
+  visibility?: 'public' | 'followers' | 'private';
   mustSee: string[];
   preferences: string;
 }

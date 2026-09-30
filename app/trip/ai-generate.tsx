@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { AiPromptForm } from '@/components/trip/AiPromptForm';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { TravelStyle, TripPace } from '@/types/ai';
-import { Destination } from '@/types';
+import { Destination, TripVisibility } from '@/types';
 import { useAiTripQuota } from '@/hooks/useAiTripQuota';
 import { tripDayCount } from '@/utils/dateRange';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -72,6 +72,7 @@ export default function AiGenerateScreen() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [travelStyles, setTravelStyles] = useState<TravelStyle[]>(['adventure']);
   const [pace, setPace] = useState<TripPace>('moderate');
+  const [visibility, setVisibility] = useState<TripVisibility>('followers');
   const [mustSeeInput, setMustSeeInput] = useState('');
   const [preferences, setPreferences] = useState('');
 
@@ -114,6 +115,7 @@ export default function AiGenerateScreen() {
         travelStyle: travelStyles[0],
         travelStyles: travelStyles.join(','),
         pace,
+        visibility,
         mustSee: JSON.stringify(mustSee),
         preferences,
         startDate: startDate ? startDate.toISOString() : '',
@@ -181,6 +183,7 @@ export default function AiGenerateScreen() {
             onAdditionalDestinationsChange={setAdditionalDestinations}
             travelStyles={travelStyles}
             pace={pace}
+            visibility={visibility}
             mustSeeInput={mustSeeInput}
             preferences={preferences}
             startDate={startDate}
@@ -189,6 +192,7 @@ export default function AiGenerateScreen() {
             onCountryCodeChange={setCountryCode}
             onTravelStylesChange={setTravelStyles}
             onPaceChange={setPace}
+            onVisibilityChange={setVisibility}
             onMustSeeChange={setMustSeeInput}
             onPreferencesChange={setPreferences}
             onStartDateChange={setStartDate}

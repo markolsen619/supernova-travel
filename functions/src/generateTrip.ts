@@ -2,7 +2,7 @@ import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest, GeneratedTrip } from './types';
-import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES } from './promptRules';
+import { resolveTripVisibility, resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES } from './promptRules';
 import { aiTripQuotaPolicy } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
@@ -94,7 +94,7 @@ export const generateTrip = functions.https.onCall(
       additionalDestinations: data.additionalDestinations ?? [],
       startDate: data.startDate ? admin.firestore.Timestamp.fromDate(new Date(data.startDate)) : null,
       endDate: data.endDate ? admin.firestore.Timestamp.fromDate(new Date(data.endDate)) : null,
-      visibility: 'private' as const,
+      visibility: resolveTripVisibility(data.visibility),
       collaborators: [],
       budgetAmount: null,
       budgetCurrency: null,

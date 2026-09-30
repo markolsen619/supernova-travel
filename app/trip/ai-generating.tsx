@@ -19,7 +19,7 @@ import { DarkColors, LightColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
-import { parseTravelStyles } from '@/utils/travelStyles';
+import { parseTravelStyles, parseTripVisibility } from '@/utils/aiRouteParams';
 
 // ─── Status messages ──────────────────────────────────────────────────────────
 
@@ -63,6 +63,7 @@ export default function AiGeneratingScreen() {
     travelStyle: string;
     travelStyles: string;
     pace: string;
+    visibility: string;
     mustSee: string;
     preferences: string;
     startDate: string;
@@ -142,6 +143,7 @@ export default function AiGeneratingScreen() {
       durationDays: parseInt(params.durationDays ?? '7', 10),
       travelStyle: travelStyles[0],
       travelStyles,
+      visibility: parseTripVisibility(params.visibility),
       pace: (params.pace ?? 'moderate') as GenerateTripRequest['pace'],
       mustSee: (() => {
         try {

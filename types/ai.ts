@@ -1,3 +1,5 @@
+import type { TripVisibility } from '@/types';
+
 export type TravelStyle = 'adventure' | 'luxury' | 'budget' | 'family' | 'cultural';
 export type TripPace = 'relaxed' | 'moderate' | 'packed';
 
@@ -16,6 +18,8 @@ export interface GenerateTripRequest {
   /** Every style the traveler picked, at least one. */
   travelStyles: TravelStyle[];
   pace: TripPace;
+  /** Who can see the generated trip. A server older than 1.0.1 ignores it and saves private. */
+  visibility: TripVisibility;
   mustSee: string[];
   preferences: string;
 }

@@ -7,6 +7,17 @@ import type { GenerateTripRequest } from './types';
  */
 
 type TravelStyle = GenerateTripRequest['travelStyle'];
+type Visibility = NonNullable<GenerateTripRequest['visibility']>;
+
+/**
+ * Who can see the generated trip. The traveler picks it on the AI form
+ * (Followers by default, so friends see new trips on their profile). A
+ * client older than 1.0.1 sends nothing, and anything unrecognised is
+ * treated the same: private, the behaviour those clients were built for.
+ */
+export function resolveTripVisibility(v: unknown): Visibility {
+  return v === 'public' || v === 'followers' || v === 'private' ? v : 'private';
+}
 
 export const STYLE_RULES: Record<TravelStyle, string> = {
   adventure: 'Prioritize outdoor and active experiences (hiking, water sports, nature, thrill activities) over museums or shopping.',

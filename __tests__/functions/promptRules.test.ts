@@ -1,6 +1,6 @@
 // Relative path, not @/: functions/ is a separate npm package and
 // promptRules.ts imports no firebase-admin, so it is testable here.
-import { resolveTravelStyles, travelStyleSummary, travelStyleRules, VENUE_NAMING_RULES } from '../../functions/src/promptRules';
+import { resolveTripVisibility, resolveTravelStyles, travelStyleSummary, travelStyleRules, VENUE_NAMING_RULES } from '../../functions/src/promptRules';
 
 describe('resolveTravelStyles', () => {
   it('uses the list when a current client sends one', () => {
@@ -35,6 +35,18 @@ describe('travelStyleRules', () => {
     expect(text).toContain('- family:');
     expect(text).toContain('- cultural:');
     expect(text).toMatch(/blend/i);
+  });
+});
+
+describe('resolveTripVisibility', () => {
+  it('keeps the visibility the traveler picked', () => {
+    expect(resolveTripVisibility('followers')).toBe('followers');
+    expect(resolveTripVisibility('public')).toBe('public');
+  });
+
+  it('stays private when an older client sends none, or anything unexpected', () => {
+    expect(resolveTripVisibility(undefined)).toBe('private');
+    expect(resolveTripVisibility('everyone' as never)).toBe('private');
   });
 });
 
