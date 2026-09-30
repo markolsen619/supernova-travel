@@ -61,18 +61,28 @@ const report = { ok: [], skipped: [], failed: [] };
 async function editorialUid() {
   try {
     return (await admin.auth().getUserByEmail(EDITORIAL_EMAIL)).uid;
-  } catch {
-    if (DRY) return 'DRY-RUN-UID';
-    const user = await admin.auth().createUser({ email: EDITORIAL_EMAIL, emailVerified: true, displayName: 'Supernova', disabled: false });
-    const now = admin.firestore.FieldValue.serverTimestamp();
-    await db.doc(`users/${user.uid}`).set({
-      uid: user.uid, fullName: 'Supernova', displayName: 'Supernova', username: 'supernova', avatarUrl: null,
-      bio: 'Trips planned by the Supernova team.', location: '', followersCount: 0, followingCount: 0, tripsCount: 0,
-      isEditorial: true, hasSeenOnboarding: true, createdAt: now,
-    });
-    await db.doc('usernames/supernova').set({ uid: user.uid });
-    return user.uid;
+  } catch (err) {
+    // Anything but "no such user" (network, permissions) must not create a second account.
+    if (err?.code !== 'auth/user-not-found') throw err;
   }
+  if (DRY) return 'DRY-RUN-UID';
+  const user = await admin.auth().createUser({ email: EDITORIAL_EMAIL, emailVerified: true, displayName: 'Supernova', disabled: false });
+  // Claim the handle first: create() fails if a real user already holds it.
+  try {
+    await db.doc('usernames/supernova').create({ uid: user.uid });
+  } catch (err) {
+    throw new Error(`usernames/supernova is already taken (${err.code ?? err.message}); pick another editorial handle`);
+  }
+  // Same shape as services/profile.ts buildUserProfile, plus the editorial flag.
+  await db.doc(`users/${user.uid}`).set({
+    uid: user.uid, fullName: 'Supernova', displayName: 'Supernova', username: 'supernova', avatarUrl: null,
+    bio: 'Trips planned by the Supernova team.', location: '', tier: 'free',
+    followersCount: 0, followingCount: 0, tripsCount: 0,
+    settings: { theme: 'dark', notificationsEnabled: true, privacy: 'public' },
+    usage: { weeklyAiTrips: 0, weeklyResetAt: null },
+    isEditorial: true, hasSeenOnboarding: true, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return user.uid;
 }
 
 async function getJson(url, init) {
@@ -166,9 +176,11 @@ async function seedDestination(entry, uid, gemini) {
         else act.groundingFailedAt = now;
       }
     }
+    // One batch: a trip must never exist without its days (a crash between
+    // two writes left day-less trips that the idempotent re-run then skipped).
     const tripRef = db.collection('trips').doc();
-    await tripRef.set(docs.trip);
     const batch = db.batch();
+    batch.set(tripRef, docs.trip);
     for (const { day, activities } of docs.days) {
       const dayRef = tripRef.collection('days').doc();
       batch.set(dayRef, day);
@@ -206,6 +218,8 @@ async function regroundDestination(entry) {
 }
 
 const uid = await editorialUid();
+// runAggregation (below) only trusts isEditorial on this account's trips.
+process.env.EDITORIAL_UID = uid;
 const gemini = new GoogleGenerativeAI(GEMINI).getGenerativeModel({ model: 'gemini-2.5-flash' });
 const targets = catalog.filter((e) => !only || only.has(e.slug)).slice(0, limit);
 if (only) {
@@ -225,8 +239,10 @@ for (const entry of targets) {
   }
 }
 if (!DRY && report.ok.length) {
+  const tripsCount = (await db.collection('trips').where('authorUid', '==', uid).count().get()).data().count;
+  await db.doc(`users/${uid}`).update({ tripsCount });
   const r = await runAggregation();
-  console.log(`Aggregated: ${r.trips} trips, ${r.points} heat points`);
+  console.log(`Aggregated: ${r.trips} trips, ${r.points} heat points, ${r.retagged} retagged`);
 }
 console.log(`Done — ok: ${report.ok.length}, failed: ${report.failed.length}${report.failed.length ? ` (${report.failed.join(', ')})` : ''}`);
 process.exit(report.failed.length ? 1 : 0);

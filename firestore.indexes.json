@@ -323,6 +323,16 @@
           "queryScope": "COLLECTION_GROUP"
         }
       ]
+    },
+    {
+      "collectionGroup": "aggregates",
+      "fieldPath": "points",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "destinations",
+      "fieldPath": "topPlaces",
+      "indexes": []
     }
   ]
 }

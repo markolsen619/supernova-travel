@@ -96,3 +96,21 @@ export function buildHeatPoints(
   ];
   return all.sort((a, b) => b[2] - a[2]).slice(0, cap);
 }
+
+/**
+ * Editorial only when the flag is on a trip by the editorial account. The
+ * flag alone isn't trusted: firestore.rules keeps clients from writing it,
+ * and this keeps the functions safe even if that ever regresses.
+ */
+export function isEditorialTrip(trip: { isEditorial?: boolean; authorUid?: string }, editorialUid: string): boolean {
+  return !!editorialUid && trip.isEditorial === true && trip.authorUid === editorialUid;
+}
+
+/** The trip's destinations whose box contains this stop — so a Porto restaurant never counts toward Lisbon. */
+export function stopDestinationKeys(
+  stop: { lat: number; lng: number },
+  tripKeys: string[],
+  catalog: TaggableDestination[],
+): string[] {
+  return destinationKeysFor([stop], catalog.filter((d) => tripKeys.includes(d.slug)));
+}

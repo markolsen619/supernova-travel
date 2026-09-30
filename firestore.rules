@@ -23,6 +23,14 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/users/$(uid)/blocked/$(otherUid));
     }
 
+    // Server-owned trip fields: editorial status and destination tags drive
+    // every destination page and the heat map (discoveryFunctions.ts). Only
+    // the Admin SDK writes them — a user setting them on their own trip could
+    // plant it, and its stop names, on every destination page.
+    function touchesDiscoveryFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['isEditorial', 'destinationKeys']);
+    }
+
     // Set by onReportCreated once enough people report something. Only the
     // Admin SDK writes it, so an author can't un-hide their own post.
     function touchesModerationFlag() {
@@ -166,8 +174,8 @@ service cloud.firestore {
 
       allow read: if canRead();
       allow create: if isAuthed() && request.auth.uid == request.resource.data.authorUid
-        && !request.resource.data.keys().hasAny(['moderationHidden']);
-      allow update: if isAuthed() && !touchesModerationFlag() && (
+        && !request.resource.data.keys().hasAny(['moderationHidden', 'isEditorial', 'destinationKeys']);
+      allow update: if isAuthed() && !touchesModerationFlag() && !touchesDiscoveryFields() && (
         isOwner(resource.data.authorUid)
         || request.auth.uid in resource.data.collaborators
       );

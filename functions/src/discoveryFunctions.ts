@@ -3,10 +3,21 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
 import {
   destinationKeysFor, sameKeys, isAggregatable, rankTopPlaces, baselinePoints, buildHeatPoints,
+  isEditorialTrip, stopDestinationKeys,
   type TaggableDestination, type StopForRanking, type GeoBox,
 } from './discovery';
 
 const db = () => admin.firestore();
+/** functions/.env. Only this account's trips count as editorial (isEditorialTrip). */
+const editorialUid = () => process.env.EDITORIAL_UID ?? '';
+
+/** The tags a trip should carry: its destinations' catalog boxes, only while public. */
+function wantedKeys(trip: admin.firestore.DocumentData, catalog: TaggableDestination[]): string[] {
+  if (trip.visibility !== 'public') return [];
+  const points = [trip.destination, ...(trip.additionalDestinations ?? [])]
+    .map((d: { lat?: number | null; lng?: number | null }) => ({ lat: d?.lat ?? null, lng: d?.lng ?? null }));
+  return destinationKeysFor(points, catalog);
+}
 
 // The catalog barely changes; one read per warm instance, refreshed every 10 minutes.
 let catalogCache: { at: number; entries: (TaggableDestination & { popularity: number })[] } | null = null;
@@ -30,18 +41,11 @@ export const tagTripDestinations = onDocumentWritten('trips/{tripId}', async (ev
   const after = event.data?.after;
   if (!after?.exists) return;
   const trip = after.data()!;
-  const current = trip.destinationKeys as string[] | undefined;
   // Editorial trips are tagged at seed time with exactly their destination.
-  if (trip.isEditorial) return;
-
-  let next: string[] = [];
-  if (trip.visibility === 'public') {
-    const catalog = await loadCatalog();
-    const points = [trip.destination, ...(trip.additionalDestinations ?? [])]
-      .map((d: { lat?: number | null; lng?: number | null }) => ({ lat: d?.lat ?? null, lng: d?.lng ?? null }));
-    next = destinationKeysFor(points, catalog);
-  }
-  if (sameKeys(current, next)) return;
+  if (isEditorialTrip(trip, editorialUid())) return;
+  // Not public: no tags — and no catalog read in the common case.
+  const next = trip.visibility === 'public' ? wantedKeys(trip, await loadCatalog()) : [];
+  if (sameKeys(trip.destinationKeys as string[] | undefined, next)) return;
   await after.ref.update({ destinationKeys: next });
 });
 
@@ -54,39 +58,65 @@ export const aggregateDiscovery = onSchedule({ schedule: 'every day 04:00', time
   await runAggregation();
 });
 
-export async function runAggregation(): Promise<{ trips: number; points: number }> {
+export async function runAggregation(): Promise<{ trips: number; points: number; retagged: number }> {
   const catalog = await loadCatalog();
+  const ed = editorialUid();
   const tripsSnap = await db().collection('trips').where('visibility', '==', 'public').get();
-  const trips = tripsSnap.docs.filter((d) => isAggregatable(d.data()));
+
+  // Backfill: tag public trips the trigger never saw (created before it was
+  // deployed, or before their destination was seeded). Same rule as the trigger.
+  let retagged = 0;
+  const trips: { id: string; data: admin.firestore.DocumentData; ref: admin.firestore.DocumentReference }[] = [];
+  for (const d of tripsSnap.docs) {
+    const data = d.data();
+    if (!isEditorialTrip(data, ed)) {
+      const next = wantedKeys(data, catalog);
+      if (!sameKeys(data.destinationKeys as string[] | undefined, next)) {
+        await d.ref.update({ destinationKeys: next });
+        data.destinationKeys = next;
+        retagged += 1;
+      }
+    }
+    if (isAggregatable(data)) trips.push({ id: d.id, data, ref: d.ref });
+  }
 
   const stopsBySlug = new Map<string, StopForRanking[]>();
   const tripCount = new Map<string, { editorial: number; community: number }>();
   const community: { lat: number; lng: number; saves: number; likes: number }[] = [];
 
-  for (const t of trips) {
-    const data = t.data();
-    const saves = (data.savesCount as number) ?? 0;
-    const likes = (data.likesCount as number) ?? 0;
-    const keys = data.destinationKeys as string[];
-    for (const k of keys) {
-      const c = tripCount.get(k) ?? { editorial: 0, community: 0 };
-      if (data.isEditorial) c.editorial += 1; else c.community += 1;
-      tripCount.set(k, c);
-    }
-    const days = await t.ref.collection('days').get();
-    for (const day of days.docs) {
-      const acts = await day.ref.collection('activities').get();
-      for (const a of acts.docs) {
-        const act = a.data();
-        if (act.lat == null || act.lng == null) continue;
-        community.push({ lat: act.lat, lng: act.lng, saves, likes });
-        const stop: StopForRanking = {
-          placeId: act.placeId ?? null, name: act.placeName || act.title, type: act.type,
-          lat: act.lat, lng: act.lng, tripId: t.id, saves,
-        };
-        for (const k of keys) stopsBySlug.set(k, [...(stopsBySlug.get(k) ?? []), stop]);
+  // Trips in parallel, a few at a time; each trip's days in parallel too.
+  const CONCURRENCY = 8;
+  for (let i = 0; i < trips.length; i += CONCURRENCY) {
+    await Promise.all(trips.slice(i, i + CONCURRENCY).map(async (t) => {
+      const saves = (t.data.savesCount as number) ?? 0;
+      const likes = (t.data.likesCount as number) ?? 0;
+      const keys = t.data.destinationKeys as string[];
+      const editorial = isEditorialTrip(t.data, ed);
+      for (const k of keys) {
+        const c = tripCount.get(k) ?? { editorial: 0, community: 0 };
+        if (editorial) c.editorial += 1; else c.community += 1;
+        tripCount.set(k, c);
       }
-    }
+      const days = await t.ref.collection('days').get();
+      const activitySnaps = await Promise.all(days.docs.map((day) => day.ref.collection('activities').get()));
+      for (const acts of activitySnaps) {
+        for (const a of acts.docs) {
+          const act = a.data();
+          if (act.lat == null || act.lng == null) continue;
+          community.push({ lat: act.lat, lng: act.lng, saves, likes });
+          const stop: StopForRanking = {
+            placeId: act.placeId ?? null, name: act.placeName || act.title, type: act.type,
+            lat: act.lat, lng: act.lng, tripId: t.id, saves,
+          };
+          // Only the destination this stop is actually in (a multi-city trip
+          // must not put Porto restaurants on Lisbon's page).
+          for (const k of stopDestinationKeys(stop, keys, catalog)) {
+            const list = stopsBySlug.get(k);
+            if (list) list.push(stop); else stopsBySlug.set(k, [stop]);
+          }
+        }
+      }
+    }));
   }
 
   const now = admin.firestore.FieldValue.serverTimestamp();
@@ -104,5 +134,5 @@ export async function runAggregation(): Promise<{ trips: number; points: number 
   // Firestore can't store nested arrays: [lng, lat, weight] triples are flattened.
   batch.set(db().doc('aggregates/heatmap'), { points: points.flat(), stride: 3, updatedAt: now });
   await batch.commit();
-  return { trips: trips.length, points: points.length };
+  return { trips: trips.length, points: points.length, retagged };
 }

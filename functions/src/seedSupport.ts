@@ -78,6 +78,10 @@ const GENERIC = new Set([
   'the', 'and', 'of', 'at', 'de', 'da', 'do', 'dos', 'das', 'del', 'di', 'la', 'le', 'les', 'el', 'los', 'las',
   'restaurant', 'restaurante', 'ristorante', 'hotel', 'hostel', 'cafe', 'caffe', 'bar', 'pub', 'tavern', 'taberna',
   'main', 'store', 'shop', 'station', 'house', 'inn', 'grill', 'kitchen',
+  // Landmark words shared by countless places ("Park Hotel", "Tower Bar") —
+  // never enough on their own to say it's the same place.
+  'park', 'tower', 'museum', 'musee', 'museo', 'market', 'temple', 'garden', 'gardens', 'square',
+  'beach', 'palace', 'church', 'cathedral', 'bridge', 'castle', 'hall', 'center', 'centre',
 ]);
 
 function tokens(text: string): string[] {

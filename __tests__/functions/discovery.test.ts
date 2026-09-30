@@ -1,5 +1,6 @@
 import {
   destinationKeysFor, sameKeys, isAggregatable, rankTopPlaces, baselinePoints, buildHeatPoints,
+  isEditorialTrip, stopDestinationKeys,
 } from '../../functions/src/discovery';
 
 const tuscany = { slug: 'tuscany', bbox: { sw: [9.7, 42.2], ne: [12.4, 44.5] } as { sw: [number, number]; ne: [number, number] } };
@@ -98,5 +99,28 @@ describe('buildHeatPoints', () => {
     const many = Array.from({ length: 5000 }, (_, i) => ({ lat: i / 1000, lng: 0, saves: 0, likes: 0 }));
     expect(buildHeatPoints([[5, 5, 99]], many, 4000)).toHaveLength(4000);
     expect(buildHeatPoints([[5, 5, 99]], many, 4000)[0]).toEqual([5, 5, 99]);
+  });
+});
+
+describe('isEditorialTrip', () => {
+  it('trusts the flag only on trips by the editorial account', () => {
+    // A user setting isEditorial on their own trip must not be treated as editorial.
+    expect(isEditorialTrip({ isEditorial: true, authorUid: 'ED' }, 'ED')).toBe(true);
+    expect(isEditorialTrip({ isEditorial: true, authorUid: 'someone' }, 'ED')).toBe(false);
+    expect(isEditorialTrip({ authorUid: 'ED' }, 'ED')).toBe(false);
+    expect(isEditorialTrip({ isEditorial: true, authorUid: 'ED' }, '')).toBe(false);
+  });
+});
+
+describe('stopDestinationKeys', () => {
+  it('credits a stop only to the destinations it is actually in', () => {
+    // A Lisbon + Porto trip used to put Porto restaurants in Lisbon's top places.
+    const porto = { slug: 'porto', bbox: { sw: [-8.7, 41.1], ne: [-8.5, 41.2] } as { sw: [number, number]; ne: [number, number] } };
+    expect(stopDestinationKeys({ lat: 41.15, lng: -8.61 }, ['lisbon', 'porto'], [lisbon, porto])).toEqual(['porto']);
+    expect(stopDestinationKeys({ lat: 38.72, lng: -9.14 }, ['lisbon', 'porto'], [lisbon, porto])).toEqual(['lisbon']);
+  });
+
+  it('only credits destinations the trip is tagged with', () => {
+    expect(stopDestinationKeys({ lat: 38.72, lng: -9.14 }, ['porto'], [lisbon])).toEqual([]);
   });
 });

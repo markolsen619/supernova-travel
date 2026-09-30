@@ -57,3 +57,18 @@ describe('tripDocuments', () => {
     expect(d.trip).toMatchObject({ isEditorial: true, destinationKeys: ['lisbon'] });
   });
 });
+
+describe('tripDocuments with a partial stop', () => {
+  it('writes null for fields Gemini left out — Firestore rejects undefined and the trip was left without days', () => {
+    const partial = { ...generated, days: [{ dayNumber: 1, title: 'Day', notes: 'n', activities: [{ type: 'activity', title: 'Walk' }] }] };
+    const docs = tripDocuments('u1', request as never, partial as never, 'NOW');
+    const act = docs.days[0].activities[0];
+    for (const [k, v] of Object.entries(act)) expect([k, v]).not.toEqual([k, undefined]);
+    expect(act).toMatchObject({ address: null, cost: null, currency: null, startTime: null, endTime: null, searchQuery: null, notes: '' });
+  });
+
+  it('writes no undefined anywhere in the trip either', () => {
+    const docs = tripDocuments('u1', request as never, { title: 'T', days: [] } as never, 'NOW');
+    for (const [k, v] of Object.entries(docs.trip)) expect([k, v]).not.toEqual([k, undefined]);
+  });
+});

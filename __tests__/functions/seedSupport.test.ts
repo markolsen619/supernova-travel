@@ -89,3 +89,15 @@ describe('plausibleMatch', () => {
     expect(plausibleMatch('Gion Karyo, Kyoto', 'Kyoto Tower')).toBe(false);
   });
 });
+
+describe('plausibleMatch — landmark words', () => {
+  it('rejects a business that shares only a common landmark word', () => {
+    expect(plausibleMatch('Park Güell, Barcelona', 'Park Hotel')).toBe(false);
+    expect(plausibleMatch('Belem Tower, Lisbon', 'Tower Bar')).toBe(false);
+  });
+
+  it('accepts the landmark under its local name', () => {
+    expect(plausibleMatch('Louvre Museum, Paris', 'Musée du Louvre')).toBe(true);
+    expect(plausibleMatch('Park Güell, Barcelona', 'Park Güell')).toBe(true);
+  });
+});
