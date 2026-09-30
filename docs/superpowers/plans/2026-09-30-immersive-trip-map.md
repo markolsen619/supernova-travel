@@ -804,6 +804,154 @@ git add components/trip/TripMapView.tsx 'app/trip/[id].tsx' utils/tripRoutes.ts 
 git commit -m "feat: trip map with 3D terrain, real routes and stop markers"
 ```
 
+### Task 3b: Route colour palettes (personalisation)
+
+Added at the user's request after plan approval: let people choose the colours
+their trip routes are drawn in.
+
+**Files:**
+- Create: `constants/routePalettes.ts`, `stores/useMapStyleStore.ts`
+- Test: `__tests__/constants/routePalettes.test.ts`
+- Modify: `components/trip/TripMapView.tsx`
+
+**Interfaces:**
+- Produces:
+  - `type RoutePaletteId = 'aurora' | 'sunset' | 'ocean' | 'forest' | 'moonlight'`
+  - `interface RoutePalette { id: RoutePaletteId; label: string; days: string[]; actual: string }`
+  - `ROUTE_PALETTES: RoutePalette[]` (Aurora first — the default)
+  - `routePalette(id: string | null | undefined): RoutePalette` (unknown → Aurora)
+  - `dayRouteColor(palette: RoutePalette, dayIndex: number): string`
+  - `useMapStyleStore(): { paletteId: RoutePaletteId; setPaletteId(id: RoutePaletteId): void }` (persisted, AsyncStorage key `map-style-storage`)
+- Consumed by Tasks 4–5: the flyover's day colours and the actual route use `palette.days` / `palette.actual` instead of hard-coded hex.
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// __tests__/constants/routePalettes.test.ts
+import { ROUTE_PALETTES, routePalette, dayRouteColor } from '@/constants/routePalettes';
+
+// Relative luminance per WCAG; the map is dark (Standard "night"/"dusk" and 3D terrain),
+// so every route colour must stand well clear of it.
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+const contrastOnDark = (hex: string) => (luminance(hex) + 0.05) / (luminance('#0B0A12') + 0.05);
+
+describe('route palettes', () => {
+  it('offers five, with Aurora as the default', () => {
+    expect(ROUTE_PALETTES.map((p) => p.id)).toEqual(['aurora', 'sunset', 'ocean', 'forest', 'moonlight']);
+    expect(routePalette(undefined).id).toBe('aurora');
+    expect(routePalette('not-a-palette').id).toBe('aurora');
+  });
+
+  it('keeps every colour readable on the dark map (≥ 4.5:1)', () => {
+    for (const p of ROUTE_PALETTES) {
+      for (const c of [...p.days, p.actual]) expect(contrastOnDark(c)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('gives each palette at least six distinct day colours, cycling after that', () => {
+    for (const p of ROUTE_PALETTES) {
+      expect(new Set(p.days).size).toBeGreaterThanOrEqual(6);
+      expect(dayRouteColor(p, p.days.length)).toBe(p.days[0]);
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `npx jest --watchAll=false __tests__/constants/routePalettes.test.ts`
+Expected: FAIL — cannot find module.
+
+- [ ] **Step 3: Implement**
+
+```ts
+// constants/routePalettes.ts
+/**
+ * Colours a traveler can choose for their trip routes (TripMapView). Every
+ * colour clears 4.5:1 against the dark map — enforced by
+ * __tests__/constants/routePalettes.test.ts, so a new palette can't ship a
+ * line that disappears into the night preset.
+ */
+export type RoutePaletteId = 'aurora' | 'sunset' | 'ocean' | 'forest' | 'moonlight';
+
+export interface RoutePalette {
+  id: RoutePaletteId;
+  label: string;
+  /** One per day, cycling. */
+  days: string[];
+  /** The "trip you actually took" line. */
+  actual: string;
+}
+
+export const ROUTE_PALETTES: RoutePalette[] = [
+  { id: 'aurora', label: 'Aurora', days: ['#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fbbf24', '#c4b5fd', '#f9a8d4', '#93c5fd'], actual: '#f472b6' },
+  { id: 'sunset', label: 'Sunset', days: ['#fb923c', '#f472b6', '#facc15', '#f87171', '#fda4af', '#fdba74'], actual: '#fde047' },
+  { id: 'ocean', label: 'Ocean', days: ['#38bdf8', '#22d3ee', '#60a5fa', '#2dd4bf', '#a5f3fc', '#93c5fd'], actual: '#34d399' },
+  { id: 'forest', label: 'Forest', days: ['#4ade80', '#a3e635', '#34d399', '#facc15', '#86efac', '#bef264'], actual: '#fbbf24' },
+  { id: 'moonlight', label: 'Moonlight', days: ['#f5f3f9', '#c4b5fd', '#e9d5ff', '#cbd5e1', '#ddd6fe', '#e2e8f0'], actual: '#a78bfa' },
+];
+
+export function routePalette(id: string | null | undefined): RoutePalette {
+  return ROUTE_PALETTES.find((p) => p.id === id) ?? ROUTE_PALETTES[0];
+}
+
+export function dayRouteColor(palette: RoutePalette, dayIndex: number): string {
+  return palette.days[dayIndex % palette.days.length];
+}
+```
+
+If a colour fails the contrast test, lighten that colour — do not lower the threshold.
+
+```ts
+// stores/useMapStyleStore.ts
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import type { RoutePaletteId } from '@/constants/routePalettes';
+
+/** The traveler's chosen route colours — a per-device preference, like the theme. */
+interface MapStyleState {
+  paletteId: RoutePaletteId;
+  setPaletteId: (id: RoutePaletteId) => void;
+}
+
+export const useMapStyleStore = create<MapStyleState>()(
+  persist(
+    (set) => ({
+      paletteId: 'aurora',
+      setPaletteId: (paletteId) => set({ paletteId }),
+    }),
+    { name: 'map-style-storage', storage: createJSONStorage(() => AsyncStorage) },
+  ),
+);
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `npx jest --watchAll=false __tests__/constants/routePalettes.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Use the palette in `TripMapView`**
+
+- Delete `DAY_ROUTE_COLORS`. Change `collectStops(days)` to `collectStops(days, palette)` and set `dayColor: dayRouteColor(palette, dayIndex)`.
+- In the component: `const paletteId = useMapStyleStore((s) => s.paletteId); const palette = routePalette(paletteId);` and pass `palette` into `collectStops` (add it to that `useMemo`'s deps).
+- Header right slot becomes two 44pt circle buttons: the palette button (Phosphor `Palette`, `accessibilityLabel="Route colours"`) and the Play button from Task 4.
+- Palette picker: tapping the button toggles a row under the header on `colors.background.elevated` (radius 16, springs in with `SPRING`): one 44pt swatch per palette — a circle showing its first three day colours as segments, the palette name under it (11pt, `colors.text.secondary`), the chosen one ringed in `#ffffff` with `accessibilityState={{ selected: true }}`. Tap = Light haptic + `setPaletteId(id)`; the routes, dots, marker badges and day chips recolour immediately (they all read `dayColor`).
+
+- [ ] **Step 6: Verify and commit**
+
+Run: `npx jest --watchAll=false && npx tsc --noEmit -p .`
+Expected: pass; no type errors.
+
+```bash
+git add constants/routePalettes.ts stores/useMapStyleStore.ts __tests__/constants/routePalettes.test.ts components/trip/TripMapView.tsx
+git commit -m "feat: choose your route colours on the trip map"
+```
+
 ### Task 4: The flyover
 
 **Files:**
@@ -1148,7 +1296,7 @@ Expected: PASS.
 
 Add `actualPath.missing` to the `useTripRoutes` input: `const allMissing = useMemo(() => [...plannedMissing, ...buildPath(actualStops.map(toRouteStop), {}).missing], …)` so actual legs are fetched and cached too (shared keys dedupe naturally).
 
-Rendering in `actual` mode: planned routes at `lineOpacity: 0.25`; a separate `ShapeSource id="trip-actual"` with one feature (`actualPath.coordinates`), `LineLayer` in brand pink `#f472b6`, width 4.5, with the same casing treatment; markers show only visited stops. The flyover in actual mode treats the actual path as a single "day" (`dayPaths` replaced by `[{ dayId: 'actual', color: '#f472b6', stops: actualStops, path: actualPath }]`).
+Rendering in `actual` mode: planned routes at `lineOpacity: 0.25`; a separate `ShapeSource id="trip-actual"` with one feature (`actualPath.coordinates`), `LineLayer` in `palette.actual` (Task 3b), width 4.5, with the same casing treatment; markers show only visited stops. The flyover in actual mode treats the actual path as a single "day" (`dayPaths` replaced by `[{ dayId: 'actual', color: palette.actual, stops: actualStops, path: actualPath }]`).
 
 Segmented control under the header when `showModeSwitch`: two 44pt-tall pills "Planned" / "Actual" on `colors.background.elevated`, the active one filled `colors.brand.purple` with `colors.text.inverse`; Light haptic; switching dispatches `stop` and refits.
 
@@ -1158,7 +1306,7 @@ Totals card (actual mode, shown at rest and when the actual flyover finishes): e
 
 Run: `npx jest --watchAll=false && npx tsc --noEmit -p . && npm run lint`
 Expected: all suites pass; no type errors; 0 lint errors.
-Simulator: on a trip with a few stops marked visited, the switch appears; Actual draws the pink route over a faded plan; totals read correctly; Play replays the actual route. Shut the simulator down.
+Simulator: on a trip with a few stops marked visited, the switch appears; Actual draws the palette's actual-route colour over a faded plan; totals read correctly; Play replays the actual route. Shut the simulator down.
 
 ```bash
 git add utils/tripRoutes.ts __tests__/utils/tripRoutes.test.ts components/trip/TripMapView.tsx 'app/trip/[id].tsx'
