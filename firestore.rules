@@ -306,6 +306,17 @@ service cloud.firestore {
       }
     }
 
+    // Editorial destination catalog and its daily aggregates
+    // (functions/src/discoveryFunctions.ts). Written only by the Admin SDK.
+    match /destinations/{slug} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+    match /aggregates/{docId} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+
     // Username claims — doc ID is the lowercase username, payload is the
     // owning uid. Uniqueness is enforced structurally: a claim can only be
     // created (never updated), so taking over an existing username fails at
