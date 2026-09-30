@@ -10,27 +10,49 @@ export function parseDirectionsResponse(json: unknown): { polyline: string; mete
   return { polyline: r.geometry, meters: r.distance };
 }
 
+/** Mapbox codes that mean "there is no route here" — safe to remember as an arc. */
+const NO_ROUTE_CODES = new Set(['NoRoute', 'NoSegment', 'InvalidInput']);
+
+export type DirectionsOutcome =
+  | { kind: 'route'; polyline: string; meters: number }
+  | { kind: 'none' }
+  | { kind: 'retry' };
+
 /**
- * One leg from Mapbox Directions. Called once per leg ever — the result is
- * cached on the trip (hooks/useTripRoutes). Never throws: anything that
- * isn't a route becomes an arc, and the arc is cached too so an unroutable
- * leg (open water, no roads) isn't retried on every open.
+ * What a Directions response means for the cache. Only a definitive "no
+ * route" becomes a cached arc; anything temporary (rate limit, outage, bad
+ * token, empty body) is 'retry' and is never written, or one bad moment would
+ * turn a leg into a straight line for every viewer, permanently.
  */
-export async function fetchLeg(leg: MissingLeg): Promise<CachedLeg> {
-  const arc: CachedLeg = { mode: 'arc', polyline: null, meters: haversineMeters(leg.a, leg.b) };
-  if (!TOKEN) return arc;
+export function directionsOutcome(status: number, json: unknown): DirectionsOutcome {
+  const code = (json as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' && NO_ROUTE_CODES.has(code)) return { kind: 'none' };
+  if (status < 200 || status >= 300) return { kind: 'retry' };
+  const parsed = parseDirectionsResponse(json);
+  return parsed ? { kind: 'route', ...parsed } : { kind: 'retry' };
+}
+
+/**
+ * One leg from Mapbox Directions, or null when it should be retried later.
+ * Never throws. A definitive "no route" (open water, no roads) comes back as
+ * an arc so it's cached and not re-requested; temporary failures return null
+ * and are not cached.
+ */
+export async function fetchLeg(leg: MissingLeg): Promise<CachedLeg | null> {
+  if (!TOKEN) return null;
   const coords = `${leg.a.lng},${leg.a.lat};${leg.b.lng},${leg.b.lat}`;
   const url = `https://api.mapbox.com/directions/v5/mapbox/${leg.mode}/${coords}?geometries=polyline6&overview=simplified&access_token=${TOKEN}`;
   try {
     const res = await fetch(url);
-    if (!res.ok) {
-      console.error('[fetchLeg] HTTP', res.status);
-      return arc;
-    }
-    const parsed = parseDirectionsResponse(await res.json());
-    return parsed ? { mode: leg.mode, polyline: parsed.polyline, meters: parsed.meters } : arc;
+    let json: unknown = null;
+    try { json = await res.json(); } catch { json = null; }
+    const outcome = directionsOutcome(res.status, json);
+    if (outcome.kind === 'route') return { mode: leg.mode, polyline: outcome.polyline, meters: outcome.meters };
+    if (outcome.kind === 'none') return { mode: 'arc', polyline: null, meters: haversineMeters(leg.a, leg.b) };
+    console.warn('[fetchLeg] will retry later: HTTP', res.status);
+    return null;
   } catch (err) {
-    console.error('[fetchLeg] failed', err);
-    return arc;
+    console.warn('[fetchLeg] will retry later:', err);
+    return null;
   }
 }

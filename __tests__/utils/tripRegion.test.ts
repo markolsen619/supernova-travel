@@ -80,6 +80,12 @@ describe('tripPlaceLabel', () => {
     })).toBe('Paris, Lyon + 2 more');
   });
 
+  it('copes with a saved record that has no additionalDestinations', () => {
+    // Bookmarked posts and pre-multi-destination trip snapshots (useSavePost)
+    // lack the field; the Saved tab crashed rendering them.
+    expect(tripPlaceLabel({ destination: dest('Lisbon') } as never)).toBe('Lisbon');
+  });
+
   it('is just the destination for a single-stop trip', () => {
     expect(tripPlaceLabel({ destination: dest('Lisbon'), additionalDestinations: [] })).toBe('Lisbon');
   });

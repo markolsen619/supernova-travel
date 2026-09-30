@@ -11,6 +11,7 @@ import {
   RasterDemSource,
   Terrain,
   Atmosphere,
+  type LineLayerStyle,
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -33,7 +34,7 @@ import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
 import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
-import { flyoverReducer, dayDurationMs, initialFlyover } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive } from '@/utils/flyover';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
 import { useMapStyleStore } from '@/stores/useMapStyleStore';
@@ -356,7 +357,8 @@ export function TripMapView({
   const [flyover, dispatch] = useReducer(flyoverReducer, initialFlyover);
   const flyoverRef = useRef(flyover);
   flyoverRef.current = flyover;
-  const flying = flyover.status !== 'idle';
+  // Playing or paused only — a finished flyover hands the map back.
+  const flying = isFlyoverActive(flyover.status);
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
@@ -373,10 +375,14 @@ export function TripMapView({
     if (flyover.status !== 'playing') return;
     let frame = 0;
     let last = Date.now();
+    // ~30 ticks a second: smooth enough for a line growing over seconds,
+    // and half the re-renders of running on every frame.
     const loop = () => {
       const now = Date.now();
-      dispatch({ type: 'tick', dt: now - last, durations });
-      last = now;
+      if (now - last >= 33) {
+        dispatch({ type: 'tick', dt: now - last, durations });
+        last = now;
+      }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
@@ -403,6 +409,28 @@ export function TripMapView({
     const id = setInterval(move, 350);
     return () => clearInterval(id);
   }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef]);
+
+  // Route styles depend only on which day is flying — memoised so the
+  // flyover's per-tick re-render doesn't re-send them to the map.
+  const casingStyle = useMemo<LineLayerStyle>(() => ({
+    lineColor: ['get', 'color'],
+    lineWidth: 9,
+    lineOpacity: ['case', ['get', 'faded'], 0.06, flying ? ['case', ['<=', ['get', 'flightIndex'], flyover.dayIndex], 0.22, 0] : 0.22],
+    lineBlur: 4,
+    lineCap: 'round',
+    lineJoin: 'round',
+    lineEmissiveStrength: 1,
+    lineOcclusionOpacity: 0.6,
+  }), [flying, flyover.dayIndex]);
+  const lineStyle = useMemo<LineLayerStyle>(() => ({
+    lineColor: ['get', 'color'],
+    lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 3, 16, 6],
+    lineOpacity: ['case', ['get', 'faded'], 0.25, flying ? ['case', ['<', ['get', 'flightIndex'], flyover.dayIndex], 0.95, 0] : 0.95],
+    lineCap: 'round',
+    lineJoin: 'round',
+    lineEmissiveStrength: 1,
+    lineOcclusionOpacity: 0.6,
+  }), [flying, flyover.dayIndex]);
 
   // Where each stop sits on its day's path, so it can appear as the line reaches it.
   const stopProgress = useMemo(() => {
@@ -484,7 +512,10 @@ export function TripMapView({
 
   // Finished: pull back to the whole trip.
   useEffect(() => {
-    if (flyover.status === 'done') fitAllStops();
+    if (flyover.status === 'done') {
+      fitAllStops();
+      dispatch({ type: 'stop' });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on reaching 'done'
   }, [flyover.status]);
 
@@ -578,6 +609,8 @@ export function TripMapView({
   const selectOwnStop = useCallback(
     (stop: GroundedStop) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Tapping a stop takes the map back from a playing or paused flyover.
+      dispatch({ type: 'stop' });
       setSelected(stop);
       setTappedPlace(null);
       flyTo(stop.lng, stop.lat, 15.5);
@@ -791,12 +824,12 @@ export function TripMapView({
                 our own layers near-black. */}
             <LineLayer
               id="trip-routes-casing"
-              style={{ lineColor: ['get', 'color'], lineWidth: 9, lineOpacity: ['case', ['get', 'faded'], 0.06, flying ? ['case', ['<=', ['get', 'flightIndex'], flyover.dayIndex], 0.22, 0] : 0.22], lineBlur: 4, lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1, lineOcclusionOpacity: 0.6 }}
+              style={casingStyle}
             />
             <LineLayer
               id="trip-routes-line"
               aboveLayerID="trip-routes-casing"
-              style={{ lineColor: ['get', 'color'], lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 3, 16, 6], lineOpacity: ['case', ['get', 'faded'], 0.25, flying ? ['case', ['<', ['get', 'flightIndex'], flyover.dayIndex], 0.95, 0] : 0.95], lineCap: 'round', lineJoin: 'round', lineEmissiveStrength: 1, lineOcclusionOpacity: 0.6 }}
+              style={lineStyle}
             />
             {/* The day being flown: drawn in its own colour up to the drawing
                 head (lineTrimOffset hides [progress, 1] — needs lineMetrics).
@@ -850,7 +883,7 @@ export function TripMapView({
           </MarkerView>
         ))}
 
-        {(flying ? shownStops : visibleMarkers).filter(reached).map((stop) => {
+        {(flying ? markerStops(MARKER_MIN_ZOOM, shownStops, flyDay?.stops[0]?.dayId ?? null) : visibleMarkers).filter(reached).map((stop) => {
           const { Icon, color } = ACTIVITY_ICONS[stop.activity.type];
           const Wrap = flying ? SpringIn : View;
           return (

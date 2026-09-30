@@ -48,3 +48,8 @@ export function flyoverReducer(state: FlyoverState, action: FlyoverAction): Flyo
     }
   }
 }
+
+/** Whether the flyover owns the map: drawing, camera, bottom card. A finished one doesn't. */
+export function isFlyoverActive(status: FlyoverStatus): boolean {
+  return status === 'playing' || status === 'paused';
+}

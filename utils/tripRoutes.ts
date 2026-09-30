@@ -152,7 +152,20 @@ export function buildPath(stops: RouteStop[], cache: LegCache): BuiltPath {
       legM = cached?.meters ?? lineMeters(leg);
       if (!cached && mode !== 'arc' && haversineMeters(a, b) > 0) missing.push({ key, mode, a, b });
     }
-    coordinates.push(...leg.slice(1), [b.lng, b.lat]);
+    // Keep the path continuous across the antimeridian: shift the leg by a
+    // whole number of turns so it starts where the path already is (Mapbox
+    // draws longitudes past ±180 correctly). Appending the raw endpoint here
+    // used to add a 360° jump that drew a trans-Pacific flight round the world.
+    const last = coordinates[coordinates.length - 1];
+    const turn = Math.round((last[0] - leg[0][0]) / 360) * 360;
+    const shifted = leg.map(([x, y]) => [x + turn, y] as [number, number]);
+    coordinates.push(...shifted.slice(1));
+    // A routed polyline can stop a few metres short of the stop; end the leg on it.
+    const end = coordinates[coordinates.length - 1];
+    const bTurn = Math.round((end[0] - b.lng) / 360) * 360;
+    if (Math.abs(end[0] - (b.lng + bTurn)) > 1e-9 || Math.abs(end[1] - b.lat) > 1e-9) {
+      coordinates.push([b.lng + bTurn, b.lat]);
+    }
     meters += legM;
     stopMeters.push(meters);
   }
@@ -217,4 +230,17 @@ export function actualStopOrder<T extends { visited: boolean; visitedAt: { toMil
 export function actualViewAvailable(input: { status: TripStatus; endDate: Date | null; anyVisited: boolean; now: Date }): boolean {
   if (input.status === 'completed' || input.anyVisited) return true;
   return !!input.endDate && input.endDate.getTime() < input.now.getTime();
+}
+
+/**
+ * The legs to request now: not cached, not already tried this session, and
+ * each key once. Planned days and the actual route usually share legs, so the
+ * combined list has duplicates — without this each shared leg was billed twice.
+ */
+export function legsToFetch(missing: MissingLeg[], cache: LegCache, attempted: Set<string>): MissingLeg[] {
+  const byKey = new Map<string, MissingLeg>();
+  for (const m of missing) {
+    if (!cache[m.key] && !attempted.has(m.key) && !byKey.has(m.key)) byKey.set(m.key, m);
+  }
+  return [...byKey.values()];
 }

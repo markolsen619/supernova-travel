@@ -3,7 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { fetchLeg } from '@/services/mapboxDirections';
-import type { LegCache, MissingLeg } from '@/utils/tripRoutes';
+import { legsToFetch, type LegCache, type MissingLeg } from '@/utils/tripRoutes';
 
 /**
  * The trip's cached route legs, filling in any that are missing.
@@ -30,27 +30,30 @@ export function useTripRoutes(tripId: string, missing: MissingLeg[], canWrite: b
   const missingKey = missing.map((m) => m.key).join('|');
   useEffect(() => {
     if (!canWrite || isLoading) return;
-    const todo = missing.filter((m) => !cache[m.key] && !attempted.current.has(m.key));
+    const todo = legsToFetch(missing, cache, attempted.current);
     if (todo.length === 0) return;
     todo.forEach((m) => attempted.current.add(m.key));
 
-    let cancelled = false;
     (async () => {
-      const fetched: LegCache = {};
-      // Three at a time: fast enough for a week's itinerary, gentle on the API.
+      // Three at a time, and every batch is saved as soon as it lands —
+      // even if the map has been closed meanwhile. These requests are paid
+      // for; discarding their results on unmount meant paying again on the
+      // next open. Writes to the query cache and Firestore are safe after
+      // unmount. Temporary failures (null) are not cached, so they're
+      // retried on a later open.
       for (let i = 0; i < todo.length; i += 3) {
         const batch = await Promise.all(todo.slice(i, i + 3).map(async (m) => [m.key, await fetchLeg(m)] as const));
-        batch.forEach(([k, v]) => { fetched[k] = v; });
-      }
-      if (cancelled) return;
-      queryClient.setQueryData<LegCache>(queryKey, (old) => ({ ...(old ?? {}), ...fetched }));
-      try {
-        await setDoc(doc(db, 'trips', tripId, 'routes', 'cache'), { legs: fetched }, { merge: true });
-      } catch (err) {
-        console.error('[useTripRoutes] cache write failed', err);
+        const fetched: LegCache = {};
+        batch.forEach(([k, v]) => { if (v) fetched[k] = v; });
+        if (Object.keys(fetched).length === 0) continue;
+        queryClient.setQueryData<LegCache>(queryKey, (old) => ({ ...(old ?? {}), ...fetched }));
+        try {
+          await setDoc(doc(db, 'trips', tripId, 'routes', 'cache'), { legs: fetched }, { merge: true });
+        } catch (err) {
+          console.error('[useTripRoutes] cache write failed', err);
+        }
       }
     })();
-    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the set of missing legs, not array identity
   }, [missingKey, canWrite, isLoading, tripId]);
 

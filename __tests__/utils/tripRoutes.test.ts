@@ -1,5 +1,5 @@
 import {
-  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath, markerStops, overviewDots, actualStopOrder, actualViewAvailable,
+  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath, markerStops, overviewDots, actualStopOrder, actualViewAvailable, legsToFetch,
   type RouteStop, type LegCache,
 } from '@/utils/tripRoutes';
 
@@ -104,6 +104,32 @@ describe('buildPath', () => {
     expect(buildPath([a], {})).toEqual({ coordinates: [[a.lng, a.lat]], stopFractions: [0], meters: 0, missing: [] });
   });
 
+  it('keeps a trans-Pacific leg on the short side of the planet', () => {
+    // Fiji → Hawaii crosses the antimeridian. The raw endpoint used to be
+    // appended after the unwrapped arc, a 360° jump that drew the line round
+    // the whole world and sent the flyover camera over Africa.
+    const fiji = stop('fiji', -17.7, 178.0, { type: 'flight' });
+    const hawaii = stop('hi', 21.3, -157.8);
+    const path = buildPath([fiji, hawaii], {});
+    for (let i = 1; i < path.coordinates.length; i++) {
+      expect(Math.abs(path.coordinates[i][0] - path.coordinates[i - 1][0])).toBeLessThan(180);
+    }
+    const mid = pointAlongPath(path.coordinates, 0.5).point[0];
+    // Midway is out over the Pacific near ±180°, never 45°E: normalised to
+    // [-180, 180), its distance from 0° must be large.
+    expect(Math.abs(((mid + 540) % 360) - 180)).toBeGreaterThan(155);
+  });
+
+  it('keeps later legs continuous after crossing the antimeridian', () => {
+    const fiji = stop('fiji', -17.7, 178.0, { type: 'flight' });
+    const hawaii = stop('hi', 21.3, -157.8);
+    const beach = stop('beach', 21.28, -157.83); // a short hop on Oahu
+    const path = buildPath([fiji, hawaii, beach], {});
+    for (let i = 1; i < path.coordinates.length; i++) {
+      expect(Math.abs(path.coordinates[i][0] - path.coordinates[i - 1][0])).toBeLessThan(180);
+    }
+  });
+
   it('never requests a zero-length leg', () => {
     const same = stop('same', a.lat, a.lng);
     expect(buildPath([a, same], {}).missing).toEqual([]);
@@ -189,5 +215,20 @@ describe('actualViewAvailable', () => {
 
   it('stays hidden for a future trip with nothing visited', () => {
     expect(actualViewAvailable({ status: 'planning', endDate: new Date(2026, 9, 20), anyVisited: false, now })).toBe(false);
+  });
+});
+
+describe('legsToFetch', () => {
+  const a = stop('a', 38.70, -9.14);
+  const b = stop('b', 38.80, -9.30);
+  const leg = { key: legKey('driving', a, b), mode: 'driving' as const, a, b };
+
+  it('requests a leg shared by the planned and actual routes once', () => {
+    expect(legsToFetch([leg, leg], {}, new Set())).toEqual([leg]);
+  });
+
+  it('skips legs already cached or already attempted this session', () => {
+    expect(legsToFetch([leg], { [leg.key]: { mode: 'driving', polyline: 'x', meters: 1 } }, new Set())).toEqual([]);
+    expect(legsToFetch([leg], {}, new Set([leg.key]))).toEqual([]);
   });
 });

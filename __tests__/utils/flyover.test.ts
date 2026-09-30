@@ -1,4 +1,4 @@
-import { flyoverReducer, dayDurationMs, initialFlyover } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive } from '@/utils/flyover';
 
 const durations = [4000, 6000];
 
@@ -47,5 +47,16 @@ describe('flyoverReducer', () => {
   it('skips a day with no route instead of stalling', () => {
     const s = flyoverReducer({ status: 'playing', dayIndex: 0, progress: 0 }, { type: 'tick', dt: 16, durations: [0, 6000] });
     expect(s.dayIndex).toBe(1);
+  });
+});
+
+describe('isFlyoverActive', () => {
+  it('is only playing or paused — a finished flyover hands the map back', () => {
+    // 'done' counted as flying: tapping a stop afterwards showed no card and
+    // every stop stayed mounted as a native marker.
+    expect(isFlyoverActive('playing')).toBe(true);
+    expect(isFlyoverActive('paused')).toBe(true);
+    expect(isFlyoverActive('done')).toBe(false);
+    expect(isFlyoverActive('idle')).toBe(false);
   });
 });

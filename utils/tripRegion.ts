@@ -121,10 +121,11 @@ export function regionFromMapboxFeature(f: MapboxRegionFeature | undefined | nul
  */
 export function tripPlaceLabel(trip: {
   destination: { name: string };
-  additionalDestinations: { name: string }[];
+  /** Optional: saved-post records and old trip snapshots don't carry it. */
+  additionalDestinations?: { name: string }[];
   regionName?: string | null;
 }): string {
-  const names = [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)].filter(Boolean);
+  const names = [trip.destination.name, ...(trip.additionalDestinations ?? []).map((d) => d.name)].filter(Boolean);
   if (names.length <= 1) return trip.destination.name;
   if (trip.regionName) return trip.regionName;
   if (names.length === 2) return `${names[0]} & ${names[1]}`;
