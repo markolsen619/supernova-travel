@@ -31,7 +31,7 @@
 4. **A viewer (not owner/collaborator) opening a trip with no cache** — arcs render, no request and no write is attempted (rules would reject it).
 5. **Trip crossing the antimeridian** (e.g. Fiji → Hawaii) — the arc must not wrap the long way round the planet.
 
-Each is pinned by a test in the task that owns the code (Tasks 1, 2, 4).
+Items 1, 2, 3 and 5 are pinned by tests in Tasks 1 and 4. Item 4 lives in a hook, which this repo can't render in tests: it is enforced twice — `useTripRoutes` returns before fetching when `canWrite` is false, and the Task 2 rules reject a viewer's write — and checked by hand in Task 3 Step 6 by opening a public trip from a second account.
 
 ---
 
@@ -795,7 +795,7 @@ In `fitAllStops`, after `flyToBounds(...)`, nothing changes for bounds (flat ove
 Run: `npx jest --watchAll=false __tests__/utils/tripRoutes.test.ts && npx tsc --noEmit -p . && npx eslint components/trip/TripMapView.tsx 'app/trip/[id].tsx'`
 Expected: tests pass; no type errors; no new lint errors.
 
-On the simulator (per `ios-local-verification` memory, then shut it down per `close-simulator-when-done`): open a multi-day trip's map → terrain visible when tilted, roads followed after a moment (owner), markers appear past zoom 11, dots at overview.
+On the simulator (per `ios-local-verification` memory, then shut it down per `close-simulator-when-done`): open a multi-day trip's map → terrain visible when tilted, roads followed after a moment (owner), markers appear past zoom 11, dots at overview. Then open a public trip from an account that doesn't own it: arcs only, and no `[fetchLeg]` or `[useTripRoutes]` log lines in Metro.
 
 - [ ] **Step 7: Commit**
 
