@@ -14,7 +14,7 @@ import {
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight } from 'phosphor-react-native';
+import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette } from 'phosphor-react-native';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -34,6 +34,8 @@ import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
 import { buildPath, markerStops, overviewDots, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
+import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
+import { useMapStyleStore } from '@/stores/useMapStyleStore';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -44,9 +46,6 @@ const INITIAL_COORDS: [number, number] = [0, 20];
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
 type ScreenPointPayload = { screenPointX: number; screenPointY: number };
 
-// Distinguishes each day's route line — separate from ACTIVITY_ICONS, which
-// colors the pins by activity TYPE instead.
-const DAY_ROUTE_COLORS = ['#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fbbf24', '#c4b5fd', '#f9a8d4', '#93c5fd'];
 
 interface GroundedStop {
   activity: TripActivity;
@@ -66,11 +65,13 @@ interface UngroundedStop {
   dayNumber: number;
 }
 
-function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: UngroundedStop[] } {
+// Each day's colour comes from the traveler's chosen palette (constants/routePalettes)
+// — separate from ACTIVITY_ICONS, which colours marker icons by activity TYPE.
+function collectStops(days: TripDay[], palette: RoutePalette): { grounded: GroundedStop[]; ungrounded: UngroundedStop[] } {
   const grounded: GroundedStop[] = [];
   const ungrounded: UngroundedStop[] = [];
   days.forEach((day, dayIndex) => {
-    const dayColor = DAY_ROUTE_COLORS[dayIndex % DAY_ROUTE_COLORS.length];
+    const dayColor = dayRouteColor(palette, dayIndex);
     let stopNumber = 0;
     [...day.activities]
       .sort((a, b) => a.order - b.order)
@@ -189,7 +190,28 @@ export function TripMapView({
     fitAllStops();
   });
 
-  const { grounded, ungrounded } = useMemo(() => collectStops(days), [days]);
+  const paletteId = useMapStyleStore((st) => st.paletteId);
+  const setPaletteId = useMapStyleStore((st) => st.setPaletteId);
+  const palette = routePalette(paletteId);
+  const { grounded, ungrounded } = useMemo(() => collectStops(days, palette), [days, palette]);
+
+  // Route-colour picker: a row of swatches under the header.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerAnim = useRef(new Animated.Value(0)).current;
+  const togglePicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = !pickerOpen;
+    setPickerOpen(next);
+    // Springs in on open; closing unmounts the row, so no exit animation.
+    if (next) {
+      pickerAnim.setValue(0);
+      Animated.spring(pickerAnim, { toValue: 1, ...SPRING }).start();
+    }
+  }, [pickerOpen, pickerAnim]);
+  const choosePalette = useCallback((id: RoutePaletteId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPaletteId(id);
+  }, [setPaletteId]);
   // Split what "Locate all" can still usefully try from what already came
   // back empty this session — the banner acts on the former and quietly
   // informs on the latter, instead of one count that looks stuck forever.
@@ -660,8 +682,49 @@ export function TripMapView({
           <ArrowLeft size={18} color="#ffffff" weight="bold" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{tripTitle}</Text>
-        <View style={styles.headerBtnCircle} />
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={togglePicker}
+            style={styles.headerBtnCircle}
+            hitSlop={8}
+            accessibilityLabel="Route colours"
+            accessibilityState={{ expanded: pickerOpen }}
+          >
+            <Palette size={18} color="#ffffff" weight={pickerOpen ? 'fill' : 'bold'} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {pickerOpen ? (
+        <Animated.View
+          style={[
+            styles.palettePicker,
+            { top: insets.top + 56, backgroundColor: colors.background.elevated },
+            { opacity: pickerAnim, transform: [{ translateY: pickerAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] },
+          ]}
+        >
+          {ROUTE_PALETTES.map((p) => {
+            const chosen = p.id === palette.id;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                onPress={() => choosePalette(p.id)}
+                style={styles.paletteOption}
+                accessibilityRole="button"
+                accessibilityLabel={`${p.label} route colours`}
+                accessibilityState={{ selected: chosen }}
+              >
+                <View style={[styles.swatch, chosen && styles.swatchChosen]}>
+                  {p.days.slice(0, 3).map((c) => (
+                    <View key={c} style={[styles.swatchSegment, { backgroundColor: c }]} />
+                  ))}
+                </View>
+                <Text style={[styles.paletteLabel, { color: chosen ? colors.text.primary : colors.text.secondary }]}>{p.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </Animated.View>
+      ) : null}
 
       {/* Nothing located yet */}
       {grounded.length === 0 && (
@@ -873,6 +936,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['2'],
   },
+  headerRight: { flexDirection: 'row', gap: Spacing['2'] },
+  palettePicker: {
+    position: 'absolute',
+    left: Spacing['4'],
+    right: Spacing['4'],
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing['3'],
+    paddingHorizontal: Spacing['3'],
+  },
+  paletteOption: { alignItems: 'center', minWidth: 52, minHeight: 44, gap: 6 },
+  swatch: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  swatchChosen: { borderColor: '#ffffff' },
+  swatchSegment: { flex: 1 },
+  paletteLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
   headerBtnCircle: {
     width: 36,
     height: 36,
