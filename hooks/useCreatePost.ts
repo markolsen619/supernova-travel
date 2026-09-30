@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { Trip } from '@/types';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
+import { tripPlaceLabel } from '@/utils/tripRegion';
 
 interface CreatePhotoPostInput {
   localUris: string[];
@@ -116,7 +117,8 @@ export function useCreatePost() {
         lng: trip.destination.lng ?? null,
         tripId: trip.id,
         tripTitle: trip.title,
-        tripDestination: trip.destination.name ?? null,
+        // The region for a multi-stop trip ("Baja California Sur"), not just its first stop.
+        tripDestination: tripPlaceLabel(trip) || null,
         tripDateRange: formatDateRange(trip.startDate, trip.endDate),
         likesCount: 0,
         commentsCount: 0,

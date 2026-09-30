@@ -1,5 +1,5 @@
 import {
-  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath, markerStops, overviewDots, actualStopOrder, actualViewAvailable, legsToFetch,
+  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath, markerStops, overviewDots, actualStopOrder, actualViewAvailable, legsToFetch, legTravel, legAtProgress, flightAltitudeMeters, zoomForLeg,
   type RouteStop, type LegCache,
 } from '@/utils/tripRoutes';
 
@@ -100,8 +100,8 @@ describe('buildPath', () => {
   });
 
   it('handles zero or one stop without legs', () => {
-    expect(buildPath([], {})).toEqual({ coordinates: [], stopFractions: [], meters: 0, missing: [] });
-    expect(buildPath([a], {})).toEqual({ coordinates: [[a.lng, a.lat]], stopFractions: [0], meters: 0, missing: [] });
+    expect(buildPath([], {})).toEqual({ coordinates: [], stopFractions: [], meters: 0, missing: [], legs: [] });
+    expect(buildPath([a], {})).toEqual({ coordinates: [[a.lng, a.lat]], stopFractions: [0], meters: 0, missing: [], legs: [] });
   });
 
   it('keeps a trans-Pacific leg on the short side of the planet', () => {
@@ -230,5 +230,65 @@ describe('legsToFetch', () => {
   it('skips legs already cached or already attempted this session', () => {
     expect(legsToFetch([leg], { [leg.key]: { mode: 'driving', polyline: 'x', meters: 1 } }, new Set())).toEqual([]);
     expect(legsToFetch([leg], {}, new Set([leg.key]))).toEqual([]);
+  });
+});
+
+describe('legTravel', () => {
+  it('flies from a flight stop, or over any leg too long to drive', () => {
+    expect(legTravel(stop('a', 38.77, -9.13, { type: 'flight', title: 'Flight to Madrid' }), stop('b', 40.42, -3.70))).toBe('flight');
+    expect(legTravel(stop('a', 38.7, -9.14), stop('b', 40.7, -74.0))).toBe('flight');
+  });
+
+  it('reads trains and ferries from the transport stop', () => {
+    expect(legTravel(stop('a', 38.71, -9.14, { type: 'transport', title: 'Train to Sintra' }), stop('b', 38.80, -9.38))).toBe('train');
+    expect(legTravel(stop('a', 32.70, -117.17, { type: 'transport', title: 'Ferry to Coronado' }), stop('b', 32.69, -117.17))).toBe('ferry');
+    expect(legTravel(stop('a', 38.70, -9.14), stop('b', 38.80, -9.30, { type: 'transport', notes: 'Scenic railway ride' }))).toBe('train');
+  });
+
+  it('otherwise walks short hops and drives the rest', () => {
+    expect(legTravel(stop('a', 38.70, -9.14), stop('b', 38.705, -9.14))).toBe('walk');
+    expect(legTravel(stop('a', 38.70, -9.14), stop('b', 38.80, -9.30))).toBe('drive');
+  });
+});
+
+describe('buildPath legs', () => {
+  it('records each leg with its travel, span and share of the path', () => {
+    const a = stop('a', 38.71, -9.14, { type: 'transport', title: 'Train to Sintra' });
+    const b = stop('b', 38.80, -9.38);
+    const c = stop('c', 38.801, -9.381);
+    const path = buildPath([a, b, c], {});
+    expect(path.legs.map((l) => l.travel)).toEqual(['train', 'walk']);
+    expect(path.legs[0].from).toBe(0);
+    expect(path.legs[0].to).toBe(path.legs[1].from);
+    expect(path.legs[1].to).toBe(path.coordinates.length - 1);
+    expect(path.legs[0].startFraction).toBe(0);
+    expect(path.legs[1].endFraction).toBe(1);
+  });
+});
+
+describe('legAtProgress', () => {
+  it('finds the leg the drawing head is on', () => {
+    const path = buildPath([stop('a', 38.70, -9.14), stop('b', 38.80, -9.30), stop('c', 38.90, -9.40)], {});
+    expect(legAtProgress(path, 0)).toBe(0);
+    expect(legAtProgress(path, path.legs[1].startFraction + 0.01)).toBe(1);
+    expect(legAtProgress(path, 1)).toBe(1);
+    expect(legAtProgress(buildPath([], {}), 0.5)).toBe(-1);
+  });
+});
+
+describe('flightAltitudeMeters', () => {
+  it('climbs higher on longer flights, within bounds', () => {
+    expect(flightAltitudeMeters(100_000)).toBeGreaterThanOrEqual(3_000);
+    expect(flightAltitudeMeters(1_000_000)).toBeGreaterThan(flightAltitudeMeters(300_000));
+    expect(flightAltitudeMeters(20_000_000)).toBe(150_000);
+  });
+});
+
+describe('zoomForLeg', () => {
+  it('stays close for walks and pulls back as legs get longer', () => {
+    expect(zoomForLeg('walk', 800)).toBe(15);
+    expect(zoomForLeg('drive', 5_000)).toBeGreaterThan(zoomForLeg('drive', 60_000));
+    expect(zoomForLeg('flight', 5_400_000)).toBeLessThan(zoomForLeg('flight', 600_000));
+    expect(zoomForLeg('flight', 5_400_000)).toBeGreaterThanOrEqual(2.5);
   });
 });
