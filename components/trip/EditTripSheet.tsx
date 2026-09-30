@@ -3,7 +3,7 @@
  *
  * Owner-only page-sheet for editing trip basics — title, description, dates,
  * visibility — plus the destructive delete path. Reuses the wizard's
- * DatePickerModal so date entry feels identical to trip creation.
+ * DateRangeField so date entry feels identical to trip creation.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -21,12 +21,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { X, CalendarBlank } from 'phosphor-react-native';
+import { X } from 'phosphor-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { Button } from '@/components/ui/Button';
-import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { DateRangeField } from '@/components/ui/DateRangeField';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -58,8 +58,6 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [visibility, setVisibility] = useState<TripVisibility>(trip.visibility);
   const [budgetAmount, setBudgetAmount] = useState('');
-  const [showStart, setShowStart] = useState(false);
-  const [showEnd, setShowEnd] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -78,8 +76,10 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     }
   }, [visible, trip]);
 
-  const formatDate = (d: Date | null) =>
-    d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set';
+  const handleDatesChange = useCallback((start: Date | null, end: Date | null) => {
+    setStartDate(start);
+    setEndDate(end);
+  }, []);
 
   const handleClose = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -161,9 +161,13 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
       <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'android' ? 'height' : undefined}
         >
           <ScrollView
+            // iOS insets the content by the keyboard and scrolls the focused field
+            // into view — padding the whole screen instead left fields low on the
+            // form (Additional preferences) typed into behind the keyboard.
+            automaticallyAdjustKeyboardInsets
             keyboardDismissMode="on-drag"
             contentContainerStyle={[
               styles.scrollContent,
@@ -215,33 +219,9 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
               </View>
 
               {/* Dates */}
-              <View style={styles.dateRow}>
-                <View style={[styles.fieldGroup, styles.dateField]}>
-                  <Text style={[styles.label, { color: colors.text.secondary }]}>Start date</Text>
-                  <TouchableOpacity
-                    style={[styles.input, styles.dateButton, fieldStyle]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowStart(true); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ color: startDate ? colors.text.primary : colors.text.tertiary, fontSize: FontSize.sm }}>
-                      {formatDate(startDate)}
-                    </Text>
-                    <CalendarBlank size={18} color={colors.text.tertiary} weight="regular" />
-                  </TouchableOpacity>
-                </View>
-                <View style={[styles.fieldGroup, styles.dateField]}>
-                  <Text style={[styles.label, { color: colors.text.secondary }]}>End date</Text>
-                  <TouchableOpacity
-                    style={[styles.input, styles.dateButton, fieldStyle]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowEnd(true); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ color: endDate ? colors.text.primary : colors.text.tertiary, fontSize: FontSize.sm }}>
-                      {formatDate(endDate)}
-                    </Text>
-                    <CalendarBlank size={18} color={colors.text.tertiary} weight="regular" />
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: colors.text.secondary }]}>Trip dates</Text>
+                <DateRangeField start={startDate} end={endDate} onChange={handleDatesChange} />
               </View>
 
               {/* Visibility */}
@@ -324,21 +304,6 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
           </ScrollView>
         </KeyboardAvoidingView>
 
-        <DatePickerModal
-          visible={showStart}
-          date={startDate}
-          title="Select start date"
-          onConfirm={(d) => { setStartDate(d); setShowStart(false); }}
-          onCancel={() => setShowStart(false)}
-        />
-        <DatePickerModal
-          visible={showEnd}
-          date={endDate}
-          title="Select end date"
-          onConfirm={(d) => { setEndDate(d); setShowEnd(false); }}
-          onCancel={() => setShowEnd(false)}
-          minimumDate={startDate ?? undefined}
-        />
       </View>
     </Modal>
   );
@@ -382,19 +347,6 @@ const styles = StyleSheet.create({
     height: 88,
     textAlignVertical: 'top',
     paddingTop: Spacing['3'],
-  },
-  dateRow: {
-    flexDirection: 'row',
-    gap: Spacing['3'],
-  },
-  dateField: {
-    flex: 1,
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 48,
   },
   visibilityRow: {
     flexDirection: 'row',

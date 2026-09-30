@@ -10,6 +10,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { Trip, Destination } from '@/types';
+import { mergeNewestFirst } from '@/utils/tripMerge';
 
 // Destinations predate the bounding-box feature — default rather than leaving
 // `undefined`, which Destination's type (PlaceViewportBounds | null, not
@@ -53,6 +54,50 @@ async function fetchPublicTrips(limitCount = 20): Promise<Trip[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map((doc) => normalizeTrip(doc.id, doc.data()));
+}
+
+/**
+ * Another traveler's trips that the viewer may see: public ones, plus
+ * followers-only ones when the viewer follows them.
+ *
+ * Two queries, each constrained to one visibility, because Firestore rules
+ * are not filters. A query for every trip by `authorUid` is refused outright
+ * the moment that author has a single trip the viewer can't read — which is
+ * why a friend's Trips tab used to come back empty. Constraining visibility
+ * lets the rules prove every result readable (see canRead in
+ * firestore.rules). Needs the (authorUid, visibility, createdAt desc) index.
+ */
+async function fetchVisibleUserTrips(uid: string, viewerFollows: boolean): Promise<Trip[]> {
+  const byVisibility = async (visibility: 'public' | 'followers') => {
+    const snap = await getDocs(query(
+      collection(db, 'trips'),
+      where('authorUid', '==', uid),
+      where('visibility', '==', visibility),
+      orderBy('createdAt', 'desc'),
+      limit(50),
+    ));
+    return snap.docs.map((doc) => normalizeTrip(doc.id, doc.data()));
+  };
+  const [publicTrips, followerTrips] = await Promise.all([
+    byVisibility('public'),
+    viewerFollows ? byVisibility('followers') : Promise.resolve([]),
+  ]);
+  return mergeNewestFirst(publicTrips, followerTrips);
+}
+
+/**
+ * The Trips tab on a profile. Your own profile shows everything; anyone
+ * else's shows what fetchVisibleUserTrips allows.
+ */
+export function useProfileTrips(uid: string | null, opts: { isOwnProfile: boolean; viewerFollows: boolean }) {
+  const scope = opts.isOwnProfile ? 'all' : opts.viewerFollows ? 'followers' : 'public';
+  return useQuery({
+    // Under ['trips', uid] so updateTrip's ['trips'] invalidation reaches it.
+    queryKey: ['trips', uid, scope],
+    queryFn: () => (opts.isOwnProfile ? fetchUserTrips(uid!) : fetchVisibleUserTrips(uid!, opts.viewerFollows)),
+    enabled: !!uid,
+    staleTime: 2 * 60 * 1000,
+  });
 }
 
 export function useTripList(uid: string | null) {

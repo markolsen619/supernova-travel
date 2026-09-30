@@ -33,6 +33,24 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "authorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "trips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "visibility",
           "order": "ASCENDING"
         },

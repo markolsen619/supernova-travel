@@ -8,8 +8,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -170,9 +168,8 @@ export default function EditPostScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.root, { backgroundColor: colors.background.primary }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + Spacing['2'], borderBottomColor: colors.background.cardBorder }]}>
         <TouchableOpacity style={styles.headerBtn} onPress={handleCancel} activeOpacity={0.7}>
@@ -185,6 +182,10 @@ export default function EditPostScreen() {
       </View>
 
       <ScrollView
+        // iOS insets the content by the keyboard and scrolls the focused field
+        // into view — padding the whole screen instead left fields low on the
+        // form (Additional preferences) typed into behind the keyboard.
+        automaticallyAdjustKeyboardInsets
         keyboardDismissMode="on-drag"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -260,7 +261,7 @@ export default function EditPostScreen() {
           />
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

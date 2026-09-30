@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   Modal,
   Animated,
@@ -33,7 +32,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { VISIBILITY_ICONS } from '@/constants/icons';
-import { DatePickerModal } from '@/components/ui/DatePickerModal';
+import { DateRangeField } from '@/components/ui/DateRangeField';
+import { formatRangeLabel } from '@/utils/dateRange';
 import { SPRING } from '@/constants/motion';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
@@ -41,17 +41,6 @@ const TOTAL_STEPS = 4;
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(d: Date | null): string {
-  if (!d) return 'Tap to set date';
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function diffDays(start: Date | null, end: Date | null): number | null {
-  if (!start || !end) return null;
-  const ms = end.getTime() - start.getTime();
-  return Math.round(ms / (1000 * 60 * 60 * 24));
-}
 
 function visibilityLabel(v: TripVisibility): string {
   if (v === 'public') return 'Public';
@@ -157,25 +146,20 @@ function Step1Destination({
 interface Step2Props {
   startDate: Date | null;
   endDate: Date | null;
-  setStartDate: (d: Date) => void;
-  setEndDate: (d: Date) => void;
+  setStartDate: (d: Date | null) => void;
+  setEndDate: (d: Date | null) => void;
 }
 
 function Step2Dates({ startDate, endDate, setStartDate, setEndDate }: Step2Props) {
   const { colors } = useTheme();
-  const [showStart, setShowStart] = useState(false);
-  const [showEnd, setShowEnd] = useState(false);
 
-  const days = diffDays(startDate, endDate);
-
-  const handleOpenStart = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowStart(true);
-  }, []);
-  const handleOpenEnd = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowEnd(true);
-  }, []);
+  const handleChange = useCallback(
+    (start: Date | null, end: Date | null) => {
+      setStartDate(start);
+      setEndDate(end);
+    },
+    [setStartDate, setEndDate],
+  );
 
   return (
     <View style={step.container}>
@@ -184,58 +168,9 @@ function Step2Dates({ startDate, endDate, setStartDate, setEndDate }: Step2Props
       <Text style={[step.subtitle, { color: colors.text.secondary }]}>Dates are optional — you can add them later</Text>
 
       <View style={step.field}>
-        <Text style={[step.label, { color: colors.text.secondary }]}>Start date</Text>
-        <TouchableOpacity
-          style={[step.dateButton, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
-          onPress={handleOpenStart}
-          activeOpacity={0.7}
-        >
-          <Text style={[step.dateText, { color: startDate ? colors.text.primary : colors.text.tertiary }]}>
-            {formatDate(startDate)}
-          </Text>
-          <CalendarBlank size={20} color={colors.text.tertiary} weight="regular" />
-        </TouchableOpacity>
+        <Text style={[step.label, { color: colors.text.secondary }]}>Trip dates</Text>
+        <DateRangeField start={startDate} end={endDate} onChange={handleChange} />
       </View>
-
-      <View style={step.field}>
-        <Text style={[step.label, { color: colors.text.secondary }]}>End date</Text>
-        <TouchableOpacity
-          style={[step.dateButton, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
-          onPress={handleOpenEnd}
-          activeOpacity={0.7}
-        >
-          <Text style={[step.dateText, { color: endDate ? colors.text.primary : colors.text.tertiary }]}>
-            {formatDate(endDate)}
-          </Text>
-          <CalendarBlank size={20} color={colors.text.tertiary} weight="regular" />
-        </TouchableOpacity>
-      </View>
-
-      {days !== null && days >= 0 && (
-        <View style={[step.durationBadge, { backgroundColor: `${colors.brand.purple}1F` }]}>
-          <Text style={[step.durationText, { color: colors.brand.purple }]}>Trip duration: {days} day{days !== 1 ? 's' : ''}</Text>
-        </View>
-      )}
-
-      {days !== null && days < 0 && (
-        <Text style={[step.warningText, { color: colors.semantic.error }]}>End date must be after start date</Text>
-      )}
-
-      <DatePickerModal
-        visible={showStart}
-        date={startDate}
-        title="Select start date"
-        onConfirm={(d) => { setStartDate(d); setShowStart(false); }}
-        onCancel={() => setShowStart(false)}
-      />
-      <DatePickerModal
-        visible={showEnd}
-        date={endDate}
-        title="Select end date"
-        onConfirm={(d) => { setEndDate(d); setShowEnd(false); }}
-        onCancel={() => setShowEnd(false)}
-        minimumDate={startDate ?? undefined}
-      />
     </View>
   );
 }
@@ -356,7 +291,6 @@ interface Step4Props {
 
 function Step4Review({ destination, countryCode, additionalDestinations, startDate, endDate, title, visibility, creating, error, onCreateTrip }: Step4Props) {
   const { colors } = useTheme();
-  const days = diffDays(startDate, endDate);
   const { Icon: VisibilityIcon, color: visibilityColor } = VISIBILITY_ICONS[visibility];
 
   return (
@@ -385,13 +319,8 @@ function Step4Review({ destination, countryCode, additionalDestinations, startDa
             <View style={review.rowContent}>
               <Text style={[review.rowLabel, { color: colors.text.tertiary }]}>Dates</Text>
               <Text style={[review.rowValue, { color: colors.text.primary }]}>
-                {startDate || endDate
-                  ? `${formatDate(startDate)} – ${formatDate(endDate)}`
-                  : 'Not set'}
+                {startDate && endDate ? formatRangeLabel(startDate, endDate) : 'Not set'}
               </Text>
-              {days !== null && days >= 0 && (
-                <Text style={[review.rowMeta, { color: colors.brand.purple }]}>{days} day{days !== 1 ? 's' : ''}</Text>
-              )}
             </View>
           </View>
 
@@ -512,33 +441,6 @@ const step = StyleSheet.create({
     minHeight: 100,
     paddingTop: Spacing['3'],
   },
-  dateButton: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing['4'],
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 44,
-  },
-  dateText: {
-    fontSize: FontSize.base,
-  },
-  durationBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: BorderRadius.full,
-    paddingVertical: Spacing['2'],
-    paddingHorizontal: Spacing['4'],
-    marginTop: Spacing['3'],
-  },
-  durationText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semiBold,
-  },
-  warningText: {
-    fontSize: FontSize.sm,
-    marginTop: Spacing['2'],
-  },
   visibilityRow: {
     flexDirection: 'row',
     gap: Spacing['2'],
@@ -579,10 +481,6 @@ const review = StyleSheet.create({
   rowValue: {
     fontSize: FontSize.base,
     fontWeight: FontWeight.medium,
-  },
-  rowMeta: {
-    fontSize: FontSize.sm,
-    marginTop: 2,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -835,13 +733,15 @@ export default function NewTripScreen() {
       </View>
 
       {/* Animated content */}
-      <KeyboardAvoidingView
+      <View
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
       >
         <Animated.View style={[styles.flex, animatedStyle]}>
           <NestableScrollContainer
+            // iOS insets the content by the keyboard and scrolls the focused field
+            // into view — padding the whole screen instead left fields low on the
+            // form (Additional preferences) typed into behind the keyboard.
+            automaticallyAdjustKeyboardInsets
             keyboardDismissMode="on-drag"
             style={styles.flex}
             contentContainerStyle={styles.scrollContent}
@@ -851,7 +751,7 @@ export default function NewTripScreen() {
             {renderStep()}
           </NestableScrollContainer>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Footer: Next button (not on review step) — near-black, not gradient;
           the gradient hero is reserved for the actual "Create trip" write. */}

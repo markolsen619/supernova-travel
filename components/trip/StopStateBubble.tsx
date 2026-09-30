@@ -13,6 +13,8 @@ interface StopStateBubbleProps {
   isCurrent?: boolean;
   /** Omit for viewers — the bubble is inert (no toggle affordance) without it. */
   onToggle?: () => void;
+  /** Forwarded so a long press on the bubble still picks up its row to drag. */
+  onLongPress?: () => void;
   bubbleSize?: number;
   iconSize?: number;
   /** The check badge is a "cutout" ring in the surface color behind it —
@@ -33,6 +35,7 @@ export function StopStateBubble({
   visited,
   isCurrent = false,
   onToggle,
+  onLongPress,
   bubbleSize = 36,
   iconSize = 20,
   surfaceColor,
@@ -40,7 +43,8 @@ export function StopStateBubble({
   return (
     <TouchableOpacity
       onPress={onToggle}
-      disabled={!onToggle}
+      onLongPress={onLongPress}
+      disabled={!onToggle && !onLongPress}
       hitSlop={6}
       activeOpacity={onToggle ? 0.7 : 1}
       style={

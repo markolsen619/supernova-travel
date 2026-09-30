@@ -46,8 +46,11 @@ describe('buildTextSearchBody', () => {
 // exactly, not by substring — a change here must be a deliberate one.
 describe('GROUNDING_LIST_FIELD_MASK', () => {
   it('requests identity and position only', () => {
+    // types is in the same Text Search Pro SKU as displayName and location,
+    // so it costs nothing extra; grounding uses it to tell a business from a
+    // neighborhood before renaming a stop (utils/venueTitle).
     expect(GROUNDING_LIST_FIELD_MASK).toBe(
-      'places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents',
+      'places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents,places.types',
     );
   });
 

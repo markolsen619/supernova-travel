@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest, GeneratedTrip } from './types';
+import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES } from './promptRules';
 import { aiTripQuotaPolicy } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
@@ -173,15 +174,8 @@ const PACE_RULES: Record<GenerateTripRequest['pace'], string> = {
   packed: '5-7 activities per day, tightly scheduled, see as much as possible',
 };
 
-const STYLE_RULES: Record<GenerateTripRequest['travelStyle'], string> = {
-  adventure: 'Prioritize outdoor and active experiences (hiking, water sports, nature, thrill activities) over museums or shopping.',
-  luxury: 'Favor fine dining, premium/private experiences, and upscale venues. Avoid budget language like "cheap" or "free walking tour".',
-  budget: 'Favor free or low-cost activities, casual local eateries, and public transport. Avoid luxury/fine-dining language.',
-  family: 'Favor kid-friendly venues and gentler pacing (shorter walks, earlier bedtimes, no late-night or adult-oriented activities).',
-  cultural: 'Prioritize museums, historic sites, and local traditions over shopping, nightlife, or generic tourist attractions.',
-};
-
 export function buildPrompt(data: GenerateTripRequest): string {
+  const styles = resolveTravelStyles(data);
   const mustSeeStr =
     data.mustSee.length > 0
       ? `Must-see (each one of these MUST appear as its own activity somewhere in the itinerary): ${data.mustSee.join(', ')}.`
@@ -192,10 +186,10 @@ export function buildPrompt(data: GenerateTripRequest): string {
     return buildMultiCityPrompt(data, mustSeeStr, prefStr);
   }
 
-  return `Create a ${data.durationDays}-day ${data.travelStyle}-style travel itinerary for ${data.destination}, paced for a "${data.pace}" traveler.
+  return `Create a ${data.durationDays}-day ${travelStyleSummary(styles)} travel itinerary for ${data.destination}, paced for a "${data.pace}" traveler.
 
 Pace rule for this trip: ${PACE_RULES[data.pace]}
-Travel style rule for this trip: ${STYLE_RULES[data.travelStyle]}
+${travelStyleRules(styles)}
 ${mustSeeStr}
 ${prefStr}
 
@@ -228,10 +222,11 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
 
 Rules:
 - Follow the pace rule above for how many activities to include per day — do not default to a generic count
-- Follow the travel style rule above — the itinerary should look visibly different for a different style/pace than this one
+- Follow the travel style rules above — the itinerary should look visibly different for a different style/pace than this one
 - Mix activity types naturally
 - Use local currency for costs
 - Include at least one meal per day
+${VENUE_NAMING_RULES}
 - Start day 1 with hotel check-in if multi-day
 - Return exactly ${data.durationDays} days
 - CRITICAL: never output a Google placeId or any other place identifier — searchQuery must be a plain human-readable search string, not an ID. Real places are resolved separately after generation.`;
@@ -246,6 +241,7 @@ Rules:
  * instructions change, not the shape Gemini must return.
  */
 export function buildMultiCityPrompt(data: GenerateTripRequest, mustSeeStr: string, prefStr: string): string {
+  const styles = resolveTravelStyles(data);
   const cities = [
     { name: data.destination, countryCode: data.countryCode || null },
     ...data.additionalDestinations.map((d) => ({ name: d.name, countryCode: d.countryCode })),
@@ -254,13 +250,13 @@ export function buildMultiCityPrompt(data: GenerateTripRequest, mustSeeStr: stri
     .map((c, i) => `${i + 1}. ${c.name}${c.countryCode ? ` (${c.countryCode})` : ''}`)
     .join('\n');
 
-  return `Create a ${data.durationDays}-day ${data.travelStyle}-style multi-city travel itinerary spanning these destinations, IN THIS ORDER:
+  return `Create a ${data.durationDays}-day ${travelStyleSummary(styles)} multi-city travel itinerary spanning these destinations, IN THIS ORDER:
 ${cityListStr}
 
 Paced for a "${data.pace}" traveler.
 
 Pace rule for this trip: ${PACE_RULES[data.pace]}
-Travel style rule for this trip: ${STYLE_RULES[data.travelStyle]}
+${travelStyleRules(styles)}
 ${mustSeeStr}
 ${prefStr}
 
@@ -294,7 +290,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
 
 Rules:
 - Follow the pace rule above for how many activities to include per day — do not default to a generic count
-- Follow the travel style rule above — the itinerary should look visibly different for a different style/pace than this one
+- Follow the travel style rules above — the itinerary should look visibly different for a different style/pace than this one
 - Mix activity types naturally
 - Allocate the ${data.durationDays} total days across all ${cities.length} destinations yourself, in the order listed above — consider how much there typically is to see and do in each place. Do not split evenly by default; weight it realistically based on each destination's size and typical stay length.
 - Visit the destinations strictly in the order listed above — do not reorder them and do not revisit an earlier destination later in the trip
@@ -302,6 +298,7 @@ Rules:
 - On the FIRST day at each destination after the first, include exactly one "transport"-type activity before any other activity that day, titled like "Travel from {previous destination} to {this destination}". Its searchQuery must name a real, findable transit hub in the PREVIOUS (departure) destination — its main train station or airport (e.g. "Gare de Lyon, Paris") — never the destination just arrived at, and never a generic placeholder
 - Each activity's cost and currency must reflect the LOCAL currency of whichever destination that activity actually takes place in — not one single currency for the whole trip
 - Include at least one meal per day
+${VENUE_NAMING_RULES}
 - Start the very first day of the whole trip with hotel check-in
 - Return exactly ${data.durationDays} days total across the whole trip
 - dayNumber must be one continuous sequence from 1 to ${data.durationDays} spanning all destinations — do not restart numbering when arriving at a new destination

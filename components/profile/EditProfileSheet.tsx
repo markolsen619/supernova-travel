@@ -142,9 +142,13 @@ export function EditProfileSheet({ visible, onClose }: EditProfileSheetProps) {
       <View style={[styles.root, { backgroundColor: colors.background.primary }]}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'android' ? 'height' : undefined}
         >
           <ScrollView
+            // iOS insets the content by the keyboard and scrolls the focused field
+            // into view — padding the whole screen instead left fields low on the
+            // form (Additional preferences) typed into behind the keyboard.
+            automaticallyAdjustKeyboardInsets
             keyboardDismissMode="on-drag"
             contentContainerStyle={[
               styles.scrollContent,

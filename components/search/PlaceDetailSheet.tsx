@@ -48,7 +48,13 @@ interface Props {
    * Omitted on the globe, where a tapped place belongs to no trip yet and
    * there are no dates to carry.
    */
-  booking?: { type: ActivityType | null; checkIn: string | null; checkOut: string | null };
+  booking?: {
+    type: ActivityType | null;
+    checkIn: string | null;
+    checkOut: string | null;
+    /** The city the stop is in, to narrow the Booking.com search. */
+    near?: string | null;
+  };
   /**
    * Override the resolved theme palette — search.tsx renders this sheet over
    * its always-dark globe, where useTheme() would otherwise follow the
@@ -204,6 +210,7 @@ export function PlaceDetailSheet({
         type: booking.type,
         placeId: displayPlace.placeId,
         name: displayPlace.name,
+        near: booking.near ?? null,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         affiliateId: process.env.EXPO_PUBLIC_BOOKING_AFFILIATE_ID ?? null,

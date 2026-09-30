@@ -5,8 +5,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
 } from 'react-native';
 import { useState, useCallback, useEffect } from 'react';
@@ -171,9 +169,8 @@ export default function AddLoyaltyScreen() {
   const isPending = addProgram.isPending || updateProgram.isPending;
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.container, { backgroundColor: colors.background.primary }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <WalletHeader
         title={isEditMode ? 'Edit loyalty program' : 'Add loyalty program'}
@@ -181,6 +178,10 @@ export default function AddLoyaltyScreen() {
       />
 
       <ScrollView
+        // iOS insets the content by the keyboard and scrolls the focused field
+        // into view — padding the whole screen instead left fields low on the
+        // form (Additional preferences) typed into behind the keyboard.
+        automaticallyAdjustKeyboardInsets
         keyboardDismissMode="on-drag"
         style={styles.scroll}
         contentContainerStyle={{ padding: Spacing['4'], paddingBottom: 100 }}
@@ -338,7 +339,7 @@ export default function AddLoyaltyScreen() {
           style={styles.submitButton}
         />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -8,7 +8,10 @@ export interface GenerateTripRequest {
   startDate: string | null;   // ISO string or null
   endDate: string | null;
   durationDays: number;
+  /** First of travelStyles; the only style field an older client sends. */
   travelStyle: 'adventure' | 'luxury' | 'budget' | 'family' | 'cultural';
+  /** Every style picked. Absent from clients older than 1.0.1 — see resolveTravelStyles(). */
+  travelStyles?: GenerateTripRequest['travelStyle'][];
   pace: 'relaxed' | 'moderate' | 'packed';
   mustSee: string[];
   preferences: string;

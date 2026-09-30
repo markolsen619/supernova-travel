@@ -32,7 +32,11 @@ export interface BookingActionInput {
   type: ActivityType | null;
   /** Google place id. Empty for a Mapbox-grounded stop. */
   placeId: string;
+  /** The business's own name — never a stop title like "Hotel Check-in". */
   name: string;
+  /** The city it's in. Booking.com's search is free text, and a bare hotel
+   *  name ("Hyatt Regency") matches that chain everywhere. */
+  near?: string | null;
   /** Trip dates as calendar dates (YYYY-MM-DD), when known. */
   checkIn: string | null;
   checkOut: string | null;
@@ -52,8 +56,21 @@ function googleMapsUrl(placeId: string, name: string): string {
     : `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
+/**
+ * Booking.com offers no public link to a property by anything we hold (its
+ * hotel pages are keyed by its own slugs, reachable only through the partner
+ * API), so the hand-off is a search. Name plus city puts the property first
+ * in the results with the dates already applied.
+ */
+export function bookingSearchText(name: string, near: string | null): string {
+  const trimmed = name.trim();
+  const city = near?.trim();
+  if (!city || trimmed.toLowerCase().includes(city.toLowerCase())) return trimmed;
+  return `${trimmed}, ${city}`;
+}
+
 function bookingComUrl(input: BookingActionInput): string {
-  const params = new URLSearchParams({ ss: input.name.trim() });
+  const params = new URLSearchParams({ ss: bookingSearchText(input.name, input.near ?? null) });
   if (input.checkIn && input.checkOut) {
     params.set('checkin', input.checkIn);
     params.set('checkout', input.checkOut);

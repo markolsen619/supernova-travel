@@ -17,6 +17,8 @@ export interface EnrichedPlace {
   primaryType?: string | null;
   /** Bounding box to fit the camera to, when Google provides one. */
   viewport?: PlaceViewportBounds | null;
+  /** Google's full type list. Grounding reads it to tell a business from an area. */
+  types?: string[];
 
   // ── Sheet enrichment (Part B) — tier2 only ─────────────────────────────────
   rating?: number;

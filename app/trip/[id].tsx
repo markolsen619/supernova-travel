@@ -52,6 +52,8 @@ import type { GroundedPlace } from '@/utils/mapboxQuery';
 import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
 import { resolveDayDestinationIndices } from '@/utils/dayDestination';
 import { selectStopsToGround } from '@/utils/groundingQueue';
+import { venueTitle } from '@/utils/venueTitle';
+import { hotelStayDates } from '@/utils/hotelStay';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -417,7 +419,12 @@ export default function TripDetailScreen() {
   const handleReorderActivities = useCallback(
     (dayId: string, orderedActivities: TripActivity[]) => {
       if (!id) return;
-      reorderActivities(id, dayId, orderedActivities);
+      reorderActivities(id, dayId, orderedActivities).catch((err) => {
+        // The list has already snapped back (reorderActivities reverts its
+        // optimistic order), so say why rather than leave it looking ignored.
+        console.error('[trip] reorder failed:', err);
+        Alert.alert("Couldn't save the new order", 'Check your connection and try moving it again.');
+      });
     },
     [id, reorderActivities],
   );
@@ -488,6 +495,31 @@ export default function TripDetailScreen() {
     [trip, destinationNames],
   );
 
+  // Booking hand-off for the tapped stop. A hotel gets its own nights (not
+  // the whole trip's, which booked multi-city travelers into their first
+  // hotel for every night) and the city its day is in, so a chain name
+  // searches for the right property.
+  const placeBooking = useMemo(() => {
+    if (!trip || !placeActivity) return null;
+    const dayIndex = trip.days.findIndex((d) => d.activities.some((a) => a.id === placeActivity.id));
+    const near = destinationAt(trip, dayIndex >= 0 ? (dayDestinationIndices[dayIndex] ?? 0) : 0).name;
+    const tripStart = trip.startDate ? trip.startDate.toDate() : null;
+    const tripEnd = trip.endDate ? trip.endDate.toDate() : null;
+    const stay = placeActivity.type === 'hotel'
+      ? hotelStayDates(
+          trip.days.map((d) => ({ dayNumber: d.dayNumber, date: d.date ? d.date.toDate() : null, activities: d.activities })),
+          placeActivity,
+          { start: tripStart, end: tripEnd },
+        )
+      : { checkIn: tripStart, checkOut: tripEnd };
+    return {
+      type: placeActivity.type,
+      near,
+      checkIn: stay.checkIn ? toCalendarDate(stay.checkIn) : null,
+      checkOut: stay.checkOut ? toCalendarDate(stay.checkOut) : null,
+    };
+  }, [trip, placeActivity, dayDestinationIndices]);
+
   // Persists one already-resolved grounding outcome to one activity — success
   // writes coordinates, failure persists `groundingFailedAt`. Split out of
   // groundAndPersist so a single lookup shared across a deduplicated group of
@@ -515,11 +547,21 @@ export default function TripDetailScreen() {
         await patchActivityGrounding(id, dayId, activityId, { groundingFailedAt: Timestamp.now() });
         return;
       }
+      // A business also names the stop: an AI stop often arrives as a
+      // category ("Hotels near Mission Beach"), and without this the timeline
+      // never says which hotel grounding picked. Areas are never used — see
+      // isVenue.
+      // tripRef, not trip: keying this on trip would restart the background
+      // pass on every write it makes (see tripRef above).
+      const activity = tripRef.current?.days.find((d) => d.id === dayId)?.activities.find((a) => a.id === activityId);
+      const renamed = resolved.isVenue && activity ? venueTitle(activity, resolved.name) : null;
       await patchActivityGrounding(id, dayId, activityId, {
         placeId: resolved.placeId,
         address: resolved.address,
         lat: resolved.lat,
         lng: resolved.lng,
+        ...(resolved.isVenue && resolved.name ? { placeName: resolved.name } : {}),
+        ...(renamed ? { title: renamed } : {}),
       });
       // Only a Google result carries a real Google placeId — a Mapbox result
       // would poison the Search screen's place-detail cache (keyed by
@@ -1315,11 +1357,7 @@ export default function TripDetailScreen() {
           addToTripLabel="Show on map"
           // The stop's own type picks the destination — a hotel goes to
           // Booking.com with these dates, anything else to its Maps entry.
-          booking={{
-            type: placeActivity.type,
-            checkIn: trip?.startDate ? toCalendarDate(trip.startDate.toDate()) : null,
-            checkOut: trip?.endDate ? toCalendarDate(trip.endDate.toDate()) : null,
-          }}
+          booking={placeBooking ?? undefined}
         />
       ) : null}
 

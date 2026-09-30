@@ -11,7 +11,10 @@ export interface GenerateTripRequest {
   startDate: string | null;   // ISO date string or null
   endDate: string | null;
   durationDays: number;
+  /** The first of travelStyles — kept for a server that predates multiple styles. */
   travelStyle: TravelStyle;
+  /** Every style the traveler picked, at least one. */
+  travelStyles: TravelStyle[];
   pace: TripPace;
   mustSee: string[];
   preferences: string;

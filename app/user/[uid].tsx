@@ -21,7 +21,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { usePublicProfile } from '@/hooks/usePublicProfile';
 import { useFollow } from '@/hooks/useFollow';
-import { useTripList } from '@/hooks/useTripList';
+import { useProfileTrips } from '@/hooks/useTripList';
 import { useIsFriend } from '@/hooks/useIsFriend';
 import { useCreateDmThread } from '@/hooks/useDmThreads';
 import { Avatar } from '@/components/ui/Avatar';
@@ -48,7 +48,7 @@ export default function UserProfileScreen() {
 
   const { profile, isLoading, isFollowing, isOwnProfile } = usePublicProfile(uid ?? null);
   const { follow, unfollow } = useFollow(uid ?? '');
-  const { data: trips = [] } = useTripList(uid ?? null);
+  const { data: trips = [] } = useProfileTrips(uid ?? null, { isOwnProfile, viewerFollows: isFollowing });
   const { data: isFriend = false } = useIsFriend(uid ?? null);
   const createThread = useCreateDmThread();
 
@@ -60,17 +60,20 @@ export default function UserProfileScreen() {
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>('Trips');
   const [editVisible, setEditVisible] = useState(false);
 
-  // Filter trips based on ownership — own profile sees all, others see public only
+  // Own profile sees everything. Anyone else sees public trips, plus
+  // followers-only ones once they follow — useProfileTrips already asked for
+  // exactly those; this keeps the screen honest if the follow state changes
+  // before the refetch lands, and applies blocks and reports.
   const publicTrips = useMemo(
     () =>
       isOwnProfile
         ? trips
         : filterVisible(
-            trips.filter((t) => t.visibility === 'public'),
+            trips.filter((t) => t.visibility === 'public' || (isFollowing && t.visibility === 'followers')),
             moderation,
             (t) => ({ authorUid: t.authorUid, key: contentKey({ type: 'trip', id: t.id }), moderationHidden: t.moderationHidden }),
           ),
-    [isOwnProfile, trips, moderation],
+    [isOwnProfile, isFollowing, trips, moderation],
   );
 
   // Every trip on this screen belongs to this one profile — no batch lookup

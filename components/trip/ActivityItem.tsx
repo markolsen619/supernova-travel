@@ -67,10 +67,10 @@ export function ActivityItem({
   // as selection/navigation, not a write the user is consciously making —
   // Light per the haptics rule. Found unwired during this pass's audit.
   const handlePress = useCallback(() => {
-    if (!onPress) return;
+    if (!onPress || isResolving) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
-  }, [onPress]);
+  }, [onPress, isResolving]);
 
   const handleEdit = useCallback(() => {
     if (!onEdit) return;
@@ -92,7 +92,10 @@ export function ActivityItem({
       onPress={onPress ? handlePress : undefined}
       onLongPress={onLongPress}
       activeOpacity={onPress ? 0.75 : 1}
-      disabled={!onPress || isResolving}
+      // Only fully disabled when there's nothing to do. Disabling a stop
+      // while it's being located also killed its long press, so it couldn't
+      // be dragged until the lookup finished.
+      disabled={!onPress && !onLongPress}
       style={[styles.container, isDragging && styles.dragging]}
     >
       <View
@@ -126,6 +129,7 @@ export function ActivityItem({
             visited={activity.visited}
             isCurrent={isCurrent}
             onToggle={handleToggleVisited}
+            onLongPress={onLongPress}
             surfaceColor={colors.background.card}
           />
         </View>
@@ -164,6 +168,7 @@ export function ActivityItem({
         ) : showEdit && onEdit ? (
           <TouchableOpacity
             onPress={handleEdit}
+            onLongPress={onLongPress}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.editBtn}
             accessibilityLabel="Edit activity"

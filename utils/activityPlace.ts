@@ -42,7 +42,9 @@ export function activityToPlace(activity: TripActivity): EnrichedPlace | null {
 
   return {
     placeId: activity.placeId ?? '',
-    name: activity.title,
+    // The business's own name when grounding recorded it — the title may
+    // be "Check into …" or, on older stops, a category.
+    name: activity.placeName || activity.title,
     address: activity.address ?? '',
     lat: activity.lat as number,
     lng: activity.lng as number,
