@@ -82,6 +82,12 @@ export const generateTrip = functions.https.onCall(
       authorUid: uid,
       title: generated.title,
       description: generated.description,
+      // Shown on trip cards in place of the first stop's name (tripPlaceLabel
+      // in the app). Only asked for on multi-city trips; the app resolves it
+      // itself for trips that lack it.
+      ...(data.additionalDestinations.length > 0 && typeof generated.region === 'string' && generated.region.trim()
+        ? { regionName: generated.region.trim().slice(0, 60) }
+        : {}),
       coverImageUrl: null,
       destination: {
         name: data.destination,
@@ -264,6 +270,7 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
 {
   "title": "Trip title",
   "description": "2-3 sentence trip overview",
+  "region": "The single area covering every destination, as a traveler would name it",
   "days": [
     {
       "dayNumber": 1,
@@ -293,6 +300,7 @@ Rules:
 - Follow the travel style rules above — the itinerary should look visibly different for a different style/pace than this one
 - Mix activity types naturally
 - Allocate the ${data.durationDays} total days across all ${cities.length} destinations yourself, in the order listed above — consider how much there typically is to see and do in each place. Do not split evenly by default; weight it realistically based on each destination's size and typical stay length.
+- region is the most specific common name for where ALL the destinations are: a shared state or province when there is one ("Baja California Sur"), otherwise a shared country ("Italy"), otherwise a travel region people actually use ("Central Europe", "Southeast Asia") — never just the first destination's name
 - Visit the destinations strictly in the order listed above — do not reorder them and do not revisit an earlier destination later in the trip
 - destinationIndex is the 0-based index of which destination from the numbered list above this day takes place in — it must be non-decreasing across days, matching the requirement that destinations are visited strictly in the order listed
 - On the FIRST day at each destination after the first, include exactly one "transport"-type activity before any other activity that day, titled like "Travel from {previous destination} to {this destination}". Its searchQuery must name a real, findable transit hub in the PREVIOUS (departure) destination — its main train station or airport (e.g. "Gare de Lyon, Paris") — never the destination just arrived at, and never a generic placeholder

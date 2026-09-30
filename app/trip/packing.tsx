@@ -113,6 +113,10 @@ export default function PackingListScreen() {
       )}
 
       <ScrollView
+        // iOS insets the content by the keyboard and scrolls the focused field
+        // into view. This screen is a page-sheet modal, where KeyboardAvoidingView
+        // pads too little and left the field behind the keyboard.
+        automaticallyAdjustKeyboardInsets
         keyboardDismissMode="on-drag"
         contentContainerStyle={{ paddingHorizontal: Spacing['5'], paddingBottom: insets.bottom + Spacing['8'] }}
         showsVerticalScrollIndicator={false}

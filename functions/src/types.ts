@@ -53,6 +53,8 @@ export interface GeneratedDay {
 export interface GeneratedTrip {
   title: string;
   description: string;
+  /** Multi-city prompt only: the area the whole trip covers ("Baja California Sur"). */
+  region?: string;
   days: GeneratedDay[];
 }
 

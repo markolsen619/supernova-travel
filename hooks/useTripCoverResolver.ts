@@ -2,7 +2,8 @@ import { useCallback, useRef } from 'react';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { usePlacesStore } from '@/stores/usePlacesStore';
 import { enrichPlaceById, enrichPlaceByQuery, photoUrl } from '@/services/places/googlePlaces';
-import { resolveCityBounds } from '@/services/places/mapboxSearch';
+import { resolveCityBounds, resolveDestinationRegion } from '@/services/places/mapboxSearch';
+import { regionNameFor } from '@/utils/tripRegion';
 import type { Destination, Trip } from '@/types';
 
 /**
@@ -40,6 +41,7 @@ export function useTripCoverResolver() {
   const { getPlace, setPlace } = usePlacesStore();
   const attempted = useRef<Set<string>>(new Set());
   const attemptedBounds = useRef<Set<string>>(new Set());
+  const attemptedRegion = useRef<Set<string>>(new Set());
 
   /**
    * Resolves and persists a Mapbox bounding box for every destination on the
@@ -95,11 +97,43 @@ export function useTripCoverResolver() {
     [updateTrip],
   );
 
+  /**
+   * Names the area a multi-stop trip covers, once, so its card reads "Baja
+   * California Sur" instead of just the first stop. Same guard asymmetry as
+   * resolveBounds: a clean miss is saved as '' and never retried; only a
+   * throw (the write) releases the guard.
+   */
+  const resolveRegion = useCallback(
+    async (trip: Trip) => {
+      if (trip.additionalDestinations.length === 0) return;
+      if (trip.regionName !== undefined && trip.regionName !== null) return;
+      if (attemptedRegion.current.has(trip.id)) return;
+      attemptedRegion.current.add(trip.id);
+
+      try {
+        const places = await Promise.all(
+          [trip.destination, ...trip.additionalDestinations].map((d) => resolveDestinationRegion(d.name, d.countryCode)),
+        );
+        const name = regionNameFor(places);
+        // A lookup that failed (null) may be a dropped connection, so a miss
+        // is only final when every destination actually answered. Otherwise
+        // leave regionName unset and try again on a later mount.
+        if (!name && places.some((p) => !p)) return;
+        await updateTrip(trip.id, { regionName: name ?? '' });
+      } catch (err) {
+        console.error('[useTripCoverResolver] region resolution failed:', err);
+        attemptedRegion.current.delete(trip.id);
+      }
+    },
+    [updateTrip],
+  );
+
   const resolveCover = useCallback(
     async (trip: Trip, isOwner: boolean) => {
       if (!isOwner) return;
 
       await resolveBounds(trip);
+      await resolveRegion(trip);
 
       if (trip.coverImageUrl !== null) return;
       if (attempted.current.has(trip.id)) return;
@@ -156,7 +190,7 @@ export function useTripCoverResolver() {
         attempted.current.delete(trip.id);
       }
     },
-    [updateTrip, getPlace, setPlace, resolveBounds],
+    [updateTrip, getPlace, setPlace, resolveBounds, resolveRegion],
   );
 
   return { resolveCover };

@@ -16,6 +16,7 @@ import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Avatar } from '@/components/ui/Avatar';
 import { Trip, TripStatus } from '@/types';
+import { tripPlaceLabel } from '@/utils/tripRegion';
 
 interface TripCardProps {
   trip: Trip;
@@ -90,7 +91,7 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: Tri
         onPress={handlePress}
         activeOpacity={0.85}
         style={styles.wrapper}
-        accessibilityLabel={`Open trip to ${trip.destination.name}`}
+        accessibilityLabel={`Open trip to ${tripPlaceLabel(trip)}`}
       >
         {/* ── Cover image area ── */}
         <View style={[styles.imageContainer, { backgroundColor: colors.background.sunken }]}>
@@ -129,12 +130,12 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: Tri
 
         {/* ── Content area ── */}
         <View style={[styles.contentArea, { backgroundColor: colors.background.card }]}>
-          {/* Destination */}
+          {/* Destination — the region for a multi-stop trip, not just its first stop */}
           <Text
             style={[styles.destination, { color: colors.text.primary }]}
             numberOfLines={1}
           >
-            {trip.destination.name}
+            {tripPlaceLabel(trip)}
           </Text>
 
           {/* Date range */}

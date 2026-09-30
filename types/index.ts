@@ -93,6 +93,14 @@ export interface Trip {
   description: string;
   coverImageUrl: string | null;
   destination: Destination;
+  /**
+   * The area a multi-stop trip covers ("Baja California Sur", "Central
+   * Europe"), shown in place of the first stop's name — see tripPlaceLabel().
+   * Absent until resolved (useTripCoverResolver, or Gemini for AI trips); an
+   * empty string means it was looked up and nothing fit. Unused on
+   * single-destination trips.
+   */
+  regionName?: string | null;
   /** Additional stops beyond the primary destination, in visit order. Empty
    * for single-destination trips (the overwhelming majority). Capped at 9
    * (10 total including the primary) — see DestinationListEditor. Every
@@ -398,6 +406,7 @@ export interface UpdateTripInput {
   title?: string;
   description?: string;
   coverImageUrl?: string | null;
+  regionName?: string | null;
   destination?: Destination;
   additionalDestinations?: Destination[];
   visibility?: TripVisibility;
