@@ -63,7 +63,8 @@ const GROUNDING_FIELDS = [
 
 export const GROUNDING_LIST_FIELD_MASK = GROUNDING_FIELDS.map((f) => `places.${f}`).join(',');
 
-type RawAddressComponent = { types: string[]; shortText: string };
+// Both optional: Google omits them on some components (see countryCodeFromComponents).
+type RawAddressComponent = { types?: string[]; shortText?: string };
 type RawLatLng = { latitude?: number; longitude?: number };
 export type RawViewport = { low?: RawLatLng; high?: RawLatLng };
 type RawPhoto = { name?: string };
@@ -215,7 +216,7 @@ export async function enrichPoiByNameAndCoords(
 
   const components = place.addressComponents ?? [];
   const countryCode =
-    components.find((c) => c.types.includes('country'))?.shortText ?? null;
+    countryCodeFromComponents(components);
 
   return {
     placeId: place.id ?? '',
@@ -292,7 +293,7 @@ export async function searchNearbyPlaces(
         address: place.formattedAddress ?? '',
         lat: place.location?.latitude ?? lat,
         lng: place.location?.longitude ?? lng,
-        countryCode: components.find((c) => c.types.includes('country'))?.shortText ?? null,
+        countryCode: countryCodeFromComponents(components),
         tier: 'tier2' as const,
         ...tier2FieldsFromRaw(place),
       };
@@ -303,6 +304,17 @@ export async function searchNearbyPlaces(
     console.error('[searchNearbyPlaces] failed', error);
     return [];
   }
+}
+
+/**
+ * The ISO country code from Places `addressComponents`. Google can send a
+ * component without `types`; reading `c.types.includes` directly threw and
+ * failed grounding for the whole stop.
+ */
+export function countryCodeFromComponents(
+  components: { shortText?: string; types?: string[] }[] | undefined,
+): string | null {
+  return components?.find((c) => c.types?.includes('country'))?.shortText ?? null;
 }
 
 /**
@@ -343,7 +355,7 @@ export async function enrichPlaceByQuery(
 
   const components = place.addressComponents ?? [];
   const countryCode =
-    components.find((c) => c.types.includes('country'))?.shortText ?? null;
+    countryCodeFromComponents(components);
 
   return {
     placeId: place.id ?? '',

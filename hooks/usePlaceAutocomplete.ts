@@ -8,6 +8,7 @@ import {
   TIER1_DETAILS_FIELD_MASK,
   TIER2_FIELD_MASK,
   tier2FieldsFromRaw,
+  countryCodeFromComponents,
   type PlaceViewportBounds,
   type RawTier2Place,
 } from '@/services/places/googlePlaces';
@@ -105,8 +106,7 @@ async function placeDetailsRequest(
     throw new Error(`place details ${res.status}`);
   }
   const json = (await res.json()) as RawTier2Place;
-  const components = json.addressComponents ?? [];
-  const countryCode = components.find((c) => c.types.includes('country'))?.shortText ?? null;
+  const countryCode = countryCodeFromComponents(json.addressComponents);
   return {
     placeId: json.id ?? placeId,
     name: json.displayName?.text ?? '',
