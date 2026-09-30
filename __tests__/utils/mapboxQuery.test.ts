@@ -47,7 +47,13 @@ describe('normalizeMapboxFeature', () => {
       source: 'mapbox',
       placeId: null,
       mapboxId: 'dXJuOm1i',
+      isVenue: false,
     });
+  });
+
+  it('marks a point of interest as a venue', () => {
+    const poi = { ...feature, properties: { ...feature.properties, feature_type: 'poi' } };
+    expect(normalizeMapboxFeature(poi)?.isVenue).toBe(true);
   });
 
   it('returns null when coordinates are missing', () => {

@@ -13,6 +13,9 @@ export interface GroundedPlace {
   source: 'mapbox' | 'google';
   placeId: string | null;
   mapboxId: string | null;
+  /** A business (hotel, restaurant, shop…) rather than an area or address —
+   *  the only kind of result a stop may be renamed after (utils/venueTitle). */
+  isVenue: boolean;
 }
 
 export interface MapboxForwardParams {
@@ -49,6 +52,7 @@ interface MapboxFeatureLike {
     name?: string;
     full_address?: string;
     mapbox_id?: string;
+    feature_type?: string;
     context?: { country?: { country_code?: string } };
   };
 }
@@ -67,5 +71,6 @@ export function normalizeMapboxFeature(f: MapboxFeatureLike | undefined | null):
     source: 'mapbox',
     placeId: null,
     mapboxId: f?.properties?.mapbox_id ?? null,
+    isVenue: f?.properties?.feature_type === 'poi',
   };
 }

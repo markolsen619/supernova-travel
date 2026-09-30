@@ -8,8 +8,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -81,9 +79,8 @@ export default function CreatePhotoScreen() {
   const canPost = selectedUris.length > 0 && !isUploading;
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.root, { backgroundColor: colors.background.primary }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing['2'], borderBottomColor: colors.background.cardBorder }]}>
@@ -102,6 +99,10 @@ export default function CreatePhotoScreen() {
       </View>
 
       <ScrollView
+        // iOS insets the content by the keyboard and scrolls the focused field
+        // into view — padding the whole screen instead left fields low on the
+        // form (Additional preferences) typed into behind the keyboard.
+        automaticallyAdjustKeyboardInsets
         keyboardDismissMode="on-drag"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -203,7 +204,7 @@ export default function CreatePhotoScreen() {
           />
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

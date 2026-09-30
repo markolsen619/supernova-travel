@@ -3,6 +3,7 @@ import { enrichPlaceByQuery } from '@/services/places/googlePlaces';
 import { isBboxUsable, type Bbox } from '@/utils/geoBounds';
 import type { GroundedPlace } from '@/utils/mapboxQuery';
 import type { PlaceBias } from '@/utils/placeQuery';
+import { isVenueTypes } from '@/utils/venueTitle';
 
 export interface GroundingContext {
   bbox: Bbox | null;
@@ -13,6 +14,7 @@ export interface GroundingProviders {
   mapbox: (q: string, bbox: Bbox | null, center: { lat: number; lng: number } | null) => Promise<GroundedPlace | null>;
   google: (q: string, bias: PlaceBias | null) => Promise<{
     placeId: string; name: string; address: string; lat: number; lng: number; countryCode: string | null;
+    types?: string[];
   } | null>;
 }
 
@@ -74,5 +76,6 @@ export async function groundStop(
     // value for "no Google identity".
     placeId: g.placeId || null,
     mapboxId: null,
+    isVenue: isVenueTypes(g.types),
   };
 }

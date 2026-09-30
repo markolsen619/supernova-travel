@@ -15,6 +15,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { db, auth } from '@/services/firebase';
 import { TripDay, TripActivity, TripWithDays, CreateTripInput, UpdateTripInput } from '@/types';
+import { applyActivityOrder } from '@/utils/activityOrder';
 
 export function useCreateTrip() {
   const queryClient = useQueryClient();
@@ -261,13 +262,29 @@ export function useCreateTrip() {
     dayId: string,
     orderedActivities: TripActivity[]
   ): Promise<void> {
+    // Show the new order before the write. Without this the list snapped back
+    // to the old order on drop and only jumped to the new one after a full
+    // trip refetch (trip doc + every day's activities) — which read as the
+    // drop not working at all. Reverted if the write fails.
+    const queryKey = ['trip', tripId];
+    const previous = queryClient.getQueryData<TripWithDays | null>(queryKey);
+    queryClient.setQueryData<TripWithDays | null>(queryKey, (old) =>
+      old ? applyActivityOrder(old, dayId, orderedActivities.map((a) => a.id)) : old
+    );
+
     const batch = writeBatch(db);
     orderedActivities.forEach((activity, idx) => {
       const activityRef = doc(db, 'trips', tripId, 'days', dayId, 'activities', activity.id);
       batch.update(activityRef, { order: idx * 1000 });
     });
-    await batch.commit();
-    await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+    try {
+      await batch.commit();
+    } catch (err) {
+      queryClient.setQueryData(queryKey, previous);
+      throw err;
+    } finally {
+      await queryClient.invalidateQueries({ queryKey });
+    }
   }
 
   /**

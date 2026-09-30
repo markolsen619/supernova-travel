@@ -341,6 +341,13 @@ export interface TripActivity {
    */
   searchQuery: string | null;
   /**
+   * The real business this stop was grounded to ("Hyatt Regency Mission
+   * Bay"), when grounding found one. Absent on manual stops and on anything
+   * grounded before 1.0.1. The title is for reading; this is what the place
+   * sheet and the Booking.com hand-off search for.
+   */
+  placeName?: string | null;
+  /**
    * Manual visited-tracking (TM-2) — no GPS, set only by the owner tapping
    * "Mark visited". `visitedAt` is reset to null (not omitted) on unvisit,
    * so every activity has a consistent shape to query/derive from later —

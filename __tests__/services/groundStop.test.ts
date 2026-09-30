@@ -19,7 +19,7 @@ const CTX = { bbox: [-110.42, 24.05, -110.24, 24.22] as [number, number, number,
 
 const mapboxHit: GroundedPlace = {
   name: 'Malecón de La Paz', lat: 24.14, lng: -110.31, address: null,
-  countryCode: 'MX', source: 'mapbox', placeId: null, mapboxId: 'm1',
+  countryCode: 'MX', source: 'mapbox', placeId: null, mapboxId: 'm1', isVenue: false,
 };
 
 describe('groundStop', () => {
@@ -43,6 +43,17 @@ describe('groundStop', () => {
     });
     expect(google).toHaveBeenCalledWith('Restaurante Bismarkcito', CTX.center);
     expect(result).toMatchObject({ source: 'google', placeId: 'g1', lat: 24.15 });
+  });
+
+  it('flags a Google business as a venue and an area as not', async () => {
+    const hit = (types: string[]) => groundStop('x', CTX, {
+      mapbox: jest.fn().mockResolvedValue(null),
+      google: jest.fn().mockResolvedValue({
+        placeId: 'g1', name: 'n', address: '', lat: 1, lng: 1, countryCode: null, types,
+      }),
+    });
+    expect((await hit(['restaurant', 'establishment']))?.isVenue).toBe(true);
+    expect((await hit(['neighborhood', 'political']))?.isVenue).toBe(false);
   });
 
   it('returns null when both providers miss', async () => {

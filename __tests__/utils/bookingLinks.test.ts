@@ -1,4 +1,4 @@
-import { buildBookingAction } from '@/utils/bookingLinks';
+import { buildBookingAction, bookingSearchText } from '@/utils/bookingLinks';
 
 const hotel = {
   type: 'hotel' as const,
@@ -9,7 +9,26 @@ const hotel = {
   affiliateId: 'AID123',
 };
 
+describe('bookingSearchText', () => {
+  it('adds the city so a chain name finds the right property', () => {
+    expect(bookingSearchText('Hyatt Regency Mission Bay', 'San Diego')).toBe('Hyatt Regency Mission Bay, San Diego');
+  });
+
+  it('does not repeat a city the name already carries', () => {
+    expect(bookingSearchText('Hotel Lisboa Plaza', 'Lisboa')).toBe('Hotel Lisboa Plaza');
+  });
+
+  it('uses the name alone when the city is unknown', () => {
+    expect(bookingSearchText(' The Dana ', null)).toBe('The Dana');
+  });
+});
+
 describe('buildBookingAction — hotels', () => {
+  it('searches for the hotel in its city', () => {
+    const url = buildBookingAction({ ...hotel, name: 'Hyatt Regency Mission Bay', near: 'San Diego' })!.url;
+    expect(new URL(url).searchParams.get('ss')).toBe('Hyatt Regency Mission Bay, San Diego');
+  });
+
   it('sends hotels to Booking.com with the trip dates', () => {
     const action = buildBookingAction(hotel)!;
     expect(action.url).toContain('booking.com');

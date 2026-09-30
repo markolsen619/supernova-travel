@@ -56,6 +56,9 @@ const GROUNDING_FIELDS = [
   'formattedAddress',
   'location',
   'addressComponents',
+  // Same Text Search tier as the fields above, so free here. Tells a business
+  // from a neighborhood before a stop is renamed after it (utils/venueTitle).
+  'types',
 ] as const;
 
 export const GROUNDING_LIST_FIELD_MASK = GROUNDING_FIELDS.map((f) => `places.${f}`).join(',');
@@ -349,6 +352,7 @@ export async function enrichPlaceByQuery(
     lat: place.location.latitude,
     lng: place.location.longitude,
     countryCode,
+    types: place.types,
     ...(mask === 'grounding'
       ? { tier: 'tier1' as const }
       : { tier: 'tier2' as const, ...tier2FieldsFromRaw(place) }),
@@ -358,6 +362,7 @@ export async function enrichPlaceByQuery(
 export type RawTier2Place = {
   id?: string;
   displayName?: { text?: string };
+  types?: string[];
   formattedAddress?: string;
   location?: RawLatLng;
   addressComponents?: RawAddressComponent[];
@@ -378,6 +383,11 @@ export type RawTier2Place = {
  * `undefined`, matching PlaceSelection/EnrichedPlace's optional typing. */
 export function tier2FieldsFromRaw(place: RawTier2Place): Partial<EnrichedPlace> {
   return {
+    // Google's own name, so a sheet opened from an itinerary stop titled
+    // "Hotel Check-in: Mission Beach" names the hotel — and books it. Only
+    // when present: callers spread this over the seed place, and an explicit
+    // undefined would erase the seed's name.
+    ...(place.displayName?.text ? { name: place.displayName.text } : {}),
     primaryType: place.primaryType ?? null,
     viewport: viewportToBounds(place.viewport),
     rating: place.rating,

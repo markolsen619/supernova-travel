@@ -83,6 +83,11 @@ export function DayTimeline({
   const hasNotes = Boolean(day.notes);
   const canDrag = editable && !!onReorderActivities && sorted.length > 1;
 
+  // A tap you can feel when the stop lifts, so it's clear the long press took.
+  const handleDragBegin = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
   const handleDragEnd = useCallback(
     ({ data }: { data: TripActivity[] }) => onReorderActivities?.(day.id, data),
     [onReorderActivities, day.id],
@@ -186,6 +191,7 @@ export function DayTimeline({
           data={sorted}
           keyExtractor={(activity) => activity.id}
           renderItem={renderItem}
+          onDragBegin={handleDragBegin}
           onDragEnd={handleDragEnd}
           containerStyle={styles.activitiesContainer}
         />

@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -16,8 +15,9 @@ import { Button } from '@/components/ui/Button';
 import { AiPromptForm } from '@/components/trip/AiPromptForm';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { TravelStyle, TripPace } from '@/types/ai';
-import { Destination } from '@/types';
+import { Destination, TripVisibility } from '@/types';
 import { useAiTripQuota } from '@/hooks/useAiTripQuota';
+import { tripDayCount } from '@/utils/dateRange';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
@@ -53,12 +53,6 @@ function quotaLabel(
   return `None left ${period} — resets ${resetDate()}`;
 }
 
-function diffDays(start: Date | null, end: Date | null): number | null {
-  if (!start || !end) return null;
-  const ms = end.getTime() - start.getTime();
-  return Math.round(ms / (1000 * 60 * 60 * 24));
-}
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AiGenerateScreen() {
@@ -74,11 +68,11 @@ export default function AiGenerateScreen() {
   const [countryCode, setCountryCode] = useState(params.countryCode ?? '');
   const [placeId, setPlaceId] = useState<string | null>(params.placeId ?? null);
   const [additionalDestinations, setAdditionalDestinations] = useState<Destination[]>([]);
-  const [durationDays, setDurationDays] = useState(7);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [travelStyle, setTravelStyle] = useState<TravelStyle>('adventure');
+  const [travelStyles, setTravelStyles] = useState<TravelStyle[]>(['adventure']);
   const [pace, setPace] = useState<TripPace>('moderate');
+  const [visibility, setVisibility] = useState<TripVisibility>('followers');
   const [mustSeeInput, setMustSeeInput] = useState('');
   const [preferences, setPreferences] = useState('');
 
@@ -88,10 +82,9 @@ export default function AiGenerateScreen() {
     setPlaceId(s.placeId || null);
   }, []);
 
-  const datesSet = Boolean(startDate && endDate);
-  const derivedDays = diffDays(startDate, endDate);
-  const effectiveDurationDays = datesSet && derivedDays !== null ? derivedDays + 1 : durationDays;
-  const isValid = destination.trim().length > 0 && effectiveDurationDays >= 1;
+  // Dates are required: they are the only way to set the trip's length.
+  const durationDays = startDate && endDate ? tripDayCount(startDate, endDate) : 0;
+  const isValid = destination.trim().length > 0 && durationDays >= 1;
 
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -118,9 +111,11 @@ export default function AiGenerateScreen() {
         destination: destination.trim(),
         countryCode: countryCode.trim(),
         additionalDestinations: JSON.stringify(additionalDestinations),
-        durationDays: String(effectiveDurationDays),
-        travelStyle,
+        durationDays: String(durationDays),
+        travelStyle: travelStyles[0],
+        travelStyles: travelStyles.join(','),
         pace,
+        visibility,
         mustSee: JSON.stringify(mustSee),
         preferences,
         startDate: startDate ? startDate.toISOString() : '',
@@ -156,12 +151,14 @@ export default function AiGenerateScreen() {
       </View>
 
       {/* Scrollable form */}
-      <KeyboardAvoidingView
+      <View
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
       >
         <NestableScrollContainer
+          // iOS insets the content by the keyboard and scrolls the focused field
+          // into view — padding the whole screen instead left fields low on the
+          // form (Additional preferences) typed into behind the keyboard.
+          automaticallyAdjustKeyboardInsets
           keyboardDismissMode="on-drag"
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
@@ -184,18 +181,18 @@ export default function AiGenerateScreen() {
             countryCode={countryCode}
             additionalDestinations={additionalDestinations}
             onAdditionalDestinationsChange={setAdditionalDestinations}
-            durationDays={durationDays}
-            travelStyle={travelStyle}
+            travelStyles={travelStyles}
             pace={pace}
+            visibility={visibility}
             mustSeeInput={mustSeeInput}
             preferences={preferences}
             startDate={startDate}
             endDate={endDate}
             onDestinationChange={setDestination}
             onCountryCodeChange={setCountryCode}
-            onDurationChange={setDurationDays}
-            onTravelStyleChange={setTravelStyle}
+            onTravelStylesChange={setTravelStyles}
             onPaceChange={setPace}
+            onVisibilityChange={setVisibility}
             onMustSeeChange={setMustSeeInput}
             onPreferencesChange={setPreferences}
             onStartDateChange={setStartDate}
@@ -204,7 +201,7 @@ export default function AiGenerateScreen() {
             onPlaceSelect={handlePlaceSelect}
           />
         </NestableScrollContainer>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Footer CTA — the hero gradient moment of this flow. */}
       <View style={[styles.footer, { borderTopColor: colors.background.cardBorder }]}>

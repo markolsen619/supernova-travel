@@ -5,9 +5,8 @@ import { Keyboard, TouchableWithoutFeedback, View, ViewProps } from 'react-nativ
  *
  * Every scrollable in the app carries keyboardDismissMode="on-drag", which is
  * the primary mechanism — but it needs something to drag. A handful of screens
- * are a fixed KeyboardAvoidingView with no list at all (trip/new,
- * forgot-password, ai-generate, AddStopSheet, DatePickerModal), and on those
- * the keyboard had no dismissal path whatsoever: number-pad inputs don't even
+ * have no list at all (forgot-password, AddStopSheet), and on those the
+ * keyboard had no dismissal path whatsoever: number-pad inputs don't even
  * carry a return key.
  *
  * Inner touchables keep working — TouchableWithoutFeedback only receives
