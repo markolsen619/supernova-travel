@@ -65,3 +65,43 @@ export function parseGooglePlace(json: unknown): { placeId: string; name: string
 export function coverPhotoUrl(photoName: string, key: string): string {
   return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&key=${key}`;
 }
+
+/** A Mapbox result only when it's a business — never a city, district or street. */
+export function parsePoiFeature(json: unknown): { lng: number; lat: number; name: string } | null {
+  const f = (json as { features?: { geometry?: { coordinates?: number[] }; properties?: { name?: string; feature_type?: string } }[] })?.features?.[0];
+  const c = f?.geometry?.coordinates;
+  if (!c || c.length < 2 || f?.properties?.feature_type !== 'poi') return null;
+  return { lng: c[0], lat: c[1], name: f.properties.name ?? '' };
+}
+
+const GENERIC = new Set([
+  'the', 'and', 'of', 'at', 'de', 'da', 'do', 'dos', 'das', 'del', 'di', 'la', 'le', 'les', 'el', 'los', 'las',
+  'restaurant', 'restaurante', 'ristorante', 'hotel', 'hostel', 'cafe', 'caffe', 'bar', 'pub', 'tavern', 'taberna',
+  'main', 'store', 'shop', 'station', 'house', 'inn', 'grill', 'kitchen',
+]);
+
+function tokens(text: string): string[] {
+  return text
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3 && !GENERIC.has(t));
+}
+
+/**
+ * Whether a geocoder's result is the venue a stop names. Compares the
+ * result's distinctive words with the query before its city ("Gion Karyo,
+ * Kyoto" → "Gion Karyo"), so a nearby business that merely shares the city
+ * name ("Kyoto Tower") or a generic word ("Hotel …") doesn't pass.
+ */
+export function plausibleMatch(query: string, resultName: string): boolean {
+  const main = query.includes(',') ? query.slice(0, query.lastIndexOf(',')) : query;
+  const wanted = new Set(tokens(main));
+  const got = tokens(resultName);
+  if (got.length === 0) return false;
+  const shared = got.filter((t) => wanted.has(t)).length;
+  // Most of the result's own words must be the stop's: a listing that only
+  // *mentions* the landmark ("Holiday apartment | Close to Santa Justa Lift")
+  // is mostly other words.
+  return shared > 0 && shared / got.length > 0.5;
+}

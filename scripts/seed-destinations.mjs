@@ -4,6 +4,7 @@
 //   node scripts/seed-destinations.mjs --only lisbon      # one destination
 //   node scripts/seed-destinations.mjs --limit 2          # first N destinations
 //   node scripts/seed-destinations.mjs                    # everything, then aggregate
+//   node scripts/seed-destinations.mjs --reground --only lisbon  # re-place stops of existing editorial trips (no AI cost)
 // Needs: ~/.config/supernova/service-account.json, functions/.env (GEMINI_API_KEY),
 // .env.local (EXPO_PUBLIC_MAPBOX_TOKEN, EXPO_PUBLIC_GOOGLE_MAPS_API_KEY). Prints no secrets.
 import { createRequire } from 'node:module';
@@ -20,6 +21,7 @@ const lib = (m) => require(join(root, 'functions', 'lib', m));
 
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry-run');
+const REGROUND = args.includes('--reground');
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 const limit = args.includes('--limit') ? Number(args[args.indexOf('--limit') + 1]) : Infinity;
 
@@ -86,11 +88,16 @@ async function googleSearch(query, center, mask) {
   }));
 }
 
+// Mapbox first (free) — but only a business whose name matches the stop.
+// A city-level or different-venue answer pinned stops to the wrong place in
+// the trial, so anything else falls through to Google, which is precise for
+// named venues.
 async function groundStop(query, box, center) {
-  const hit = S.parsePlaceFeature(await getJson(S.mapboxPoiUrl(query, MAPBOX, box, center)));
-  if (hit) return { lat: hit.lat, lng: hit.lng, placeId: null, placeName: hit.name };
+  const hit = S.parsePoiFeature(await getJson(S.mapboxPoiUrl(query, MAPBOX, box, center)));
+  if (hit && S.plausibleMatch(query, hit.name)) return { lat: hit.lat, lng: hit.lng, placeId: null, placeName: hit.name };
   const g = await googleSearch(query, center, S.GOOGLE_GROUNDING_MASK);
-  return g ? { lat: g.lat, lng: g.lng, placeId: g.placeId, placeName: g.name } : null;
+  // Same check for Google: a stop left off the map beats one pinned to the wrong venue.
+  return g && S.plausibleMatch(query, g.name) ? { lat: g.lat, lng: g.lng, placeId: g.placeId, placeName: g.name } : null;
 }
 
 async function seedDestination(entry, uid, gemini) {
@@ -171,6 +178,32 @@ async function seedDestination(entry, uid, gemini) {
   }
 }
 
+async function regroundDestination(entry) {
+  const dest = (await db.doc(`destinations/${entry.slug}`).get()).data();
+  if (!dest?.bbox) throw new Error('not seeded yet');
+  const center = [dest.center.lng, dest.center.lat];
+  const trips = await db.collection('trips').where('isEditorial', '==', true).where('destinationKeys', 'array-contains', entry.slug).get();
+  let placed = 0, total = 0;
+  for (const t of trips.docs) {
+    for (const day of (await t.ref.collection('days').get()).docs) {
+      for (const a of (await day.ref.collection('activities').get()).docs) {
+        const q = a.get('searchQuery');
+        if (!q) continue;
+        total += 1;
+        const hit = await groundStop(q, dest.bbox, center).catch(() => null);
+        if (DRY) { if (hit) placed += 1; continue; }
+        if (hit) {
+          placed += 1;
+          await a.ref.update({ ...hit, groundingFailedAt: null });
+        } else {
+          await a.ref.update({ lat: null, lng: null, placeId: null, placeName: null, groundingFailedAt: admin.firestore.FieldValue.serverTimestamp() });
+        }
+      }
+    }
+  }
+  console.log(`  ${placed}/${total} stops placed across ${trips.size} trips`);
+}
+
 const uid = await editorialUid();
 const gemini = new GoogleGenerativeAI(GEMINI).getGenerativeModel({ model: 'gemini-2.5-flash' });
 const targets = catalog.filter((e) => !only || e.slug === only).slice(0, limit);
@@ -178,7 +211,8 @@ console.log(`${DRY ? '[dry run] ' : ''}Seeding ${targets.length} destination(s) 
 for (const entry of targets) {
   console.log(`• ${entry.name}`);
   try {
-    await seedDestination(entry, uid, gemini);
+    if (REGROUND) await regroundDestination(entry);
+    else await seedDestination(entry, uid, gemini);
     report.ok.push(entry.slug);
   } catch (err) {
     console.log(`  FAILED: ${err.message}`);

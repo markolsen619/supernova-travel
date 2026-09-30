@@ -1,5 +1,6 @@
 import {
   mapboxPlaceUrl, parsePlaceFeature, mapboxPoiUrl, googleTextSearchBody, parseGooglePlace, coverPhotoUrl, padBox,
+  parsePoiFeature, plausibleMatch,
 } from '../../functions/src/seedSupport';
 
 describe('mapbox place lookup', () => {
@@ -46,5 +47,45 @@ describe('parseGooglePlace / coverPhotoUrl', () => {
     expect(p).toEqual({ placeId: 'P1', name: 'Lisbon', lat: 38.7, lng: -9.1, photoName: 'places/P1/photos/abc' });
     expect(coverPhotoUrl('places/P1/photos/abc', 'K')).toBe('https://places.googleapis.com/v1/places/P1/photos/abc/media?maxWidthPx=1200&key=K');
     expect(parseGooglePlace({})).toBeNull();
+  });
+});
+
+describe('parsePoiFeature', () => {
+  it('returns a business result with its name', () => {
+    expect(parsePoiFeature({ features: [{ geometry: { coordinates: [-9.2, 38.7] }, properties: { name: 'Pastéis de Belém', feature_type: 'poi' } }] }))
+      .toEqual({ lng: -9.2, lat: 38.7, name: 'Pastéis de Belém' });
+  });
+
+  it('rejects a city, neighbourhood or address — a stop pinned to the city centre is wrong', () => {
+    expect(parsePoiFeature({ features: [{ geometry: { coordinates: [135.7, 35.0] }, properties: { name: 'Kyoto', feature_type: 'place' } }] })).toBeNull();
+    expect(parsePoiFeature({ features: [{ geometry: { coordinates: [0, 0] }, properties: { name: 'Rua X 12', feature_type: 'address' } }] })).toBeNull();
+  });
+});
+
+describe('plausibleMatch', () => {
+  it('accepts the venue the stop names, accents and punctuation aside', () => {
+    expect(plausibleMatch('Pasteis de Belem, Lisbon', 'Pastéis de Belém')).toBe(true);
+    expect(plausibleMatch('Katsukura Kyoto-eki Building, Kyoto', 'Katsukura - Kyoto Porta')).toBe(true);
+    expect(plausibleMatch('Hotel Granvia Kyoto', 'Hotel Granvia Kyoto')).toBe(true);
+  });
+
+  it('rejects a different business that happens to be nearby', () => {
+    expect(plausibleMatch('Restaurante O Zagalo, Lisbon', 'O Triplicado')).toBe(false);
+    expect(plausibleMatch('Lisbon Destination Hostel, Lisbon', 'Holiday apartment | Close to Santa Justa Lift')).toBe(false);
+  });
+
+  it('rejects another branch of the same chain across town', () => {
+    expect(plausibleMatch('Katsukura Kyoto-Ekimae, Kyoto', 'Katsukura Tonkatsu Sanjo Main Store')).toBe(false);
+  });
+
+  it('rejects a listing that merely mentions the landmark in its name', () => {
+    // A holiday rental titled "… Close to Santa Justa Lift" became Lisbon's top place.
+    expect(plausibleMatch('Santa Justa Lift, Lisbon', 'Holiday apartment | Close to Santa Justa Lift')).toBe(false);
+    expect(plausibleMatch('A Merendinha do Arco, Lisbon', 'A Merendinha do Arco Bandeira')).toBe(true);
+  });
+
+  it('does not count generic words or the city as a match', () => {
+    expect(plausibleMatch('Hotel Mundial, Lisbon', 'Hotel Lisboa Plaza')).toBe(false);
+    expect(plausibleMatch('Gion Karyo, Kyoto', 'Kyoto Tower')).toBe(false);
   });
 });

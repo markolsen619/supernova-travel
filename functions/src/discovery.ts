@@ -37,7 +37,11 @@ export interface StopForRanking { placeId: string | null; name: string; type: st
 export interface TopPlace { name: string; type: string; lat: number; lng: number; placeId: string | null; itineraryCount: number }
 
 /** Places ranked by how many itineraries include them (each trip counted once), ties by saves. */
+/** Stop types that are places to go. Hotels, flights and transport hubs are how you get there. */
+const PLACE_TYPES = new Set(['activity', 'restaurant']);
+
 export function rankTopPlaces(stops: StopForRanking[], limit = 12): TopPlace[] {
+  stops = stops.filter((s) => PLACE_TYPES.has(s.type));
   const groups = new Map<string, { place: TopPlace; trips: Set<string>; saves: number }>();
   for (const s of stops) {
     const key = s.placeId ? `id:${s.placeId}` : `at:${s.name.trim().toLowerCase()}@${s.lat.toFixed(3)},${s.lng.toFixed(3)}`;

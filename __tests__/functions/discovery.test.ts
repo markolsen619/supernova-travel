@@ -56,6 +56,17 @@ describe('rankTopPlaces', () => {
     expect(top[0].itineraryCount).toBe(2);
   });
 
+  it('lists only places to go — not hotels, flights or transport hubs', () => {
+    const top = rankTopPlaces([
+      { ...s('Hotel Mundial', 't1'), type: 'hotel' },
+      { ...s('Lisbon Airport', 't1'), type: 'flight' },
+      { ...s('Rossio Station', 't2'), type: 'transport' },
+      { ...s('Belém Tower', 't1'), type: 'activity' },
+      { ...s('A Brasileira', 't2'), type: 'restaurant' },
+    ]);
+    expect(top.map((p) => p.name).sort()).toEqual(['A Brasileira', 'Belém Tower']);
+  });
+
   it('breaks ties by saves and caps the list', () => {
     const many = Array.from({ length: 20 }, (_, i) => s(`P${i}`, `t${i}`, { saves: i, lat: 38 + i / 100 }));
     const top = rankTopPlaces(many, 12);
