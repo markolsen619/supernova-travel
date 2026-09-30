@@ -1,8 +1,9 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GenerateTripRequest, GeneratedTrip } from './types';
-import { resolveTripVisibility, resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES } from './promptRules';
+import { GenerateTripRequest } from './types';
+import { parseGeneratedTrip, tripDocuments } from './tripDocs';
+import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES } from './promptRules';
 import { multiCityAllowed, aiTripQuotaPolicy } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
@@ -78,12 +79,8 @@ export const generateTrip = functions.https.onCall(
     const text = result.response.text();
 
     // 5. Parse JSON from Gemini response
-    let generated: GeneratedTrip;
-    try {
-      // Gemini sometimes wraps JSON in ```json ... ``` — strip it
-      const jsonStr = text.replace(/^```json\s*/m, '').replace(/\s*```$/m, '').trim();
-      generated = JSON.parse(jsonStr);
-    } catch {
+    const generated = parseGeneratedTrip(text);
+    if (!generated) {
       throw new functions.https.HttpsError('internal', 'Failed to parse Gemini response as JSON');
     }
 
@@ -91,87 +88,19 @@ export const generateTrip = functions.https.onCall(
     const now = admin.firestore.FieldValue.serverTimestamp();
     const tripRef = db.collection('trips').doc();
 
-    const tripData = {
-      authorUid: uid,
-      title: generated.title,
-      description: generated.description,
-      // Shown on trip cards in place of the first stop's name (tripPlaceLabel
-      // in the app). Only asked for on multi-city trips; the app resolves it
-      // itself for trips that lack it.
-      ...(data.additionalDestinations.length > 0 && typeof generated.region === 'string' && generated.region.trim()
-        ? { regionName: generated.region.trim().slice(0, 60) }
-        : {}),
-      coverImageUrl: null,
-      destination: {
-        name: data.destination,
-        placeId: null,
-        lat: null,
-        lng: null,
-        countryCode: data.countryCode || null,
-        bounds: null,
-      },
-      additionalDestinations: data.additionalDestinations ?? [],
+    // The same writer the editorial seed uses (tripDocs.ts), so seeded and
+    // generated trips can't drift apart.
+    const docs = tripDocuments(uid, data, generated, now, {
       startDate: data.startDate ? admin.firestore.Timestamp.fromDate(new Date(data.startDate)) : null,
       endDate: data.endDate ? admin.firestore.Timestamp.fromDate(new Date(data.endDate)) : null,
-      visibility: resolveTripVisibility(data.visibility),
-      collaborators: [],
-      budgetAmount: null,
-      budgetCurrency: null,
-      isAiGenerated: true,
-      status: 'planning' as const,
-      tags: [],
-      likesCount: 0,
-      savesCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
+    });
+    await tripRef.set(docs.trip);
 
-    await tripRef.set(tripData);
-
-    // Write days and activities using batch
     const batch = db.batch();
-    for (const day of generated.days) {
+    for (const { day, activities } of docs.days) {
       const dayRef = tripRef.collection('days').doc();
-      batch.set(dayRef, {
-        dayNumber: day.dayNumber,
-        destinationIndex: typeof day.destinationIndex === 'number' ? day.destinationIndex : null,
-        date: null,
-        title: day.title,
-        notes: day.notes,
-        createdAt: now,
-      });
-
-      day.activities.forEach((act, idx) => {
-        const actRef = dayRef.collection('activities').doc();
-        batch.set(actRef, {
-          type: act.type,
-          title: act.title,
-          // Ungrounded at generation time — no billed Places call here. The
-          // client resolves searchQuery lazily on first interaction with this
-          // stop (see enrichPlaceByQuery in services/places/googlePlaces.ts).
-          placeId: null,
-          address: act.address,
-          lat: null,
-          lng: null,
-          startTime: act.startTime,
-          endTime: act.endTime,
-          durationMinutes: null,
-          // rationale is a distinct field in Gemini's output (why this stop
-          // fits the traveler) but TripActivity has no dedicated column for
-          // it, so it's folded into notes rather than adding a second field.
-          notes: [act.rationale, act.notes].filter(Boolean).join(' — '),
-          bookingRef: null,
-          cost: act.cost,
-          currency: act.currency,
-          mediaUrls: [],
-          order: idx * 1000,
-          createdAt: now,
-          searchQuery: act.searchQuery,
-          visited: false,
-          visitedAt: null,
-          groundingFailedAt: null,
-        });
-      });
+      batch.set(dayRef, day);
+      activities.forEach((act) => batch.set(dayRef.collection('activities').doc(), act));
     }
     await batch.commit();
 

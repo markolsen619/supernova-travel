@@ -16,3 +16,4 @@ export { syncTier } from './syncTier';
 export { reconcileTier } from './reconcileTier';
 export { deleteAccount } from './deleteAccount';
 export { onReportCreated, onBlockCreated } from './moderationEvents';
+export { tagTripDestinations, aggregateDiscovery } from './discoveryFunctions';

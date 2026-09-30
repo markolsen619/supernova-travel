@@ -171,6 +171,24 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "trips",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "destinationKeys",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "savesCount",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -305,6 +323,16 @@
           "queryScope": "COLLECTION_GROUP"
         }
       ]
+    },
+    {
+      "collectionGroup": "aggregates",
+      "fieldPath": "points",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "destinations",
+      "fieldPath": "topPlaces",
+      "indexes": []
     }
   ]
 }
