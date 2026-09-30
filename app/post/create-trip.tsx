@@ -7,8 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +24,7 @@ import { Trip } from '@/types';
 import { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { tripPlaceLabel } from '@/utils/tripRegion';
 
 function formatDateRange(trip: Trip): string | null {
   if (!trip.startDate) return null;
@@ -65,7 +64,7 @@ function TripRow({ trip, selected, onPress, colors }: TripRowProps) {
           {trip.title}
         </Text>
         <Text style={[styles.tripDestination, { color: colors.text.secondary }]} numberOfLines={1}>
-          {trip.destination.name}
+          {tripPlaceLabel(trip)}
         </Text>
         {dateRange && (
           <Text style={[styles.tripDates, { color: colors.text.tertiary }]}>{dateRange}</Text>
@@ -108,9 +107,8 @@ export default function CreateTripPostScreen() {
   const canShare = !!selectedTrip && !isUploading;
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.root, { backgroundColor: colors.background.primary }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header — Cancel is the only header action; the footer button is the
           screen's one primary action */}
@@ -154,6 +152,10 @@ export default function CreateTripPostScreen() {
         </View>
       ) : (
         <FlashList
+          // iOS insets the content by the keyboard and scrolls the focused field
+          // into view. This screen is a page-sheet modal, where KeyboardAvoidingView
+          // pads too little and left the field behind the keyboard.
+          automaticallyAdjustKeyboardInsets
           keyboardDismissMode="on-drag"
           data={trips}
           keyExtractor={(item) => item.id}
@@ -210,7 +212,7 @@ export default function CreateTripPostScreen() {
           keyboardShouldPersistTaps="handled"
         />
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

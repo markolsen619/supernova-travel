@@ -160,6 +160,10 @@ export default function BudgetScreen() {
       </View>
 
       <FlashList
+        // iOS insets the content by the keyboard and scrolls the focused field
+        // into view. This screen is a page-sheet modal, where KeyboardAvoidingView
+        // pads too little and left the field behind the keyboard.
+        automaticallyAdjustKeyboardInsets
         keyboardDismissMode="on-drag"
         data={expenses}
         keyExtractor={(e) => e.id}

@@ -54,6 +54,7 @@ import { resolveDayDestinationIndices } from '@/utils/dayDestination';
 import { selectStopsToGround } from '@/utils/groundingQueue';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
+import { tripPlaceLabel } from '@/utils/tripRegion';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -944,6 +945,13 @@ export default function TripDetailScreen() {
           onToggleVisited={isOwner ? handleToggleVisited : undefined}
           onOpenJournal={handleOpenJournal}
           currentActivityId={currentActivityId}
+          canEditRoutes={isOwner || isCollaborator}
+          tripStatus={trip.status}
+          tripEndDate={trip.endDate ? trip.endDate.toDate() : null}
+          onOpenRecap={() => {
+            setViewMode('timeline');
+            setRecapVisible(true);
+          }}
           onBack={() => {
             setViewMode('timeline');
             setFocusActivityId(null);
@@ -1001,7 +1009,7 @@ export default function TripDetailScreen() {
             <View style={[StyleSheet.absoluteFill, styles.headerPlaceholder, { backgroundColor: colors.background.sunken }]}>
               <MapTrifold size={30} color={colors.text.disabled} weight="duotone" />
               <Text style={[styles.headerPlaceholderText, { color: colors.text.disabled }]} numberOfLines={1}>
-                {trip.destination.name}
+                {tripPlaceLabel(trip)}
               </Text>
             </View>
           )}

@@ -7,8 +7,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -38,6 +36,7 @@ import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { resolvePostAuthor } from '@/utils/postAuthor';
 import { usePost } from '@/hooks/usePost';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { useModeration } from '@/hooks/useModeration';
 import { useContentActions } from '@/components/moderation/useContentActions';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -182,6 +181,8 @@ export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const containerRef = useRef<View>(null);
+  const keyboardInset = useKeyboardInset(containerRef);
   const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
 
@@ -317,9 +318,12 @@ export default function PostDetailScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background.primary }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    // Not KeyboardAvoidingView: this screen is a page-sheet modal, where it
+    // pads too little and the comment bar sat behind the keyboard. The inset
+    // is measured on screen instead — see useKeyboardInset.
+    <View
+      ref={containerRef}
+      style={[styles.container, { backgroundColor: colors.background.primary, paddingBottom: keyboardInset }]}
     >
       <View style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}>
         <TouchableOpacity
@@ -451,7 +455,8 @@ export default function PostDetailScreen() {
           {
             backgroundColor: colors.background.elevated,
             borderTopColor: colors.background.cardBorder,
-            paddingBottom: insets.bottom + Spacing['2'],
+            // The home indicator is under the keyboard while it's up.
+            paddingBottom: (keyboardInset > 0 ? 0 : insets.bottom) + Spacing['2'],
           },
         ]}
       >
@@ -488,7 +493,7 @@ export default function PostDetailScreen() {
         </TouchableOpacity>
       </View>
       {reportSheet}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

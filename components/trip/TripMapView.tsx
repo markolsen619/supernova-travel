@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView } from 'react-native';
 import {
   MapView,
   Camera,
   StyleImport,
   ShapeSource,
   CircleLayer,
-  SymbolLayer,
   LineLayer,
+  MarkerView,
+  RasterDemSource,
+  Terrain,
+  Atmosphere,
+  type LineLayerStyle,
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight } from 'phosphor-react-native';
+import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause } from 'phosphor-react-native';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -28,7 +32,12 @@ import { StopStateBubble } from '@/components/trip/StopStateBubble';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { SPRING } from '@/constants/motion';
-import { TripDay, TripActivity } from '@/types';
+import { TripDay, TripActivity, TripStatus } from '@/types';
+import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive } from '@/utils/flyover';
+import { useTripRoutes } from '@/hooks/useTripRoutes';
+import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
+import { useMapStyleStore } from '@/stores/useMapStyleStore';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -39,9 +48,6 @@ const INITIAL_COORDS: [number, number] = [0, 20];
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
 type ScreenPointPayload = { screenPointX: number; screenPointY: number };
 
-// Distinguishes each day's route line — separate from ACTIVITY_ICONS, which
-// colors the pins by activity TYPE instead.
-const DAY_ROUTE_COLORS = ['#a78bfa', '#f472b6', '#60a5fa', '#34d399', '#fbbf24', '#c4b5fd', '#f9a8d4', '#93c5fd'];
 
 interface GroundedStop {
   activity: TripActivity;
@@ -61,11 +67,13 @@ interface UngroundedStop {
   dayNumber: number;
 }
 
-function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: UngroundedStop[] } {
+// Each day's colour comes from the traveler's chosen palette (constants/routePalettes)
+// — separate from ACTIVITY_ICONS, which colours marker icons by activity TYPE.
+function collectStops(days: TripDay[], palette: RoutePalette): { grounded: GroundedStop[]; ungrounded: UngroundedStop[] } {
   const grounded: GroundedStop[] = [];
   const ungrounded: UngroundedStop[] = [];
   days.forEach((day, dayIndex) => {
-    const dayColor = DAY_ROUTE_COLORS[dayIndex % DAY_ROUTE_COLORS.length];
+    const dayColor = dayRouteColor(palette, dayIndex);
     let stopNumber = 0;
     [...day.activities]
       .sort((a, b) => a.order - b.order)
@@ -94,6 +102,19 @@ function collectStops(days: TripDay[]): { grounded: GroundedStop[]; ungrounded: 
   return { grounded, ungrounded };
 }
 
+/** Pops its child in with the house spring when it mounts — a stop the flyover just reached. */
+function SpringIn({ children }: { children: React.ReactNode }) {
+  const scale = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, ...SPRING }).start();
+  }, [scale]);
+  return <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>;
+}
+
+function toRouteStop(s: GroundedStop): RouteStop {
+  return { id: s.activity.id, type: s.activity.type, title: s.activity.title, notes: s.activity.notes ?? '', lat: s.lat, lng: s.lng };
+}
+
 interface TripMapViewProps {
   tripId: string;
   tripTitle: string;
@@ -118,6 +139,12 @@ interface TripMapViewProps {
   /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
   currentActivityId?: string | null;
   onBack: () => void;
+  /** Owner or collaborator — only they fetch and cache missing routes. */
+  canEditRoutes: boolean;
+  tripStatus: TripStatus;
+  tripEndDate: Date | null;
+  /** Opens the trip recap (from the Actual view's totals). */
+  onOpenRecap?: () => void;
 }
 
 export function TripMapView({
@@ -134,6 +161,10 @@ export function TripMapView({
   onOpenJournal,
   currentActivityId,
   onBack,
+  canEditRoutes,
+  tripStatus,
+  tripEndDate,
+  onOpenRecap,
 }: TripMapViewProps) {
   // Always-dark immersive screen (Architecture Rule 3) — the trip map is
   // atmosphere, not app chrome, so this hardcodes DarkColors rather than
@@ -175,7 +206,28 @@ export function TripMapView({
     fitAllStops();
   });
 
-  const { grounded, ungrounded } = useMemo(() => collectStops(days), [days]);
+  const paletteId = useMapStyleStore((st) => st.paletteId);
+  const setPaletteId = useMapStyleStore((st) => st.setPaletteId);
+  const palette = routePalette(paletteId);
+  const { grounded, ungrounded } = useMemo(() => collectStops(days, palette), [days, palette]);
+
+  // Route-colour picker: a row of swatches under the header.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerAnim = useRef(new Animated.Value(0)).current;
+  const togglePicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = !pickerOpen;
+    setPickerOpen(next);
+    // Springs in on open; closing unmounts the row, so no exit animation.
+    if (next) {
+      pickerAnim.setValue(0);
+      Animated.spring(pickerAnim, { toValue: 1, ...SPRING }).start();
+    }
+  }, [pickerOpen, pickerAnim]);
+  const choosePalette = useCallback((id: RoutePaletteId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPaletteId(id);
+  }, [setPaletteId]);
   // Split what "Locate all" can still usefully try from what already came
   // back empty this session — the banner acts on the former and quietly
   // informs on the latter, instead of one count that looks stuck forever.
@@ -193,7 +245,7 @@ export function TripMapView({
         geometry: { type: 'Point', coordinates: [stop.lng, stop.lat] },
         properties: {
           activityId: stop.activity.id,
-          color: ACTIVITY_ICONS[stop.activity.type].color,
+          color: stop.dayColor,
           stopNumber: stop.stopNumber,
           visited: stop.visited,
           isCurrent: stop.activity.id === currentActivityId,
@@ -203,38 +255,201 @@ export function TripMapView({
     [grounded, currentActivityId],
   );
 
-  // TM-2c: the signature "how far along" view — each day's path is broken
-  // into per-segment pieces (not one polyline per day) so the line itself
-  // can flip from traveled to upcoming exactly where the journey currently
-  // stands. A segment counts as traveled only when BOTH its endpoints are
-  // visited; touching even one not-yet-visited stop makes it upcoming. Still
-  // a straight connector between consecutive stops — a real routed path
-  // (roads, turn-by-turn) would need a directions-API call per day, a cost
-  // decision this doesn't make.
-  const routesCollection: GeoJSON.FeatureCollection = useMemo(() => {
+  // Each day's stops as one routed path. Legs follow real roads/footpaths
+  // once cached (hooks/useTripRoutes → Mapbox Directions, fetched once per
+  // leg, ever); until then, and for flights/ferries, they're smooth arcs.
+  const stopsByDay = useMemo(() => {
     const byDay = new Map<string, GroundedStop[]>();
-    grounded.forEach((stop) => {
-      const list = byDay.get(stop.dayId) ?? [];
-      list.push(stop);
-      byDay.set(stop.dayId, list);
-    });
-    const features: GeoJSON.Feature[] = [];
-    byDay.forEach((stops) => {
-      for (let i = 0; i < stops.length - 1; i++) {
-        const a = stops[i];
-        const b = stops[i + 1];
-        features.push({
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: [[a.lng, a.lat], [b.lng, b.lat]] },
-          properties: {
-            color: a.dayColor,
-            segmentType: a.visited && b.visited ? 'traveled' : 'upcoming',
-          },
-        });
-      }
-    });
-    return { type: 'FeatureCollection', features };
+    grounded.forEach((s) => byDay.set(s.dayId, [...(byDay.get(s.dayId) ?? []), s]));
+    return [...byDay.entries()];
   }, [grounded]);
+
+  // The trip as actually taken: visited stops in the order they were
+  // checked off (no GPS — see actualStopOrder).
+  const actualStops = useMemo(
+    () => actualStopOrder(stopsByDay.map(([, stops]) => ({
+      dayNumber: stops[0].dayNumber,
+      stops: stops.map((g) => ({ g, visited: g.visited, visitedAt: g.activity.visitedAt, order: g.activity.order })),
+    }))).map((x) => x.g),
+    [stopsByDay],
+  );
+
+  // Built once against an empty cache only to learn which legs are missing
+  // — planned days and the actual route share legs, so they share the cache.
+  const allMissing = useMemo(
+    () => [
+      ...stopsByDay.flatMap(([, stops]) => buildPath(stops.map(toRouteStop), {}).missing),
+      ...buildPath(actualStops.map(toRouteStop), {}).missing,
+    ],
+    [stopsByDay, actualStops],
+  );
+  const { cache } = useTripRoutes(tripId, allMissing, canEditRoutes);
+
+  const dayPaths = useMemo(
+    () => stopsByDay.map(([dayId, stops]) => ({
+      dayId,
+      color: stops[0].dayColor,
+      stops,
+      path: buildPath(stops.map(toRouteStop), cache),
+    })),
+    [stopsByDay, cache],
+  );
+
+  const actualPath = useMemo(() => buildPath(actualStops.map(toRouteStop), cache), [actualStops, cache]);
+
+  // Planned | Actual — offered once there's something actual to show.
+  const [mapMode, setMapMode] = useState<'planned' | 'actual'>('planned');
+  const showModeSwitch = actualViewAvailable({
+    status: tripStatus, endDate: tripEndDate, anyVisited: grounded.some((g) => g.visited), now: new Date(),
+  });
+  const actualMode = showModeSwitch && mapMode === 'actual';
+
+  // What the flyover flies: each planned day, or the actual route as one leg of the story.
+  const flightPaths = useMemo(
+    () => (actualMode
+      ? (actualPath.coordinates.length > 1 ? [{ dayId: 'actual', color: palette.actual, stops: actualStops, path: actualPath }] : [])
+      : dayPaths),
+    [actualMode, actualPath, actualStops, dayPaths, palette.actual],
+  );
+
+  // flightIndex ties a line to the flyover; -1 = never flown. In Actual mode
+  // the planned days stay underneath, faded.
+  const routesCollection: GeoJSON.FeatureCollection = useMemo(() => {
+    const planned = dayPaths
+      .map((d, i) => ({ d, i }))
+      .filter(({ d }) => d.path.coordinates.length > 1)
+      .map(({ d, i }) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'LineString' as const, coordinates: d.path.coordinates },
+        properties: { dayId: d.dayId, color: d.color, flightIndex: actualMode ? -1 : i, faded: actualMode },
+      }));
+    if (!actualMode || actualPath.coordinates.length < 2) return { type: 'FeatureCollection', features: planned };
+    return {
+      type: 'FeatureCollection',
+      features: [
+        ...planned,
+        {
+          type: 'Feature' as const,
+          geometry: { type: 'LineString' as const, coordinates: actualPath.coordinates },
+          properties: { dayId: 'actual', color: palette.actual, flightIndex: 0, faded: false },
+        },
+      ],
+    };
+  }, [dayPaths, actualMode, actualPath, palette.actual]);
+
+  // Markers are native views — only worth their cost close in. Tracked as a
+  // boolean flipped at the threshold, not the live zoom, so a pinch doesn't
+  // re-render the map every frame.
+  const [closeIn, setCloseIn] = useState(false);
+  const handleCameraChanged = useCallback((state: { properties: { zoom: number } }) => {
+    const next = state.properties.zoom >= MARKER_MIN_ZOOM;
+    setCloseIn((prev) => (prev === next ? prev : next));
+  }, []);
+  // Actual mode shows only the stops that were visited.
+  const shownStops = actualMode ? actualStops : grounded;
+  const visibleMarkers = markerStops(closeIn ? MARKER_MIN_ZOOM : 0, shownStops, selected?.dayId ?? null);
+  const visibleDots = overviewDots(closeIn, shownStops);
+
+  // ── Flyover (AllTrails-style) ────────────────────────────────────────────
+  // Day by day, each route draws itself while the camera follows the
+  // drawing head. Pacing and day changes live in utils/flyover (tested);
+  // this only runs the clock and moves the camera.
+  const [flyover, dispatch] = useReducer(flyoverReducer, initialFlyover);
+  const flyoverRef = useRef(flyover);
+  flyoverRef.current = flyover;
+  // Playing or paused only — a finished flyover hands the map back.
+  const flying = isFlyoverActive(flyover.status);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
+
+  // A day with fewer than two stops has no path: duration 0, skipped.
+  const durations = useMemo(
+    () => flightPaths.map((d) => (d.path.coordinates.length > 1 ? dayDurationMs(d.path.meters) : 0)),
+    [flightPaths],
+  );
+  const canFly = durations.some((d) => d > 0);
+
+  useEffect(() => {
+    if (flyover.status !== 'playing') return;
+    let frame = 0;
+    let last = Date.now();
+    // ~30 ticks a second: smooth enough for a line growing over seconds,
+    // and half the re-renders of running on every frame.
+    const loop = () => {
+      const now = Date.now();
+      if (now - last >= 33) {
+        dispatch({ type: 'tick', dt: now - last, durations });
+        last = now;
+      }
+      frame = requestAnimationFrame(loop);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, [flyover.status, durations]);
+
+  // Camera follows the drawing head a few times a second; easeTo smooths between.
+  useEffect(() => {
+    if (flyover.status !== 'playing') return;
+    const day = flightPaths[flyover.dayIndex];
+    if (!day || day.path.coordinates.length < 2) return;
+    const move = () => {
+      const { point, bearing } = pointAlongPath(day.path.coordinates, flyoverRef.current.progress);
+      cameraRef.current?.setCamera({
+        centerCoordinate: point,
+        zoomLevel: 13.5,
+        pitch: 62,
+        heading: bearing,
+        animationDuration: 350,
+        animationMode: 'easeTo',
+      });
+    };
+    move();
+    const id = setInterval(move, 350);
+    return () => clearInterval(id);
+  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef]);
+
+  // Route styles depend only on which day is flying — memoised so the
+  // flyover's per-tick re-render doesn't re-send them to the map.
+  const casingStyle = useMemo<LineLayerStyle>(() => ({
+    lineColor: ['get', 'color'],
+    lineWidth: 9,
+    lineOpacity: ['case', ['get', 'faded'], 0.06, flying ? ['case', ['<=', ['get', 'flightIndex'], flyover.dayIndex], 0.22, 0] : 0.22],
+    lineBlur: 4,
+    lineCap: 'round',
+    lineJoin: 'round',
+    lineEmissiveStrength: 1,
+    lineOcclusionOpacity: 0.6,
+  }), [flying, flyover.dayIndex]);
+  const lineStyle = useMemo<LineLayerStyle>(() => ({
+    lineColor: ['get', 'color'],
+    lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 3, 16, 6],
+    lineOpacity: ['case', ['get', 'faded'], 0.25, flying ? ['case', ['<', ['get', 'flightIndex'], flyover.dayIndex], 0.95, 0] : 0.95],
+    lineCap: 'round',
+    lineJoin: 'round',
+    lineEmissiveStrength: 1,
+    lineOcclusionOpacity: 0.6,
+  }), [flying, flyover.dayIndex]);
+
+  // Where each stop sits on its day's path, so it can appear as the line reaches it.
+  const stopProgress = useMemo(() => {
+    const m = new Map<string, { dayIndex: number; fraction: number }>();
+    flightPaths.forEach((d, dayIndex) => d.stops.forEach((st, i) => {
+      m.set(st.activity.id, { dayIndex, fraction: d.path.stopFractions[i] ?? 0 });
+    }));
+    return m;
+  }, [flightPaths]);
+  const reached = useCallback((stop: GroundedStop) => {
+    if (!flying) return true;
+    const at = stopProgress.get(stop.activity.id);
+    if (!at) return false;
+    return at.dayIndex < flyover.dayIndex || (at.dayIndex === flyover.dayIndex && at.fraction <= flyover.progress + 1e-6);
+  }, [flying, stopProgress, flyover.dayIndex, flyover.progress]);
+
+  const flyDay = flightPaths[flyover.dayIndex];
+  const flyDayMeta = flyDay ? days.find((d) => d.id === flyDay.dayId) : undefined;
+  const flyStop = flyDay ? [...flyDay.stops].reverse().find((st) => reached(st)) : undefined;
 
   // Fits the camera to whatever's grounded — a single stop gets the same
   // deliberate zoom-14 framing used everywhere else for one place (a bounds
@@ -253,6 +468,56 @@ export function TripMapView({
     const lngs = grounded.map((s) => s.lng);
     flyToBounds([Math.max(...lngs), Math.max(...lats)], [Math.min(...lngs), Math.min(...lats)]);
   }, [grounded, flyTo, flyToBounds]);
+
+  const handlePlay = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Reduce Motion: routes are already fully drawn — just frame the trip.
+    if (reduceMotion) {
+      fitAllStops();
+      return;
+    }
+    setSelected(null);
+    setPickerOpen(false);
+    dispatch({ type: flyover.status === 'playing' ? 'pause' : 'play' });
+  }, [reduceMotion, fitAllStops, flyover.status]);
+
+  const handleStopFlyover = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    dispatch({ type: 'stop' });
+    fitAllStops();
+  }, [fitAllStops]);
+
+  const handleJumpDay = useCallback((dayIndex: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    dispatch({ type: 'jump', dayIndex });
+  }, []);
+
+  const handleMode = useCallback((mode: 'planned' | 'actual') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    dispatch({ type: 'stop' });
+    setSelected(null);
+    setMapMode(mode);
+    fitAllStops();
+  }, [fitAllStops]);
+
+  // Actual-trip totals: distance from the routed legs, stops, and days with a visit.
+  const actualTotals = useMemo(() => {
+    const km = actualPath.meters / 1000;
+    return {
+      distance: km < 10 ? `${km.toFixed(1)} km` : `${Math.round(km)} km`,
+      stops: actualStops.length,
+      days: new Set(actualStops.map((st) => st.dayNumber)).size,
+    };
+  }, [actualPath.meters, actualStops]);
+
+  // Finished: pull back to the whole trip.
+  useEffect(() => {
+    if (flyover.status === 'done') {
+      fitAllStops();
+      dispatch({ type: 'stop' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on reaching 'done'
+  }, [flyover.status]);
 
   // Fit the camera to all grounded stops on open — or fly straight to a
   // specific one if we arrived here via "show on map" from the timeline.
@@ -344,6 +609,8 @@ export function TripMapView({
   const selectOwnStop = useCallback(
     (stop: GroundedStop) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Tapping a stop takes the map back from a playing or paused flyover.
+      dispatch({ type: 'stop' });
       setSelected(stop);
       setTappedPlace(null);
       flyTo(stop.lng, stop.lat, 15.5);
@@ -513,6 +780,7 @@ export function TripMapView({
         styleURL={STANDARD_STYLE}
         projection="mercator"
         onPress={handleMapPress}
+        onCameraChanged={handleCameraChanged}
         // Mapbox ToS requires the wordmark + attribution on-map
         logoEnabled
         logoPosition={{ bottom: 24, left: 8 }}
@@ -533,6 +801,12 @@ export function TripMapView({
             show3dBuildings: true,
           }}
         />
+        {/* 3D terrain and sky — part of the map load already paid for, so the
+            immersion costs nothing extra. */}
+        <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14}>
+          <Terrain style={{ exaggeration: 1.3 }} />
+        </RasterDemSource>
+        <Atmosphere style={{ range: [0.8, 8], horizonBlend: 0.12, starIntensity: 0.12 }} />
         <Camera
           ref={cameraRef}
           defaultSettings={{ centerCoordinate: INITIAL_COORDS, zoomLevel: INITIAL_ZOOM }}
@@ -543,23 +817,37 @@ export function TripMapView({
             curated, already-resolved trip stops, never a filter/style change
             to Standard's own POI layers and never raw unresolved Google data. */}
         {routesCollection.features.length > 0 && (
-          <ShapeSource id="trip-routes" shape={routesCollection}>
-            {/* Traveled: solid, full-strength — the "how far along" line.
-                Upcoming: dashed and lower-opacity, but the SAME day color
-                (not a separate muted palette) so it's still legible over
-                both a bright "day" preset and the dark "night" one — the
-                dash pattern itself, not opacity alone, carries the "not yet"
-                meaning. One LineLayer, data-driven on segmentType, so the
-                boundary between the two never has to be manually tracked. */}
+          <ShapeSource id="trip-routes" shape={routesCollection} lineMetrics>
+            {/* A soft wide casing under a crisp line reads as a glowing route
+                on both the day and night presets and over terrain. Emissive
+                strength 1 keeps Standard's dusk/night lighting from shading
+                our own layers near-black. */}
+            <LineLayer
+              id="trip-routes-casing"
+              style={casingStyle}
+            />
             <LineLayer
               id="trip-routes-line"
+              aboveLayerID="trip-routes-casing"
+              style={lineStyle}
+            />
+            {/* The day being flown: drawn in its own colour up to the drawing
+                head (lineTrimOffset hides [progress, 1] — needs lineMetrics).
+                Always mounted, invisible when idle, so the flyover never adds
+                or removes layers mid-animation. */}
+            <LineLayer
+              id="trip-routes-active"
+              aboveLayerID="trip-routes-line"
+              filter={['==', ['get', 'flightIndex'], flying ? flyover.dayIndex : -2]}
               style={{
                 lineColor: ['get', 'color'],
-                lineWidth: ['case', ['==', ['get', 'segmentType'], 'traveled'], 3.5, 2.5],
-                lineOpacity: ['case', ['==', ['get', 'segmentType'], 'traveled'], 0.9, 0.55],
-                lineDasharray: ['case', ['==', ['get', 'segmentType'], 'traveled'], ['literal', [1, 0]], ['literal', [2, 2]]],
+                lineWidth: ['interpolate', ['linear'], ['zoom'], 8, 4, 16, 7],
                 lineCap: 'round',
                 lineJoin: 'round',
+                lineEmissiveStrength: 1,
+                lineOcclusionOpacity: 0.6,
+                lineOpacity: flying ? 1 : 0,
+                lineTrimOffset: [Math.min(1, flyover.progress), 1],
               }}
             />
           </ShapeSource>
@@ -567,36 +855,62 @@ export function TripMapView({
 
         {pointsCollection.features.length > 0 && (
           <ShapeSource id="trip-stops" shape={pointsCollection}>
-            {/* Three pin states (TM-2b): planned = hollow (colored stroke,
-                transparent fill); current = hollow + a wider white ring —
-                "next up"; visited = solid fill, matching the timeline row's
-                filled treatment. */}
+            {/* Fallback dots for trips past MARKER_MAX_COUNT stops, and the
+                features tap handling finds by activityId. Smaller trips draw
+                their overview dots as native views below (overviewDots). */}
             <CircleLayer
               id="trip-stops-circle"
+              maxZoomLevel={MARKER_MIN_ZOOM}
               style={{
-                circleRadius: ['case', ['get', 'isCurrent'], 13, 11],
-                circleColor: ['case', ['get', 'visited'], ['get', 'color'], 'rgba(0,0,0,0)'],
-                circleStrokeWidth: ['case', ['get', 'isCurrent'], 3, ['get', 'visited'], 2, 2.5],
-                circleStrokeColor: ['case', ['get', 'visited'], '#ffffff', ['get', 'isCurrent'], '#ffffff', ['get', 'color']],
-              }}
-            />
-            {/* Order-within-day number, stacked on the circle — a dark halo
-                keeps white text legible regardless of fill/stroke color or
-                whether the pin is hollow (planned) or filled (visited). */}
-            <SymbolLayer
-              id="trip-stops-number"
-              style={{
-                textField: ['to-string', ['get', 'stopNumber']],
-                textSize: 11,
-                textColor: '#ffffff',
-                textHaloColor: 'rgba(0,0,0,0.55)',
-                textHaloWidth: 1,
-                textAllowOverlap: true,
-                textIgnorePlacement: true,
+                circleRadius: 6,
+                circleColor: ['get', 'color'],
+                circleStrokeWidth: 2,
+                circleStrokeColor: '#ffffff',
+                circleEmissiveStrength: 1,
               }}
             />
           </ShapeSource>
         )}
+
+        {visibleDots.filter(reached).map((stop) => (
+          <MarkerView key={`dot-${stop.activity.id}`} coordinate={[stop.lng, stop.lat]} allowOverlap>
+            <TouchableOpacity
+              onPress={() => selectOwnStop(stop)}
+              hitSlop={14}
+              accessibilityLabel={`Stop ${stop.stopNumber}: ${stop.activity.title}`}
+              style={[styles.dot, { backgroundColor: stop.dayColor }, stop.visited && styles.dotVisited]}
+            />
+          </MarkerView>
+        ))}
+
+        {(flying ? markerStops(MARKER_MIN_ZOOM, shownStops, flyDay?.stops[0]?.dayId ?? null) : visibleMarkers).filter(reached).map((stop) => {
+          const { Icon, color } = ACTIVITY_ICONS[stop.activity.type];
+          const Wrap = flying ? SpringIn : View;
+          return (
+            <MarkerView key={stop.activity.id} coordinate={[stop.lng, stop.lat]} allowOverlap>
+              <Wrap>
+              <TouchableOpacity
+                onPress={() => selectOwnStop(stop)}
+                accessibilityLabel={`Stop ${stop.stopNumber}: ${stop.activity.title}`}
+                style={[styles.marker, { borderColor: stop.dayColor, backgroundColor: colors.background.elevated }]}
+              >
+                <StopStateBubble
+                  Icon={Icon}
+                  color={color}
+                  visited={stop.visited}
+                  isCurrent={stop.activity.id === currentActivityId}
+                  bubbleSize={32}
+                  iconSize={18}
+                  surfaceColor={colors.background.elevated}
+                />
+                <View style={[styles.markerBadge, { backgroundColor: stop.dayColor }]}>
+                  <Text style={styles.markerBadgeText}>{stop.stopNumber}</Text>
+                </View>
+              </TouchableOpacity>
+              </Wrap>
+            </MarkerView>
+          );
+        })}
       </MapView>
 
       {/* Header */}
@@ -605,8 +919,109 @@ export function TripMapView({
           <ArrowLeft size={18} color="#ffffff" weight="bold" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{tripTitle}</Text>
-        <View style={styles.headerBtnCircle} />
+        <View style={styles.headerRight}>
+          {canFly ? (
+            <TouchableOpacity
+              onPress={handlePlay}
+              style={styles.headerBtnCircle}
+              hitSlop={8}
+              accessibilityLabel={flyover.status === 'playing' ? 'Pause flyover' : 'Fly through your trip'}
+            >
+              {flyover.status === 'playing'
+                ? <Pause size={16} color="#ffffff" weight="fill" />
+                : <Play size={16} color="#ffffff" weight="fill" />}
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            onPress={togglePicker}
+            style={styles.headerBtnCircle}
+            hitSlop={8}
+            accessibilityLabel="Route colours"
+            accessibilityState={{ expanded: pickerOpen }}
+          >
+            <Palette size={18} color="#ffffff" weight={pickerOpen ? 'fill' : 'bold'} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {showModeSwitch ? (
+        <View style={[styles.modeSwitch, { top: insets.top + 56, backgroundColor: colors.background.elevated }]}>
+          {(['planned', 'actual'] as const).map((mode) => {
+            const active = mapMode === mode;
+            return (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => handleMode(mode)}
+                style={[styles.modeOption, active && { backgroundColor: colors.brand.purple }]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={[styles.modeText, { color: active ? colors.text.inverse : colors.text.secondary }]}>
+                  {mode === 'planned' ? 'Planned' : 'Actual'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {actualMode && !flying && !selected ? (
+        <View style={[styles.flyCard, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}>
+          <Text style={[styles.flyEyebrow, { color: colors.text.secondary }]}>YOUR TRIP</Text>
+          {actualTotals.stops > 0 ? (
+            <View style={styles.totalsRow}>
+              {[
+                { value: actualTotals.distance, label: 'traveled' },
+                { value: String(actualTotals.stops), label: actualTotals.stops === 1 ? 'stop' : 'stops' },
+                { value: String(actualTotals.days), label: actualTotals.days === 1 ? 'day' : 'days' },
+              ].map((t) => (
+                <View key={t.label} style={styles.totalItem}>
+                  <Text style={[styles.totalValue, { color: colors.text.primary }]}>{t.value}</Text>
+                  <Text style={[styles.totalLabel, { color: colors.text.secondary }]}>{t.label}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.flyTitle, { color: colors.text.primary }]}>Mark stops visited to draw the trip you took</Text>
+          )}
+          {onOpenRecap && actualTotals.stops > 0 ? (
+            <TouchableOpacity onPress={onOpenRecap} style={styles.recapLink} accessibilityRole="link">
+              <Text style={[styles.recapLinkText, { color: colors.brand.purple }]}>See your recap</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
+      {pickerOpen ? (
+        <Animated.View
+          style={[
+            styles.palettePicker,
+            { top: insets.top + (showModeSwitch ? 108 : 56), backgroundColor: colors.background.elevated },
+            { opacity: pickerAnim, transform: [{ translateY: pickerAnim.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] },
+          ]}
+        >
+          {ROUTE_PALETTES.map((p) => {
+            const chosen = p.id === palette.id;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                onPress={() => choosePalette(p.id)}
+                style={styles.paletteOption}
+                accessibilityRole="button"
+                accessibilityLabel={`${p.label} route colours`}
+                accessibilityState={{ selected: chosen }}
+              >
+                <View style={[styles.swatch, chosen && styles.swatchChosen]}>
+                  {p.days.slice(0, 3).map((c) => (
+                    <View key={c} style={[styles.swatchSegment, { backgroundColor: c }]} />
+                  ))}
+                </View>
+                <Text style={[styles.paletteLabel, { color: chosen ? colors.text.primary : colors.text.secondary }]}>{p.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </Animated.View>
+      ) : null}
 
       {/* Nothing located yet */}
       {grounded.length === 0 && (
@@ -629,7 +1044,7 @@ export function TripMapView({
       )}
 
       {/* Selected stop card — one of OUR OWN pins */}
-      {selected && (
+      {selected && !flying && (
         <View
           style={[
             styles.selectedCard,
@@ -729,7 +1144,52 @@ export function TripMapView({
           already came back with no match this session (informational only —
           re-pressing "Locate all" would just silently fail again, which is
           what previously made this banner feel stuck). */}
-      {pendingUngrounded.length > 0 && isOwner && (
+      {flying && flyDay ? (
+        <View style={[styles.flyCard, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}>
+          <Text style={[styles.flyEyebrow, { color: colors.text.secondary }]}>
+            {`DAY ${flyDayMeta?.dayNumber ?? flyover.dayIndex + 1}${flyDayMeta?.date ? ` · ${flyDayMeta.date.toDate().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}` : ''}`}
+          </Text>
+          <Text style={[styles.flyTitle, { color: colors.text.primary }]} numberOfLines={1}>
+            {flyStop?.activity.title ?? ' '}
+          </Text>
+          <View style={styles.flyControls}>
+            <TouchableOpacity
+              onPress={handlePlay}
+              style={[styles.flyBtn, { backgroundColor: colors.brand.purple }]}
+              accessibilityLabel={flyover.status === 'playing' ? 'Pause flyover' : 'Play flyover'}
+            >
+              {flyover.status === 'playing'
+                ? <Pause size={18} color="#ffffff" weight="fill" />
+                : <Play size={18} color="#ffffff" weight="fill" />}
+            </TouchableOpacity>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayChips}>
+              {flightPaths.map((d, i) => {
+                const active = i === flyover.dayIndex;
+                const meta = days.find((dd) => dd.id === d.dayId);
+                return (
+                  <TouchableOpacity
+                    key={d.dayId}
+                    onPress={() => handleJumpDay(i)}
+                    disabled={durations[i] === 0}
+                    style={[styles.dayChip, { borderColor: d.color }, active && { backgroundColor: d.color }]}
+                    accessibilityLabel={`Day ${meta?.dayNumber ?? i + 1}`}
+                    accessibilityState={{ selected: active, disabled: durations[i] === 0 }}
+                  >
+                    <Text style={[styles.dayChipText, { color: active ? '#0B0A12' : colors.text.primary }]}>
+                      {`Day ${meta?.dayNumber ?? i + 1}`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity onPress={handleStopFlyover} style={styles.flyClose} accessibilityLabel="End flyover">
+              <X size={18} color={colors.text.secondary} weight="bold" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      {pendingUngrounded.length > 0 && isOwner && !flying && !actualMode && (
         <View
           style={[styles.ungroundedPanel, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}
         >
@@ -750,7 +1210,7 @@ export function TripMapView({
           </TouchableOpacity>
         </View>
       )}
-      {pendingUngrounded.length === 0 && failedUngrounded > 0 && isOwner && (
+      {pendingUngrounded.length === 0 && failedUngrounded > 0 && isOwner && !flying && !actualMode && (
         <View
           style={[styles.ungroundedPanel, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}
         >
@@ -766,6 +1226,45 @@ export function TripMapView({
 }
 
 const styles = StyleSheet.create({
+  // A solid disc with a day-coloured ring — a bare bubble disappeared
+  // against dark 3D buildings.
+  marker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 3,
+    borderRadius: 24,
+    borderWidth: 2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#000000',
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  dotVisited: { width: 16, height: 16, borderRadius: 8 },
+  markerBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+  },
+  markerBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: FontWeight.bold },
   container: { flex: 1, backgroundColor: DarkColors.background.primary },
 
   header: {
@@ -779,6 +1278,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['4'],
     paddingBottom: Spacing['2'],
   },
+  headerRight: { flexDirection: 'row', gap: Spacing['2'] },
+  modeSwitch: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    borderRadius: 22,
+    padding: 3,
+  },
+  modeOption: { minHeight: 38, minWidth: 96, borderRadius: 19, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing['4'] },
+  modeText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
+  totalsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing['3'] },
+  totalItem: { alignItems: 'flex-start' },
+  totalValue: { fontSize: FontSize.xl, fontWeight: FontWeight.semiBold },
+  totalLabel: { fontSize: FontSize.xs, marginTop: 2 },
+  recapLink: { minHeight: 44, justifyContent: 'center', marginTop: Spacing['1'] },
+  recapLinkText: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },
+  flyCard: {
+    position: 'absolute',
+    left: Spacing['4'],
+    right: Spacing['4'],
+    borderRadius: BorderRadius.xl,
+    padding: Spacing['4'],
+  },
+  flyEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.08 * FontSize.xs },
+  flyTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold, marginTop: 2 },
+  flyControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], marginTop: Spacing['3'] },
+  flyBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  flyClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  dayChips: { gap: Spacing['2'], alignItems: 'center' },
+  dayChip: { minHeight: 32, paddingHorizontal: Spacing['3'], borderRadius: 16, borderWidth: 1.5, justifyContent: 'center' },
+  dayChipText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
+  palettePicker: {
+    position: 'absolute',
+    left: Spacing['4'],
+    right: Spacing['4'],
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing['3'],
+    paddingHorizontal: Spacing['3'],
+  },
+  paletteOption: { alignItems: 'center', minWidth: 52, minHeight: 44, gap: 6 },
+  swatch: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  swatchChosen: { borderColor: '#ffffff' },
+  swatchSegment: { flex: 1 },
+  paletteLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.medium },
   headerBtnCircle: {
     width: 36,
     height: 36,

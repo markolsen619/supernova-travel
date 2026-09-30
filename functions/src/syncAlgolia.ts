@@ -44,7 +44,11 @@ export const syncTripToAlgolia = onDocumentWritten('trips/{tripId}', async (even
   await algoliaRequest('PUT', 'trips', tripId, {
     objectID: tripId,
     title: data.title,
-    destination: data.destination?.name ?? '',
+    // A multi-stop trip is listed under its region ("Baja California Sur"),
+    // with every stop kept searchable so "Cabo" still finds it.
+    destination: data.regionName || (data.destination?.name ?? ''),
+    stops: [data.destination?.name, ...(data.additionalDestinations ?? []).map((d: { name?: string }) => d.name)]
+      .filter((n): n is string => !!n),
     authorUid: data.authorUid,
     status: data.status,
     coverImageUrl: data.coverImageUrl ?? null,

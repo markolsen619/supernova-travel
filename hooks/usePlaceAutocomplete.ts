@@ -8,14 +8,18 @@ import {
   TIER1_DETAILS_FIELD_MASK,
   TIER2_FIELD_MASK,
   tier2FieldsFromRaw,
+  countryCodeFromComponents,
   type PlaceViewportBounds,
   type RawTier2Place,
 } from '@/services/places/googlePlaces';
+import { isDestinationSuggestion } from '@/utils/destinationSuggestions';
 
 export interface PlaceSuggestion {
   placeId: string;
   mainText: string;
   secondaryText: string;
+  /** Google's place types for the prediction, e.g. ['locality', 'political']. */
+  types?: string[];
 }
 
 export interface PlaceSelection {
@@ -46,6 +50,7 @@ const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 type RawSuggestion = {
   placePrediction: {
     placeId: string;
+    types?: string[];
     structuredFormat: {
       mainText: { text: string };
       secondaryText?: { text: string };
@@ -72,6 +77,7 @@ async function autocompleteRequest(
     placeId: s.placePrediction.placeId,
     mainText: s.placePrediction.structuredFormat.mainText.text,
     secondaryText: s.placePrediction.structuredFormat.secondaryText?.text ?? '',
+    types: s.placePrediction.types,
   }));
 }
 
@@ -100,8 +106,7 @@ async function placeDetailsRequest(
     throw new Error(`place details ${res.status}`);
   }
   const json = (await res.json()) as RawTier2Place;
-  const components = json.addressComponents ?? [];
-  const countryCode = components.find((c) => c.types.includes('country'))?.shortText ?? null;
+  const countryCode = countryCodeFromComponents(json.addressComponents);
   return {
     placeId: json.id ?? placeId,
     name: json.displayName?.text ?? '',
@@ -130,6 +135,9 @@ export interface UsePlaceAutocompleteOptions {
    * (e.g. the trip-creation destination picker) to keep that call cheap.
    */
   richDetails?: boolean;
+  /** Drop address results (streets, buildings, postcodes) — for trip
+   *  destination pickers. See utils/destinationSuggestions. */
+  destinationsOnly?: boolean;
 }
 
 export function usePlaceAutocomplete(
@@ -137,6 +145,7 @@ export function usePlaceAutocomplete(
   options?: UsePlaceAutocompleteOptions,
 ) {
   const richDetails = options?.richDetails ?? false;
+  const destinationsOnly = options?.destinationsOnly ?? false;
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -168,7 +177,9 @@ export function usePlaceAutocomplete(
     const timer = setTimeout(async () => {
       try {
         const results = await autocompleteRequest(query.trim(), getSessionToken());
-        if (!cancelled) setSuggestions(results);
+        if (!cancelled) {
+          setSuggestions(destinationsOnly ? results.filter((r) => isDestinationSuggestion(r.types)) : results);
+        }
       } catch (err) {
         console.error('[usePlaceAutocomplete] search failed:', err);
         if (!cancelled) { setError(true); setSuggestions([]); }
@@ -178,7 +189,7 @@ export function usePlaceAutocomplete(
     }, debounceMs);
 
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [query, debounceMs, getSessionToken]);
+  }, [query, debounceMs, getSessionToken, destinationsOnly]);
 
   const selectPlace = useCallback(async (placeId: string): Promise<PlaceSelection> => {
     const token = getSessionToken();

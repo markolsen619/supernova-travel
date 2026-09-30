@@ -22,6 +22,7 @@ import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import type { Trip } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { tripPlaceLabel } from '@/utils/tripRegion';
 
 interface Props {
   visible: boolean;
@@ -142,7 +143,7 @@ export function AddToTripSheet({ visible, place, onClose, colors: colorsOverride
             {item.title}
           </Text>
           <Text style={[styles.tripSubtitle, { color: colors.text.tertiary }]} numberOfLines={1}>
-            {item.destination.name}
+            {tripPlaceLabel(item)}
           </Text>
         </View>
       </TouchableOpacity>

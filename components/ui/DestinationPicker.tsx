@@ -30,7 +30,7 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
   const { colors } = useTheme();
   const { isLarge } = useLayout();
   const { query, setQuery, suggestions, isLoading, error, selectPlace, clearQuery } =
-    usePlaceAutocomplete();
+    usePlaceAutocomplete(350, { destinationsOnly: true });
   const [isSelecting, setIsSelecting] = useState(false);
 
   const handleClose = useCallback(() => {
