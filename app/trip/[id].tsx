@@ -948,6 +948,10 @@ export default function TripDetailScreen() {
           canEditRoutes={isOwner || isCollaborator}
           tripStatus={trip.status}
           tripEndDate={trip.endDate ? trip.endDate.toDate() : null}
+          onOpenRecap={() => {
+            setViewMode('timeline');
+            setRecapVisible(true);
+          }}
           onBack={() => {
             setViewMode('timeline');
             setFocusActivityId(null);

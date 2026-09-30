@@ -1,4 +1,4 @@
-import type { ActivityType } from '@/types';
+import type { ActivityType, TripStatus } from '@/types';
 
 /**
  * Pure geometry for the trip map (components/trip/TripMapView). Every "which
@@ -201,4 +201,20 @@ export function markerStops<T extends { dayId: string }>(zoom: number, stops: T[
 export function overviewDots<T>(closeIn: boolean, stops: T[]): T[] {
   if (closeIn || stops.length > MARKER_MAX_COUNT) return [];
   return stops;
+}
+
+/** Visited stops in the order they were checked off — the trip as actually taken. */
+export function actualStopOrder<T extends { visited: boolean; visitedAt: { toMillis(): number } | null; order: number }>(
+  days: { dayNumber: number; stops: T[] }[],
+): T[] {
+  const withDay = days.flatMap((d) => d.stops.filter((s) => s.visited && s.visitedAt).map((s) => ({ s, day: d.dayNumber })));
+  withDay.sort((x, y) =>
+    x.s.visitedAt!.toMillis() - y.s.visitedAt!.toMillis() || x.day - y.day || x.s.order - y.s.order);
+  return withDay.map((x) => x.s);
+}
+
+/** Planned | Actual appears once there's something actual to show. */
+export function actualViewAvailable(input: { status: TripStatus; endDate: Date | null; anyVisited: boolean; now: Date }): boolean {
+  if (input.status === 'completed' || input.anyVisited) return true;
+  return !!input.endDate && input.endDate.getTime() < input.now.getTime();
 }

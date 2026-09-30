@@ -1,5 +1,5 @@
 import {
-  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath, markerStops, overviewDots,
+  haversineMeters, legMode, legKey, greatCircleArc, decodePolyline6, buildPath, pointAlongPath, markerStops, overviewDots, actualStopOrder, actualViewAvailable,
   type RouteStop, type LegCache,
 } from '@/utils/tripRoutes';
 
@@ -153,5 +153,41 @@ describe('overviewDots', () => {
   it('draws none close in (markers take over) or past 40 stops (the circle layer does)', () => {
     expect(overviewDots(true, stops.slice(0, 3))).toEqual([]);
     expect(overviewDots(false, stops)).toEqual([]);
+  });
+});
+
+
+describe('actualStopOrder', () => {
+  const at = (ms: number) => ({ toMillis: () => ms });
+  const s = (id: string, order: number, visitedAt: number | null) =>
+    ({ id, order, visited: visitedAt !== null, visitedAt: visitedAt === null ? null : at(visitedAt) });
+
+  it('keeps only visited stops, in the order they were visited', () => {
+    const days = [
+      { dayNumber: 1, stops: [s('a', 0, 300), s('b', 1000, 100), s('skip', 2000, null)] },
+      { dayNumber: 2, stops: [s('c', 0, 200)] },
+    ];
+    expect(actualStopOrder(days).map((x) => x.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('breaks visitedAt ties by day, then by planned order', () => {
+    const days = [
+      { dayNumber: 2, stops: [s('late', 0, 100)] },
+      { dayNumber: 1, stops: [s('second', 1000, 100), s('first', 0, 100)] },
+    ];
+    expect(actualStopOrder(days).map((x) => x.id)).toEqual(['first', 'second', 'late']);
+  });
+});
+
+describe('actualViewAvailable', () => {
+  const now = new Date(2026, 9, 1);
+  it('appears once the trip is over or anything was visited', () => {
+    expect(actualViewAvailable({ status: 'completed', endDate: null, anyVisited: false, now })).toBe(true);
+    expect(actualViewAvailable({ status: 'planning', endDate: new Date(2026, 8, 20), anyVisited: false, now })).toBe(true);
+    expect(actualViewAvailable({ status: 'active', endDate: new Date(2026, 9, 5), anyVisited: true, now })).toBe(true);
+  });
+
+  it('stays hidden for a future trip with nothing visited', () => {
+    expect(actualViewAvailable({ status: 'planning', endDate: new Date(2026, 9, 20), anyVisited: false, now })).toBe(false);
   });
 });
