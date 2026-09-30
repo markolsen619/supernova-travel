@@ -43,6 +43,7 @@ import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Trip, TripStatus } from '@/types';
+import { displayStatus, toDateOrNull } from '@/utils/tripStatus';
 
 type ProfileTab = 'Trips' | 'Posts' | 'Saved';
 type TripFilter = 'Upcoming' | 'Current' | 'Past';
@@ -149,7 +150,9 @@ function ProfileScreenContent() {
       cancelled = true;
     };
   }, [allTrips, resolveCover]);
-  const filteredTrips = allTrips.filter((t) => t.status === TRIP_STATUS_MAP[tripFilter]);
+  const filteredTrips = allTrips.filter(
+    (t) => displayStatus({ status: t.status, startDate: toDateOrNull(t.startDate), endDate: toDateOrNull(t.endDate) }, new Date()) === TRIP_STATUS_MAP[tripFilter],
+  );
 
   const { data: posts = [], isLoading: postsLoading } = useQuery({
     queryKey: ['userPosts', uid],

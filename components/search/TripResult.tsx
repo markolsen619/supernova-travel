@@ -6,6 +6,7 @@ import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Trip, TripStatus } from '@/types';
+import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '@/utils/tripStatus';
 
 interface TripResultProps {
   trip: Trip;
@@ -24,12 +25,14 @@ export function TripResult({ trip, onPress }: TripResultProps) {
   }, [onPress]);
 
   const STATUS_CONFIG: Record<TripStatus, { label: string; bg: string; text: string }> = {
-    planning:  { label: 'Planning',  bg: colors.accent.amber + '33', text: colors.accent.amber },
-    active:    { label: 'Active',    bg: colors.accent.teal + '33',  text: colors.accent.teal },
-    completed: { label: 'Completed', bg: colors.brand.blue + '33',   text: colors.brand.blue },
+    planning:  { label: TRIP_STATUS_LABEL.planning,  bg: colors.accent.amber + '33', text: colors.accent.amber },
+    active:    { label: TRIP_STATUS_LABEL.active,    bg: colors.accent.teal + '33',  text: colors.accent.teal },
+    completed: { label: TRIP_STATUS_LABEL.completed, bg: colors.brand.blue + '33',   text: colors.brand.blue },
   };
 
-  const statusCfg = STATUS_CONFIG[trip.status] ?? STATUS_CONFIG.planning;
+  const statusCfg = STATUS_CONFIG[
+    displayStatus({ status: trip.status, startDate: toDateOrNull(trip.startDate), endDate: toDateOrNull(trip.endDate) }, new Date())
+  ];
 
   return (
     <TouchableOpacity

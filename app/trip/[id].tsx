@@ -55,6 +55,7 @@ import { selectStopsToGround } from '@/utils/groundingQueue';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
 import { tripPlaceLabel } from '@/utils/tripRegion';
+import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '@/utils/tripStatus';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -67,11 +68,6 @@ function formatDateRange(start: Timestamp | null, end: Timestamp | null): string
   return `${startStr} – ${endStr}`;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  planning: 'Planning',
-  active: 'Active',
-  completed: 'Completed',
-};
 
 const VISIBILITY_LABEL: Record<string, string> = {
   public: 'Public',
@@ -292,6 +288,10 @@ export default function TripDetailScreen() {
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
+  // Upcoming → Live → Completed from the trip's dates (utils/tripStatus).
+  const tripStatus = trip
+    ? displayStatus({ status: trip.status, startDate: toDateOrNull(trip.startDate), endDate: toDateOrNull(trip.endDate) }, new Date())
+    : 'planning';
 
   const moderation = useModeration();
   const { openActions, reportSheet, unblock } = useContentActions();
@@ -311,14 +311,14 @@ export default function TripDetailScreen() {
   // Recomputing this on every trip change is cheap and keeps it always
   // correct with zero extra writes to keep in sync.
   const currentActivityId = useMemo(() => {
-    if (!trip || trip.status !== 'active') return null;
+    if (!trip || tripStatus !== 'active') return null;
     const sortedDaysForCurrent = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
     for (const day of sortedDaysForCurrent) {
       const next = [...day.activities].sort((a, b) => a.order - b.order).find((a) => !a.visited);
       if (next) return next.id;
     }
     return null; // every stop visited, or no stops yet
-  }, [trip]);
+  }, [trip, tripStatus]);
 
   // TM-3d: gates the "Recap" chip — no point offering an empty story.
   const visitedCount = useMemo(() => {
@@ -946,7 +946,7 @@ export default function TripDetailScreen() {
           onOpenJournal={handleOpenJournal}
           currentActivityId={currentActivityId}
           canEditRoutes={isOwner || isCollaborator}
-          tripStatus={trip.status}
+          tripStatus={tripStatus}
           tripEndDate={trip.endDate ? trip.endDate.toDate() : null}
           onOpenRecap={() => {
             setViewMode('timeline');
@@ -1138,16 +1138,16 @@ export default function TripDetailScreen() {
           <View
             style={[
               styles.chip,
-              { backgroundColor: colors.status[trip.status]?.bg ?? colors.background.sunken },
+              { backgroundColor: colors.status[tripStatus]?.bg ?? colors.background.sunken },
             ]}
           >
             <Text
               style={[
                 styles.chipText,
-                { color: colors.status[trip.status]?.text ?? colors.text.secondary },
+                { color: colors.status[tripStatus]?.text ?? colors.text.secondary },
               ]}
             >
-              {STATUS_LABEL[trip.status] ?? trip.status}
+              {TRIP_STATUS_LABEL[tripStatus]}
             </Text>
           </View>
 

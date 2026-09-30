@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ViewStyle,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Timestamp } from 'firebase/firestore';
@@ -17,6 +18,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Avatar } from '@/components/ui/Avatar';
 import { Trip, TripStatus } from '@/types';
 import { tripPlaceLabel } from '@/utils/tripRegion';
+import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '@/utils/tripStatus';
 
 interface TripCardProps {
   trip: Trip;
@@ -46,12 +48,6 @@ interface TripCardProps {
 // photo. Same "text over unpredictable media" problem as the feed overlay:
 // solid dark scrim + white text, color-coded with a small dot instead of a
 // tinted background.
-const STATUS_LABELS: Record<TripStatus, string> = {
-  planning: 'Planning',
-  active: 'Active',
-  completed: 'Completed',
-};
-
 function formatDateRange(
   start: Timestamp | null,
   end: Timestamp | null,
@@ -61,6 +57,22 @@ function formatDateRange(
     ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   if (!end) return fmt(start);
   return `${fmt(start)} – ${fmt(end)}`;
+}
+
+/** The status dot for a trip happening now — breathes gently so "Live" reads as live. */
+function LiveDot({ color }: { color: string }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.35, duration: 900, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [opacity]);
+  return <Animated.View style={[styles.statusDot, { backgroundColor: color, opacity }]} />;
 }
 
 export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: TripCardProps) {
@@ -76,8 +88,12 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: Tri
   };
   // Saved-post records (feed bookmarks) omit status — a photo moment has no
   // planning lifecycle, so no badge at all beats a wrong one.
-  const statusLabel = trip.status ? STATUS_LABELS[trip.status] ?? STATUS_LABELS.planning : null;
-  const statusDot = trip.status ? statusDots[trip.status] ?? statusDots.planning : null;
+  // From the dates when it has them: Upcoming → Live → Completed on its own.
+  const status = trip.status
+    ? displayStatus({ status: trip.status, startDate: toDateOrNull(trip.startDate), endDate: toDateOrNull(trip.endDate) }, new Date())
+    : null;
+  const statusLabel = status ? TRIP_STATUS_LABEL[status] : null;
+  const statusDot = status ? statusDots[status] : null;
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
 
   const handlePress = useCallback(() => {
@@ -122,7 +138,9 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: Tri
               stay legible over bright and dark photos alike. */}
           {statusLabel && statusDot ? (
             <View style={styles.statusBadge}>
-              <View style={[styles.statusDot, { backgroundColor: statusDot }]} />
+              {status === 'active'
+                ? <LiveDot color={statusDot} />
+                : <View style={[styles.statusDot, { backgroundColor: statusDot }]} />}
               <Text style={styles.statusText}>{statusLabel}</Text>
             </View>
           ) : null}
