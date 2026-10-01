@@ -1,3 +1,4 @@
+import { deletePostConfirm } from '@/utils/postActions';
 import { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -141,7 +142,8 @@ export default function EditPostScreen() {
   const handleDelete = useCallback(() => {
     if (!post) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('Delete this post?', "This can't be undone.", [
+    const { title, message } = deletePostConfirm(post);
+    Alert.alert(title, message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

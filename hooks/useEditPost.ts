@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { uploadPostImage } from '@/services/postMedia';
+import { deletePost as deletePostDoc } from '@/services/posts';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 export type PhotoItem = { kind: 'existing'; url: string } | { kind: 'new'; localUri: string };
@@ -64,8 +65,7 @@ export function useEditPost(postId: string) {
   }
 
   async function deletePost(): Promise<void> {
-    await deleteDoc(doc(db, 'posts', postId));
-    invalidate();
+    await deletePostDoc(postId, queryClient);
   }
 
   return { updateCaption, updatePlace, updatePhotos, deletePost, isSaving, uploadProgress };

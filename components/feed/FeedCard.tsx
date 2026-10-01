@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,21 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MapTrifold } from 'phosphor-react-native';
+import { MapTrifold, Heart, HeartBreak } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { VideoPlayer } from './VideoPlayer';
 import { FeedActions } from './FeedActions';
+import { usePostLike } from '@/hooks/usePostLike';
+import { doubleTapLike } from '@/utils/postActions';
+import { SPRING } from '@/constants/motion';
 import { Post } from '@/types';
 import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -67,6 +72,29 @@ function TripInfoBadge({ tripId, destination, dateRange }: TripInfoBadgeProps) {
   );
 }
 
+/**
+ * The double-tap feedback in the middle of the photo: a pink heart when you
+ * like, a broken heart when a second double tap takes it back. Springs in with
+ * the house spring, then fades.
+ */
+function HeartBurst({ kind }: { kind: 'like' | 'unlike' }) {
+  const scale = useRef(new Animated.Value(0.4)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.sequence([
+      Animated.spring(scale, { toValue: 1, ...SPRING }),
+      Animated.timing(opacity, { toValue: 0, duration: 250, delay: 250, useNativeDriver: true }),
+    ]).start();
+  }, [scale, opacity]);
+  return (
+    <Animated.View pointerEvents="none" style={[styles.burst, { opacity, transform: [{ scale }] }]}>
+      {kind === 'like'
+        ? <Heart size={110} color="#f472b6" weight="fill" />
+        : <HeartBreak size={96} color="rgba(255,255,255,0.92)" weight="fill" />}
+    </Animated.View>
+  );
+}
+
 export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps) {
   const router = useRouter();
   const { colors } = useTheme();
@@ -78,13 +106,34 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
     router.push(`/post/${post.id}`);
   }, [post.id, router]);
 
+  // One like state for the heart button and the double tap.
+  const { liked, setLiked } = usePostLike(post.id);
+  const handleLikePress = useCallback(() => { setLiked(!liked); }, [liked, setLiked]);
+  const [burst, setBurst] = useState<{ kind: 'like' | 'unlike'; key: number } | null>(null);
+  const handleDoubleTap = useCallback(() => {
+    const next = doubleTapLike(liked);
+    if (!setLiked(next.liked)) return; // a like is still saving — ignore, don't flash a heart
+    Haptics.impactAsync(next.liked ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    setBurst({ kind: next.burst, key: Date.now() });
+  }, [liked, setLiked]);
+  // Double tap anywhere on the photo or video. Single taps, swipes between
+  // photos and the buttons on top are untouched: the gesture only wraps the media.
+  const doubleTap = useMemo(
+    () => Gesture.Tap().numberOfTaps(2).maxDelay(250).runOnJS(true).onEnd((_e, success) => {
+      if (success) handleDoubleTap();
+    }),
+    [handleDoubleTap],
+  );
+
   // Resolve the array of image URLs, falling back to single mediaUrl for older posts
   const imageUrls = post.mediaUrls?.length ? post.mediaUrls : (post.mediaUrl ? [post.mediaUrl] : []);
   const isMultiPhoto = post.mediaType === 'photo' && imageUrls.length > 1;
 
   return (
     <View style={{ width, height, backgroundColor: '#000' }}>
-      {/* Media layer */}
+      {/* Media layer — double tap to like, again to unlike */}
+      <GestureDetector gesture={doubleTap}>
+      <View style={StyleSheet.absoluteFill} collapsable={false}>
       {post.mediaType === 'video' ? (
         <VideoPlayer uri={post.mediaUrl} shouldPlay={isActive} isMuted={false} />
       ) : isMultiPhoto ? (
@@ -117,6 +166,10 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
           <MapTrifold size={32} color={colors.text.disabled} weight="duotone" />
         </View>
       )}
+      </View>
+      </GestureDetector>
+
+      {burst ? <HeartBurst key={burst.key} kind={burst.kind} /> : null}
 
       {/* Bottom gradient for readability */}
       <LinearGradient
@@ -152,12 +205,17 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
       )}
 
       {/* Overlaid controls */}
-      <FeedActions post={post} author={author} onCommentPress={handleCommentPress} onMorePress={onMorePress} />
+      <FeedActions post={post} author={author} onCommentPress={handleCommentPress} onMorePress={onMorePress} liked={liked} onLikePress={handleLikePress} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  burst: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   gradient: {
     position: 'absolute',
     bottom: 0,

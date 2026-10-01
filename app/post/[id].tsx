@@ -1,3 +1,4 @@
+import { useOwnPostActions } from '@/hooks/useOwnPostActions';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
@@ -203,6 +204,12 @@ export default function PostDetailScreen() {
     : null;
   const moderation = useModeration();
   const { openActions, reportSheet, unblock } = useContentActions();
+  // Your own post: edit or delete. Deleting it leaves this screen.
+  const handleOwnPostDeleted = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  }, [router]);
+  const { openOwnPostActions } = useOwnPostActions(handleOwnPostDeleted);
   const postMoreRef = useRef<View>(null);
 
   const visibleComments = useMemo(
@@ -338,14 +345,14 @@ export default function PostDetailScreen() {
           <ArrowLeft size={20} color={colors.text.primary} weight="regular" />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Post</Text>
-        {isOwner ? (
+        {isOwner && post ? (
           <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/post/edit/${post.id}`); }}
-            style={styles.backBtn}
-            hitSlop={8}
-            accessibilityLabel="Edit post"
+            ref={postMoreRef}
+            onPress={() => openOwnPostActions(post, postMoreRef)}
+            style={styles.moreBtn}
+            accessibilityLabel="Edit or delete post"
           >
-            <PencilSimple size={20} color={colors.text.primary} weight="regular" />
+            <DotsThree size={22} color={colors.text.primary} weight="bold" />
           </TouchableOpacity>
         ) : post ? (
           <TouchableOpacity
