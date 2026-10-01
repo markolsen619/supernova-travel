@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView, Image } from 'react-native';
 import {
   MapView,
   Camera,
@@ -38,7 +38,8 @@ import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
 import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, zoomForLeg, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { routeFeatures } from '@/utils/routeFeatures';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow } from '@/utils/flyover';
+import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
 import { useMapStyleStore } from '@/stores/useMapStyleStore';
@@ -357,6 +358,8 @@ export function TripMapView({
     [flightPaths],
   );
   const canFly = durations.some((d) => d > 0);
+  // Where each stop sits on its day's line — the reducer rests the head on each.
+  const stopFractions = useMemo(() => flightPaths.map((d) => d.path.stopFractions), [flightPaths]);
 
   useEffect(() => {
     if (flyover.status !== 'playing') return;
@@ -367,14 +370,14 @@ export function TripMapView({
     const loop = () => {
       const now = Date.now();
       if (now - last >= 33) {
-        dispatch({ type: 'tick', dt: now - last, durations });
+        dispatch({ type: 'tick', dt: now - last, durations, stopFractions });
         last = now;
       }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [flyover.status, durations]);
+  }, [flyover.status, durations, stopFractions]);
 
   // Camera: settles on each day's first stop during its hold, then follows
   // the drawing head once a second with a matching one-second glide — slow
@@ -385,6 +388,8 @@ export function TripMapView({
     const day = flightPaths[flyover.dayIndex];
     if (!day || day.path.coordinates.length < 2) return;
     const move = (durationMs: number) => {
+      // Resting on a stop: the stop has the camera (the showcase effect below).
+      if (flyoverRef.current.hold > 0) return;
       const { progress } = flyoverRef.current;
       const li = legAtProgress(day.path, progress);
       const leg = day.path.legs[li];
@@ -404,7 +409,6 @@ export function TripMapView({
         animationMode: 'easeTo',
       });
     };
-    move(1400);
     const id = setInterval(() => move(1000), 1000);
     return () => clearInterval(id);
   }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef]);
@@ -504,7 +508,21 @@ export function TripMapView({
 
   const flyDay = flightPaths[flyover.dayIndex];
   const flyDayMeta = flyDay ? days.find((d) => d.id === flyDay.dayId) : undefined;
-  const flyStop = flyDay ? [...flyDay.stops].reverse().find((st) => reached(st)) : undefined;
+  // The stop the head last reached — shown in the card, framed by the camera.
+  const flyStop = flying ? flyDay?.stops[flyover.stopIndex] : undefined;
+  const playingNow = flyover.status === 'playing';
+  useEffect(() => {
+    // Only while resting on it — resuming mid-leg mustn't pull the camera back.
+    if (!playingNow || !flyStop || flyoverRef.current.hold <= 0) return;
+    cameraRef.current?.setCamera({
+      centerCoordinate: [flyStop.lng, flyStop.lat],
+      zoomLevel: 16,
+      pitch: 60,
+      animationDuration: 1200,
+      animationMode: 'flyTo',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per stop reached, not per tick
+  }, [playingNow, flyover.dayIndex, flyover.stopIndex]);
 
   // Fits the camera to whatever's grounded — a single stop gets the same
   // deliberate zoom-14 framing used everywhere else for one place (a bounds
@@ -993,9 +1011,11 @@ export function TripMapView({
         {(flying ? markerStops(MARKER_MIN_ZOOM, shownStops, flyDay?.stops[0]?.dayId ?? null) : visibleMarkers).filter(reached).map((stop) => {
           const { Icon, color } = ACTIVITY_ICONS[stop.activity.type];
           const Wrap = flying ? SpringIn : View;
+          // The stop being shown grows and pops in again each time it's reached.
+          const showcased = flying && stop.activity.id === flyStop?.activity.id;
           return (
             <MarkerView key={stop.activity.id} coordinate={[stop.lng, stop.lat]} allowOverlap>
-              <Wrap>
+              <Wrap key={showcased ? 'on' : 'off'}>
               <TouchableOpacity
                 onPress={() => selectOwnStop(stop)}
                 accessibilityLabel={`Stop ${stop.stopNumber}: ${stop.activity.title}`}
@@ -1005,9 +1025,9 @@ export function TripMapView({
                   Icon={Icon}
                   color={color}
                   visited={stop.visited}
-                  isCurrent={stop.activity.id === currentActivityId}
-                  bubbleSize={32}
-                  iconSize={18}
+                  isCurrent={showcased || stop.activity.id === currentActivityId}
+                  bubbleSize={showcased ? 44 : 32}
+                  iconSize={showcased ? 24 : 18}
                   surfaceColor={colors.background.elevated}
                 />
                 <View style={[styles.markerBadge, { backgroundColor: stop.dayColor }]}>
@@ -1253,12 +1273,33 @@ export function TripMapView({
           what previously made this banner feel stuck). */}
       {flying && flyDay ? (
         <View style={[styles.flyCard, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}>
-          <Text style={[styles.flyEyebrow, { color: colors.text.secondary }]}>
-            {`DAY ${flyDayMeta?.dayNumber ?? flyover.dayIndex + 1}${flyDayMeta?.date ? ` · ${flyDayMeta.date.toDate().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}` : ''}`}
-          </Text>
-          <Text style={[styles.flyTitle, { color: colors.text.primary }]} numberOfLines={1}>
-            {flyStop?.activity.title ?? ' '}
-          </Text>
+          <SpringIn key={flyStop?.activity.id ?? 'none'}>
+            <View style={styles.flyStopRow}>
+              {flyStop?.activity.mediaUrls?.[0] ? (
+                <Image source={{ uri: flyStop.activity.mediaUrls[0] }} style={styles.flyThumb} />
+              ) : flyStop ? (
+                <TypeIconBubble Icon={ACTIVITY_ICONS[flyStop.activity.type].Icon} color={ACTIVITY_ICONS[flyStop.activity.type].color} bubbleSize={44} iconSize={22} />
+              ) : null}
+              <View style={styles.flyStopText}>
+                <Text style={[styles.flyEyebrow, { color: colors.text.secondary }]} numberOfLines={1}>
+                  {stopEyebrow(
+                    flyDayMeta?.dayNumber ?? flyover.dayIndex + 1,
+                    flyDayMeta?.date ? flyDayMeta.date.toDate().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase() : null,
+                    Math.max(0, flyover.stopIndex),
+                    flyDay.stops.length,
+                  )}
+                </Text>
+                <Text style={[styles.flyTitle, { color: colors.text.primary }]} numberOfLines={1}>
+                  {flyStop ? (flyStop.activity.placeName || flyStop.activity.title) : ' '}
+                </Text>
+                {flyStop?.activity.startTime || flyStop?.activity.notes ? (
+                  <Text style={[styles.flyMeta, { color: colors.text.secondary }]} numberOfLines={2}>
+                    {[flyStop.activity.startTime, flyStop.activity.notes].filter(Boolean).join(' · ')}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          </SpringIn>
           <View style={styles.flyControls}>
             <TouchableOpacity
               onPress={handlePlay}
@@ -1417,6 +1458,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     padding: Spacing['4'],
   },
+  flyStopRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'] },
+  flyStopText: { flex: 1 },
+  flyThumb: { width: 56, height: 56, borderRadius: 12 },
+  flyMeta: { fontSize: 13, marginTop: 2 },
   flyEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.08 * FontSize.xs },
   flyTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold, marginTop: 2 },
   flyControls: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], marginTop: Spacing['3'] },
