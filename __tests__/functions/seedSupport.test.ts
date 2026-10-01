@@ -1,5 +1,5 @@
 import {
-  mapboxPlaceUrl, parsePlaceFeature, mapboxPoiUrl, googleTextSearchBody, parseGooglePlace, coverPhotoUrl, padBox,
+  mapboxPlaceUrl, parsePlaceFeature, mapboxPoiUrl, googleTextSearchBody, parseGooglePlace, coverPhotoUrl, padBox, isCitySized,
   parsePoiFeature, plausibleMatch,
 } from '../../functions/src/seedSupport';
 
@@ -23,6 +23,15 @@ describe('padBox', () => {
     const big = { sw: [-9.3, 38.6], ne: [-9.0, 38.9] } as never;
     expect(padBox([-9.14, 38.72], big)).toBe(big);
     expect(padBox([10, 20], null)).toEqual({ sw: [9.9, 19.9], ne: [10.1, 20.1] });
+  });
+});
+
+describe('isCitySized', () => {
+  it('accepts a city or an island like Bali, rejects a state', () => {
+    expect(isCitySized({ sw: [-9.24, 38.62], ne: [-9.04, 38.82] })).toBe(true);
+    expect(isCitySized({ sw: [114.5, -9.1], ne: [115.9, -8.1] })).toBe(true); // Bali, 1.4°
+    // "New York, United States" matched New York State: 8° x 4.6°.
+    expect(isCitySized({ sw: [-79.76, 40.5], ne: [-71.77, 45.01] })).toBe(false);
   });
 });
 
