@@ -260,6 +260,39 @@ export default function NotificationsScreen() {
         );
       }
 
+      if (item.type === 'comment_reply') {
+        return (
+          <TouchableOpacity {...rowProps(item)}>
+            <Avatar uri={item.commenterAvatarUrl} name={item.commenterName} size="sm" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]}>
+                <Text style={styles.rowBold}>{item.commenterName}</Text> replied: {item.commentText}
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+            {item.postCoverUrl ? <Image source={{ uri: item.postCoverUrl }} style={styles.postThumb} /> : null}
+          </TouchableOpacity>
+        );
+      }
+
+      if (item.type === 'comment_like') {
+        return (
+          <TouchableOpacity {...rowProps(item)}>
+            <Avatar uri={item.likerAvatarUrl} name={item.likerName} size="sm" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]} numberOfLines={2}>
+                <Text style={styles.rowBold}>{item.likerName}</Text> liked your comment: {item.commentText}
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+
       if (item.type === 'flight_status') {
         const { Icon, color } = ACTIVITY_ICONS.flight;
         return (

@@ -68,6 +68,18 @@ export interface Comment {
   authorAvatarUrl: string | null;
   text: string;
   createdAt: Timestamp;
+  /** Set when this comment answers another (utils/commentThreads). One level of
+   *  threading: rootId is the top-level comment the thread hangs under. */
+  replyTo?: CommentReplyTo | null;
+  /** Kept by the like transaction; absent on comments from before comment likes. */
+  likesCount?: number;
+}
+
+export interface CommentReplyTo {
+  commentId: string;
+  rootId: string;
+  authorUid: string;
+  authorName: string;
 }
 
 export type TripStatus = 'planning' | 'active' | 'completed';
@@ -212,6 +224,26 @@ export interface PostCommentNotification {
   createdAt: Timestamp;
 }
 
+/** Someone replied to your comment (functions/src/postEvents.ts onCommentCreated). */
+export interface CommentReplyNotification extends Omit<PostCommentNotification, 'type'> {
+  type: 'comment_reply';
+  commentId: string;
+}
+
+/** Someone liked your comment (functions/src/commentEvents.ts). */
+export interface CommentLikeNotification {
+  id: string;
+  type: 'comment_like';
+  postId: string;
+  commentId: string;
+  commentText: string;
+  likerUid: string;
+  likerName: string;
+  likerAvatarUrl: string | null;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
 /** `users/{uid}/notifications/{id}` written by the checkFlightStatus
  * scheduler. The only notification type with no actor — it comes from the
  * flight poller, not a person, so its row shows a type icon where the others
@@ -231,6 +263,8 @@ export type AppNotification =
   | TripInviteAcceptedNotification
   | PostLikeNotification
   | PostCommentNotification
+  | CommentReplyNotification
+  | CommentLikeNotification
   | FlightStatusNotification;
 
 // ── Direct messaging ─────────────────────────────────────────────────────

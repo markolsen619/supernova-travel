@@ -32,7 +32,11 @@ import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
 import { Comment } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash } from 'phosphor-react-native';
+import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash, Heart, X } from 'phosphor-react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useCommentLike } from '@/hooks/usePostLike';
+import { threadComments, replyFieldsFor, commentMenu } from '@/utils/commentThreads';
+import { doubleTapLike } from '@/utils/postActions';
 import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { resolvePostAuthor } from '@/utils/postAuthor';
@@ -59,13 +63,37 @@ function CommentRow({
   postId,
   currentUid,
   onMore,
+  onReply,
+  isReply,
 }: {
   comment: Comment;
   postId: string;
   currentUid: string;
   onMore: (comment: Comment, anchor: React.RefObject<View | null>) => void;
+  onReply: (comment: Comment) => void;
+  /** Indented under the comment its thread hangs from. */
+  isReply: boolean;
 }) {
   const { colors } = useTheme();
+  // Tap the heart or double tap the comment to like it; again to unlike.
+  const { liked, setLiked } = useCommentLike(postId, comment.id);
+  const likesCount = comment.likesCount ?? 0;
+  const toggleLike = useCallback(() => {
+    const next = doubleTapLike(liked);
+    if (setLiked(next.liked)) {
+      Haptics.impactAsync(next.liked ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, [liked, setLiked]);
+  const doubleTap = useMemo(
+    () => Gesture.Tap().numberOfTaps(2).maxDelay(250).runOnJS(true).onEnd((_e, success) => {
+      if (success) toggleLike();
+    }),
+    [toggleLike],
+  );
+  const handleReply = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onReply(comment);
+  }, [onReply, comment]);
   const isMine = !!currentUid && comment.authorUid === currentUid;
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(comment.text);
@@ -113,9 +141,10 @@ function CommentRow({
   };
 
   return (
-    <View style={styles.commentRow}>
+    <View style={[styles.commentRow, isReply && styles.commentReply]}>
       <Avatar uri={comment.authorAvatarUrl} name={comment.authorDisplayName} size="xs" />
-      <View style={styles.commentContent}>
+      <GestureDetector gesture={doubleTap}>
+      <View style={styles.commentContent} collapsable={false}>
         <Text style={[styles.commentAuthor, { color: colors.text.primary }]}>
           {comment.authorDisplayName}
         </Text>
@@ -142,16 +171,41 @@ function CommentRow({
             </View>
           </View>
         ) : (
-          <Text style={[styles.commentText, { color: colors.text.secondary }]}>
-            {comment.text}
-          </Text>
+          <>
+            <Text style={[styles.commentText, { color: colors.text.secondary }]}>
+              {comment.replyTo ? (
+                <Text style={[styles.commentMention, { color: colors.brand.purple }]}>@{comment.replyTo.authorName} </Text>
+              ) : null}
+              {comment.text}
+            </Text>
+            <TouchableOpacity
+              onPress={handleReply}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              style={styles.replyBtn}
+              accessibilityLabel={`Reply to ${comment.authorDisplayName}`}
+            >
+              <Text style={[styles.replyText, { color: colors.text.tertiary }]}>Reply</Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
+      </GestureDetector>
       {!isEditing && (
         <View style={styles.commentMeta}>
           <Text style={[styles.commentTime, { color: colors.text.tertiary }]}>
             {formatTimestamp(comment.createdAt as unknown as { toDate?: () => Date })}
           </Text>
+          <TouchableOpacity
+            onPress={toggleLike}
+            style={styles.commentLikeBtn}
+            accessibilityLabel={liked ? 'Unlike comment' : 'Like comment'}
+            accessibilityState={{ selected: liked }}
+          >
+            <Heart size={14} color={liked ? '#f472b6' : colors.text.tertiary} weight={liked ? 'fill' : 'regular'} />
+            {likesCount > 0 ? (
+              <Text style={[styles.commentLikeCount, { color: colors.text.tertiary }]}>{likesCount}</Text>
+            ) : null}
+          </TouchableOpacity>
           {!isMine && (
             <TouchableOpacity
               ref={moreRef}
@@ -190,6 +244,13 @@ export default function PostDetailScreen() {
   const { data: post, isLoading: postLoading } = usePost(id ?? null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
+  // The comment being answered, shown as a chip above the input.
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const inputRef = useRef<TextInput>(null);
+  const handleReply = useCallback((comment: Comment) => {
+    setReplyingTo(comment);
+    inputRef.current?.focus();
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
 
@@ -222,16 +283,47 @@ export default function PostDetailScreen() {
     [comments, moderation, id],
   );
 
+  // Each thread's top comment, then its replies indented beneath it.
+  const commentRows = useMemo(
+    () => threadComments(visibleComments).flatMap((t) => [
+      { comment: t.comment, isReply: false },
+      ...t.replies.map((r) => ({ comment: r, isReply: true })),
+    ]),
+    [visibleComments],
+  );
+
   const handleCommentMore = useCallback(
     (comment: Comment, anchor: React.RefObject<View | null>) => {
       if (!id) return;
+      // On your own post you can also remove someone's comment.
+      const canDelete = commentMenu(comment, uid, post?.authorUid ?? '').includes('delete');
       openActions({
         target: { type: 'comment', id: comment.id, parentId: id, ownerUid: comment.authorUid },
         ownerName: comment.authorDisplayName || 'this traveler',
         anchor,
+        extraAction: canDelete
+          ? {
+              label: 'Delete comment',
+              destructive: true,
+              onPress: () => {
+                Alert.alert('Delete this comment?', `${comment.authorDisplayName || 'Their'} comment is removed from your post. This can't be undone.`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      deleteDoc(doc(db, 'posts', id, 'comments', comment.id)).catch(() =>
+                        Alert.alert("We couldn't delete that comment", 'Check your connection and try again.'));
+                    },
+                  },
+                ]);
+              },
+            }
+          : undefined,
       });
     },
-    [id, openActions],
+    [id, openActions, uid, post?.authorUid],
   );
 
   const handlePostMore = useCallback(() => {
@@ -272,9 +364,12 @@ export default function PostDetailScreen() {
         authorDisplayName: currentUser?.fullName ?? 'Traveler',
         authorAvatarUrl: currentUser?.avatarUrl ?? null,
         text: commentText.trim(),
+        likesCount: 0,
+        ...(replyingTo ? replyFieldsFor(replyingTo) : {}),
         createdAt: serverTimestamp(),
       });
       setCommentText('');
+      setReplyingTo(null);
     } catch {
       // Includes the rules refusing a comment on a post whose author blocked you.
       setCommentError("Your comment wasn't posted. Try again.");
@@ -442,8 +537,16 @@ export default function PostDetailScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text.tertiary }]}>
             {visibleComments.length} {visibleComments.length === 1 ? 'Comment' : 'Comments'}
           </Text>
-          {visibleComments.map((c) => (
-            <CommentRow key={c.id} comment={c} postId={id!} currentUid={uid} onMore={handleCommentMore} />
+          {commentRows.map(({ comment: c, isReply }) => (
+            <CommentRow
+              key={c.id}
+              comment={c}
+              postId={id!}
+              currentUid={uid}
+              onMore={handleCommentMore}
+              onReply={handleReply}
+              isReply={isReply}
+            />
           ))}
         </View>
       </ScrollView>
@@ -455,6 +558,20 @@ export default function PostDetailScreen() {
         >
           {commentError}
         </Text>
+      ) : null}
+      {replyingTo ? (
+        <View style={[styles.replyChip, { backgroundColor: colors.background.sunken, borderTopColor: colors.background.cardBorder }]}>
+          <Text style={[styles.replyChipText, { color: colors.text.secondary }]} numberOfLines={1}>
+            Replying to <Text style={styles.replyChipName}>{replyingTo.authorDisplayName}</Text>
+          </Text>
+          <TouchableOpacity
+            onPress={() => setReplyingTo(null)}
+            style={styles.replyChipClose}
+            accessibilityLabel="Cancel reply"
+          >
+            <X size={14} color={colors.text.secondary} weight="bold" />
+          </TouchableOpacity>
+        </View>
       ) : null}
       <View
         style={[
@@ -473,8 +590,9 @@ export default function PostDetailScreen() {
           size="xs"
         />
         <TextInput
+          ref={inputRef}
           style={[styles.input, { color: colors.text.primary }]}
-          placeholder="Add a comment..."
+          placeholder={replyingTo ? `Reply to ${replyingTo.authorDisplayName}…` : 'Add a comment...'}
           placeholderTextColor={colors.text.tertiary}
           value={commentText}
           onChangeText={(t) => {
@@ -578,6 +696,22 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, marginBottom: Spacing['1'] },
   commentRow: { flexDirection: 'row', gap: Spacing['3'], alignItems: 'flex-start' },
   commentContent: { flex: 1, gap: 2 },
+  // Replies sit one avatar-width in, under the comment they answer.
+  commentReply: { marginLeft: 36 },
+  commentMention: { fontWeight: FontWeight.semiBold },
+  replyBtn: { alignSelf: 'flex-start', paddingVertical: 4 },
+  replyText: { fontSize: FontSize.xs, fontWeight: FontWeight.semiBold },
+  commentLikeBtn: { minWidth: 44, minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3 },
+  commentLikeCount: { fontSize: FontSize.xs },
+  replyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: Spacing['4'],
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  replyChipText: { flex: 1, fontSize: FontSize.sm },
+  replyChipName: { fontWeight: FontWeight.semiBold },
+  replyChipClose: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
   commentAuthor: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   commentText: { fontSize: FontSize.sm, lineHeight: 18 },
   commentTime: { fontSize: FontSize.xs },

@@ -17,6 +17,8 @@ interface OpenActionsOptions {
    * needs something to point at; without it, it floats mid-screen.
    */
   anchor?: React.RefObject<View | null>;
+  /** An option listed above Report — e.g. "Delete comment" on a comment on your own post. */
+  extraAction?: { label: string; destructive?: boolean; onPress: () => void };
 }
 
 /**
@@ -67,7 +69,7 @@ export function useContentActions() {
   );
 
   const openActions = useCallback(
-    ({ target, ownerName, anchor }: OpenActionsOptions) => {
+    ({ target, ownerName, anchor, extraAction }: OpenActionsOptions) => {
       if (!canModerate(uid, target.ownerUid)) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
@@ -81,22 +83,31 @@ export function useContentActions() {
 
       if (Platform.OS === 'ios') {
         const anchorHandle = anchor?.current ? findNodeHandle(anchor.current) : null;
+        const offset = extraAction ? 1 : 0;
+        const destructive = [
+          ...(extraAction?.destructive ? [0] : []),
+          ...(isBlocked ? [] : [1 + offset]),
+        ];
         ActionSheetIOS.showActionSheetWithOptions(
           {
-            options: [reportLabel, blockLabel, 'Cancel'],
-            destructiveButtonIndex: isBlocked ? undefined : 1,
-            cancelButtonIndex: 2,
+            options: [...(extraAction ? [extraAction.label] : []), reportLabel, blockLabel, 'Cancel'],
+            destructiveButtonIndex: destructive.length ? destructive : undefined,
+            cancelButtonIndex: 2 + offset,
             ...(anchorHandle ? { anchor: anchorHandle } : {}),
           },
           (index) => {
-            if (index === 0) onReport();
-            if (index === 1) onBlockToggle();
+            if (extraAction && index === 0) extraAction.onPress();
+            if (index === offset) onReport();
+            if (index === 1 + offset) onBlockToggle();
           },
         );
         return;
       }
 
       Alert.alert(ownerName, undefined, [
+        ...(extraAction
+          ? [{ text: extraAction.label, style: extraAction.destructive ? 'destructive' as const : 'default' as const, onPress: extraAction.onPress }]
+          : []),
         { text: reportLabel, onPress: onReport },
         { text: blockLabel, style: isBlocked ? 'default' : 'destructive', onPress: onBlockToggle },
         { text: 'Cancel', style: 'cancel' },
