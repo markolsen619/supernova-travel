@@ -154,12 +154,38 @@ service cloud.firestore {
 
       match /comments/{commentId} {
         allow read: if isAuthed();
-        // Not on the post of someone who blocked you.
+        // Not on the post of someone who blocked you. A new comment starts
+        // with no likes; the count only moves through the like rule below.
         allow create: if isAuthed() && request.auth.uid == request.resource.data.authorUid
           && !request.resource.data.keys().hasAny(['moderationHidden'])
+          && (!request.resource.data.keys().hasAny(['likesCount']) || request.resource.data.likesCount == 0)
           && !hasBlocked(get(/databases/$(database)/documents/posts/$(postId)).data.authorUid, request.auth.uid);
-        allow update: if isAuthed() && request.auth.uid == resource.data.authorUid && !touchesModerationFlag();
-        allow delete: if isAuthed() && request.auth.uid == resource.data.authorUid;
+        // The author edits their text (not the like count); anyone signed in
+        // moves ONLY the like count, by exactly one — same shape as posts.
+        allow update: if isAuthed() && !touchesModerationFlag() && (
+          (request.auth.uid == resource.data.authorUid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['likesCount']))
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
+            && (
+              request.resource.data.likesCount == resource.data.get('likesCount', 0) + 1
+              || request.resource.data.likesCount == resource.data.get('likesCount', 0) - 1
+            )
+          )
+        );
+        // Its author, or the author of the post it's on — your post, your call.
+        allow delete: if isAuthed() && (
+          request.auth.uid == resource.data.authorUid
+          || request.auth.uid == get(/databases/$(database)/documents/posts/$(postId)).data.authorUid
+        );
+
+        // One like per user per comment — doc ID is the liker's uid.
+        match /likes/{likerUid} {
+          allow read: if isAuthed();
+          allow create: if isAuthed() && likerUid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+          allow update: if false;
+          allow delete: if isAuthed() && likerUid == request.auth.uid;
+        }
       }
     }
 

@@ -41,3 +41,11 @@ describe('resolveNotificationRoute', () => {
     expect(resolveNotificationRoute({ type: 'post_like', postId: 42 })).toBeNull();
   });
 });
+
+describe('comment notifications', () => {
+  it('opens the post for a reply or a like on your comment', () => {
+    expect(resolveNotificationRoute({ type: 'comment_reply', postId: 'p1' })).toBe('/post/p1');
+    expect(resolveNotificationRoute({ type: 'comment_like', postId: 'p1' })).toBe('/post/p1');
+    expect(resolveNotificationRoute({ type: 'comment_like' })).toBeNull();
+  });
+});

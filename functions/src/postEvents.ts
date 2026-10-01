@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { notifyUser } from './notify';
+import { commentNotificationTargets } from './commentNotifications';
 
 const db = admin.firestore();
 
@@ -48,39 +49,42 @@ export const onLikeCreated = onDocumentCreated(
 
 /** posts/{postId}/comments/{commentId} — the comment doc already carries
  * authorDisplayName/authorAvatarUrl (see the Comment type), so no extra
- * users/ lookup is needed here, unlike likes. */
+ * users/ lookup is needed here, unlike likes. A reply also tells the person
+ * it answers; who hears about what is decided in commentNotifications.ts. */
 export const onCommentCreated = onDocumentCreated(
   'posts/{postId}/comments/{commentId}',
   async (event) => {
     const snap = event.data;
     if (!snap) return;
-    const { postId } = event.params;
+    const { postId, commentId } = event.params;
     const comment = snap.data();
     const commenterUid: string = comment.authorUid;
 
     const postSnap = await db.doc(`posts/${postId}`).get();
     if (!postSnap.exists) return;
     const post = postSnap.data()!;
-    if (post.authorUid === commenterUid) return; // no self-notifications
 
     const text: string = comment.text ?? '';
     const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text;
     const commenterName: string = comment.authorDisplayName ?? 'A traveler';
+    const replyToUid: string | null = typeof comment.replyTo?.authorUid === 'string' ? comment.replyTo.authorUid : null;
 
-    await notifyUser(post.authorUid, {
+    const targets = commentNotificationTargets({ postAuthorUid: post.authorUid, commenterUid, replyToUid });
+    await Promise.all(targets.map(({ uid, type }) => notifyUser(uid, {
       notification: {
-        type: 'post_comment',
+        type,
         postId,
+        // So deleting the comment can find and remove this notification.
+        commentId,
         postCoverUrl: coverUrlFor(post),
         commentText: preview,
         commenterUid,
         commenterName,
         commenterAvatarUrl: comment.authorAvatarUrl ?? null,
       },
-      push: {
-        title: 'New comment',
-        body: `${commenterName}: ${preview}`,
-      },
-    });
+      push: type === 'comment_reply'
+        ? { title: 'New reply', body: `${commenterName} replied: ${preview}` }
+        : { title: 'New comment', body: `${commenterName}: ${preview}` },
+    })));
   },
 );

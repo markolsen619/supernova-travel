@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,6 @@ import {
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  doc,
-  runTransaction,
-  serverTimestamp,
-  getDoc,
-} from 'firebase/firestore';
-import {
   Heart,
   ChatCircle,
   Export,
@@ -22,9 +16,9 @@ import {
   MapPin,
   DotsThree,
 } from 'phosphor-react-native';
-import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useSavePost } from '@/hooks/useSavePost';
+import { useOwnPostActions } from '@/hooks/useOwnPostActions';
 import { Avatar } from '@/components/ui/Avatar';
 import { resolvePostAuthor } from '@/utils/postAuthor';
 import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
@@ -43,10 +37,9 @@ interface FeedActionsProps {
   author?: AuthorInfo;
   onCommentPress: () => void;
   onMorePress?: (post: Post, anchor: React.RefObject<View | null>) => void;
-}
-
-function likeDocId(uid: string, postId: string) {
-  return `${uid}_${postId}`;
+  /** Owned by FeedCard (usePostLike) so the heart and the double tap share one state. */
+  liked: boolean;
+  onLikePress: () => void;
 }
 
 /** Never show a raw uid: posts created before usernames existed denormalized
@@ -62,53 +55,17 @@ function authorHandle(post: Post): string {
 // video, not app chrome — white + shadow is the correct legibility pattern
 // here regardless of the app's light/dark theme (same reasoning as
 // Instagram/TikTok's overlay controls), so none of this reads from useTheme().
-export function FeedActions({ post, author, onCommentPress, onMorePress }: FeedActionsProps) {
+export function FeedActions({ post, author, onCommentPress, onMorePress, liked, onLikePress }: FeedActionsProps) {
   const resolvedAuthor = resolvePostAuthor(post, author);
   const router = useRouter();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
-  const [liked, setLiked] = useState(false);
-  const [likeBusy, setLikeBusy] = useState(false);
   const { saved, toggleSave } = useSavePost(post);
+  const { openOwnPostActions } = useOwnPostActions();
 
-  // Seed the real liked state — one cheap keyed read per card
-  useEffect(() => {
-    if (!uid) return;
-    let cancelled = false;
-    getDoc(doc(db, 'posts', post.id, 'likes', likeDocId(uid, post.id)))
-      .then((snap) => { if (!cancelled) setLiked(snap.exists()); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [uid, post.id]);
-
-  const handleLike = useCallback(async () => {
-    if (!uid || likeBusy) return;
+  const handleLike = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const next = !liked;
-    setLiked(next); // optimistic
-    setLikeBusy(true);
-    const likeRef = doc(db, 'posts', post.id, 'likes', likeDocId(uid, post.id));
-    const postRef = doc(db, 'posts', post.id);
-    try {
-      // Transactions require every read before the first write
-      await runTransaction(db, async (tx) => {
-        const likeSnap = await tx.get(likeRef);
-        const postSnap = await tx.get(postRef);
-        const count = postSnap.data()?.likesCount ?? 0;
-        if (next && !likeSnap.exists()) {
-          tx.set(likeRef, { uid, createdAt: serverTimestamp() });
-          tx.update(postRef, { likesCount: count + 1 });
-        } else if (!next && likeSnap.exists()) {
-          tx.delete(likeRef);
-          tx.update(postRef, { likesCount: Math.max(0, count - 1) });
-        }
-      });
-    } catch (err) {
-      console.error('[FeedActions] like failed:', err);
-      setLiked(!next); // revert optimistic state
-    } finally {
-      setLikeBusy(false);
-    }
-  }, [uid, likeBusy, liked, post.id]);
+    onLikePress();
+  }, [onLikePress]);
 
   const handleCommentPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -137,8 +94,13 @@ export function FeedActions({ post, author, onCommentPress, onMorePress }: FeedA
   const isOwnPost = !!uid && post.authorUid === uid;
 
   const handleMorePress = useCallback(() => {
+    // Your own post: edit or delete it. Anyone else's: report or block.
+    if (isOwnPost) {
+      openOwnPostActions(post, moreRef);
+      return;
+    }
     onMorePress?.(post, moreRef);
-  }, [onMorePress, post]);
+  }, [onMorePress, post, isOwnPost, openOwnPostActions]);
 
   const handleAuthorPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -202,13 +164,13 @@ export function FeedActions({ post, author, onCommentPress, onMorePress }: FeedA
           />
         </TouchableOpacity>
 
-        {onMorePress && !isOwnPost ? (
+        {isOwnPost || onMorePress ? (
           <TouchableOpacity
             ref={moreRef}
             style={styles.actionBtn}
             onPress={handleMorePress}
             hitSlop={10}
-            accessibilityLabel="More options"
+            accessibilityLabel={isOwnPost ? "Edit or delete post" : "More options"}
           >
             <DotsThree size={28} color="rgba(255,255,255,0.9)" weight="bold" />
           </TouchableOpacity>
