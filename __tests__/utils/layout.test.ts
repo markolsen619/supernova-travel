@@ -118,6 +118,10 @@ describe('resize helpers', () => {
 });
 
 describe('usesReadingColumn', () => {
+  it('gives the destination page the reading column', () => {
+    expect(usesReadingColumn('root', 'destination/[slug]')).toBe(true);
+  });
+
   it('centres form and list screens', () => {
     expect(usesReadingColumn('root', '(wallet)')).toBe(true);
     expect(usesReadingColumn('root', 'notifications')).toBe(true);
