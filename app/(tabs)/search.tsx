@@ -32,7 +32,7 @@ import { useSearch } from '@/hooks/useSearch';
 import { useDestinations } from '@/hooks/useDestinations';
 import { useHeatmap } from '@/hooks/useHeatmap';
 import { matchDestinations } from '@/utils/destinations';
-import { destinationSlugFromFeatures } from '@/utils/heatmap';
+import { findDestinationAt, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
 import { DestinationResult } from '@/components/search/DestinationResult';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -45,7 +45,7 @@ import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { UserResult } from '@/components/search/UserResult';
 import { TripResult } from '@/components/search/TripResult';
 import { PlaceResult } from '@/components/search/PlaceResult';
-import { GlobeMapView, INITIAL_ZOOM, INITIAL_COORDS, DESTINATION_PIN_LAYERS, type ScreenPointPayload } from '@/components/search/GlobeMapView';
+import { GlobeMapView, INITIAL_ZOOM, INITIAL_COORDS, type ScreenPointPayload } from '@/components/search/GlobeMapView';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING, Duration, fadeTo } from '@/constants/motion';
@@ -557,8 +557,8 @@ export default function SearchScreen() {
 
       // A destination pin opens its page — checked first, so it never falls
       // through to a (billed) POI or nearby lookup.
-      const pinSlug = destinationSlugFromFeatures(
-        await mapRef.current?.queryRenderedFeaturesInRect(tapBbox(screenPointX, screenPointY), [], DESTINATION_PIN_LAYERS),
+      const pinSlug = destinations.length === 0 ? null : await findDestinationAt(async () =>
+        mapRef.current?.queryRenderedFeaturesInRect(tapBbox(screenPointX, screenPointY), [], DESTINATION_PIN_LAYERS),
       );
       if (pinSlug) {
         router.push(`/destination/${pinSlug}`);
@@ -643,7 +643,7 @@ export default function SearchScreen() {
     },
     // keyboardVisible must be listed, or the early return above reads the
     // value from whenever this callback was last built rather than now.
-    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse, runNearbySearchFallback, keyboardVisible],
+    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse, runNearbySearchFallback, keyboardVisible, destinations],
   );
 
   // ── Flow C: nearby-results row tap ────────────────────────────────────────

@@ -33,7 +33,11 @@ export function isAggregatable(trip: { visibility?: string; moderationHidden?: b
   return trip.visibility === 'public' && !trip.moderationHidden && (trip.destinationKeys?.length ?? 0) > 0;
 }
 
-export interface StopForRanking { placeId: string | null; name: string; type: string; lat: number; lng: number; tripId: string; saves: number }
+export interface StopForRanking {
+  placeId: string | null; name: string; type: string; lat: number; lng: number; tripId: string; saves: number;
+  /** Grounding resolved it to a named business or sight (it has a placeName), not just a spot on the map. */
+  isVenue: boolean;
+}
 export interface TopPlace { name: string; type: string; lat: number; lng: number; placeId: string | null; itineraryCount: number }
 
 /** Places ranked by how many itineraries include them (each trip counted once), ties by saves. */
@@ -41,7 +45,9 @@ export interface TopPlace { name: string; type: string; lat: number; lng: number
 const PLACE_TYPES = new Set(['activity', 'restaurant']);
 
 export function rankTopPlaces(stops: StopForRanking[], limit = 12): TopPlace[] {
-  stops = stops.filter((s) => PLACE_TYPES.has(s.type));
+  // Only named places: an itinerary line like "Beach Activities & Relaxation" can be
+  // pinned somewhere, but it isn't a place anyone can go to.
+  stops = stops.filter((s) => PLACE_TYPES.has(s.type) && s.isVenue);
   const groups = new Map<string, { place: TopPlace; trips: Set<string>; saves: number }>();
   for (const s of stops) {
     const key = s.placeId ? `id:${s.placeId}` : `at:${s.name.trim().toLowerCase()}@${s.lat.toFixed(3)},${s.lng.toFixed(3)}`;

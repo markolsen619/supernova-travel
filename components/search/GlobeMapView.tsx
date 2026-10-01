@@ -31,8 +31,6 @@ const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
 export const INITIAL_ZOOM = 1.5;
 export const INITIAL_COORDS: [number, number] = [0, 20]; // [lng, lat]
 
-/** The pin layers a tap is tested against (search.tsx) to open a destination page. */
-export const DESTINATION_PIN_LAYERS = ['destination-pin', 'destination-label'];
 
 /**
  * Destination pins stop drawing here; Standard's own POI labels arrive around

@@ -109,8 +109,8 @@ describe('flyover stop pauses', () => {
     expect(s).toMatchObject({ dayIndex: 1, stopIndex: 0, progress: 0, hold: STOP_DWELL_MS });
   });
 
-  it('skips a day with no path without dwelling', () => {
-    const DD = [10_000, 0, 10_000], FF = [[0, 1], [0], [0, 1]];
+  it('skips a day with no stops without dwelling', () => {
+    const DD = [10_000, 0, 10_000], FF = [[0, 1], [], [0, 1]];
     const s = run(initialFlyover, { type: 'play' }, tick(STOP_DWELL_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF), tick(33, DD, FF));
     expect(s).toMatchObject({ dayIndex: 2, stopIndex: 0, hold: STOP_DWELL_MS });
   });
@@ -120,6 +120,18 @@ describe('flyover stop pauses', () => {
     expect(s).toMatchObject({ status: 'paused', hold: STOP_DWELL_MS - 1_000 });
     s = run(s, { type: 'jump', dayIndex: 0 });
     expect(s).toMatchObject({ status: 'playing', stopIndex: 0, hold: STOP_DWELL_MS, progress: 0 });
+  });
+});
+
+describe('one-stop days', () => {
+  it('still rests on a day with a single stop (no route to draw), then moves on', () => {
+    const DD = [10_000, 0, 10_000], FF = [[0, 1], [0], [0, 1]];
+    let s = run(initialFlyover, { type: 'play' }, tick(STOP_DWELL_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF));
+    expect(s).toMatchObject({ dayIndex: 1, stopIndex: 0, hold: STOP_DWELL_MS });
+    s = run(s, tick(1_000, DD, FF));
+    expect(s).toMatchObject({ dayIndex: 1, hold: STOP_DWELL_MS - 1_000 });
+    s = run(s, tick(1_500, DD, FF), tick(33, DD, FF));
+    expect(s).toMatchObject({ dayIndex: 2, stopIndex: 0, hold: STOP_DWELL_MS });
   });
 });
 

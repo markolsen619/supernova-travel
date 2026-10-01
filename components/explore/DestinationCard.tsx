@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { TouchableOpacity, View, Text, Image, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { MapPin } from 'phosphor-react-native';
@@ -46,7 +47,8 @@ export function DestinationCard({ destination, onPress }: DestinationCardProps) 
         style={[styles.card, { width: cardWidth, height: cardHeight }]}
         accessibilityLabel={label}
       >
-        <Image source={{ uri: destination.coverImageUrl! }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={handlePhotoError} />
+        {/* Disk-cached: each cover is a billed Google photo request, fetched once per device rather than on every Explore open. */}
+        <Image source={{ uri: destination.coverImageUrl! }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" transition={200} onError={handlePhotoError} />
         {/* Deep enough at the bottom that white text holds 4.5:1 over a white photo. */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.42)', 'rgba(0,0,0,0.85)'] as [string, string, string]}

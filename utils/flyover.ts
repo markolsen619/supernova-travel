@@ -63,8 +63,13 @@ export function flyoverReducer(state: FlyoverState, action: FlyoverAction): Flyo
     case 'tick': {
       if (state.status !== 'playing') return state;
       const duration = action.durations[state.dayIndex] ?? 0;
-      // A day with no path: nothing to draw or show.
-      if (duration <= 0) return nextDay(state, action.durations);
+      if (duration <= 0) {
+        // No route to draw. A day with one stop still rests on it — often the
+        // arrival day's hotel — and a day with no stops is skipped outright.
+        const hasStop = (action.stopFractions[state.dayIndex]?.length ?? 0) > 0;
+        if (!hasStop || state.hold <= 0) return nextDay(state, action.durations);
+        return { ...state, hold: state.hold - Math.min(state.hold, action.dt) };
+      }
       let dt = action.dt;
       if (state.hold > 0) {
         const hold = state.hold - Math.min(state.hold, dt);

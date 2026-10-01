@@ -40,3 +40,26 @@ export function destinationSlugFromFeatures(fc: GeoJSON.FeatureCollection | unde
   }
   return null;
 }
+
+/**
+ * The globe layers a tap is tested against to open a destination page. The
+ * halo is included: around a small pin the 22pt tap box often reaches only
+ * the halo, and its feature carries a `name` — missed here, it would be taken
+ * for a POI and sent to a billed Text Search.
+ */
+export const DESTINATION_PIN_LAYERS = ['destination-halo', 'destination-pin', 'destination-label'];
+
+/**
+ * The destination under a tap, or null. A failed query (layers not mounted
+ * while the catalog loads, a native error) counts as "no pin" so the tap
+ * carries on to the normal POI lookup instead of dying.
+ */
+export async function findDestinationAt(
+  query: () => Promise<GeoJSON.FeatureCollection | undefined | null>,
+): Promise<string | null> {
+  try {
+    return destinationSlugFromFeatures(await query());
+  } catch {
+    return null;
+  }
+}

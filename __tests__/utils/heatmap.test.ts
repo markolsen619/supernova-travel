@@ -1,4 +1,4 @@
-import { heatFeatures, destinationPinFeatures, destinationSlugFromFeatures } from '@/utils/heatmap';
+import { heatFeatures, destinationPinFeatures, destinationSlugFromFeatures, findDestinationAt, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
 import { parseDestination } from '@/utils/destinations';
 
 describe('heatFeatures', () => {
@@ -32,5 +32,19 @@ describe('destination pins', () => {
     ] } as GeoJSON.FeatureCollection;
     expect(destinationSlugFromFeatures(fc)).toBe('lisbon');
     expect(destinationSlugFromFeatures(undefined)).toBeNull();
+  });
+});
+
+describe('findDestinationAt', () => {
+  it('tests the halo too — a tap near a small pin lands on its halo', () => {
+    expect(DESTINATION_PIN_LAYERS).toEqual(expect.arrayContaining(['destination-halo', 'destination-pin', 'destination-label']));
+  });
+  it('returns the slug the query finds', async () => {
+    const fc = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { slug: 'kyoto' }, geometry: { type: 'Point', coordinates: [0, 0] } }] } as GeoJSON.FeatureCollection;
+    await expect(findDestinationAt(async () => fc)).resolves.toBe('kyoto');
+  });
+  it('treats a failed or empty query as no pin, so the tap carries on to the POI lookup', async () => {
+    await expect(findDestinationAt(async () => { throw new Error('no such layer'); })).resolves.toBeNull();
+    await expect(findDestinationAt(async () => undefined)).resolves.toBeNull();
   });
 });

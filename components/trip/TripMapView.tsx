@@ -510,6 +510,9 @@ export function TripMapView({
   const flyDayMeta = flyDay ? days.find((d) => d.id === flyDay.dayId) : undefined;
   // The stop the head last reached — shown in the card, framed by the camera.
   const flyStop = flying ? flyDay?.stops[flyover.stopIndex] : undefined;
+  // The shown stop's own day: in Actual mode one path spans every day, so the
+  // flight path's day would label every stop "DAY 1".
+  const flyStopDay = flyStop ? days.find((d) => d.id === flyStop.dayId) ?? flyDayMeta : flyDayMeta;
   const playingNow = flyover.status === 'playing';
   useEffect(() => {
     // Only while resting on it — resuming mid-leg mustn't pull the camera back.
@@ -1283,8 +1286,8 @@ export function TripMapView({
               <View style={styles.flyStopText}>
                 <Text style={[styles.flyEyebrow, { color: colors.text.secondary }]} numberOfLines={1}>
                   {stopEyebrow(
-                    flyDayMeta?.dayNumber ?? flyover.dayIndex + 1,
-                    flyDayMeta?.date ? flyDayMeta.date.toDate().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase() : null,
+                    flyStopDay?.dayNumber ?? flyover.dayIndex + 1,
+                    flyStopDay?.date ? flyStopDay.date.toDate().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase() : null,
                     Math.max(0, flyover.stopIndex),
                     flyDay.stops.length,
                   )}
@@ -1318,10 +1321,10 @@ export function TripMapView({
                   <TouchableOpacity
                     key={d.dayId}
                     onPress={() => handleJumpDay(i)}
-                    disabled={durations[i] === 0}
+                    disabled={durations[i] === 0 && d.stops.length === 0}
                     style={[styles.dayChip, { borderColor: d.color }, active && { backgroundColor: d.color }]}
                     accessibilityLabel={`Day ${meta?.dayNumber ?? i + 1}`}
-                    accessibilityState={{ selected: active, disabled: durations[i] === 0 }}
+                    accessibilityState={{ selected: active, disabled: durations[i] === 0 && d.stops.length === 0 }}
                   >
                     <Text style={[styles.dayChipText, { color: active ? '#0B0A12' : colors.text.primary }]}>
                       {`Day ${meta?.dayNumber ?? i + 1}`}

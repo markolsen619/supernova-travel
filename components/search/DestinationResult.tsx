@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { CaretRight, MapPin } from 'phosphor-react-native';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -27,7 +28,7 @@ export function DestinationResult({ destination, onPress }: DestinationResultPro
       accessibilityLabel={`${destination.name}, ${destination.countryName}`}
     >
       {showPhoto ? (
-        <Image source={{ uri: destination.coverImageUrl! }} style={styles.thumb} onError={() => setPhotoFailed(true)} />
+        <Image source={{ uri: destination.coverImageUrl! }} style={styles.thumb} contentFit="cover" cachePolicy="disk" onError={() => setPhotoFailed(true)} />
       ) : (
         <View style={[styles.thumb, styles.thumbFallback, { backgroundColor: colors.background.elevated }]}>
           <MapPin size={20} color={colors.brand.purple} weight="duotone" />

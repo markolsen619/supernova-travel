@@ -8,7 +8,9 @@
  * deep link loads it too.
  */
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image } from 'expo-image';
+import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -49,6 +51,12 @@ export default function DestinationScreen() {
   const { data: authors = {} } = useAuthorProfiles(allTrips.map((t) => t.authorUid));
 
   const [photoFailed, setPhotoFailed] = useState(false);
+  // Light status bar over the photo, dark once the canvas is under it.
+  const [pastHero, setPastHero] = useState(false);
+  const handleScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    const next = e.nativeEvent.contentOffset.y > HERO_HEIGHT - insets.top - 44;
+    setPastHero((prev) => (prev === next ? prev : next));
+  }, [insets.top]);
   const [place, setPlace] = useState<EnrichedPlace | null>(null);
   const placeSlide = useRef(new Animated.Value(SHEET_CLOSED)).current;
 
@@ -79,6 +87,10 @@ export default function DestinationScreen() {
       },
     });
   }, [destination]);
+
+  const createByHand = useCallback(() => {
+    router.push('/trip/new');
+  }, []);
 
   const openTrip = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -157,8 +169,11 @@ export default function DestinationScreen() {
   return (
     <ScreenEntrance>
       <View style={[styles.fill, { backgroundColor: colors.background.primary }]}>
+        <StatusBar style={pastHero || !showPhoto ? 'auto' : 'light'} />
         <ScrollView
           showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={32}
           contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         >
           {/* ── Hero ── */}
@@ -168,9 +183,10 @@ export default function DestinationScreen() {
                 <Image
                   source={{ uri: destination.coverImageUrl! }}
                   style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="disk"
+                  transition={200}
                   onError={() => setPhotoFailed(true)}
-                  accessibilityIgnoresInvertColors
                 />
                 <LinearGradient
                   colors={['rgba(0,0,0,0.25)', 'transparent'] as [string, string]}
@@ -218,9 +234,9 @@ export default function DestinationScreen() {
               <EmptyState
                 icon={MapTrifold}
                 title="Be the first to share a trip here"
-                description="Plan one with AI or by hand, set it to public, and it shows up on this page."
-                actionLabel="Plan my trip here"
-                onAction={planHere}
+                description="Plan one above, set it to public, and it shows up on this page."
+                secondaryLabel="Or create one by hand"
+                onSecondary={createByHand}
                 size="sm"
               />
             ) : (
