@@ -1,5 +1,10 @@
 # App Store text for 1.0.1
 
+> **Applied 2026-09-30** to version 1.0.1 in App Store Connect (build 9 attached,
+> manual release, not yet submitted). The live review notes had no "Free vs Pro"
+> paragraph or walkthrough table, and sat at the 4,000-character limit, so they
+> were rewritten; the exact text entered is under "As entered" at the end.
+
 1.0's listing and App Review notes describe the old free tier (a weekly AI
 trip, a free wallet, free trip sharing). 1.0.1 changes what Pro includes, so
 both need updating **before 1.0.1 is submitted for review** — a listing that
@@ -58,3 +63,21 @@ free, qualify them. Suggested paragraph for the Pro section:
 
 > Watch your trip come alive: every day draws itself on a 3D map, with
 > flights that lift off and land in the next city.
+
+## As entered (2026-09-30)
+
+### Promotional text
+
+Watch your trip come alive: every day draws itself on a 3D map, with flights that lift off and land in the next city.
+
+### What's New
+
+Find your next trip: browse 30 destinations by region and vibe, each with itineraries from the Supernova team and other travelers, and the places they keep coming back to. The globe now shows where travelers are going as a heat map. Trip flyovers pause at every stop, and flights lift off and land in the next city. Plus a new trip calendar, multi-city AI trips with Pro, and many fixes.
+
+### Description
+
+
+
+### App Review notes
+
+
