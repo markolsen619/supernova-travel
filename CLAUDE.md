@@ -86,6 +86,7 @@ app/
 │   ├── new.tsx                    # Manual trip wizard (modal)
 │   ├── ai-generate.tsx            # AI generation form (modal)
 │   └── ai-generating.tsx          # Generation loading screen → routes to trip/[id]
+├── destination/[slug].tsx         # Destination page (full-screen push): picks, travelers' trips, places to go, plan with AI
 ├── post/[id].tsx                  # Post detail (modal)
 ├── user/[uid].tsx                 # Public profile (full-screen push)
 ├── settings.tsx                   # Theme toggle, account, sign out (modal)
@@ -169,6 +170,8 @@ All functions use Firebase Functions v2.
 | `usePost(id)` | Single post query by ID |
 | `useSearch(text)` | `{ users, trips, isSearching }` — Algolia v5, 350ms debounce |
 | `useExplore` | `{ trips, tripsLoading, suggestions, suggestionsLoading }` |
+| `useDestinations` | The catalog (`destinations/*`, one `getDocs`, `staleTime` 12 h) → `{ destinations, isLoading, isError }`. Also exports `useDestination(slug)` (from the same cached list, so a cold deep link loads it) and `useDestinationTrips(slug)` (public trips tagged with it, by saves, moderation-filtered, split into editorial picks and travelers' trips; uses the `(visibility, destinationKeys CONTAINS, savesCount DESC)` index) |
+| `useHeatmap` | `aggregates/heatmap` → GeoJSON points (one read, `staleTime` 12 h); `null` when missing/empty, so the globe draws no heat layer |
 | `usePublicProfile(uid)` | `{ profile, isLoading, isFollowing, isOwnProfile }` |
 | `useUserProfile(uid)` | Raw user profile query by UID |
 | `useFollow(uid)` | `{ follow, unfollow }` mutations |
@@ -276,8 +279,11 @@ Search components in `components/search/`:
 
 Explore components in `components/explore/`:
 - `UserSuggestion` — suggested user card
-- `TrendingCard` — trending trip card
-- `TripGrid` — grid layout for trending trips
+- `DestinationCard` — a catalog destination in the Explore grid: tall stored cover photo, eyebrow (`PORTUGAL · 4 TRIPS`), name. Never calls Places
+- `FilterChips` — one-select chip row (Explore's region and vibe rows); selected = near-black fill
+- `TripGrid` — grid layout for trip cards
+
+Search adds `components/search/DestinationResult` — a catalog destination row in the globe's (always-dark) search sheet, listed above Google results via `matchDestinations`
 
 Moderation (`components/moderation/`, `utils/moderation.ts`, `utils/contentFilter.ts`) — App Store 1.2 for user-generated content:
 - `useContentActions()` — `{ openActions, reportSheet, unblock }`. `openActions({ target, ownerName, anchor })` shows Report / Block (native action sheet on iOS, anchored for iPad); render `reportSheet` once per screen. No-op on your own content
@@ -428,8 +434,9 @@ These rules apply to ALL new code:
 - `utils/notificationRoute.ts` — `resolveNotificationRoute(data)`. The single table mapping a notification `type` + id to an href, shared by the push tap (`useNotificationRouting`) and the in-app list (`app/notifications.tsx`) so the two can't drift. Returns `null` for an unknown type or missing id — an older build must survive a notification type shipped after it. **Adding a notification type means adding it here and in `functions/src/pushData.ts`**, which are separate TypeScript projects and cannot share a module
 - `utils/activityPlace.ts` — `canShowPlaceSheet(activity)` and `activityToPlace(activity)`. Tapping an itinerary stop opens `PlaceDetailSheet` (its third consumer, after the globe and AddStopSheet) instead of flying the map to a pin, which is what made a trip full of hand-picked places look like circles on a map. The seed is deliberately **tier1** — the sheet upgrades to tier2 on open, and claiming tier2 would leave the photo rail permanently empty. A Mapbox-grounded stop has coordinates but no Google `placeId`, so it gets `''` rather than null: that is the signal for "nothing to upgrade"
 - `utils/tripRoutes.ts` — the trip map's geometry: `legMode` (walking < 2.5 km, driving, arc for flights/ferries/> 400 km), `legKey` (cache key from endpoints — a moved stop just misses), great-circle arcs that cross the antimeridian the short way, polyline6 decoding, `buildPath` (path + where each stop sits on it + missing legs), `markerStops`/`overviewDots`, `actualStopOrder`, `actualViewAvailable`. **Any new trip-map line goes through `buildPath`** so it uses the cache and never re-bills Directions
-- `utils/flyover.ts` — the trip map's flyover as a pure reducer (play/pause/tick/jump/stop, day durations 4–12 s)
-- **Mapbox Standard custom layers need `…EmissiveStrength: 1`.** Without it the dusk/night light presets shade our own lines and circles near-black — the trip map showed no routes or pins at all after dark. `circleEmissiveStrength` on the globe's trending layers is still missing (Part 3 of the discovery spec). The trip map draws its overview stop dots as `MarkerView`s: its `CircleLayer` drew nothing on the simulator despite reporting rendered features — recheck on a device before relying on circle layers there
+- `utils/flyover.ts` — the trip map's flyover as a pure reducer (play/pause/tick/jump/stop, day durations 6–18 s). The drawing head stops on every stop for `STOP_DWELL_MS` (2.5 s) — `tick` takes each day's `stopFractions` — while the camera flies in to it and the card shows it (`stopEyebrow`: `DAY 2 · SAT, NOV 25 · STOP 3 OF 6`)
+- `utils/destinations.ts` / `utils/heatmap.ts` — the discovery UI's rules: parse a catalog doc, region/vibe filter, eyebrow, accent-insensitive search match, editorial/community split, top place → tier1 place; flattened heat points → GeoJSON, destination pins, and the pin-tap hit test. The globe's pins are the **catalog** (`destination-pin`/`destination-label` layers; a tap opens `/destination/[slug]` before any POI or nearby lookup), with a `HeatmapLayer` beneath that fades out between zoom 7 and 10
+- **Mapbox Standard custom layers need `…EmissiveStrength: 1`.** Without it the dusk/night light presets shade our own lines and circles near-black — the trip map showed no routes or pins at all after dark. The globe's destination pins have it too. The trip map draws its overview stop dots as `MarkerView`s: its `CircleLayer` drew nothing on the simulator despite reporting rendered features — recheck on a device before relying on circle layers there
 - `constants/routePalettes.ts` + `stores/useMapStyleStore` — the traveler's route colour palette (per device); every colour is tested ≥ 4.5:1 against the dark map
 - `utils/dateRange.ts` — the trip calendar's rules (`selectDay`, `isDaySelectable`, `tripDayCount`, `formatRangeLabel`), all on calendar components so a daylight-saving change can't shift a count. The one date control is `components/ui/DateRangeField` → `DateRangeSheet`, used by the wizard, the AI form (required, max 14 days) and `EditTripSheet`
 - `utils/venueTitle.ts` — renames a grounded hotel/restaurant/bar stop after the business it resolved to ("Dinner: Seafood by the Bay" → "Dinner at The Fish Market"), only when `GroundedPlace.isVenue` (Mapbox `feature_type: 'poi'`, or Google `types` with `establishment` and not `political`). Grounding also stores `TripActivity.placeName`, which the place sheet and Booking.com hand-off use instead of the title

@@ -25,6 +25,15 @@ export function parsePlaceFeature(json: unknown): { lng: number; lat: number; bb
   };
 }
 
+/**
+ * Whether a geocoded box is a destination someone visits, not the state or
+ * province around it. 1.6° keeps Bali (1.4°) and rejects New York State, which
+ * "New York, United States" once matched — centring NYC upstate.
+ */
+export function isCitySized(bbox: GeoBox, maxDegrees = 1.6): boolean {
+  return bbox.ne[0] - bbox.sw[0] <= maxDegrees && bbox.ne[1] - bbox.sw[1] <= maxDegrees;
+}
+
 /** A usable grounding box: the geocoder's, unless missing or smaller than ±minDegrees around the centre. */
 export function padBox(center: [number, number], bbox: GeoBox | null, minDegrees = 0.1): GeoBox {
   if (bbox && bbox.ne[0] - bbox.sw[0] >= minDegrees * 2 && bbox.ne[1] - bbox.sw[1] >= minDegrees * 2) return bbox;

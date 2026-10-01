@@ -29,7 +29,11 @@ import { useLayout } from '@/hooks/useLayout';
 import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useSearch } from '@/hooks/useSearch';
-import { useTrendingPlaces } from '@/hooks/useTrendingPlaces';
+import { useDestinations } from '@/hooks/useDestinations';
+import { useHeatmap } from '@/hooks/useHeatmap';
+import { matchDestinations } from '@/utils/destinations';
+import { findDestinationAt, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
+import { DestinationResult } from '@/components/search/DestinationResult';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { useFlyTo } from '@/hooks/useFlyTo';
 import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
@@ -202,8 +206,15 @@ export default function SearchScreen() {
   // ── Algolia search (Users + Trips tabs) ───────────────────────────────────
   const { users, trips, isSearching } = useSearch(query);
 
-  // ── Trending destination pins (world-zoom scannability) ───────────────────
-  const { places: trendingPlaces } = useTrendingPlaces();
+  // ── Catalog destination pins + heat map (world-zoom scannability) ─────────
+  // Both read once and cached 12 h — panning and zooming the globe costs nothing.
+  const { destinations } = useDestinations();
+  const heat = useHeatmap();
+
+  const handleDestinationResult = useCallback((slug: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/destination/${slug}`);
+  }, []);
 
   // ── Google Places autocomplete (Places tab) ───────────────────────────────
   // richDetails: true — the sheet always opens right after a selection here,
@@ -544,6 +555,16 @@ export default function SearchScreen() {
       // labels), which previously looked identical from the outside.
       mapLog('[Map tap]', { screenPointX, screenPointY, tapLat, tapLng, hasRef: !!mapRef.current });
 
+      // A destination pin opens its page — checked first, so it never falls
+      // through to a (billed) POI or nearby lookup.
+      const pinSlug = destinations.length === 0 ? null : await findDestinationAt(async () =>
+        mapRef.current?.queryRenderedFeaturesInRect(tapBbox(screenPointX, screenPointY), [], DESTINATION_PIN_LAYERS),
+      );
+      if (pinSlug) {
+        router.push(`/destination/${pinSlug}`);
+        return;
+      }
+
       const collection = await mapRef.current?.queryRenderedFeaturesInRect(
         tapBbox(screenPointX, screenPointY),
       );
@@ -622,7 +643,7 @@ export default function SearchScreen() {
     },
     // keyboardVisible must be listed, or the early return above reads the
     // value from whenever this callback was last built rather than now.
-    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse, runNearbySearchFallback, keyboardVisible],
+    [getRecon, getPlace, setRecon, setPlace, setSelectedPlace, flyToPlace, showSheet, flyTo, setNearbyResults, setActiveTab, firePulse, runNearbySearchFallback, keyboardVisible, destinations],
   );
 
   // ── Flow C: nearby-results row tap ────────────────────────────────────────
@@ -716,9 +737,19 @@ export default function SearchScreen() {
 
     if (!query.trim()) return renderEmptyState(Compass, 'Search the map', 'Find places, people, and trips.');
     if (query.trim().length < 2) return renderEmptyState(MagnifyingGlass, 'Keep typing…');
-    if (places.length === 0) return renderEmptyState(MagnifyingGlass, `No results for "${query}"`);
+    // Catalog destinations first — they open a destination page, at no API cost.
+    const destMatches = matchDestinations(destinations, query);
+    if (places.length === 0 && destMatches.length === 0) return renderEmptyState(MagnifyingGlass, `No results for "${query}"`);
     return (
       <>
+        {destMatches.length > 0 && (
+          <>
+            <Text style={[styles.sheetHeading, { color: colors.text.tertiary }]}>DESTINATIONS</Text>
+            {destMatches.map((d) => (
+              <DestinationResult key={d.slug} destination={d} onPress={handleDestinationResult} />
+            ))}
+          </>
+        )}
         {places.map((p) => (
           <PlaceResult
             key={p.placeId}
@@ -792,7 +823,8 @@ export default function SearchScreen() {
           lightPreset={lightPreset}
           onPress={handleMapPress}
           onCameraChanged={handleCameraChanged}
-          trendingPlaces={trendingPlaces}
+          destinations={destinations}
+          heat={heat}
           selectedPlace={selectedPlace}
         />
       </Animated.View>
@@ -814,8 +846,8 @@ export default function SearchScreen() {
       )}
 
       {/* ── Eyebrow label (idle world view only) ────────────────────────────
-          isZoomedIn, not a bespoke zoom check: trending pins stop drawing at
-          GlobeMapView's TRENDING_MAX_ZOOM (12), so trendingPlaces.length
+          isZoomedIn, not a bespoke zoom check: destination pins stop drawing at
+          GlobeMapView's TRENDING_MAX_ZOOM (12), so destinations.length
           reads wrong above that — but isZoomedIn's own threshold (6) trips
           earlier still. That's the honest direction to be wrong in: this
           label describes the idle globe, and isZoomedIn is already this
@@ -827,8 +859,8 @@ export default function SearchScreen() {
       {!showingQuery && !selectedPlace && !isZoomedIn && nearbyResults === null && (
         <View style={[styles.eyebrowWrap, { paddingTop: insets.top + 68 }]} pointerEvents="none">
           <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>
-            {trendingPlaces.length > 0
-              ? `TRENDING NOW · ${trendingPlaces.length} PLACES`
+            {destinations.length > 0
+              ? `TRENDING NOW · ${destinations.length} DESTINATIONS`
               : 'TRENDING NOW'}
           </Text>
         </View>

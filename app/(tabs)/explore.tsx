@@ -1,21 +1,25 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Bag, MapTrifold } from 'phosphor-react-native';
+import { Bag, Compass, MapTrifold } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { columnWidth } from '@/utils/layout';
 import { useExplore } from '@/hooks/useExplore';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
-import { TrendingCard } from '@/components/explore/TrendingCard';
+import { useDestinations } from '@/hooks/useDestinations';
+import { filterDestinations, REGION_CHIPS, VIBE_CHIPS, type RegionChip, type VibeChip } from '@/utils/destinations';
+import { DestinationCard } from '@/components/explore/DestinationCard';
+import { FilterChips } from '@/components/explore/FilterChips';
 import { UserSuggestion } from '@/components/explore/UserSuggestion';
 import { TripGrid } from '@/components/explore/TripGrid';
 import { SkeletonCard, SkeletonListRow } from '@/components/ui/Skeleton';
@@ -24,66 +28,28 @@ import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Trip } from '@/types';
-
-interface TrendingDestination {
-  name: string;
-  country: string;
-  photoUrl: string | null;
-  tripCount: number;
-}
-
-// Each destination's photo is HARVESTED from a constituent trip's persisted
-// coverImageUrl (resolved once, ever, by the trip-cover machinery in
-// app/trip/[id].tsx and written to the shared trip doc). Deriving trending
-// therefore never fetches: zero Places API calls per Explore open, per user,
-// per refresh. Do not add a photo-resolution step here.
-function deriveTrending(trips: Trip[]): TrendingDestination[] {
-  const counts = new Map<
-    string,
-    { count: number; countryCode: string | null; photoUrl: string | null }
-  >();
-
-  for (const trip of trips) {
-    const key = trip.destination.name;
-    if (!key) continue;
-    const existing = counts.get(key);
-    if (existing) {
-      existing.count += 1;
-      if (!existing.photoUrl && trip.coverImageUrl) {
-        existing.photoUrl = trip.coverImageUrl;
-      }
-    } else {
-      counts.set(key, {
-        count: 1,
-        countryCode: trip.destination.countryCode,
-        photoUrl: trip.coverImageUrl || null,
-      });
-    }
-  }
-
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 6)
-    .map(([name, { count, countryCode, photoUrl }]) => ({
-      name,
-      country: countryCode ?? '',
-      photoUrl,
-      tripCount: count,
-    }));
-}
 
 export default function ExploreScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width, columns } = useLayout();
-  // Must match TrendingCard and TripGrid, which size themselves the same way.
+  // Must match DestinationCard and TripGrid, which size themselves the same way.
   const gridItemWidth = columnWidth(width, columns);
 
   const { trips, tripsLoading, suggestions, suggestionsLoading } = useExplore();
 
-  const trending = useMemo(() => deriveTrending(trips), [trips]);
+  const { destinations, isLoading: destinationsLoading } = useDestinations();
+  const [region, setRegion] = useState<RegionChip>('all');
+  const [vibe, setVibe] = useState<VibeChip>('all');
+  const shown = useMemo(() => filterDestinations(destinations, region, vibe), [destinations, region, vibe]);
+
+  // The grid springs in again whenever the filter changes.
+  const gridAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    gridAnim.setValue(0);
+    Animated.spring(gridAnim, { toValue: 1, tension: 65, friction: 11, useNativeDriver: true }).start();
+  }, [region, vibe, gridAnim]);
 
   // Destination-level photo fallback for coverless trip cards: placeId → a
   // sibling trip's persisted coverImageUrl. Built entirely from trips already
@@ -116,10 +82,14 @@ export default function ExploreScreen() {
     router.push(`/trip/${tripId}`);
   }, [router]);
 
-  const handleTrendingPress = useCallback((name: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: '/(tabs)/search', params: { q: name } });
+  const handleDestinationPress = useCallback((slug: string) => {
+    router.push(`/destination/${slug}`);
   }, [router]);
+
+  const handleClearFilters = useCallback(() => {
+    setRegion('all');
+    setVibe('all');
+  }, []);
 
   const handleCreateTrip = useCallback(() => {
     router.push('/trip/new');
@@ -160,51 +130,51 @@ export default function ExploreScreen() {
             </TouchableOpacity>
           </View>
           <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
-            Discover your next destination
+            Where to next
           </Text>
         </View>
 
-        {/* ── Trending Destinations ── */}
-        {/* Header and all, hidden when empty — the same shape as People to
-            follow below. Trending is derived from `trips`, so it empties at
-            exactly the same moment Latest trips does; a second empty state
-            here would leave the screen with two competing primary actions. */}
-        {(tripsLoading || trending.length > 0) && (
+        {/* ── Destinations ──
+            The editorial catalog, filtered by one region and one vibe. Hidden
+            only if the catalog itself is empty (never seeded / offline), so
+            the screen falls back to Latest trips alone. */}
+        {(destinationsLoading || destinations.length > 0) && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text.secondary }]}>
-              Trending destinations
-            </Text>
-
-            {tripsLoading ? (
-              <View style={styles.trendingScroll}>
-                {[0, 1, 2].map((i) => (
-                  <SkeletonCard key={i} width={gridItemWidth} height={gridItemWidth} radius={BorderRadius.xl} />
+            <View style={styles.chipRows}>
+              <FilterChips items={REGION_CHIPS} selected={region} onSelect={setRegion} label="Region" />
+              <FilterChips items={VIBE_CHIPS} selected={vibe} onSelect={setVibe} label="Vibe" />
+            </View>
+            {destinationsLoading ? (
+              <View style={styles.tripGridSkeleton}>
+                {[0, 1, 2, 3].map((i) => (
+                  <SkeletonCard key={i} width={gridItemWidth} height={Math.round(gridItemWidth * 1.3)} radius={BorderRadius.xl} />
                 ))}
               </View>
+            ) : shown.length === 0 ? (
+              <EmptyState
+                icon={Compass}
+                title="No destinations match yet"
+                description="We're adding places every week. Try another region or vibe."
+                actionLabel="Clear filters"
+                onAction={handleClearFilters}
+                actionHaptic="light"
+              />
             ) : (
-              <>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.trendingScroll}
-                >
-                  {trending.map((dest) => (
-                    <TrendingCard
-                      key={dest.name}
-                      name={dest.name}
-                      country={dest.country}
-                      photoUrl={dest.photoUrl}
-                      tripCount={dest.tripCount}
-                      onPress={() => handleTrendingPress(dest.name)}
-                    />
-                  ))}
-                </ScrollView>
-                {trending.some((d) => d.photoUrl) && (
-                  <Text style={[styles.attribution, { color: colors.text.tertiary }]}>
-                    Powered by Google
-                  </Text>
-                )}
-              </>
+              <Animated.View
+                style={[
+                  styles.destinationGrid,
+                  { opacity: gridAnim, transform: [{ translateY: gridAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] },
+                ]}
+              >
+                {shown.map((d) => (
+                  <DestinationCard key={d.slug} destination={d} onPress={handleDestinationPress} />
+                ))}
+              </Animated.View>
+            )}
+            {shown.some((d) => d.coverImageUrl) && (
+              <Text style={[styles.attribution, { color: colors.text.tertiary }]}>
+                Powered by Google
+              </Text>
             )}
           </View>
         )}
@@ -327,10 +297,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['3'],
     paddingHorizontal: Spacing['6'],
   },
-  trendingScroll: {
+  chipRows: {
+    gap: Spacing['2'],
+    marginBottom: Spacing['4'],
+  },
+  destinationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: Spacing['6'],
     gap: Spacing['3'],
-    flexDirection: 'row',
   },
   attribution: {
     fontSize: FontSize.xs,

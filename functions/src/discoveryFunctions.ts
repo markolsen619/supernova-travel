@@ -107,6 +107,9 @@ export async function runAggregation(): Promise<{ trips: number; points: number;
           const stop: StopForRanking = {
             placeId: act.placeId ?? null, name: act.placeName || act.title, type: act.type,
             lat: act.lat, lng: act.lng, tripId: t.id, saves,
+            // placeName = grounding resolved it to a named business or sight. A bare
+            // placeId (stops grounded before placeName existed) keeps the generic title.
+            isVenue: !!act.placeName,
           };
           // Only the destination this stop is actually in (a multi-city trip
           // must not put Porto restaurants on Lisbon's page).

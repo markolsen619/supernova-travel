@@ -39,8 +39,16 @@ describe('isAggregatable', () => {
 });
 
 describe('rankTopPlaces', () => {
-  const s = (name: string, tripId: string, over: Partial<{ placeId: string | null; saves: number; lat: number; lng: number }> = {}) => ({
-    placeId: null, name, type: 'activity', lat: 38.7, lng: -9.14, tripId, saves: 0, ...over,
+  const s = (name: string, tripId: string, over: Partial<{ placeId: string | null; saves: number; lat: number; lng: number; isVenue: boolean }> = {}) => ({
+    placeId: null, name, type: 'activity', lat: 38.7, lng: -9.14, tripId, saves: 0, isVenue: true, ...over,
+  });
+
+  it('leaves out stops that never resolved to a named place ("Beach Activities & Relaxation")', () => {
+    const top = rankTopPlaces([
+      s('Beach Activities & Relaxation', 't1', { isVenue: false }), s('Beach Activities & Relaxation', 't2', { isVenue: false }),
+      s('Pastéis de Belém', 't1'),
+    ]);
+    expect(top.map((p) => p.name)).toEqual(['Pastéis de Belém']);
   });
 
   it('ranks by how many itineraries include the place, counting each trip once', () => {

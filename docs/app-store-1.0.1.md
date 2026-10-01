@@ -15,6 +15,15 @@ promises a free feature the app gates is a guideline 2.3.1 rejection.
 | Flight alerts | — | ✓ |
 | Trips, maps, flyover, feed, globe, search, messages | ✓ | ✓ |
 
+## What's new in 1.0.1 (draft)
+
+> Find your next trip: browse 30 destinations by region and vibe, each with
+> itineraries from the Supernova team and other travelers, and the places
+> they keep coming back to. The globe now shows where travelers are going as
+> a heat map. Trip flyovers pause at every stop, and flights lift off and land
+> in the next city. Plus a new trip calendar, multi-city AI trips with Pro,
+> and many fixes.
+
 ## App Review Information → Notes
 
 Replace the "Free vs Pro" paragraph with:

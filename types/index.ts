@@ -86,6 +86,10 @@ export interface Destination {
 
 export interface Trip {
   id: string;
+  /** Written only by the Admin SDK seed for the "Supernova" editorial account; rules forbid clients setting it. */
+  isEditorial?: boolean;
+  /** Catalog slugs this public trip falls in (tagTripDestinations). */
+  destinationKeys?: string[];
   /** Set by functions/src/onReportCreated.ts once enough people report it. Hidden from everyone. */
   moderationHidden?: boolean;
   authorUid: string;

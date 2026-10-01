@@ -122,6 +122,7 @@ async function seedDestination(entry, uid, gemini) {
     if (!place) throw new Error('Mapbox could not place it');
     center = { lat: place.lat, lng: place.lng };
     bbox = S.padBox([place.lng, place.lat], place.bbox);
+    if (!S.isCitySized(bbox)) throw new Error(`"${entry.query}" matched ${place.name || 'a region'}, not the city — make its query more specific`);
   }
 
   // 2. Cover, once.
