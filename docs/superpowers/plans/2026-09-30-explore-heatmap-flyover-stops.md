@@ -820,7 +820,7 @@ const openTrip = useCallback((id: string) => {
 
 Match `PlaceDetailSheet`'s `slideAnim` direction to how `app/trip/[id].tsx` drives it (read lines 267-285 and copy its open/close values exactly — the sketch above assumes 0 = open, 600 = closed). Render the sheet last, `{place ? <PlaceDetailSheet place={place} slideAnim={placeSlide} bottomInset={insets.bottom} onDismiss={closePlace} /> : null}`. A "Supernova pick" `Badge` goes on each editorial card via `TripCard`'s `style` wrapper (a `View` around the card with the badge absolutely positioned top-left) — `TripCard` itself is not changed.
 
-The AI form treats `placeId: ''` as no place; confirm by reading `app/trip/ai-generate.tsx:61-69` (`useState(params.placeId ?? null)` would keep an empty string, which is why `planHere` omits the param when there's no placeId).
+The AI form does not treat an empty `placeId` as no place; confirm by reading `app/trip/ai-generate.tsx:61-69` (`useState(params.placeId ?? null)` would keep an empty string, which is why `planHere` omits the param when there's no placeId).
 
 - [ ] **Step 6: Type-check, lint, tests** — as Task 3 Step 4, grepping for `destination/`.
 
