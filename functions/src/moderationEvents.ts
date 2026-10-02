@@ -1,3 +1,4 @@
+import { followRequestId } from './privacy';
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions/v2';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
@@ -99,5 +100,10 @@ export const onBlockCreated = onDocumentCreated(
         if (followee.exists) tx.update(followeeRef, { followersCount: decrementCount(followee.data()?.followersCount) });
       });
     }
+    // And any follow request either way — a blocked person can't stay "Requested".
+    await Promise.all([
+      db.doc(`followRequests/${followRequestId(uid, blockedUid)}`).delete(),
+      db.doc(`followRequests/${followRequestId(blockedUid, uid)}`).delete(),
+    ]);
   },
 );

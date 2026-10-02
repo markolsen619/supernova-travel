@@ -35,3 +35,9 @@ describe('pushDataFor', () => {
     expect(pushDataFor({ type: 'post_like', postId: 7 })).toEqual({ type: 'post_like' });
   });
 });
+
+describe('follow notifications', () => {
+  it('carries profileUid so a follow request opens the right profile', () => {
+    expect(pushDataFor({ type: 'follow_request', profileUid: 'u1', requesterName: 'Ana' })).toEqual({ type: 'follow_request', profileUid: 'u1' });
+  });
+});
