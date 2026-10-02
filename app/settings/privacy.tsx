@@ -179,7 +179,7 @@ export default function PrivacySettingsScreen() {
         </View>
 
         <Text style={[styles.footnote, { color: colors.text.tertiary }]}>
-          A private account shows people who don't follow you only your photo, name and bio, and they ask to follow you. Change who can see a trip from its edit screen. To report something, tap the three dots on it. AI data sharing sends what you enter in AI features to Google Gemini.
+          {"A private account shows people who don't follow you only your photo, name and bio, and they ask to follow you."} Change who can see a trip from its edit screen. To report something, tap the three dots on it. AI data sharing sends what you enter in AI features to Google Gemini.
         </Text>
       </ScrollView>
       {consentSheet}
