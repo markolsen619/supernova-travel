@@ -58,6 +58,10 @@ export default function AiGeneratingScreen() {
   const params = useLocalSearchParams<{
     destination: string;
     countryCode: string;
+    /** The picked place, so the trip keeps it (see functions/src/tripDocs.ts). Optional. */
+    placeId?: string;
+    lat?: string;
+    lng?: string;
     additionalDestinations: string;
     durationDays: string;
     travelStyle: string;
@@ -133,6 +137,9 @@ export default function AiGeneratingScreen() {
     const request: GenerateTripRequest = {
       destination: params.destination ?? '',
       countryCode: params.countryCode ?? '',
+      placeId: params.placeId || null,
+      lat: params.lat && Number.isFinite(Number(params.lat)) ? Number(params.lat) : null,
+      lng: params.lng && Number.isFinite(Number(params.lng)) ? Number(params.lng) : null,
       additionalDestinations: (() => {
         try {
           return JSON.parse(params.additionalDestinations ?? '[]') as GenerateTripRequest['additionalDestinations'];

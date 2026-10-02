@@ -35,11 +35,13 @@ export function tripDocuments(
       ? { regionName: generated.region.trim().slice(0, 60) }
       : {}),
     coverImageUrl: null,
+    // The place the traveler picked, when the app sent it — never re-guessed
+    // from the name, which for "Washington" meant the state, not DC.
     destination: {
       name: data.destination,
-      placeId: null,
-      lat: null,
-      lng: null,
+      placeId: typeof data.placeId === 'string' && data.placeId ? data.placeId : null,
+      lat: typeof data.lat === 'number' && Number.isFinite(data.lat) ? data.lat : null,
+      lng: typeof data.lng === 'number' && Number.isFinite(data.lng) ? data.lng : null,
       countryCode: data.countryCode || null,
       bounds: null,
     },

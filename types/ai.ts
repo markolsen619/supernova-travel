@@ -6,6 +6,10 @@ export type TripPace = 'relaxed' | 'moderate' | 'packed';
 export interface GenerateTripRequest {
   destination: string;
   countryCode: string;
+  /** The picked place (Places Autocomplete), so the trip keeps it rather than re-grounding the name. Absent from older apps. */
+  placeId?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   /** Additional stops beyond the primary destination, in visit order — see
    * docs/superpowers/specs/2026-07-25-multi-destination-trips-design.md.
    * Stored on the created trip; NOT yet used by the Gemini prompt (Phase 2). */

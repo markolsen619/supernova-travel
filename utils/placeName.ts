@@ -26,3 +26,20 @@ export function disambiguatePlaceName(name: string, components: Component[] | un
   if (!primaryType && admin1.longText?.trim().toLowerCase() === name.trim().toLowerCase()) return name;
   return `${name}, ${admin1.shortText}`;
 }
+
+/**
+ * The destination name to save for a picked place: the suggestion text the
+ * traveler actually tapped ("Washington D.C."), not the Details displayName,
+ * which Google returns as plain "Washington" for DC — the state's name. Either
+ * way it goes through disambiguatePlaceName, for cities whose own suggestion
+ * text is a state's name ("New York").
+ */
+export function selectionName(
+  displayName: string,
+  tappedText: string | undefined,
+  components: Component[] | undefined,
+  primaryType: string | undefined,
+): string {
+  const base = tappedText?.trim() ? tappedText.trim() : displayName;
+  return disambiguatePlaceName(base, components, primaryType);
+}

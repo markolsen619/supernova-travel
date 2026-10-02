@@ -45,12 +45,13 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
   }, [clearQuery]);
 
   const handleSelect = useCallback(
-    async (placeId: string) => {
+    // mainText is what the traveler tapped — kept as the name (utils/placeName).
+    async (placeId: string, mainText?: string) => {
       if (isSelecting) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setIsSelecting(true);
       try {
-        const selection = await selectPlace(placeId);
+        const selection = await selectPlace(placeId, mainText);
         onSelect(selection);
       } catch (err) {
         console.error('[DestinationPicker] selectPlace failed:', err);
@@ -66,7 +67,7 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
     ({ item }: { item: PlaceSuggestion }) => (
       <TouchableOpacity
         style={[styles.row, { borderBottomColor: colors.background.cardBorder }]}
-        onPress={() => handleSelect(item.placeId)}
+        onPress={() => handleSelect(item.placeId, item.mainText)}
         activeOpacity={0.7}
         disabled={isSelecting}
       >

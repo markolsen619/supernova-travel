@@ -1,4 +1,4 @@
-import { disambiguatePlaceName } from '@/utils/placeName';
+import { selectionName } from '@/utils/placeName';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Crypto from 'expo-crypto';
 // COST GUARD: both fetch calls below hit billable Google Places API (New)
@@ -93,6 +93,7 @@ async function placeDetailsRequest(
   sessionToken: string,
   fieldMask: string,
   tier: 'tier1' | 'tier2',
+  tappedText?: string,
 ): Promise<PlaceSelection> {
   const res = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
     headers: {
@@ -110,8 +111,9 @@ async function placeDetailsRequest(
   const countryCode = countryCodeFromComponents(json.addressComponents);
   return {
     placeId: json.id ?? placeId,
-    // "Washington" → "Washington, DC": see utils/placeName.
-    name: disambiguatePlaceName(json.displayName?.text ?? '', json.addressComponents, json.primaryType ?? undefined),
+    // The suggestion the traveler tapped ("Washington D.C."), not Details'
+    // "Washington", which reads as the state everywhere downstream. utils/placeName.
+    name: selectionName(json.displayName?.text ?? '', tappedText, json.addressComponents, json.primaryType ?? undefined),
     lat: json.location?.latitude ?? null,
     lng: json.location?.longitude ?? null,
     countryCode,
@@ -193,12 +195,13 @@ export function usePlaceAutocomplete(
     return () => { cancelled = true; clearTimeout(timer); };
   }, [query, debounceMs, getSessionToken, destinationsOnly]);
 
-  const selectPlace = useCallback(async (placeId: string): Promise<PlaceSelection> => {
+  /** @param tappedText the suggestion's main text, kept as the place's name (see selectionName). */
+  const selectPlace = useCallback(async (placeId: string, tappedText?: string): Promise<PlaceSelection> => {
     const token = getSessionToken();
     sessionTokenRef.current = Crypto.randomUUID(); // terminating call sent; begin fresh session for next search
     const fieldMask = richDetails ? TIER2_FIELD_MASK : TIER1_DETAILS_FIELD_MASK;
     const tier = richDetails ? 'tier2' : 'tier1';
-    const selection = await placeDetailsRequest(placeId, token, fieldMask, tier);
+    const selection = await placeDetailsRequest(placeId, token, fieldMask, tier, tappedText);
     setSuggestions([]);
     setQuery('');
     return selection;

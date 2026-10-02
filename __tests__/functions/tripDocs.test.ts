@@ -72,3 +72,23 @@ describe('tripDocuments with a partial stop', () => {
     for (const [k, v] of Object.entries(docs.trip)) expect([k, v]).not.toEqual([k, undefined]);
   });
 });
+
+describe('the picked destination place', () => {
+  const generated = { title: 'T', days: [] };
+  it('keeps the place the traveler picked, so it is never re-guessed from its name', () => {
+    // "Washington" alone re-grounded to Washington State.
+    const req = { destination: 'Washington D.C.', countryCode: 'US', placeId: 'ChIJW-T2Wt7Gt4kRKl2I1CJFUsI', lat: 38.907, lng: -77.037, additionalDestinations: [] };
+    const d = tripDocuments('u1', req as never, generated as never, 'NOW').trip.destination;
+    expect(d).toMatchObject({ name: 'Washington D.C.', placeId: 'ChIJW-T2Wt7Gt4kRKl2I1CJFUsI', lat: 38.907, lng: -77.037 });
+  });
+  it('leaves them empty for a request from an older app, as before', () => {
+    const req = { destination: 'Lisbon', countryCode: 'PT', additionalDestinations: [] };
+    const d = tripDocuments('u1', req as never, generated as never, 'NOW').trip.destination;
+    expect(d).toMatchObject({ placeId: null, lat: null, lng: null });
+  });
+  it('ignores malformed coordinates', () => {
+    const req = { destination: 'X', countryCode: 'US', placeId: 42, lat: 'north', lng: null, additionalDestinations: [] };
+    const d = tripDocuments('u1', req as never, generated as never, 'NOW').trip.destination;
+    expect(d).toMatchObject({ placeId: null, lat: null, lng: null });
+  });
+});

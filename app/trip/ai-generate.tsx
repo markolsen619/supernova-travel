@@ -78,8 +78,12 @@ export default function AiGenerateScreen() {
 
   const { data: quota } = useAiTripQuota();
 
+  // The picked place's coordinates travel with the request, so the trip isn't
+  // re-grounded from its name ("Washington" → the state, not DC).
+  const [placeCoords, setPlaceCoords] = useState<{ lat: number; lng: number } | null>(null);
   const handlePlaceSelect = useCallback((s: PlaceSelection) => {
     setPlaceId(s.placeId || null);
+    setPlaceCoords(s.lat != null && s.lng != null ? { lat: s.lat, lng: s.lng } : null);
   }, []);
 
   // Dates are required: they are the only way to set the trip's length.
@@ -110,6 +114,8 @@ export default function AiGenerateScreen() {
       params: {
         destination: destination.trim(),
         countryCode: countryCode.trim(),
+        ...(placeId ? { placeId } : {}),
+        ...(placeId && placeCoords ? { lat: String(placeCoords.lat), lng: String(placeCoords.lng) } : {}),
         additionalDestinations: JSON.stringify(additionalDestinations),
         durationDays: String(durationDays),
         travelStyle: travelStyles[0],
