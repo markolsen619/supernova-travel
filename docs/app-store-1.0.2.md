@@ -108,3 +108,4 @@ Not regulated: a planning tool, not a travel agency; no bookings or third-party 
 
 - **Subtitle** (App Information): "Explore, plan & go together" (was "Save the trip, keep the trip").
 - **iPhone screenshots** replaced with six dark-mode shots, in order: Explore, Paris destination page, itinerary, trip flyover, globe, AI planner. App Store Connect now requires the 6.5" slot (1242×2688 or 1284×2778), so the 1290×2796 simulator captures were resized to 1284×2778 JPEG (no alpha) and used for all iPhone sizes. Originals and the uploaded set are in ~/Desktop/Supernova-screenshots-1.0.2/. iPad screenshots unchanged.
+- **Keywords**: "explore" (now in the subtitle) swapped for "travel guide" — `itinerary,trip planner,ai,vacation,boarding pass,flight status,journey,travel guide,wallet,map` (94/100).
