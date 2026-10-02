@@ -1,4 +1,4 @@
-import { isPrivateAccount, profileAccess, followButtonState, publicAllowed } from '@/utils/privacy';
+import { isPrivateAccount, profileAccess, followButtonState, publicAllowed, newPostVisibility, canSeePost } from '@/utils/privacy';
 
 describe('isPrivateAccount', () => {
   it('reads settings.privacy, defaulting to public', () => {
@@ -36,5 +36,22 @@ describe('publicAllowed', () => {
   it('turns off Public in visibility pickers while the account is private', () => {
     expect(publicAllowed(true)).toBe(false);
     expect(publicAllowed(false)).toBe(true);
+  });
+});
+
+describe('newPostVisibility', () => {
+  it("is public, or followers-only (remembered as public) while the author is private", () => {
+    expect(newPostVisibility(false)).toEqual({ visibility: 'public' });
+    expect(newPostVisibility(true)).toEqual({ visibility: 'followers', publicWhenAccountPublic: true });
+  });
+});
+
+describe('canSeePost', () => {
+  it('shows followers-only posts to the author and followers, public posts to everyone', () => {
+    expect(canSeePost('followers', { isAuthor: false, follows: false })).toBe(false);
+    expect(canSeePost('followers', { isAuthor: false, follows: true })).toBe(true);
+    expect(canSeePost('followers', { isAuthor: true, follows: false })).toBe(true);
+    expect(canSeePost('public', { isAuthor: false, follows: false })).toBe(true);
+    expect(canSeePost(undefined, { isAuthor: false, follows: false })).toBe(true); // posts from before visibility
   });
 });

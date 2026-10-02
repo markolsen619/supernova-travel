@@ -389,7 +389,7 @@ export default function UserProfileScreen() {
         </View>
 
         {/* Tab content */}
-        {activeProfileTab === 'Posts' && <PostsGrid uid={uid ?? ''} />}
+        {activeProfileTab === 'Posts' && <PostsGrid uid={uid ?? ''} viewerFollows={isFollowing} />}
         {activeProfileTab === 'Trips' && (
           <TripsGrid trips={publicTrips} onTripPress={handleTripPress} authorProfiles={authorProfiles} />
         )}

@@ -23,6 +23,8 @@ export interface UserProfile {
   tripsCount: number;
   tier: Tier;
   createdAt: string;
+  /** settings.privacy 'private' = a private account (utils/privacy). Absent on profiles built before it. */
+  settings?: { privacy?: 'public' | 'private' };
   /** Set (client-writable, like every UserProfile field except `tier`) when
    * the Messages tab in app/notifications.tsx gains focus — the coarse
    * signal behind the heart icon's badge dot for new DMs. Per-thread read
@@ -239,6 +241,28 @@ export interface CommentLikeNotification {
   createdAt: Timestamp;
 }
 
+/** Someone asked to follow your private account (functions/src/privacyFunctions.ts). Answered in-app. */
+export interface FollowRequestNotification {
+  id: string;
+  type: 'follow_request';
+  profileUid: string;
+  requesterName: string;
+  requesterAvatarUrl: string | null;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
+/** A private account accepted your follow request. */
+export interface FollowAcceptedNotification {
+  id: string;
+  type: 'follow_accepted';
+  profileUid: string;
+  accepterName: string;
+  accepterAvatarUrl: string | null;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
 /** `users/{uid}/notifications/{id}` written by the checkFlightStatus
  * scheduler. The only notification type with no actor — it comes from the
  * flight poller, not a person, so its row shows a type icon where the others
@@ -260,6 +284,8 @@ export type AppNotification =
   | PostCommentNotification
   | CommentReplyNotification
   | CommentLikeNotification
+  | FollowRequestNotification
+  | FollowAcceptedNotification
   | FlightStatusNotification;
 
 // ── Direct messaging ─────────────────────────────────────────────────────

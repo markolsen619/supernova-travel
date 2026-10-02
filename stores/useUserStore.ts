@@ -10,6 +10,8 @@ interface UserProfile {
   followersCount: number;
   followingCount: number;
   createdAt: string;
+  /** settings.privacy — 'private' makes this a private account. */
+  settings?: { privacy?: 'public' | 'private' };
 }
 
 interface UserState {

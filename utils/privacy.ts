@@ -22,3 +22,17 @@ export function followButtonState(a: { isSelf: boolean; isFollowing: boolean; ha
 export function publicAllowed(isPrivate: boolean): boolean {
   return !isPrivate;
 }
+
+/**
+ * A new post's visibility. While private it's followers-only, marked so going
+ * public later restores it like the posts it had already (functions/src/privacy.ts).
+ */
+export function newPostVisibility(isPrivate: boolean): { visibility: 'public' } | { visibility: 'followers'; publicWhenAccountPublic: true } {
+  return isPrivate ? { visibility: 'followers', publicWhenAccountPublic: true } : { visibility: 'public' };
+}
+
+/** Whether a post of this visibility is yours to see. Unset = from before posts had one = public. */
+export function canSeePost(visibility: string | undefined, a: { isAuthor: boolean; follows: boolean }): boolean {
+  if (visibility === undefined || visibility === 'public') return true;
+  return visibility === 'followers' && (a.isAuthor || a.follows);
+}

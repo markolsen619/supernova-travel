@@ -18,6 +18,7 @@ async function fetchUserProfile(uid: string): Promise<UserProfile | null> {
     followersCount: data.followersCount ?? 0,
     followingCount: data.followingCount ?? 0,
     tripsCount: data.tripsCount ?? 0,
+    settings: { privacy: data.settings?.privacy === 'private' ? 'private' : 'public' },
     tier: data.tier ?? 'free',
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
   } as UserProfile;
