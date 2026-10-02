@@ -126,7 +126,13 @@ export default function NotificationsScreen() {
       setHandled((prev) => ({ ...prev, [notif.id]: accept ? 'accepted' : 'declined' }));
       respondFollow.mutate(
         { requesterUid: notif.profileUid, accept },
-        { onError: () => setHandled((prev) => { const next = { ...prev }; delete next[notif.id]; return next; }) },
+        {
+          // They withdrew the request before you answered: nobody was added.
+          onSuccess: (res) => {
+            if (res?.status === 'gone') setHandled((prev) => ({ ...prev, [notif.id]: 'declined' }));
+          },
+          onError: () => setHandled((prev) => { const next = { ...prev }; delete next[notif.id]; return next; }),
+        },
       );
     },
     [respondFollow],
