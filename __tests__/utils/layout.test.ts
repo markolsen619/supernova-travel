@@ -118,6 +118,10 @@ describe('resize helpers', () => {
 });
 
 describe('usesReadingColumn', () => {
+  it('gives the followers/following list the reading column', () => {
+    expect(usesReadingColumn('root', 'connections/[uid]')).toBe(true);
+  });
+
   it('gives the destination page the reading column', () => {
     expect(usesReadingColumn('root', 'destination/[slug]')).toBe(true);
   });

@@ -179,6 +179,7 @@ All functions use Firebase Functions v2.
 | `usePublicProfile(uid)` | `{ profile, isLoading, isFollowing, isOwnProfile }` |
 | `useUserProfile(uid)` | Raw user profile query by UID |
 | `useFollow(uid)` | `{ follow, unfollow }` mutations |
+| `useConnections(uid, kind)` | A profile's Followers or Following (`follows` where followee/follower, newest first, ≤ 300, sorted client-side to avoid a composite index), as `UserProfile`s minus blocked users. Shown by `app/connections/[uid].tsx`, opened by tapping either count on any profile |
 | `useTripList(uid)` | TanStack Query result for user's trips (also exports `usePublicTrips`, and `useProfileTrips(uid, { isOwnProfile, viewerFollows })` for a profile's Trips tab). **Never query another user's trips by `authorUid` alone** — Firestore rules aren't filters, so one private trip makes the whole query fail and the tab comes back empty. `useProfileTrips` runs one query per visibility (`public`, plus `followers` when you follow them) on the `(authorUid, visibility, createdAt desc)` index |
 | `useTrip(id)` | Single trip query with nested days/activities |
 | `useTripRoutes(tripId, missing, canWrite)` | The trip map's cached route legs from `trips/{id}/routes/cache`; fetches missing ones from Mapbox Directions (`services/mapboxDirections`) **only when `canWrite`** — a viewer can't write the cache, so fetching for them would re-bill every open |

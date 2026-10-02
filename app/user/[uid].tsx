@@ -276,25 +276,41 @@ export default function UserProfileScreen() {
 
           <View style={[styles.statDivider, { backgroundColor: colors.background.cardBorder }]} />
 
-          <View style={styles.statItem}>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/connections/[uid]', params: { uid: profile.uid, tab: 'followers' } });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`${profile.followersCount} followers`}
+          >
             <Text style={[styles.statNumber, { color: colors.text.primary }]}>
               {profile.followersCount}
             </Text>
             <Text style={{ color: colors.text.tertiary, fontSize: FontSize.xs }}>
               Followers
             </Text>
-          </View>
+          </TouchableOpacity>
 
           <View style={[styles.statDivider, { backgroundColor: colors.background.cardBorder }]} />
 
-          <View style={styles.statItem}>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/connections/[uid]', params: { uid: profile.uid, tab: 'following' } });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`${profile.followingCount} following`}
+          >
             <Text style={[styles.statNumber, { color: colors.text.primary }]}>
               {profile.followingCount}
             </Text>
             <Text style={{ color: colors.text.tertiary, fontSize: FontSize.xs }}>
               Following
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Follow / Edit / Wallet buttons */}
