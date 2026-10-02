@@ -124,7 +124,8 @@ interface TripMapViewProps {
   tripId: string;
   tripTitle: string;
   days: TripDay[];
-  isOwner: boolean;
+  /** Owner or an accepted invitee: may add, locate and change stops. */
+  canEdit: boolean;
   /** Activity id currently being lazily resolved (from a "Locate" tap here or a timeline tap). */
   resolvingActivityId: string | null;
   /** Grounds one stop — same underlying logic as the timeline's tap-to-locate. */
@@ -156,7 +157,7 @@ export function TripMapView({
   tripId,
   tripTitle,
   days,
-  isOwner,
+  canEdit,
   resolvingActivityId,
   onLocateStop,
   unresolvedActivityIds,
@@ -717,10 +718,10 @@ export function TripMapView({
         return;
       }
 
-      // Ambient Standard POI → resolve via Google, offer to add. Owner-only:
-      // a non-owner can't write an activity anyway, so there's no reason to
+      // Ambient Standard POI → resolve via Google, offer to add. Editors only:
+      // anyone else can't write an activity anyway, so there's no reason to
       // spend a Places call resolving one for them.
-      if (!isOwner) return;
+      if (!canEdit) return;
       // resolvePoiTap can reject: Google Text Search throws on a network
       // failure and (deliberately) on any non-2xx, so a rate limit or a
       // provider outage arrives here as an exception. Swallow it into the
@@ -758,7 +759,7 @@ export function TripMapView({
       setTappedPlace(resolved);
       showPoiSheet();
     },
-    [grounded, findOwnStopNearTap, selectOwnStop, isOwner, resolvePoiTap, showPoiSheet],
+    [grounded, findOwnStopNearTap, selectOwnStop, canEdit, resolvePoiTap, showPoiSheet],
   );
 
   const writeActivity = useCallback(
@@ -1159,7 +1160,7 @@ export function TripMapView({
           <Text style={[styles.emptyText, { color: colors.text.secondary }]}>
             {ungrounded.length > 0
               ? 'No stops located yet — locate them below to see them here.'
-              : isOwner
+              : canEdit
                 ? 'Tap a place on the map to add your first stop.'
                 : 'This trip has no stops yet.'}
           </Text>
@@ -1178,7 +1179,7 @@ export function TripMapView({
         <View
           style={[
             styles.selectedCard,
-            { backgroundColor: colors.background.elevated, bottom: insets.bottom + (ungrounded.length > 0 && isOwner ? 96 : Spacing['4']) },
+            { backgroundColor: colors.background.elevated, bottom: insets.bottom + (ungrounded.length > 0 && canEdit ? 96 : Spacing['4']) },
           ]}
         >
           {/* Day-cycling — only surfaces once there's something to cycle
@@ -1340,7 +1341,7 @@ export function TripMapView({
         </View>
       ) : null}
 
-      {pendingUngrounded.length > 0 && isOwner && !flying && !actualMode && (
+      {pendingUngrounded.length > 0 && canEdit && !flying && !actualMode && (
         <View
           style={[styles.ungroundedPanel, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}
         >
@@ -1361,7 +1362,7 @@ export function TripMapView({
           </TouchableOpacity>
         </View>
       )}
-      {pendingUngrounded.length === 0 && failedUngrounded > 0 && isOwner && !flying && !actualMode && (
+      {pendingUngrounded.length === 0 && failedUngrounded > 0 && canEdit && !flying && !actualMode && (
         <View
           style={[styles.ungroundedPanel, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}
         >
