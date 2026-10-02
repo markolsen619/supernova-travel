@@ -1,3 +1,4 @@
+import { useRespondToFollowRequest } from '@/hooks/useFollowRequests';
 import { useCallback, useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable, Alert } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
@@ -117,6 +118,20 @@ export default function NotificationsScreen() {
     router.back();
   }, []);
 
+  // Follow requests: answered here, through the respondToFollowRequest callable.
+  const respondFollow = useRespondToFollowRequest();
+  const handleFollowRespond = useCallback(
+    (notif: AppNotification & { type: 'follow_request' }, accept: boolean) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setHandled((prev) => ({ ...prev, [notif.id]: accept ? 'accepted' : 'declined' }));
+      respondFollow.mutate(
+        { requesterUid: notif.profileUid, accept },
+        { onError: () => setHandled((prev) => { const next = { ...prev }; delete next[notif.id]; return next; }) },
+      );
+    },
+    [respondFollow],
+  );
+
   const handleRespond = useCallback(
     (notif: AppNotification & { type: 'trip_invite' }, accept: boolean) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -223,6 +238,70 @@ export default function NotificationsScreen() {
               )}
             </View>
           </Pressable>
+        );
+      }
+
+      if (item.type === 'follow_request') {
+        const result = handled[item.id];
+        return (
+          <Pressable
+            style={[styles.row, { borderColor: colors.background.cardBorder }]}
+            onPress={() => openNotification(item)}
+            onLongPress={() => confirmDelete(item)}
+            delayLongPress={400}
+          >
+            <Avatar uri={item.requesterAvatarUrl} name={item.requesterName} size="sm" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]}>
+                <Text style={styles.rowBold}>{item.requesterName}</Text> wants to follow you
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+              {result ? (
+                <Text style={[styles.resultText, { color: colors.text.tertiary }]}>
+                  {result === 'accepted' ? 'Now follows you' : 'Declined'}
+                </Text>
+              ) : (
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    onPress={() => handleFollowRespond(item, true)}
+                    style={[styles.acceptBtn, { backgroundColor: colors.brand.purple }]}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                    accessibilityLabel={`Accept ${item.requesterName}'s follow request`}
+                  >
+                    <Check size={14} color="#ffffff" weight="bold" />
+                    <Text style={styles.acceptText}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleFollowRespond(item, false)}
+                    style={[styles.declineBtn, { backgroundColor: colors.background.sunken }]}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                    accessibilityLabel={`Decline ${item.requesterName}'s follow request`}
+                  >
+                    <X size={14} color={colors.text.secondary} weight="bold" />
+                    <Text style={[styles.declineText, { color: colors.text.secondary }]}>Decline</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </Pressable>
+        );
+      }
+
+      if (item.type === 'follow_accepted') {
+        return (
+          <TouchableOpacity {...rowProps(item)}>
+            <Avatar uri={item.accepterAvatarUrl} name={item.accepterName} size="sm" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]}>
+                <Text style={styles.rowBold}>{item.accepterName}</Text> accepted your follow request
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+          </TouchableOpacity>
         );
       }
 
@@ -334,7 +413,7 @@ export default function NotificationsScreen() {
     // would leave a just-answered invite un-deletable until an unrelated
     // render happened to refresh this callback.
     // openNotification is reached through rowProps now, which lists it itself.
-    [colors, handled, handleRespond, confirmDelete, rowProps],
+    [colors, handled, handleRespond, handleFollowRespond, openNotification, confirmDelete, rowProps],
   );
 
   return (

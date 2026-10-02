@@ -1,3 +1,5 @@
+import { useUserStore } from '@/stores/useUserStore';
+import { isPrivateAccount, publicAllowed } from '@/utils/privacy';
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
@@ -190,6 +192,8 @@ function Step3Details({ title, description, visibility, tagsInput, setTitle, set
   const { colors } = useTheme();
   const visibilities: TripVisibility[] = ['public', 'followers', 'private'];
 
+  // A private account can't make a trip Public (firestore.rules refuses it).
+  const publicOk = publicAllowed(isPrivateAccount(useUserStore((s) => s.profile)));
   const handleSetVisibility = useCallback((v: TripVisibility) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setVisibility(v);
@@ -230,15 +234,21 @@ function Step3Details({ title, description, visibility, tagsInput, setTitle, set
 
       <View style={step.field}>
         <Text style={[step.label, { color: colors.text.secondary }]}>Visibility</Text>
+        {!publicOk ? (
+          <Text style={{ color: colors.text.tertiary, fontSize: 12, marginBottom: 6 }}>Your account is private — trips are visible to followers</Text>
+        ) : null}
         <View style={step.visibilityRow}>
           {visibilities.map((v) => {
             const active = visibility === v;
             const { Icon: VIcon, color: vColor } = VISIBILITY_ICONS[v];
+            const unavailable = v === 'public' && !publicOk;
             return (
               <TouchableOpacity
                 key={v}
+                disabled={unavailable}
                 onPress={() => handleSetVisibility(v)}
                 style={[
+                  unavailable && { opacity: 0.4 },
                   step.visibilityBtn,
                   {
                     backgroundColor: active ? `${colors.brand.purple}1F` : colors.background.card,
@@ -538,7 +548,10 @@ export default function NewTripScreen() {
   const [title, setTitle] = useState('');
   const [titleAutoFilled, setTitleAutoFilled] = useState(true);
   const [description, setDescription] = useState('');
-  const [visibility, setVisibility] = useState<TripVisibility>('public');
+  // Followers by default while private: Public isn't available then.
+  const [visibility, setVisibility] = useState<TripVisibility>(
+    isPrivateAccount(useUserStore.getState().profile) ? 'followers' : 'public',
+  );
   const [tagsInput, setTagsInput] = useState('');
 
   // Step 4

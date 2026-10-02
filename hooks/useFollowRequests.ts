@@ -13,7 +13,7 @@ const requestId = (requesterUid: string, targetUid: string) => `${requesterUid}_
  * sending or cancelling it. The rules only accept it to a private account you
  * don't already follow and haven't blocked (or been blocked by).
  */
-export function useFollowRequest(targetUid: string) {
+export function useFollowRequest(targetUid: string, targetPrivate = true) {
   const me = useAuthStore((s) => s.user?.uid ?? '');
   const queryClient = useQueryClient();
   const key = ['followRequest', me, targetUid];
@@ -21,7 +21,8 @@ export function useFollowRequest(targetUid: string) {
   const { data: hasRequested = false } = useQuery({
     queryKey: key,
     queryFn: async () => (await getDoc(doc(db, 'followRequests', requestId(me, targetUid)))).exists(),
-    enabled: !!me && !!targetUid && me !== targetUid,
+    // Only a private account can have a pending request — skip the read otherwise.
+    enabled: !!me && !!targetUid && me !== targetUid && targetPrivate,
     staleTime: 60 * 1000,
   });
 

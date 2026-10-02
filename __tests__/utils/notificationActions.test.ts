@@ -22,6 +22,11 @@ describe('canDeleteNotification', () => {
     expect(canDeleteNotification(notif({ id: 'i1', type: 'trip_invite' }), { i1: 'declined' })).toBe(true);
   });
 
+  it('treats a follow request like a trip invite: kept until answered', () => {
+    expect(canDeleteNotification(notif({ id: 'f1', type: 'follow_request' }), {})).toBe(false);
+    expect(canDeleteNotification(notif({ id: 'f1', type: 'follow_request' }), { f1: 'declined' })).toBe(true);
+  });
+
   it('keys the answered check on the notification being tested, not any invite', () => {
     // Answering one invite must not make a different pending invite deletable.
     expect(canDeleteNotification(notif({ id: 'i2', type: 'trip_invite' }), { i1: 'accepted' })).toBe(false);

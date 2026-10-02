@@ -1,8 +1,12 @@
-import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch } from 'react-native';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/services/firebase';
+import { useUserStore } from '@/stores/useUserStore';
+import { isPrivateAccount } from '@/utils/privacy';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { CaretLeft, GlobeHemisphereWest, LockSimple, EyeSlash, Prohibit, Sparkle } from 'phosphor-react-native';
+import { CaretLeft, GlobeHemisphereWest, LockSimple, EyeSlash, Prohibit, Sparkle, LockKey } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useModerationStore } from '@/stores/useModerationStore';
@@ -65,6 +69,38 @@ export default function PrivacySettingsScreen() {
     );
   }, [aiAllowed, requireConsent, uid]);
 
+  // ── Private account ──
+  const profile = useUserStore((s) => s.profile);
+  const [isPrivate, setIsPrivate] = useState(isPrivateAccount(profile));
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const setPrivacy = useCallback(async (next: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsPrivate(next); // optimistic
+    setSavingPrivacy(true);
+    try {
+      await updateDoc(doc(db, 'users', uid), { 'settings.privacy': next ? 'private' : 'public' });
+      const current = useUserStore.getState().profile;
+      if (current) useUserStore.getState().setProfile({ ...current, settings: { ...current.settings, privacy: next ? 'private' : 'public' } });
+    } catch {
+      setIsPrivate(!next);
+      Alert.alert("We couldn't change that", 'Check your connection and try again.');
+    } finally {
+      setSavingPrivacy(false);
+    }
+  }, [uid]);
+  const handlePrivateToggle = useCallback((next: boolean) => {
+    Alert.alert(
+      next ? 'Make your account private?' : 'Make your account public?',
+      next
+        ? 'New followers will need your approval. Your public trips and posts become visible to followers only. People who already follow you keep following.'
+        : 'Anyone can follow you and see your public trips and posts again. Everyone waiting to follow you will be approved.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: next ? 'Make private' : 'Make public', onPress: () => { setPrivacy(next); } },
+      ],
+    );
+  }, [setPrivacy]);
+
   // SettingsRow fires its own haptic.
   const handleBlockedPress = useCallback(() => {
     router.push('/settings/blocked');
@@ -114,6 +150,20 @@ export default function PrivacySettingsScreen() {
 
         <View style={[styles.section, { borderColor: colors.background.cardBorder }]}>
           <SettingsRow
+            label="Private account"
+            icon={LockKey}
+            accessory={
+              <Switch
+                value={isPrivate}
+                onValueChange={handlePrivateToggle}
+                disabled={savingPrivacy}
+                trackColor={{ true: colors.brand.purple, false: colors.background.sunken }}
+                accessibilityLabel="Private account"
+              />
+            }
+            showDivider
+          />
+          <SettingsRow
             label="Blocked accounts"
             icon={Prohibit}
             value={blockedCount > 0 ? String(blockedCount) : undefined}
@@ -129,7 +179,7 @@ export default function PrivacySettingsScreen() {
         </View>
 
         <Text style={[styles.footnote, { color: colors.text.tertiary }]}>
-          Change who can see a trip from its edit screen. To report something, tap the three dots on it. AI data sharing sends what you enter in AI features to Google Gemini.
+          A private account shows people who don't follow you only your photo, name and bio, and they ask to follow you. Change who can see a trip from its edit screen. To report something, tap the three dots on it. AI data sharing sends what you enter in AI features to Google Gemini.
         </Text>
       </ScrollView>
       {consentSheet}

@@ -9,7 +9,9 @@ import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, UsersThree } from 'phosphor-react-native';
+import { ArrowLeft, UsersThree, LockSimple } from 'phosphor-react-native';
+import { useIsFollowing } from '@/hooks/useFollow';
+import { isPrivateAccount, profileAccess } from '@/utils/privacy';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -37,7 +39,10 @@ export default function ConnectionsScreen() {
   const myUid = useAuthStore((s) => s.user?.uid ?? '');
   const isMe = uid === myUid;
   const { data: profile } = useUserProfile(uid);
-  const { users, isLoading } = useConnections(uid, tab);
+  const { data: viewerFollows = false } = useIsFollowing(isMe ? null : uid);
+  // A private account's lists are for its followers.
+  const locked = profileAccess({ viewerUid: myUid, ownerUid: uid, isPrivate: isPrivateAccount(profile), viewerFollows }) === 'locked';
+  const { users, isLoading } = useConnections(locked ? '' : uid, tab);
 
   // The list springs in on each switch.
   const listAnim = useRef(new Animated.Value(1)).current;
@@ -99,7 +104,17 @@ export default function ConnectionsScreen() {
       </View>
 
       <Animated.View style={[styles.fill, { opacity: listAnim, transform: [{ translateY: listAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
-        {isLoading ? (
+        {locked ? (
+          <EmptyState
+            icon={LockSimple}
+            title="This account is private"
+            description={`Follow ${name} to see who they follow and who follows them.`}
+            actionLabel="Go back"
+            onAction={handleBack}
+            actionHaptic="light"
+            style={styles.empty}
+          />
+        ) : isLoading ? (
           <View style={styles.skeletons}>
             {[0, 1, 2, 3, 4].map((i) => <SkeletonListRow key={i} />)}
           </View>

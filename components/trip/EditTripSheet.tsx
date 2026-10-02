@@ -6,6 +6,8 @@
  * DateRangeField so date entry feels identical to trip creation.
  */
 
+import { useUserStore } from '@/stores/useUserStore';
+import { isPrivateAccount, publicAllowed } from '@/utils/privacy';
 import { useTripBudgetAmount } from '@/hooks/useTripBudget';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -58,6 +60,8 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [visibility, setVisibility] = useState<TripVisibility>(trip.visibility);
+  // A private account can't make a trip Public (firestore.rules refuses it).
+  const publicOk = publicAllowed(isPrivateAccount(useUserStore((s) => s.profile)));
   const [budgetAmount, setBudgetAmount] = useState('');
   // The budget is private to the trip's members (trips/{id}/private/budget); only the owner opens this sheet.
   const { budget, setBudget } = useTripBudgetAmount(trip.id, true);
@@ -230,15 +234,21 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
               {/* Visibility */}
               <View style={styles.fieldGroup}>
                 <Text style={[styles.label, { color: colors.text.secondary }]}>Visibility</Text>
+                {!publicOk ? (
+                  <Text style={{ color: colors.text.tertiary, fontSize: 12, marginBottom: 6 }}>Your account is private — trips are visible to followers</Text>
+                ) : null}
                 <View style={styles.visibilityRow}>
                   {VISIBILITY_OPTIONS.map(({ value, label }) => {
                     const { Icon, color } = VISIBILITY_ICONS[value];
                     const active = visibility === value;
+                    const unavailable = value === 'public' && !publicOk;
                     return (
                       <TouchableOpacity
                         key={value}
+                        disabled={unavailable}
                         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setVisibility(value); }}
                         style={[
+                          unavailable && { opacity: 0.4 },
                           styles.visibilityChip,
                           {
                             backgroundColor: active ? `${colors.brand.purple}1F` : colors.background.sunken,

@@ -1,3 +1,5 @@
+import { useFollowRequest } from '@/hooks/useFollowRequests';
+import { isPrivateAccount, followButtonState } from '@/utils/privacy';
 import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -27,6 +29,15 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
   const isCurrentUser = currentUserUid === user.uid;
   const isFollowing = isFollowingQuery.data === true;
   const followLoading = follow.isPending || unfollow.isPending || isFollowingQuery.isLoading;
+  // A private account is asked, not followed (utils/privacy).
+  const { hasRequested, request, cancel } = useFollowRequest(user.uid, isPrivateAccount(user));
+  const state = followButtonState({
+    isSelf: isCurrentUser,
+    isFollowing,
+    hasRequested,
+    targetPrivate: isPrivateAccount(user),
+  });
+  const label = { following: 'Following', requested: 'Requested', request: 'Request', follow: 'Follow', self: '' }[state];
 
   const handleRowPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -38,11 +49,10 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
   }, [onPress, router, user.uid]);
 
   const handleFollowPress = () => {
-    if (isFollowing) {
-      unfollow.mutate();
-    } else {
-      follow.mutate();
-    }
+    if (state === 'following') unfollow.mutate();
+    else if (state === 'requested') cancel().catch(() => {});
+    else if (state === 'request') request().catch(() => {});
+    else follow.mutate();
   };
 
   return (
@@ -71,7 +81,7 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
 
       {!isCurrentUser && (
         <Button
-          label={isFollowing ? 'Following' : 'Follow'}
+          label={label}
           variant="secondary"
           size="sm"
           haptic="medium"
