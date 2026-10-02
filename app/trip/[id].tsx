@@ -1,3 +1,4 @@
+import { useTripBudgetAmount } from '@/hooks/useTripBudget';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
@@ -290,6 +291,8 @@ export default function TripDetailScreen() {
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
+  // Budget and packing belong to the people taking the trip — nobody else sees them.
+  const { budget: tripBudget } = useTripBudgetAmount(trip?.id ?? null, isOwner || isCollaborator);
   const { isPro, requirePro } = useProGate();
   // Upcoming → Live → Completed from the trip's dates (utils/tripStatus).
   const tripStatus = trip
@@ -1185,8 +1188,8 @@ export default function TripDetailScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Budget — shows live progress once a budget's been set, plain
-              label until then; either way it's just a shortcut to trip/budget. */}
+          {/* Budget and packing — members only (owner + accepted invitees). */}
+          {(isOwner || isCollaborator) && (
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1198,17 +1201,18 @@ export default function TripDetailScreen() {
           >
             <Wallet size={13} color={colors.text.secondary} weight="duotone" />
             <Text style={[styles.chipText, { color: colors.text.primary }]}>
-              {trip.budgetAmount != null
+              {tripBudget
                 ? new Intl.NumberFormat('en-US', {
                     style: 'currency',
-                    currency: trip.budgetCurrency ?? 'USD',
+                    currency: tripBudget.currency,
                     maximumFractionDigits: 0,
-                  }).format(trip.budgetAmount)
+                  }).format(tripBudget.amount)
                 : 'Budget'}
             </Text>
           </TouchableOpacity>
+          )}
 
-          {/* Packing list */}
+          {(isOwner || isCollaborator) && (
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1221,6 +1225,7 @@ export default function TripDetailScreen() {
             <Backpack size={13} color={colors.text.secondary} weight="duotone" />
             <Text style={[styles.chipText, { color: colors.text.primary }]}>Packing</Text>
           </TouchableOpacity>
+          )}
 
           {/* TM-3d — only worth surfacing once there's a story to tell */}
           {visitedCount > 0 && (

@@ -11,7 +11,9 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Backpack, Check, Plus, TrashSimple } from 'phosphor-react-native';
+import { ArrowLeft, Backpack, Check, Plus, TrashSimple, LockSimple } from 'phosphor-react-native';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { isTripMember } from '@/utils/tripAccess';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useTrip } from '@/hooks/useTrip';
@@ -92,6 +94,22 @@ export default function PackingListScreen() {
       </View>
     );
   }
+  // Reached by a link or an old build: not yours to see.
+  if (!isTripMember(trip, uid)) {
+    return (
+      <View style={[styles.container, styles.privateState, { backgroundColor: colors.background.primary, paddingTop: insets.top }]}>
+        <EmptyState
+          icon={LockSimple}
+          title="This packing list is private"
+          description="Only the people taking this trip can see or change it."
+          actionLabel="Go back"
+          onAction={handleBack}
+          actionHaptic="light"
+        />
+      </View>
+    );
+  }
+
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
@@ -219,6 +237,7 @@ export default function PackingListScreen() {
 }
 
 const styles = StyleSheet.create({
+  privateState: { justifyContent: 'center', paddingHorizontal: Spacing['5'] },
   container: { flex: 1 },
   header: {
     flexDirection: 'row',

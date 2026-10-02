@@ -3,7 +3,9 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
+  setDoc,
   orderBy,
   query,
   serverTimestamp,
@@ -18,14 +20,54 @@ async function fetchExpenses(tripId: string): Promise<Expense[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense);
 }
 
-/** Owner/collaborator-only per firestore.rules — same read gate as `days`. */
-export function useExpenses(tripId: string | null) {
+/**
+ * Members only (firestore.rules) — pass `enabled: false` for anyone else, or
+ * the read is refused.
+ */
+export function useExpenses(tripId: string | null, enabled = true) {
   return useQuery({
     queryKey: ['expenses', tripId],
     queryFn: () => fetchExpenses(tripId!),
-    enabled: !!tripId,
+    enabled: !!tripId && enabled,
     staleTime: 2 * 60 * 1000,
   });
+}
+
+export interface TripBudget {
+  amount: number;
+  currency: string;
+}
+
+/**
+ * The trip's budget, from trips/{id}/private/budget — members only, and kept
+ * off the trip document because everyone who can see the trip can read that.
+ * Null when none is set. `enabled` must be false for non-members.
+ */
+export function useTripBudgetAmount(tripId: string | null, enabled: boolean) {
+  const queryClient = useQueryClient();
+  const query_ = useQuery({
+    queryKey: ['tripBudget', tripId],
+    queryFn: async (): Promise<TripBudget | null> => {
+      const snap = await getDoc(doc(db, 'trips', tripId!, 'private', 'budget'));
+      const d = snap.data();
+      return d && typeof d.amount === 'number' && d.amount > 0
+        ? { amount: d.amount, currency: typeof d.currency === 'string' ? d.currency : 'USD' }
+        : null;
+    },
+    enabled: !!tripId && enabled,
+    staleTime: 2 * 60 * 1000,
+  });
+  const setBudget = useMutation({
+    /** null or a non-positive amount clears it. */
+    mutationFn: (amount: number | null) =>
+      setDoc(doc(db, 'trips', tripId!, 'private', 'budget'), {
+        amount: amount != null && amount > 0 ? amount : null,
+        currency: 'USD',
+        updatedAt: serverTimestamp(),
+      }, { merge: true }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tripBudget', tripId] }),
+  });
+  return { budget: query_.data ?? null, isLoading: query_.isLoading, setBudget };
 }
 
 export interface NewExpenseInput {

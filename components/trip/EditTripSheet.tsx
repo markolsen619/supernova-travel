@@ -6,6 +6,7 @@
  * DateRangeField so date entry feels identical to trip creation.
  */
 
+import { useTripBudgetAmount } from '@/hooks/useTripBudget';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -58,6 +59,8 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [visibility, setVisibility] = useState<TripVisibility>(trip.visibility);
   const [budgetAmount, setBudgetAmount] = useState('');
+  // The budget is private to the trip's members (trips/{id}/private/budget); only the owner opens this sheet.
+  const { budget, setBudget } = useTripBudgetAmount(trip.id, true);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -70,11 +73,11 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
       setStartDate(trip.startDate ? trip.startDate.toDate() : null);
       setEndDate(trip.endDate ? trip.endDate.toDate() : null);
       setVisibility(trip.visibility);
-      setBudgetAmount(trip.budgetAmount != null ? String(trip.budgetAmount) : '');
+      setBudgetAmount(budget ? String(budget.amount) : '');
       setTitleError(null);
       setSaveError(null);
     }
-  }, [visible, trip]);
+  }, [visible, trip, budget]);
 
   const handleDatesChange = useCallback((start: Date | null, end: Date | null) => {
     setStartDate(start);
@@ -111,9 +114,9 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
         startDate,
         endDate,
         visibility,
-        budgetAmount: budgetAmount.trim() && !Number.isNaN(parsedBudget) && parsedBudget > 0 ? parsedBudget : null,
-        budgetCurrency: budgetAmount.trim() ? 'USD' : null,
       });
+      const nextBudget = budgetAmount.trim() && !Number.isNaN(parsedBudget) && parsedBudget > 0 ? parsedBudget : null;
+      if (nextBudget !== (budget?.amount ?? null)) await setBudget.mutateAsync(nextBudget);
       onClose();
     } catch (err) {
       console.error('[EditTripSheet] save failed:', err);
@@ -121,7 +124,7 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     } finally {
       setSaving(false);
     }
-  }, [saving, deleting, title, description, startDate, endDate, visibility, budgetAmount, trip.id, updateTrip, onClose]);
+  }, [saving, deleting, title, description, startDate, endDate, visibility, budgetAmount, trip.id, updateTrip, onClose, budget, setBudget]);
 
   const handleDelete = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

@@ -141,11 +141,6 @@ export interface Trip {
   savesCount: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  /** Set once via EditTripSheet or the budget screen's own prompt — null
-   * until the owner sets one. A single currency for the whole trip (see
-   * Expense — v1 doesn't support mixed-currency expenses). */
-  budgetAmount: number | null;
-  budgetCurrency: string | null;
 }
 
 export interface Follow {
@@ -452,8 +447,6 @@ export interface UpdateTripInput {
   startDate?: Date | null;
   endDate?: Date | null;
   status?: TripStatus;
-  budgetAmount?: number | null;
-  budgetCurrency?: string | null;
 }
 
 // ── Wallet ──────────────────────────────────────────────────────────────────

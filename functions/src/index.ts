@@ -19,3 +19,4 @@ export { onReportCreated, onBlockCreated } from './moderationEvents';
 export { tagTripDestinations, aggregateDiscovery } from './discoveryFunctions';
 export { onPostDeleted, onTripDeletedRemovePosts } from './postCleanupFunctions';
 export { onCommentLikeCreated, onCommentDeleted } from './commentEvents';
+export { moveTripBudgetPrivate } from './budgetPrivacyFunctions';

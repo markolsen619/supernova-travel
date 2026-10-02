@@ -286,7 +286,8 @@ service cloud.firestore {
           );
         }
 
-        allow read: if canReadTrip();
+        // Members only: the people taking the trip, not everyone who can see it.
+        allow read: if canWriteTrip();
         allow create, update, delete: if canWriteTrip();
       }
 
@@ -310,8 +311,27 @@ service cloud.firestore {
           );
         }
 
-        allow read: if canReadTrip();
+        // Members only, like the budget.
+        allow read: if canWriteTrip();
         allow create, update, delete: if canWriteTrip();
+      }
+
+      // The trip budget — off the trip doc (which every viewer can read) and
+      // members-only. functions/src/budgetPrivacyFunctions.ts moves budgets
+      // older apps still write onto the trip into here.
+      match /private/{docId} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        function isMember() {
+          return isAuthed() && (
+            isOwner(parentTrip().data.authorUid)
+            || request.auth.uid in parentTrip().data.collaborators
+          );
+        }
+        allow read: if isMember();
+        allow create, update: if isMember() && docId == 'budget';
+        allow delete: if false;
       }
 
       // Cached road/walking routes for the trip map — one doc, `cache`,

@@ -115,7 +115,7 @@ TanStack React Query (staleTime 2 min, 2 retries) wraps all Firestore reads. **N
 Firestore collections:
 - `users/{uid}` — profile + `tier` + `expoPushTokens[]`; subcollections: `feed/`, `notifications/`, `savedTrips/`
 - `posts/{postId}` — travel posts; subcollection `comments/`
-- `trips/{tripId}` — itineraries; subcollections: `days/{dayId}`, `days/{dayId}/activities/{activityId}`, `routes/cache` (the trip map's routed legs — one doc, read by anyone who can see the trip, written only by owner/collaborators; see `useTripRoutes`)
+- `trips/{tripId}` — itineraries; subcollections: `days/{dayId}`, `days/{dayId}/activities/{activityId}`, `private/budget` (the trip budget — **members only**, kept off the trip doc because every viewer can read that; `moveTripBudgetPrivate` moves budgets older apps still write onto the trip), `expenses/` and `packingItems/` (members only: owner + accepted invitees, `utils/tripAccess.ts` `isTripMember`; the Budget/Packing chips and screens show nothing else to anyone else), `routes/cache` (the trip map's routed legs — one doc, read by anyone who can see the trip, written only by owner/collaborators; see `useTripRoutes`)
 - `follows/{docId}` — follow graph
 - `boarding_passes/{passId}` — owner-only (`isOwner(resource.data.ownerUid)`)
 - `reservations/{reservationId}` — owner-only
