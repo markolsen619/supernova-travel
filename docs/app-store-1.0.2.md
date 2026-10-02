@@ -1,6 +1,6 @@
 # App Store text for 1.0.2
 
-> **Entered 2026-10-01** in App Store Connect: version 1.0.2 created, build 13
+> **Entered 2026-10-01** in App Store Connect: version 1.0.2 created, build 14 (Washington D.C. fix; builds 12 and 13 still had the bug)
 > attached, manual release, **not yet submitted**. Changes from 1.0.1: What's
 > New; two description bullets under SHARE (replies/double-tap, private
 > accounts); review notes gain "NEW IN 1.0.2" (private accounts, follow
