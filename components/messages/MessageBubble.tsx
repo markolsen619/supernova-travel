@@ -1,3 +1,4 @@
+import { bubbleColors } from '@/utils/messageBubble';
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
@@ -20,6 +21,7 @@ export function MessageBubble({ message, isMine, senderName, onMore }: MessageBu
   const { colors } = useTheme();
   const bubbleRef = React.useRef<View>(null);
   const canMore = !isMine && !!onMore;
+  const bubble = bubbleColors(isMine, colors);
   const handleMore = React.useCallback(() => onMore?.(message, bubbleRef), [onMore, message]);
   return (
     <View style={[styles.row, isMine ? styles.rowMine : styles.rowTheirs]}>
@@ -35,12 +37,11 @@ export function MessageBubble({ message, isMine, senderName, onMore }: MessageBu
         onAccessibilityAction={canMore ? handleMore : undefined}
         style={[
           styles.bubble,
-          isMine
-            ? { backgroundColor: colors.text.primary, borderBottomRightRadius: BorderRadius.sm }
-            : { backgroundColor: colors.background.sunken, borderBottomLeftRadius: BorderRadius.sm },
+          { backgroundColor: bubble.background },
+          isMine ? { borderBottomRightRadius: BorderRadius.sm } : { borderBottomLeftRadius: BorderRadius.sm },
         ]}
       >
-        <Text style={{ color: isMine ? colors.text.inverse : colors.text.primary, fontSize: FontSize.sm, lineHeight: FontSize.sm * 1.4 }}>
+        <Text style={{ color: bubble.text, fontSize: FontSize.sm, lineHeight: FontSize.sm * 1.4 }}>
           {message.text}
         </Text>
       </Pressable>
