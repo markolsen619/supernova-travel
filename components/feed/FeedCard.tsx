@@ -1,3 +1,4 @@
+import { postImageUrls } from '@/utils/postImages';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
@@ -126,7 +127,7 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
   );
 
   // Resolve the array of image URLs, falling back to single mediaUrl for older posts
-  const imageUrls = post.mediaUrls?.length ? post.mediaUrls : (post.mediaUrl ? [post.mediaUrl] : []);
+  const imageUrls = postImageUrls(post);
   const isMultiPhoto = post.mediaType === 'photo' && imageUrls.length > 1;
 
   return (

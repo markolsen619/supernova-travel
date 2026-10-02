@@ -6,6 +6,7 @@
  * profile ScrollView, so this is a flex-wrap grid rather than a FlashList.
  */
 
+import { postImageUrls } from '@/utils/postImages';
 import { canSeePost } from '@/utils/privacy';
 import React, { useMemo } from 'react';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
@@ -13,7 +14,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
-import { SquaresFour } from 'phosphor-react-native';
+import { SquaresFour, Copy } from 'phosphor-react-native';
 
 import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
@@ -29,6 +30,7 @@ import { SkeletonCard } from '@/components/ui/Skeleton';
 interface PostDoc {
   id: string;
   mediaUrl?: string;
+  mediaUrls?: string[];
   mediaType?: string;
   moderationHidden?: boolean;
   visibility?: string;
@@ -118,7 +120,15 @@ export function PostsGrid({ uid, viewerFollows = false }: PostsGridProps) {
           accessibilityLabel="Open post"
         >
           {post.mediaUrl ? (
-            <Image source={{ uri: post.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <>
+              <Image source={{ uri: post.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              {/* More than one photo: open it to swipe through them all. */}
+              {postImageUrls(post).length > 1 ? (
+                <View style={styles.multiBadge} pointerEvents="none">
+                  <Copy size={14} color="#ffffff" weight="fill" />
+                </View>
+              ) : null}
+            </>
           ) : (
             <View style={[StyleSheet.absoluteFill, styles.fallback]}>
               <SquaresFour size={20} color={colors.text.disabled} weight="duotone" />
@@ -131,6 +141,14 @@ export function PostsGrid({ uid, viewerFollows = false }: PostsGridProps) {
 }
 
 const styles = StyleSheet.create({
+  multiBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    padding: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
