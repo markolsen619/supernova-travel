@@ -1,3 +1,4 @@
+import { selectionName } from '@/utils/placeName';
 import { Timestamp } from 'firebase/firestore';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import type { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
@@ -473,5 +474,27 @@ export function placeToTripActivity(place: EnrichedPlace): Omit<TripActivity, 'i
     visited: false,
     visitedAt: null,
     groundingFailedAt: null,
+  };
+}
+
+/** A Place Details response as the selection a picker hands back. */
+export function placeSelectionFromDetails(
+  json: RawTier2Place,
+  placeId: string,
+  tier: 'tier1' | 'tier2',
+  tappedText?: string,
+): PlaceSelection {
+  return {
+    // Rating/photos/hours etc. first: tier2FieldsFromRaw also carries Google's
+    // own displayName, which for DC is plain "Washington". Spread last, it
+    // overwrote the chosen name and DC trips were planned for Washington State.
+    ...tier2FieldsFromRaw(json),
+    placeId: json.id ?? placeId,
+    name: selectionName(json.displayName?.text ?? '', tappedText, json.addressComponents, json.primaryType ?? undefined),
+    lat: json.location?.latitude ?? null,
+    lng: json.location?.longitude ?? null,
+    countryCode: countryCodeFromComponents(json.addressComponents),
+    tier,
+    address: json.formattedAddress,
   };
 }

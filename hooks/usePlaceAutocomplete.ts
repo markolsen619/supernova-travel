@@ -1,4 +1,3 @@
-import { selectionName } from '@/utils/placeName';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Crypto from 'expo-crypto';
 // COST GUARD: both fetch calls below hit billable Google Places API (New)
@@ -8,8 +7,7 @@ import * as Crypto from 'expo-crypto';
 import {
   TIER1_DETAILS_FIELD_MASK,
   TIER2_FIELD_MASK,
-  tier2FieldsFromRaw,
-  countryCodeFromComponents,
+  placeSelectionFromDetails,
   type PlaceViewportBounds,
   type RawTier2Place,
 } from '@/services/places/googlePlaces';
@@ -108,24 +106,9 @@ async function placeDetailsRequest(
     throw new Error(`place details ${res.status}`);
   }
   const json = (await res.json()) as RawTier2Place;
-  const countryCode = countryCodeFromComponents(json.addressComponents);
-  return {
-    placeId: json.id ?? placeId,
-    // The suggestion the traveler tapped ("Washington D.C."), not Details'
-    // "Washington", which reads as the state everywhere downstream. utils/placeName.
-    name: selectionName(json.displayName?.text ?? '', tappedText, json.addressComponents, json.primaryType ?? undefined),
-    lat: json.location?.latitude ?? null,
-    lng: json.location?.longitude ?? null,
-    countryCode,
-    tier,
-    // formattedAddress is only in the Tier-2 mask — undefined (not '') on the
-    // cheap path, matching PlaceSelection's optional typing; placeFromSelection
-    // falls back to '' for display.
-    address: json.formattedAddress,
-    // Safe when fieldMask was Tier-1: the tier2-only fields just come back
-    // undefined, matching PlaceSelection's optional typing.
-    ...tier2FieldsFromRaw(json),
-  };
+  // Tested mapping (services/places/googlePlaces.ts): the chosen name must not
+  // be overwritten by Google's own — "Washington" for DC.
+  return placeSelectionFromDetails(json, placeId, tier, tappedText);
 }
 
 export interface UsePlaceAutocompleteOptions {

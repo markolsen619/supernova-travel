@@ -66,3 +66,13 @@ export const VENUE_NAMING_RULES = `- Every hotel, restaurant, bar and cafe must 
 - Its searchQuery must be the venue's name plus its city, e.g. "Hyatt Regency Mission Bay, San Diego"
 - Use the same hotel for check-in and check-out unless the traveler changes city
 - Give bars, pubs and cafes the "restaurant" type`;
+
+/**
+ * A destination as the prompt names it: with the picked place's coordinates
+ * when the app sent them. A name alone is ambiguous — Places calls DC
+ * "Washington", which Gemini read as Washington State.
+ */
+export function destinationLabel(name: string, lat: number | null | undefined, lng: number | null | undefined): string {
+  if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng)) return name;
+  return `${name} (located at ${lat.toFixed(2)}, ${lng.toFixed(2)})`;
+}

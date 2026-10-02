@@ -1,6 +1,6 @@
 // Relative path, not @/: functions/ is a separate npm package and
 // promptRules.ts imports no firebase-admin, so it is testable here.
-import { resolveTripVisibility, resolveTravelStyles, travelStyleSummary, travelStyleRules, VENUE_NAMING_RULES } from '../../functions/src/promptRules';
+import { resolveTripVisibility, resolveTravelStyles, travelStyleSummary, travelStyleRules, VENUE_NAMING_RULES, destinationLabel } from '../../functions/src/promptRules';
 
 describe('resolveTravelStyles', () => {
   it('uses the list when a current client sends one', () => {
@@ -55,5 +55,16 @@ describe('VENUE_NAMING_RULES', () => {
     expect(VENUE_NAMING_RULES).toMatch(/specific, real, currently operating/);
     expect(VENUE_NAMING_RULES).toMatch(/searchQuery/);
     expect(VENUE_NAMING_RULES).toMatch(/Check into/);
+  });
+});
+
+describe('destinationLabel', () => {
+  it('pins a destination to its coordinates, so "Washington" can\'t become the state', () => {
+    expect(destinationLabel('Washington D.C.', 38.9072873, -77.0369274)).toBe('Washington D.C. (located at 38.91, -77.04)');
+  });
+  it('is just the name without coordinates', () => {
+    expect(destinationLabel('Lisbon', null, null)).toBe('Lisbon');
+    expect(destinationLabel('Lisbon', undefined, 5)).toBe('Lisbon');
+    expect(destinationLabel('Lisbon', Number.NaN, 5)).toBe('Lisbon');
   });
 });

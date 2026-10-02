@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest } from './types';
 import { parseGeneratedTrip, tripDocuments } from './tripDocs';
-import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES } from './promptRules';
+import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES, destinationLabel } from './promptRules';
 import { multiCityAllowed, aiTripQuotaPolicy } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
@@ -134,7 +134,7 @@ export function buildPrompt(data: GenerateTripRequest): string {
     return buildMultiCityPrompt(data, mustSeeStr, prefStr);
   }
 
-  return `Create a ${data.durationDays}-day ${travelStyleSummary(styles)} travel itinerary for ${data.destination}, paced for a "${data.pace}" traveler.
+  return `Create a ${data.durationDays}-day ${travelStyleSummary(styles)} travel itinerary for ${destinationLabel(data.destination, data.lat, data.lng)}, paced for a "${data.pace}" traveler.
 
 Pace rule for this trip: ${PACE_RULES[data.pace]}
 ${travelStyleRules(styles)}
@@ -191,8 +191,8 @@ ${VENUE_NAMING_RULES}
 export function buildMultiCityPrompt(data: GenerateTripRequest, mustSeeStr: string, prefStr: string): string {
   const styles = resolveTravelStyles(data);
   const cities = [
-    { name: data.destination, countryCode: data.countryCode || null },
-    ...data.additionalDestinations.map((d) => ({ name: d.name, countryCode: d.countryCode })),
+    { name: destinationLabel(data.destination, data.lat, data.lng), countryCode: data.countryCode || null },
+    ...data.additionalDestinations.map((d) => ({ name: destinationLabel(d.name, d.lat, d.lng), countryCode: d.countryCode })),
   ];
   const cityListStr = cities
     .map((c, i) => `${i + 1}. ${c.name}${c.countryCode ? ` (${c.countryCode})` : ''}`)
