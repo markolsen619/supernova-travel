@@ -21,8 +21,11 @@ async function fetchFeedPage(
   tab: 'forYou' | 'following'
 ): Promise<{ posts: Post[]; lastDoc: DocumentSnapshot | null }> {
   // TODO: switch to users/{uid}/feed subcollection after Cloud Functions are deployed
+  // Public posts only: a private account's posts are followers-only and don't
+  // belong in the global feed (posts(visibility, createdAt) index).
   let q = query(
     collection(db, 'posts'),
+    where('visibility', '==', 'public'),
     orderBy('createdAt', 'desc'),
     limit(PAGE_SIZE)
   );

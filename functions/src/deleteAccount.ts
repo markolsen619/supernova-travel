@@ -134,10 +134,12 @@ async function removeFromThreads(db: Db, uid: string): Promise<void> {
 
 /** Everything the user owns outright. */
 async function removeOwnContent(db: Db, uid: string): Promise<void> {
-  const [posts, trips, usernames, ...owned] = await Promise.all([
+  const [posts, trips, usernames, requestsSent, requestsReceived, ...owned] = await Promise.all([
     db.collection('posts').where('authorUid', '==', uid).get(),
     db.collection('trips').where('authorUid', '==', uid).get(),
     db.collection('usernames').where('uid', '==', uid).get(),
+    db.collection('followRequests').where('requesterUid', '==', uid).get(),
+    db.collection('followRequests').where('targetUid', '==', uid).get(),
     ...OWNER_UID_COLLECTIONS.map((c) => db.collection(c).where('ownerUid', '==', uid).get()),
   ]);
 
@@ -149,6 +151,8 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
   await recursiveDeleteAll(db, [...posts.docs, ...trips.docs].map((d) => d.ref));
   await deleteDocs(db, [
     ...usernames.docs.map((d) => d.ref),
+    ...requestsSent.docs.map((d) => d.ref),
+    ...requestsReceived.docs.map((d) => d.ref),
     ...owned.flatMap((snap) => snap.docs.map((d) => d.ref)),
     db.doc(`usage_quotas/${uid}`),
   ]);

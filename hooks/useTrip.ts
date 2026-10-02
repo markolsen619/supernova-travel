@@ -27,8 +27,6 @@ async function fetchTripWithDays(tripId: string): Promise<TripWithDays | null> {
     // doesn't account for. Same reasoning for additionalDestinations
     // (predates the multi-destination feature; Trip's type is
     // Destination[], not optional).
-    budgetAmount: tripData.budgetAmount ?? null,
-    budgetCurrency: tripData.budgetCurrency ?? null,
     destination: normalizeDestination(tripData.destination),
     additionalDestinations: (tripData.additionalDestinations ?? []).map(normalizeDestination),
   } as TripWithDays;

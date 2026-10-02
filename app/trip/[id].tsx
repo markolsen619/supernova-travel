@@ -1,3 +1,4 @@
+import { useTripBudgetAmount } from '@/hooks/useTripBudget';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
@@ -290,6 +291,12 @@ export default function TripDetailScreen() {
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
+  // The itinerary belongs to everyone taking the trip: the owner and accepted
+  // invitees edit days and stops alike (firestore.rules allows both). Trip
+  // settings (title, dates, visibility, delete) and the journal stay owner-only.
+  const canEditItinerary = isOwner || isCollaborator;
+  // Budget and packing belong to the people taking the trip — nobody else sees them.
+  const { budget: tripBudget } = useTripBudgetAmount(trip?.id ?? null, isOwner || isCollaborator);
   const { isPro, requirePro } = useProGate();
   // Upcoming → Live → Completed from the trip's dates (utils/tripStatus).
   const tripStatus = trip
@@ -939,13 +946,13 @@ export default function TripDetailScreen() {
           tripId={trip.id}
           tripTitle={trip.title}
           days={sortedDays}
-          isOwner={isOwner}
+          canEdit={canEditItinerary}
           resolvingActivityId={resolvingActivityId}
           onLocateStop={handleGroundActivity}
           unresolvedActivityIds={unresolvedActivityIds}
           focusActivityId={focusActivityId}
           onViewInTimeline={handleViewInTimeline}
-          onToggleVisited={isOwner ? handleToggleVisited : undefined}
+          onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
           onOpenJournal={handleOpenJournal}
           currentActivityId={currentActivityId}
           canEditRoutes={isOwner || isCollaborator}
@@ -1185,8 +1192,8 @@ export default function TripDetailScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Budget — shows live progress once a budget's been set, plain
-              label until then; either way it's just a shortcut to trip/budget. */}
+          {/* Budget and packing — members only (owner + accepted invitees). */}
+          {(isOwner || isCollaborator) && (
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1198,17 +1205,18 @@ export default function TripDetailScreen() {
           >
             <Wallet size={13} color={colors.text.secondary} weight="duotone" />
             <Text style={[styles.chipText, { color: colors.text.primary }]}>
-              {trip.budgetAmount != null
+              {tripBudget
                 ? new Intl.NumberFormat('en-US', {
                     style: 'currency',
-                    currency: trip.budgetCurrency ?? 'USD',
+                    currency: tripBudget.currency,
                     maximumFractionDigits: 0,
-                  }).format(trip.budgetAmount)
+                  }).format(tripBudget.amount)
                 : 'Budget'}
             </Text>
           </TouchableOpacity>
+          )}
 
-          {/* Packing list */}
+          {(isOwner || isCollaborator) && (
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1221,6 +1229,7 @@ export default function TripDetailScreen() {
             <Backpack size={13} color={colors.text.secondary} weight="duotone" />
             <Text style={[styles.chipText, { color: colors.text.primary }]}>Packing</Text>
           </TouchableOpacity>
+          )}
 
           {/* TM-3d — only worth surfacing once there's a story to tell */}
           {visitedCount > 0 && (
@@ -1266,7 +1275,7 @@ export default function TripDetailScreen() {
         {/* ── 5. Day sections — hairline-divided, not boxed cards ── */}
         <View style={styles.daysSection}>
           {sortedDays.length === 0 ? (
-            isOwner ? (
+            canEditItinerary ? (
               <EmptyState
                 icon={MapTrifold}
                 title="Start your first day"
@@ -1291,14 +1300,14 @@ export default function TripDetailScreen() {
                 >
                   <DayTimeline
                     day={day}
-                    editable={isOwner}
-                    onAddActivity={isOwner ? () => handleOpenAddActivity(day) : undefined}
-                    onAddStop={isOwner ? () => handleOpenAddStop(day) : undefined}
-                    onEditActivity={isOwner ? (activity) => handleOpenEditActivity(activity, day.id) : undefined}
-                    onActivityPress={isOwner ? handleActivityPress : undefined}
-                    onToggleVisited={isOwner ? handleToggleVisited : undefined}
-                    onReorderActivities={isOwner ? handleReorderActivities : undefined}
-                    onDeleteDay={isOwner ? () => handleDeleteDay(day) : undefined}
+                    editable={canEditItinerary}
+                    onAddActivity={canEditItinerary ? () => handleOpenAddActivity(day) : undefined}
+                    onAddStop={canEditItinerary ? () => handleOpenAddStop(day) : undefined}
+                    onEditActivity={canEditItinerary ? (activity) => handleOpenEditActivity(activity, day.id) : undefined}
+                    onActivityPress={canEditItinerary ? handleActivityPress : undefined}
+                    onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
+                    onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
+                    onDeleteDay={canEditItinerary ? () => handleDeleteDay(day) : undefined}
                     resolvingActivityId={resolvingActivityId}
                     highlightActivityId={highlightActivityId}
                     currentActivityId={currentActivityId}
@@ -1311,7 +1320,7 @@ export default function TripDetailScreen() {
                   here rather than inside handleAddDay itself, since that
                   handler is shared with the empty-days EmptyState action
                   above, which already gets its haptic from Button. */}
-              {isOwner && (
+              {canEditItinerary && (
                 <TouchableOpacity
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

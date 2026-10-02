@@ -25,7 +25,8 @@ export function canDeleteNotification(
   notification: AppNotification,
   handled: HandledInvites,
 ): boolean {
-  if (notification.type !== 'trip_invite') return true;
+  // A follow request too: answering it is only possible from this row.
+  if (notification.type !== 'trip_invite' && notification.type !== 'follow_request') return true;
   return handled[notification.id] !== undefined;
 }
 

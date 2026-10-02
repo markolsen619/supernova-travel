@@ -49,3 +49,10 @@ describe('comment notifications', () => {
     expect(resolveNotificationRoute({ type: 'comment_like' })).toBeNull();
   });
 });
+
+describe('follow notifications', () => {
+  it('open the profile', () => {
+    expect(resolveNotificationRoute({ type: 'follow_request', profileUid: 'u1' })).toBe('/user/u1');
+    expect(resolveNotificationRoute({ type: 'follow_accepted', profileUid: 'u1' })).toBe('/user/u1');
+  });
+});

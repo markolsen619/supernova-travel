@@ -233,7 +233,7 @@ export function PlaceDetailSheet({
 
   const sheetContent = (
     <View style={[styles.content, { paddingBottom: bottomInset + Spacing['4'] }]}>
-      <View style={styles.handle} />
+      <View style={[styles.handle, !colorsOverride && { backgroundColor: colors.background.cardBorder }]} />
 
       {/* Place identity row — the "ABOUT THIS PLACE" eyebrow deliberately
           mirrors JournalSheet's "YOUR VISIT" one: Google's public place data
@@ -352,9 +352,10 @@ export function PlaceDetailSheet({
         onPress={handlePlanTrip}
         activeOpacity={0.85}
       >
-        <NavigationArrow size={18} color="#ffffff" weight="bold" />
-        <Text style={styles.planBtnText}>Plan a Trip Here</Text>
-        <ArrowRight size={16} color="rgba(255,255,255,0.7)" weight="bold" />
+        {/* Outlined (purple on the sheet) when the booking button above is the filled one. */}
+        <NavigationArrow size={18} color={bookingAction ? colors.brand.purple : '#ffffff'} weight="bold" />
+        <Text style={[styles.planBtnText, bookingAction ? { color: colors.brand.purple } : null]}>Plan a trip here</Text>
+        <ArrowRight size={16} color={bookingAction ? colors.brand.purple : 'rgba(255,255,255,0.7)'} weight="bold" />
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -382,7 +383,14 @@ export function PlaceDetailSheet({
         style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
         onLayout={(e) => { sheetHeight.current = e.nativeEvent.layout.height; }}
       >
-        {Platform.OS === 'ios' ? (
+        {/* Frosted only over the dark globe (search.tsx passes DarkColors). On
+            every other screen it's a solid card — a dark blur over a light
+            trip page read as see-through, with the itinerary showing behind. */}
+        {!colorsOverride ? (
+          <View style={[styles.fill, { backgroundColor: colors.background.elevated }]}>
+            {sheetContent}
+          </View>
+        ) : Platform.OS === 'ios' ? (
           <BlurView intensity={80} tint="dark" style={styles.fill}>
             {sheetContent}
           </BlurView>

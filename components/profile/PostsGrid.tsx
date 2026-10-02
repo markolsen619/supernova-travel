@@ -6,6 +6,7 @@
  * profile ScrollView, so this is a flex-wrap grid rather than a FlashList.
  */
 
+import { canSeePost } from '@/utils/privacy';
 import React, { useMemo } from 'react';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
@@ -30,6 +31,7 @@ interface PostDoc {
   mediaUrl?: string;
   mediaType?: string;
   moderationHidden?: boolean;
+  visibility?: string;
 }
 
 async function fetchUserPosts(uid: string): Promise<PostDoc[]> {
@@ -46,9 +48,11 @@ async function fetchUserPosts(uid: string): Promise<PostDoc[]> {
 
 interface PostsGridProps {
   uid: string;
+  /** Whether the viewer follows this profile — followers also see its followers-only posts. */
+  viewerFollows?: boolean;
 }
 
-export function PostsGrid({ uid }: PostsGridProps) {
+export function PostsGrid({ uid, viewerFollows = false }: PostsGridProps) {
   const { colors } = useTheme();
   const { width, galleryColumns } = useLayout();
   const cell = galleryCellWidth(width, galleryColumns);
@@ -67,12 +71,17 @@ export function PostsGrid({ uid }: PostsGridProps) {
     () =>
       uid === viewerUid
         ? allPosts
-        : filterVisible(allPosts, moderation, (p) => ({
-            authorUid: uid,
-            key: contentKey({ type: 'post', id: p.id }),
-            moderationHidden: p.moderationHidden,
-          })),
-    [allPosts, moderation, uid, viewerUid],
+        : filterVisible(
+            // A private account's posts are followers-only.
+            allPosts.filter((p) => canSeePost(p.visibility, { isAuthor: false, follows: viewerFollows })),
+            moderation,
+            (p) => ({
+              authorUid: uid,
+              key: contentKey({ type: 'post', id: p.id }),
+              moderationHidden: p.moderationHidden,
+            }),
+          ),
+    [allPosts, moderation, uid, viewerUid, viewerFollows],
   );
 
   if (isLoading) {

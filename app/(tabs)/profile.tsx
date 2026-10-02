@@ -250,18 +250,26 @@ function ProfileScreenContent() {
 
           {/* Stats row */}
           <View style={styles.statsRow}>
-            {[
-              { label: 'Followers', value: profile?.followersCount ?? 0 },
-              { label: 'Following', value: profile?.followingCount ?? 0 },
-              { label: 'Trips', value: allTrips.length },
-            ].map(({ label, value }, i) => (
-              <View
+            {([
+              { label: 'Followers', value: profile?.followersCount ?? 0, tab: 'followers' },
+              { label: 'Following', value: profile?.followingCount ?? 0, tab: 'following' },
+              { label: 'Trips', value: allTrips.length, tab: null },
+            ] as const).map(({ label, value, tab }, i) => (
+              <TouchableOpacity
                 key={label}
+                disabled={!tab || !uid}
+                onPress={() => {
+                  if (!tab || !uid) return;
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: '/connections/[uid]', params: { uid, tab } });
+                }}
+                accessibilityRole={tab ? 'button' : undefined}
+                accessibilityLabel={`${value} ${label.toLowerCase()}`}
                 style={[styles.stat, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.background.cardBorder }]}
               >
                 <Text style={[styles.statValue, { color: colors.text.primary }]}>{value}</Text>
                 <Text style={[styles.statLabel, { color: colors.text.tertiary }]}>{label}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
 

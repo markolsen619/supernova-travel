@@ -13,12 +13,12 @@ import { FlashList } from '@shopify/flash-list';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Wallet, Plus, PencilSimple, ArrowRight, TrashSimple } from 'phosphor-react-native';
+import { ArrowLeft, Wallet, Plus, PencilSimple, ArrowRight, TrashSimple, LockSimple } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useTrip } from '@/hooks/useTrip';
-import { useCreateTrip } from '@/hooks/useCreateTrip';
-import { useExpenses, useExpenseMutations, computeBalances } from '@/hooks/useTripBudget';
+import { useExpenses, useExpenseMutations, computeBalances, useTripBudgetAmount } from '@/hooks/useTripBudget';
+import { isTripMember } from '@/utils/tripAccess';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { AddExpenseSheet, type ExpenseFormData } from '@/components/trip/AddExpenseSheet';
 import { Avatar } from '@/components/ui/Avatar';
@@ -41,9 +41,11 @@ export default function BudgetScreen() {
   const currentUid = useAuthStore((s) => s.user?.uid ?? '');
 
   const { data: trip, isLoading: tripLoading } = useTrip(id ?? null);
-  const { data: expenses = [], isLoading: expensesLoading } = useExpenses(id ?? null);
+  // Only the people taking the trip see its money — the rules refuse anyone else.
+  const isMember = isTripMember(trip, currentUid);
+  const { data: expenses = [], isLoading: expensesLoading } = useExpenses(id ?? null, isMember);
   const { addExpense, deleteExpense } = useExpenseMutations(id ?? '');
-  const { updateTrip } = useCreateTrip();
+  const { budget, setBudget } = useTripBudgetAmount(id ?? null, isMember);
 
   const memberUids = useMemo(() => (trip ? [trip.authorUid, ...trip.collaborators] : []), [trip]);
   const { data: profiles = {} } = useAuthorProfiles(memberUids);
@@ -53,8 +55,8 @@ export default function BudgetScreen() {
   );
 
   const { totalSpent, settleUp } = useMemo(() => computeBalances(expenses), [expenses]);
-  const currency = trip?.budgetCurrency ?? 'USD';
-  const budgetAmount = trip?.budgetAmount ?? null;
+  const currency = budget?.currency ?? 'USD';
+  const budgetAmount = budget?.amount ?? null;
   const remaining = budgetAmount != null ? budgetAmount - totalSpent : null;
   const progress = budgetAmount ? Math.min(1, totalSpent / budgetAmount) : 0;
 
@@ -77,12 +79,9 @@ export default function BudgetScreen() {
     if (!id) return;
     const parsed = parseFloat(budgetInput);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateTrip(id, {
-      budgetAmount: Number.isNaN(parsed) || parsed <= 0 ? null : parsed,
-      budgetCurrency: 'USD',
-    });
+    await setBudget.mutateAsync(Number.isNaN(parsed) || parsed <= 0 ? null : parsed);
     setEditingBudget(false);
-  }, [id, budgetInput, updateTrip]);
+  }, [id, budgetInput, setBudget]);
 
   const handleAddExpense = useCallback(
     async (data: ExpenseFormData) => {
@@ -143,6 +142,22 @@ export default function BudgetScreen() {
       </View>
     );
   }
+  // Reached by a link or an old build: not yours to see.
+  if (!isMember) {
+    return (
+      <View style={[styles.container, styles.privateState, { backgroundColor: colors.background.primary, paddingTop: insets.top }]}>
+        <EmptyState
+          icon={LockSimple}
+          title="This budget is private"
+          description="Only the people taking this trip can see or change its budget."
+          actionLabel="Go back"
+          onAction={handleBack}
+          actionHaptic="light"
+        />
+      </View>
+    );
+  }
+
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
@@ -287,6 +302,7 @@ export default function BudgetScreen() {
 }
 
 const styles = StyleSheet.create({
+  privateState: { justifyContent: 'center', paddingHorizontal: Spacing['5'] },
   container: { flex: 1 },
   header: {
     flexDirection: 'row',

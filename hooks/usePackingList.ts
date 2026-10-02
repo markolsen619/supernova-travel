@@ -1,3 +1,4 @@
+import { isTripMember } from '@/utils/tripAccess';
 import { useEffect, useRef } from 'react';
 import {
   addDoc,
@@ -34,10 +35,12 @@ export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: st
   const tripId = trip?.id ?? null;
   const queryKey = ['packingItems', tripId];
 
+  // Members only (firestore.rules): don't even ask for anyone else.
+  const isMember = isTripMember(trip, uid);
   const itemsQuery = useQuery({
     queryKey,
     queryFn: () => fetchPackingItems(tripId!),
-    enabled: !!tripId,
+    enabled: !!tripId && isMember,
     staleTime: 2 * 60 * 1000,
   });
 

@@ -1,3 +1,5 @@
+import { useUserStore } from '@/stores/useUserStore';
+import { isPrivateAccount, publicAllowed } from '@/utils/privacy';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -102,6 +104,8 @@ export function AiPromptForm({
   destinationPlaceId,
   onPlaceSelect,
 }: AiPromptFormProps) {
+  // A private account can't make a trip Public (firestore.rules refuses it).
+  const publicOk = publicAllowed(isPrivateAccount(useUserStore((s) => s.profile)));
   const { colors } = useTheme();
   const { isPro, openPaywall } = useProGate();
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -320,10 +324,13 @@ export function AiPromptForm({
           {VISIBILITY_OPTIONS.map((option) => {
             const active = visibility === option.value;
             const { Icon, color } = VISIBILITY_ICONS[option.value];
+            const unavailable = option.value === 'public' && !publicOk;
             return (
               <TouchableOpacity
                 key={option.value}
+                disabled={unavailable}
                 style={[
+                  unavailable && { opacity: 0.4 },
                   styles.stylePill,
                   { backgroundColor: active ? `${colors.brand.purple}1F` : colors.background.card, borderColor: active ? colors.brand.purple : colors.background.cardBorder },
                 ]}
@@ -342,7 +349,7 @@ export function AiPromptForm({
           })}
         </View>
         <Text style={[styles.hint, { color: colors.text.tertiary }]}>
-          {VISIBILITY_OPTIONS.find((o) => o.value === visibility)?.hint}
+          {publicOk ? VISIBILITY_OPTIONS.find((o) => o.value === visibility)?.hint : 'Your account is private — trips are visible to followers'}
         </Text>
       </View>
 

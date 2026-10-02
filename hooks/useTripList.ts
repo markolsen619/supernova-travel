@@ -27,8 +27,6 @@ function normalizeTrip(id: string, data: DocumentData): Trip {
   return {
     id,
     ...data,
-    budgetAmount: data.budgetAmount ?? null,
-    budgetCurrency: data.budgetCurrency ?? null,
     destination: normalizeDestination(data.destination),
     additionalDestinations: (data.additionalDestinations ?? []).map(normalizeDestination),
   } as Trip;

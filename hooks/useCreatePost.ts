@@ -1,3 +1,4 @@
+import { isPrivateAccount, newPostVisibility } from '@/utils/privacy';
 import { useState } from 'react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -80,6 +81,7 @@ export function useCreatePost() {
         tripDateRange: null,
         likesCount: 0,
         commentsCount: 0,
+        ...newPostVisibility(isPrivateAccount(profile)),
         tags: [],
         createdAt: serverTimestamp(),
       });
@@ -122,6 +124,7 @@ export function useCreatePost() {
         tripDateRange: formatDateRange(trip.startDate, trip.endDate),
         likesCount: 0,
         commentsCount: 0,
+        ...newPostVisibility(isPrivateAccount(profile)),
         tags: trip.tags ?? [],
         createdAt: serverTimestamp(),
       });

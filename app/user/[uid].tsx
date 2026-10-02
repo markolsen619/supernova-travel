@@ -12,10 +12,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { MapPin, Bag, ArrowLeft, UserCircle, ChatCircleDots, DotsThree, Prohibit } from 'phosphor-react-native';
+import { MapPin, Bag, ArrowLeft, UserCircle, ChatCircleDots, DotsThree, Prohibit, LockSimple } from 'phosphor-react-native';
+import { useFollowRequest } from '@/hooks/useFollowRequests';
+import { isPrivateAccount, profileAccess, followButtonState } from '@/utils/privacy';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/hooks/useTheme';
@@ -88,6 +91,26 @@ export default function UserProfileScreen() {
   const handleFollow = useCallback(() => {
     follow.mutate();
   }, [follow]);
+
+  // ── Private accounts ──
+  // Non-followers see who this is and a request button, nothing more.
+  const targetPrivate = isPrivateAccount(profile);
+  const locked = profileAccess({
+    viewerUid: isOwnProfile ? (uid ?? '') : 'viewer',
+    ownerUid: uid ?? '',
+    isPrivate: targetPrivate,
+    viewerFollows: isFollowing,
+  }) === 'locked';
+  const { hasRequested, request, cancel } = useFollowRequest(uid ?? '', targetPrivate);
+  const followState = followButtonState({ isSelf: isOwnProfile, isFollowing, hasRequested, targetPrivate });
+  const handleRequest = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    request().catch(() => Alert.alert("We couldn't send your request", 'Check your connection and try again.'));
+  }, [request]);
+  const handleCancelRequest = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    cancel().catch(() => Alert.alert("We couldn't cancel your request", 'Check your connection and try again.'));
+  }, [cancel]);
 
   const handleUnfollow = useCallback(() => {
     unfollow.mutate();
@@ -276,25 +299,45 @@ export default function UserProfileScreen() {
 
           <View style={[styles.statDivider, { backgroundColor: colors.background.cardBorder }]} />
 
-          <View style={styles.statItem}>
+          <TouchableOpacity
+            style={styles.statItem}
+            // A private account's lists are for its followers.
+            disabled={locked}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/connections/[uid]', params: { uid: profile.uid, tab: 'followers' } });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`${profile.followersCount} followers`}
+          >
             <Text style={[styles.statNumber, { color: colors.text.primary }]}>
               {profile.followersCount}
             </Text>
             <Text style={{ color: colors.text.tertiary, fontSize: FontSize.xs }}>
               Followers
             </Text>
-          </View>
+          </TouchableOpacity>
 
           <View style={[styles.statDivider, { backgroundColor: colors.background.cardBorder }]} />
 
-          <View style={styles.statItem}>
+          <TouchableOpacity
+            style={styles.statItem}
+            // A private account's lists are for its followers.
+            disabled={locked}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({ pathname: '/connections/[uid]', params: { uid: profile.uid, tab: 'following' } });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`${profile.followingCount} following`}
+          >
             <Text style={[styles.statNumber, { color: colors.text.primary }]}>
               {profile.followingCount}
             </Text>
             <Text style={{ color: colors.text.tertiary, fontSize: FontSize.xs }}>
               Following
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Follow / Edit / Wallet buttons */}
@@ -323,8 +366,12 @@ export default function UserProfileScreen() {
             </View>
           ) : (
             <View style={{ flexDirection: 'row', gap: Spacing['3'], justifyContent: 'center' }}>
-              {isFollowing ? (
+              {followState === 'following' ? (
                 <Button label="Following" variant="secondary" size="md" onPress={handleUnfollow} />
+              ) : followState === 'requested' ? (
+                <Button label="Requested" variant="secondary" size="md" onPress={handleCancelRequest} haptic="none" />
+              ) : followState === 'request' ? (
+                <Button label="Request to follow" variant="primary" size="md" onPress={handleRequest} haptic="none" />
               ) : (
                 <Button label="Follow" variant="primary" size="md" onPress={handleFollow} />
               )}
@@ -335,6 +382,16 @@ export default function UserProfileScreen() {
           )}
         </View>
 
+        {locked ? (
+          <View style={[styles.lockedCard, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}>
+            <LockSimple size={28} color={colors.text.disabled} weight="duotone" />
+            <Text style={[styles.lockedTitle, { color: colors.text.primary }]}>This account is private</Text>
+            <Text style={[styles.lockedBody, { color: colors.text.secondary }]}>
+              {`Follow ${profile?.fullName?.split(' ')[0] || 'them'} to see their trips and posts.`}
+            </Text>
+          </View>
+        ) : (
+        <>
         {/* Profile tab switcher */}
         <View style={styles.tabRow}>
           {PROFILE_TABS.map((tab) => (
@@ -373,11 +430,13 @@ export default function UserProfileScreen() {
         </View>
 
         {/* Tab content */}
-        {activeProfileTab === 'Posts' && <PostsGrid uid={uid ?? ''} />}
+        {activeProfileTab === 'Posts' && <PostsGrid uid={uid ?? ''} viewerFollows={isFollowing} />}
         {activeProfileTab === 'Trips' && (
           <TripsGrid trips={publicTrips} onTripPress={handleTripPress} authorProfiles={authorProfiles} />
         )}
         {activeProfileTab === 'Saved' && <SavedGrid uid={uid ?? ''} />}
+        </>
+        )}
       </ScrollView>
 
       {/* Edit profile modal */}
@@ -389,6 +448,17 @@ export default function UserProfileScreen() {
 
 // ── Static styles ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  lockedCard: {
+    marginHorizontal: Spacing['5'],
+    marginTop: Spacing['4'],
+    padding: Spacing['6'],
+    borderRadius: BorderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    gap: Spacing['2'],
+  },
+  lockedTitle: { fontSize: 17, fontWeight: FontWeight.semiBold, marginTop: Spacing['1'] },
+  lockedBody: { fontSize: FontSize.sm, textAlign: 'center', lineHeight: FontSize.sm * 1.5 },
   root: {
     flex: 1,
   },
