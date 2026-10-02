@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Image,
@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, Heart, AirplaneTilt } from 'phosphor-react-native';
@@ -37,6 +38,20 @@ export default function FeedScreen() {
   const listRef = useRef<FlashListRef<Post>>(null);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
+
+  // Tapping Feed while already on it: back to the top, with the newest posts.
+  // resetQueries drops the loaded pages so the first page is fetched fresh
+  // (a plain refetch would re-run every page the list has scrolled through).
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    return navigation.addListener('tabPress' as never, () => {
+      if (!navigation.isFocused()) return;
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      setActiveIndex(0);
+      queryClient.resetQueries({ queryKey: ['feed'] });
+    });
+  }, [navigation, queryClient]);
   const { data: hasUnread = false } = useHasUnreadActivity();
 
   const moderation = useModeration();

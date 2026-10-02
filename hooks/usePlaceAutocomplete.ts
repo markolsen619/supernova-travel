@@ -1,3 +1,4 @@
+import { disambiguatePlaceName } from '@/utils/placeName';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Crypto from 'expo-crypto';
 // COST GUARD: both fetch calls below hit billable Google Places API (New)
@@ -109,7 +110,8 @@ async function placeDetailsRequest(
   const countryCode = countryCodeFromComponents(json.addressComponents);
   return {
     placeId: json.id ?? placeId,
-    name: json.displayName?.text ?? '',
+    // "Washington" → "Washington, DC": see utils/placeName.
+    name: disambiguatePlaceName(json.displayName?.text ?? '', json.addressComponents, json.primaryType ?? undefined),
     lat: json.location?.latitude ?? null,
     lng: json.location?.longitude ?? null,
     countryCode,

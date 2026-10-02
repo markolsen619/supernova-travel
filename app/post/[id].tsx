@@ -1,3 +1,5 @@
+import { postImageUrls } from '@/utils/postImages';
+import { useLayout } from '@/hooks/useLayout';
 import { useOwnPostActions } from '@/hooks/useOwnPostActions';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -47,6 +49,40 @@ import { useContentActions } from '@/components/moderation/useContentActions';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { contentKey, filterVisible, isContentVisible } from '@/utils/moderation';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
+
+/**
+ * Every photo of the post, swiped one at a time with page dots — it used to
+ * show only the first, so a multi-photo post opened from a profile looked like
+ * a single photo.
+ */
+function PostPhotos({ urls }: { urls: string[] }) {
+  const { width } = useLayout();
+  const [page, setPage] = useState(0);
+  const [boxWidth, setBoxWidth] = useState(width);
+  if (urls.length === 1) {
+    return <Image source={{ uri: urls[0] }} style={styles.media} resizeMode="cover" />;
+  }
+  return (
+    <View onLayout={(e) => setBoxWidth(e.nativeEvent.layout.width)}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / boxWidth))}
+        accessibilityLabel={`Photo ${page + 1} of ${urls.length}`}
+      >
+        {urls.map((uri, i) => (
+          <Image key={`${uri}-${i}`} source={{ uri }} style={[styles.media, { width: boxWidth }]} resizeMode="cover" />
+        ))}
+      </ScrollView>
+      <View style={styles.photoDots} pointerEvents="none">
+        {urls.map((_, i) => (
+          <View key={i} style={[styles.photoDot, i === page && styles.photoDotActive]} />
+        ))}
+      </View>
+    </View>
+  );
+}
 
 function formatTimestamp(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts?.toDate) return '';
@@ -464,9 +500,7 @@ export default function PostDetailScreen() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
-        {post?.mediaUrl ? (
-          <Image source={{ uri: post.mediaUrl }} style={styles.media} resizeMode="cover" />
-        ) : null}
+        {post && postImageUrls(post).length > 0 ? <PostPhotos urls={postImageUrls(post)} /> : null}
 
         {post && (
           <View style={[styles.postInfo, { borderBottomColor: colors.background.cardBorder }]}>
@@ -645,6 +679,9 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold },
   scroll: { flex: 1 },
   media: { width: '100%', aspectRatio: 9 / 16, backgroundColor: '#111' },
+  photoDots: { position: 'absolute', bottom: Spacing['3'], left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 5 },
+  photoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.45)' },
+  photoDotActive: { width: 16, backgroundColor: '#ffffff' },
   postInfo: {
     padding: Spacing['4'],
     gap: Spacing['3'],
