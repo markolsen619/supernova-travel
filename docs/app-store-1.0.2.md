@@ -1,7 +1,7 @@
 # App Store text for 1.0.2
 
 > **Entered 2026-10-01** in App Store Connect: version 1.0.2 created, build 14 (Washington D.C. fix; builds 12 and 13 still had the bug)
-> attached, manual release, **not yet submitted**. Changes from 1.0.1: What's
+> attached, manual release. **Submitted for review 2026-10-02**. Changes from 1.0.1: What's
 > New; two description bullets under SHARE (replies/double-tap, private
 > accounts); review notes gain "NEW IN 1.0.2" (private accounts, follow
 > requests, comment replies/likes) and a UGC line on deleting your own posts
@@ -103,3 +103,8 @@ None. Same features in every region, English only.
 REGULATED INDUSTRY / THIRD-PARTY MATERIAL
 Not regulated: a planning tool, not a travel agency; no bookings or third-party payments. Third-party data is used under each provider's terms.
 ```
+
+## Also changed at submission (2026-10-02)
+
+- **Subtitle** (App Information): "Explore, plan & go together" (was "Save the trip, keep the trip").
+- **iPhone screenshots** replaced with six dark-mode shots, in order: Explore, Paris destination page, itinerary, trip flyover, globe, AI planner. App Store Connect now requires the 6.5" slot (1242×2688 or 1284×2778), so the 1290×2796 simulator captures were resized to 1284×2778 JPEG (no alpha) and used for all iPhone sizes. Originals and the uploaded set are in ~/Desktop/Supernova-screenshots-1.0.2/. iPad screenshots unchanged.
