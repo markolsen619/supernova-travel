@@ -310,11 +310,27 @@ export interface DmThread {
 
 /** `dmThreads/{threadId}/messages/{messageId}` — client-writable directly
  * (no callable needed to send), append-only. */
+/** A trip shared in a message: what its card renders without reading the
+ * trip. Tapping opens `/trip/{tripId}`, where the trip's own rules decide. */
+export interface DmTripSnapshot {
+  tripId: string;
+  title: string;
+  coverImageUrl: string | null;
+  placeLabel: string;
+  dateRange: string | null;
+  /** True when the message text is the sender's own note, not the fallback. */
+  note: boolean;
+}
+
 export interface DmMessage {
   id: string;
   senderUid: string;
+  /** Always set — older apps read only this. For a shared trip it's the note,
+   * or a fallback naming the trip (see `utils/tripShare.ts`). */
   text: string;
   createdAt: Timestamp;
+  /** A shared trip, rendered as a card. */
+  trip?: DmTripSnapshot;
 }
 
 // ── Budget & expenses ───────────────────────────────────────────────────────
