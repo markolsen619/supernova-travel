@@ -51,7 +51,10 @@
             ]
           }
         ]
-      }
+      },
+      "associatedDomains": [
+        "applinks:supernova-a2125.web.app"
+      ]
     },
     "android": {
       "package": "com.supernovatravel.app",

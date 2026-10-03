@@ -458,6 +458,17 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{messageId} {
+        function isTripSnapshot(t) {
+          return t is map
+            && t.keys().hasOnly(['tripId', 'title', 'coverImageUrl', 'placeLabel', 'dateRange', 'note'])
+            && t.keys().hasAll(['tripId', 'title', 'placeLabel', 'note'])
+            && t.tripId is string && t.tripId.size() > 0 && t.tripId.size() <= 64
+            && t.title is string && t.title.size() <= 200
+            && t.placeLabel is string && t.placeLabel.size() <= 200
+            && (!('coverImageUrl' in t) || t.coverImageUrl == null || (t.coverImageUrl is string && t.coverImageUrl.size() <= 2048))
+            && (!('dateRange' in t) || t.dateRange == null || (t.dateRange is string && t.dateRange.size() <= 80))
+            && t.note is bool;
+        }
         function thread() {
           return get(/databases/$(database)/documents/dmThreads/$(threadId));
         }
@@ -476,7 +487,11 @@ service cloud.firestore {
           && request.resource.data.senderUid == request.auth.uid
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 4000;
+          && request.resource.data.text.size() <= 4000
+          && request.resource.data.keys().hasOnly(['senderUid', 'text', 'createdAt', 'trip'])
+          // A shared trip: a small snapshot for its card. `text` stays
+          // required above, so apps that predate cards still show something.
+          && (!('trip' in request.resource.data) || isTripSnapshot(request.resource.data.trip));
         allow update, delete: if false;
       }
 

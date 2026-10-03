@@ -5,6 +5,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { DmMessage } from '@/types';
+import { TripMessageCard } from '@/components/messages/TripMessageCard';
+import { tripNoteText } from '@/utils/tripShare';
 
 interface MessageBubbleProps {
   message: DmMessage;
@@ -28,23 +30,34 @@ export function MessageBubble({ message, isMine, senderName, onMore }: MessageBu
       {!!senderName && !isMine && (
         <Text style={[styles.senderName, { color: colors.text.tertiary }]}>{senderName}</Text>
       )}
-      <Pressable
-        ref={bubbleRef}
-        onLongPress={canMore ? handleMore : undefined}
-        delayLongPress={350}
-        disabled={!canMore}
-        accessibilityActions={canMore ? [{ name: 'report', label: 'Report or block' }] : undefined}
-        onAccessibilityAction={canMore ? handleMore : undefined}
-        style={[
-          styles.bubble,
-          { backgroundColor: bubble.background },
-          isMine ? { borderBottomRightRadius: BorderRadius.sm } : { borderBottomLeftRadius: BorderRadius.sm },
-        ]}
-      >
-        <Text style={{ color: bubble.text, fontSize: FontSize.sm, lineHeight: FontSize.sm * 1.4 }}>
-          {message.text}
-        </Text>
-      </Pressable>
+      {message.trip && (
+        <View
+          // With no note bubble, the card anchors the report/block menu.
+          ref={message.trip.note ? undefined : bubbleRef}
+          style={[styles.tripCard, isMine ? styles.rowMine : styles.rowTheirs]}
+        >
+          <TripMessageCard trip={message.trip} onMore={canMore ? handleMore : undefined} />
+        </View>
+      )}
+      {(!message.trip || message.trip.note) && (
+        <Pressable
+          ref={bubbleRef}
+          onLongPress={canMore ? handleMore : undefined}
+          delayLongPress={350}
+          disabled={!canMore}
+          accessibilityActions={canMore ? [{ name: 'report', label: 'Report or block' }] : undefined}
+          onAccessibilityAction={canMore ? handleMore : undefined}
+          style={[
+            styles.bubble,
+            { backgroundColor: bubble.background },
+            isMine ? { borderBottomRightRadius: BorderRadius.sm } : { borderBottomLeftRadius: BorderRadius.sm },
+          ]}
+        >
+          <Text style={{ color: bubble.text, fontSize: FontSize.sm, lineHeight: FontSize.sm * 1.4 }}>
+            {message.trip ? tripNoteText({ text: message.text, trip: message.trip }) : message.text}
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -65,6 +78,9 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.medium,
     marginBottom: 2,
     marginLeft: Spacing['2'],
+  },
+  tripCard: {
+    marginBottom: Spacing['1'],
   },
   bubble: {
     paddingHorizontal: Spacing['4'],

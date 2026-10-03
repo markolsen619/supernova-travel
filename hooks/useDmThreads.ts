@@ -31,13 +31,14 @@ async function fetchDmThreads(uid: string): Promise<Array<DmThread & { unread: b
 
 /** All DM threads I'm a participant in, newest activity first, each
  * annotated with whether I've read past its last message. Powers the
- * Messages tab in app/notifications.tsx. */
-export function useDmThreads() {
+ * Messages tab in app/notifications.tsx. Pass `enabled: false` to hold off
+ * (the share sheet does, until it's opened). */
+export function useDmThreads(enabled = true) {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   return useQuery({
     queryKey: ['dmThreads', uid],
     queryFn: () => fetchDmThreads(uid!),
-    enabled: !!uid,
+    enabled: enabled && !!uid,
     staleTime: 30 * 1000,
   });
 }

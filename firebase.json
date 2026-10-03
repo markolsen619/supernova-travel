@@ -25,7 +25,27 @@
     "trailingSlash": false,
     "ignore": [
       "firebase.json",
-      "**/.*"
+      "**/.DS_Store"
+    ],
+    "rewrites": [
+      {
+        "source": "/trip/**",
+        "function": {
+          "functionId": "tripPreview",
+          "region": "us-central1"
+        }
+      }
+    ],
+    "headers": [
+      {
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
     ]
   }
 }
