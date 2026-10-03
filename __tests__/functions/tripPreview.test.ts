@@ -1,4 +1,4 @@
-import { previewEligibility, renderTripPreview, escapeHtml, tripIdFromPath } from '../../functions/src/tripPreview';
+import { previewEligibility, renderTripPreview, escapeHtml, tripIdFromPath, coverLookup } from '../../functions/src/tripPreview';
 
 describe('previewEligibility', () => {
   const trip = { visibility: 'public', moderationHidden: false };
@@ -65,5 +65,25 @@ describe('renderTripPreview', () => {
     expect(html).not.toContain('og:image');
     expect(html).toContain('href="https://apps.apple.com/app/id6810490710"');
     expect(html).toContain('href="supernova://"');
+  });
+});
+
+describe('coverLookup', () => {
+  const places = 'https://places.googleapis.com/v1/places/P1/photos/X/media?maxWidthPx=1200&key=SECRET';
+  it('a Places photo is looked up server-side, never published with its key', () => {
+    expect(coverLookup(places)).toEqual({
+      kind: 'places',
+      url: 'https://places.googleapis.com/v1/places/P1/photos/X/media?maxWidthPx=1200&key=SECRET&skipHttpRedirect=true',
+    });
+  });
+  it('any other https image is used as is', () => {
+    expect(coverLookup('https://firebasestorage.googleapis.com/v0/b/x/o/a.jpg?alt=media'))
+      .toEqual({ kind: 'direct', url: 'https://firebasestorage.googleapis.com/v0/b/x/o/a.jpg?alt=media' });
+  });
+  it('anything else has no cover, and no URL with a key ever passes through', () => {
+    expect(coverLookup(null)).toEqual({ kind: 'none' });
+    expect(coverLookup('not a url')).toEqual({ kind: 'none' });
+    expect(coverLookup('http://x/a.jpg')).toEqual({ kind: 'none' });
+    expect(coverLookup('https://maps.googleapis.com/maps/api/place/photo?key=SECRET')).toEqual({ kind: 'none' });
   });
 });

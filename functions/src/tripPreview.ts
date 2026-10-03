@@ -45,6 +45,34 @@ export function tripIdFromPath(path: string): string | null {
   return m ? m[1] : null;
 }
 
+export type CoverLookup =
+  | { kind: 'places'; url: string }
+  | { kind: 'direct'; url: string }
+  | { kind: 'none' };
+
+/**
+ * How the page gets a trip's cover. A Places photo URL carries our API key,
+ * so it is never published: the function asks Google for the photo's own
+ * key-less address (`skipHttpRedirect` returns it as JSON) and uses that.
+ * Any other https image is used as is, unless it carries a key too.
+ */
+export function coverLookup(url: string | null | undefined): CoverLookup {
+  if (!url) return { kind: 'none' };
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return { kind: 'none' };
+  }
+  if (u.protocol !== 'https:') return { kind: 'none' };
+  if (u.host === 'places.googleapis.com' && /^\/v1\/places\/[^/]+\/photos\/[^/]+\/media$/.test(u.pathname)) {
+    u.searchParams.set('skipHttpRedirect', 'true');
+    return { kind: 'places', url: u.toString() };
+  }
+  if (u.searchParams.has('key')) return { kind: 'none' };
+  return { kind: 'direct', url };
+}
+
 const dayLabel = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
 
 const STYLES = `

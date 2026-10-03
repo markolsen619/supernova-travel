@@ -1,8 +1,23 @@
 import * as admin from 'firebase-admin';
 import { onRequest } from 'firebase-functions/v2/https';
-import { previewEligibility, renderTripPreview, tripIdFromPath } from './tripPreview';
+import { coverLookup, previewEligibility, renderTripPreview, tripIdFromPath } from './tripPreview';
 
 const db = admin.firestore();
+
+/** The cover's publishable address, or null. Never the stored Places URL (it holds our key). */
+async function publishableCover(stored: unknown): Promise<string | null> {
+  const lookup = coverLookup(typeof stored === 'string' ? stored : null);
+  if (lookup.kind === 'none') return null;
+  if (lookup.kind === 'direct') return lookup.url;
+  try {
+    const r = await fetch(lookup.url, { signal: AbortSignal.timeout(3000) });
+    if (!r.ok) return null;
+    const { photoUri } = (await r.json()) as { photoUri?: unknown };
+    return typeof photoUri === 'string' && photoUri.startsWith('https://') ? photoUri : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Hosting rewrites `/trip/**` here: the page a shared trip link opens when
@@ -42,7 +57,7 @@ export const tripPreview = onRequest({ region: 'us-central1', memory: '256MiB' }
     res.status(200).send(renderTripPreview({
       id: tripId,
       title: String(trip.title ?? 'A trip'),
-      coverImageUrl: typeof trip.coverImageUrl === 'string' ? trip.coverImageUrl : null,
+      coverImageUrl: await publishableCover(trip.coverImageUrl),
       placeLabel: String(trip.regionName || trip.destination?.name || ''),
       days: days.size,
       authorName: String(author?.fullName ?? author?.displayName ?? 'a traveler'),
