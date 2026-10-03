@@ -65,7 +65,7 @@ no extra mapping.
 **Universal links** (needs a new build):
 - `app.json` → `ios.associatedDomains: ["applinks:supernova-a2125.web.app"]`
 - Hosting serves `/.well-known/apple-app-site-association` (JSON, no
-  extension, `appID: <TeamID>.com.supernovatravel.app`, paths `/trip/*`).
+  extension, `appID: R47484PAGA.com.supernovatravel.app` (Team ID read from the build's provisioning profile), paths `/trip/*`).
 
 **Preview page** — Hosting rewrite `/trip/**` → Cloud Function `tripPreview`
 (onRequest):
