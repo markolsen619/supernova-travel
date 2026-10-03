@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -33,6 +33,8 @@ import { EditTripSheet } from '@/components/trip/EditTripSheet';
 import { JournalSheet } from '@/components/trip/JournalSheet';
 import { TripRecapSheet } from '@/components/trip/TripRecapSheet';
 import { InviteFriendsSheet } from '@/components/trip/InviteFriendsSheet';
+import { ShareTripSheet } from '@/components/trip/ShareTripSheet';
+import { canShareTrip } from '@/utils/tripShare';
 import { TripMapView } from '@/components/trip/TripMapView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -288,6 +290,7 @@ export default function TripDetailScreen() {
   const [recapVisible, setRecapVisible] = useState(false);
   // Invite friends (request/accept) — owner or existing collaborator only
   const [inviteVisible, setInviteVisible] = useState(false);
+  const [shareVisible, setShareVisible] = useState(false);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
@@ -1059,6 +1062,26 @@ export default function TripDetailScreen() {
             </View>
           </TouchableOpacity>
 
+          {/* Share — third slot, left of the map. Not for private or hidden trips. */}
+          {canShareTrip(trip) && (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShareVisible(true);
+              }}
+              style={[
+                styles.headerBtn,
+                { top: insets.top + Spacing['2'], right: Spacing['4'] + (44 + Spacing['2']) * 2 },
+              ]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="Share trip"
+            >
+              <View style={styles.headerBtnCircle}>
+                <Export size={18} color={HEADER_ICON} weight="bold" />
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Report or block, for anyone else's trip. */}
           {!isOwner && (
             <TouchableOpacity
@@ -1420,6 +1443,8 @@ export default function TripDetailScreen() {
       />
 
       {/* ── Invite friends (request/accept) ── */}
+      <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
+
       <InviteFriendsSheet
         visible={inviteVisible}
         tripId={trip.id}

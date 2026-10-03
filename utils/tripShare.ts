@@ -65,7 +65,7 @@ export function shareRecipients(
   threads: { id: string; type: DmThreadType; participants: string[]; lastMessageAt?: { toMillis(): number } | null }[],
   mutualFriendUids: string[],
   me: string,
-  blocked: Set<string>,
+  blocked: ReadonlySet<string>,
 ): ShareRecipient[] {
   const out: ShareRecipient[] = [];
   const seen = new Set<string>([me]);
@@ -84,4 +84,20 @@ export function shareRecipients(
     out.push({ uid, threadId: null });
   }
   return out;
+}
+
+/** The send sheet's result line. A failed send is named, never retried silently. */
+export function summarizeSends(results: { name: string; ok: boolean }[]): {
+  sent: number;
+  failedNames: string[];
+  message: string;
+} {
+  const sentNames = results.filter((r) => r.ok).map((r) => r.name);
+  const failedNames = results.filter((r) => !r.ok).map((r) => r.name);
+  if (sentNames.length === 0) {
+    return { sent: 0, failedNames, message: `Couldn't send to ${failedNames.join(', ')}. Check your connection and try again.` };
+  }
+  const head = sentNames.length === 1 ? `Sent to ${sentNames[0]}` : `Sent to ${sentNames.length} people`;
+  const message = failedNames.length ? `${head}. Couldn't send to ${failedNames.join(', ')}.` : head;
+  return { sent: sentNames.length, failedNames, message };
 }

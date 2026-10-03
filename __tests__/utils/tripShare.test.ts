@@ -1,4 +1,4 @@
-import { canShareTrip, tripShareUrl, tripMessagePayload, shareRecipients } from '@/utils/tripShare';
+import { canShareTrip, tripShareUrl, tripMessagePayload, shareRecipients, summarizeSends } from '@/utils/tripShare';
 
 const ts = (iso: string) => ({ toDate: () => new Date(iso), toMillis: () => new Date(iso).getTime() });
 
@@ -65,5 +65,22 @@ describe('shareRecipients', () => {
     expect(shareRecipients(
       [{ id: 'g', type: 'group', participants: ['me', 'x', 'y'], lastMessageAt: null }], [], 'me', new Set(),
     )).toEqual([]);
+  });
+});
+
+describe('summarizeSends', () => {
+  it('names one recipient', () => {
+    expect(summarizeSends([{ name: 'Ana', ok: true }])).toEqual({ sent: 1, failedNames: [], message: 'Sent to Ana' });
+  });
+  it('counts several', () => {
+    expect(summarizeSends([{ name: 'Ana', ok: true }, { name: 'Ben', ok: true }]).message).toBe('Sent to 2 people');
+  });
+  it('names who it could not reach, and still counts the rest', () => {
+    expect(summarizeSends([{ name: 'Ana', ok: true }, { name: 'Ben', ok: false }, { name: 'Cal', ok: true }]))
+      .toEqual({ sent: 2, failedNames: ['Ben'], message: "Sent to 2 people. Couldn't send to Ben." });
+  });
+  it('when everything failed, says so and what to do', () => {
+    expect(summarizeSends([{ name: 'Ana', ok: false }, { name: 'Ben', ok: false }]).message)
+      .toBe("Couldn't send to Ana, Ben. Check your connection and try again.");
   });
 });
