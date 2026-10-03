@@ -96,7 +96,7 @@ describe('shareRecipients', () => {
 ```ts
 import type { TripVisibility } from '@/types';
 import { tripPlaceLabel } from '@/utils/tripRegion';
-import { formatDateRange } from '@/utils/dateRange';
+import { formatRangeLabel } from '@/utils/dateRange';
 
 export interface DmTripSnapshot {
   tripId: string; title: string; coverImageUrl: string | null; placeLabel: string; dateRange: string | null;
@@ -116,7 +116,7 @@ export function tripShareUrl(tripId: string): string {
 
 export function tripMessagePayload(a: { trip: any; note: string; senderUid: string }) {
   const note = a.note.trim();
-  const dateRange = a.trip.startDate && a.trip.endDate ? formatDateRange(a.trip.startDate, a.trip.endDate) : null;
+  const dateRange = a.trip.startDate && a.trip.endDate ? formatRangeLabel(a.trip.startDate.toDate(), a.trip.endDate.toDate()) : null;
   return {
     senderUid: a.senderUid,
     // Older apps only read text: without a note, say what it is and link it.
@@ -146,7 +146,7 @@ export function shareRecipients(threads: any[], mutualFriendUids: string[], me: 
   return out;
 }
 ```
-(Check `formatDateRange`'s location/signature with `grep -rn "export function formatDateRange" utils` and adapt the import; type the `any`s with the real Trip/DmThread types.)
+(`Trip.startDate`/`endDate` are Firestore `Timestamp | null`; `formatRangeLabel(start: Date, end: Date)` lives in `utils/dateRange.ts`. Type the `any`s with the real `Trip`/`DmThread` types.)
 - [ ] **Step 4:** run → PASS. **Step 5:** commit `feat: trip share rules`.
 
 ---
