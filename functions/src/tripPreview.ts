@@ -15,6 +15,8 @@ export interface PreviewTrip {
   id: string;
   title: string;
   coverImageUrl: string | null;
+  /** Shown under the cover — Google's photos need their credit. */
+  coverCredit?: string | null;
   placeLabel: string;
   days: number;
   authorName: string;
@@ -83,6 +85,7 @@ const STYLES = `
   main { max-width:560px; margin:0 auto; padding:24px 20px 48px; }
   .brand { font-size:13px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:0 0 20px; }
   .cover { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:20px; display:block; background:#F0EAE0; }
+  .credit { margin:6px 0 0; font-size:11px; color:var(--muted); text-align:right; }
   .eyebrow { margin:20px 0 6px; font-size:11px; font-weight:500; letter-spacing:0.08em; color:var(--muted); }
   h1 { margin:0; font-size:28px; line-height:1.15; font-weight:600; letter-spacing:-0.02em; }
   .by { margin:8px 0 0; color:var(--secondary); }
@@ -110,9 +113,16 @@ ${body}
 </html>`;
 }
 
-/** The trip's page, or with `trip` null the generic page that shows nothing about it. */
-export function renderTripPreview(trip: PreviewTrip | null, stops: string[]): string {
+/**
+ * The trip's page, or with `trip` null the generic page that shows nothing
+ * about it — though its button still opens `genericTripId` in the app, where
+ * a follower may be allowed to see it. The id is already in the page's URL.
+ */
+export function renderTripPreview(trip: PreviewTrip | null, stops: string[], genericTripId?: string | null): string {
   if (!trip) {
+    const openHref = genericTripId && /^[A-Za-z0-9]+$/.test(genericTripId)
+      ? `supernova://trip/${genericTripId}`
+      : 'supernova://';
     const title = 'Supernova — plan your next trip';
     return page(
       `<title>${title}</title>
@@ -121,7 +131,7 @@ export function renderTripPreview(trip: PreviewTrip | null, stops: string[]): st
 <meta property="og:site_name" content="Supernova">`,
       `<h1>Plan your next trip with Supernova</h1>
 <p class="lede">This trip opens in the app.</p>
-<a class="cta" href="supernova://">Open in Supernova</a>
+<a class="cta" href="${openHref}">Open in Supernova</a>
 <a class="link" href="${APP_STORE_URL}">Get the app</a>`,
     );
   }
@@ -140,6 +150,7 @@ export function renderTripPreview(trip: PreviewTrip | null, stops: string[]): st
 <meta property="og:type" content="website">
 ${cover ? `<meta property="og:image" content="${cover}">\n<meta name="twitter:card" content="summary_large_image">` : '<meta name="twitter:card" content="summary">'}`,
     `${cover ? `<img class="cover" src="${cover}" alt="">` : ''}
+${cover && trip.coverCredit ? `<p class="credit">Photo: ${escapeHtml(trip.coverCredit)}</p>` : ''}
 <p class="eyebrow">${eyebrow}</p>
 <h1>${title}</h1>
 <p class="by">by ${escapeHtml(trip.authorName)}</p>
@@ -147,4 +158,31 @@ ${stopItems ? `<ol>\n${stopItems}\n</ol>` : ''}
 <a class="cta" href="supernova://trip/${escapeHtml(trip.id)}">Open in Supernova</a>
 <a class="link" href="${APP_STORE_URL}">Get the app</a>`,
   );
+}
+
+/**
+ * Every spelling of a trip's URL redirects to `/trip/{id}`, so the CDN holds
+ * one copy per trip and a query string can't be used to skip it (each miss
+ * costs reads and possibly a Places photo lookup). Null when already canonical
+ * or not a trip.
+ */
+export function canonicalRedirect(originalUrl: string): string | null {
+  const [path, query] = originalUrl.split('?');
+  const id = tripIdFromPath(path);
+  if (!id) return null;
+  const canonical = `/trip/${id}`;
+  return path === canonical && query === undefined ? null : canonical;
+}
+
+const COVER_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** A cover resolved earlier, if it is for the same stored cover and under a week old. */
+export function cachedCover(
+  entry: { source?: unknown; photoUri?: unknown; resolvedAt?: unknown } | undefined,
+  source: string,
+  now: number,
+): string | null {
+  if (!entry || entry.source !== source || typeof entry.photoUri !== 'string') return null;
+  if (typeof entry.resolvedAt !== 'number' || now - entry.resolvedAt > COVER_CACHE_MS) return null;
+  return entry.photoUri;
 }

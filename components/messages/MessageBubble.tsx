@@ -6,6 +6,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { DmMessage } from '@/types';
 import { TripMessageCard } from '@/components/messages/TripMessageCard';
+import { tripNoteText } from '@/utils/tripShare';
 
 interface MessageBubbleProps {
   message: DmMessage;
@@ -35,7 +36,7 @@ export function MessageBubble({ message, isMine, senderName, onMore }: MessageBu
           ref={message.trip.note ? undefined : bubbleRef}
           style={[styles.tripCard, isMine ? styles.rowMine : styles.rowTheirs]}
         >
-          <TripMessageCard trip={message.trip} onLongPress={canMore ? handleMore : undefined} />
+          <TripMessageCard trip={message.trip} onMore={canMore ? handleMore : undefined} />
         </View>
       )}
       {(!message.trip || message.trip.note) && (
@@ -53,7 +54,7 @@ export function MessageBubble({ message, isMine, senderName, onMore }: MessageBu
           ]}
         >
           <Text style={{ color: bubble.text, fontSize: FontSize.sm, lineHeight: FontSize.sm * 1.4 }}>
-            {message.text}
+            {message.trip ? tripNoteText({ text: message.text, trip: message.trip }) : message.text}
           </Text>
         </Pressable>
       )}

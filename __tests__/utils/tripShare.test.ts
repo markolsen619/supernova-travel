@@ -1,4 +1,4 @@
-import { canShareTrip, tripShareUrl, tripMessagePayload, shareRecipients, summarizeSends } from '@/utils/tripShare';
+import { canShareTrip, tripShareUrl, tripMessagePayload, shareRecipients, summarizeSends, tripNoteText } from '@/utils/tripShare';
 
 const ts = (iso: string) => ({ toDate: () => new Date(iso), toMillis: () => new Date(iso).getTime() });
 
@@ -31,10 +31,15 @@ describe('tripMessagePayload', () => {
       placeLabel: 'Paris', dateRange: null, note: false,
     });
   });
-  it('with a note, the text is the note and trip.note is true', () => {
+  it('with a note, the text is the note plus the link (older apps show no card), and trip.note is true', () => {
     const p = tripMessagePayload({ trip, note: ' You have to see this ', senderUid: 'me' });
-    expect(p.text).toBe('You have to see this');
+    expect(p.text).toBe('You have to see this\nhttps://supernova-a2125.web.app/trip/t1');
     expect(p.trip.note).toBe(true);
+  });
+  it('a very long title is cut to fit the message rule', () => {
+    const p = tripMessagePayload({ trip: { ...trip, title: 'x'.repeat(500) }, note: '', senderUid: 'me' });
+    expect(p.trip.title.length).toBeLessThanOrEqual(200);
+    expect(p.trip.title.endsWith('…')).toBe(true);
   });
   it('carries the date range when the trip has dates, and null for a missing cover', () => {
     const p = tripMessagePayload({
@@ -82,5 +87,17 @@ describe('summarizeSends', () => {
   it('when everything failed, says so and what to do', () => {
     expect(summarizeSends([{ name: 'Ana', ok: false }, { name: 'Ben', ok: false }]).message)
       .toBe("Couldn't send to Ana, Ben. Check your connection and try again.");
+  });
+});
+
+describe('tripNoteText', () => {
+  it('the card shows the note without the link it carries for older apps', () => {
+    const p = tripMessagePayload({
+      trip: { id: 't1', title: 'T', destination: { name: 'Paris' } }, note: 'Look', senderUid: 'me',
+    });
+    expect(tripNoteText({ text: p.text, trip: p.trip })).toBe('Look');
+  });
+  it('leaves a note alone when it does not end with the link', () => {
+    expect(tripNoteText({ text: 'Look', trip: { tripId: 't1' } })).toBe('Look');
   });
 });

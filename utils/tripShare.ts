@@ -27,6 +27,9 @@ export function tripShareUrl(tripId: string): string {
   return `https://supernova-a2125.web.app/trip/${tripId}`;
 }
 
+/** The message rule caps a snapshot's title; trip titles themselves have no limit. */
+const MAX_TITLE = 200;
+
 /** A trip message. `text` is always set: 1.0.2 and earlier read only `text`,
  * so without a note it says what was shared and links it. */
 export function tripMessagePayload(a: { trip: ShareableTrip; note: string; senderUid: string }): {
@@ -41,10 +44,11 @@ export function tripMessagePayload(a: { trip: ShareableTrip; note: string; sende
     : null;
   return {
     senderUid: a.senderUid,
-    text: note || `Shared a trip: ${trip.title} — ${tripShareUrl(trip.id)}`,
+    // With a note, the link still follows it: an older app shows no card.
+    text: note ? `${note}\n${tripShareUrl(trip.id)}` : `Shared a trip: ${trip.title} — ${tripShareUrl(trip.id)}`,
     trip: {
       tripId: trip.id,
-      title: trip.title,
+      title: trip.title.length > MAX_TITLE ? `${trip.title.slice(0, MAX_TITLE - 1)}…` : trip.title,
       coverImageUrl: trip.coverImageUrl ?? null,
       placeLabel: tripPlaceLabel(trip),
       dateRange,
@@ -100,4 +104,11 @@ export function summarizeSends(results: { name: string; ok: boolean }[]): {
   const head = sentNames.length === 1 ? `Sent to ${sentNames[0]}` : `Sent to ${sentNames.length} people`;
   const message = failedNames.length ? `${head}. Couldn't send to ${failedNames.join(', ')}.` : head;
   return { sent: sentNames.length, failedNames, message };
+}
+
+/** A trip message's note as its card shows it: without the trailing link it
+ * carries for apps that predate cards. */
+export function tripNoteText(message: { text: string; trip: { tripId: string } }): string {
+  const suffix = `\n${tripShareUrl(message.trip.tripId)}`;
+  return message.text.endsWith(suffix) ? message.text.slice(0, -suffix.length) : message.text;
 }

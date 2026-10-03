@@ -11,13 +11,14 @@ import type { DmTripSnapshot } from '@/types';
 
 interface TripMessageCardProps {
   trip: DmTripSnapshot;
-  onLongPress?: () => void;
+  /** Someone else's message: report or block, by long press or the VoiceOver action. */
+  onMore?: () => void;
 }
 
 /** A trip shared in a message. Tapping opens it; the trip screen decides
  * what this reader may see (a followers-only trip they can't open shows
  * the not-found state, never the itinerary). */
-export function TripMessageCard({ trip, onLongPress }: TripMessageCardProps) {
+export function TripMessageCard({ trip, onMore }: TripMessageCardProps) {
   const { colors } = useTheme();
   const router = useRouter();
   const open = useCallback(() => {
@@ -30,8 +31,10 @@ export function TripMessageCard({ trip, onLongPress }: TripMessageCardProps) {
   return (
     <Pressable
       onPress={open}
-      onLongPress={onLongPress}
+      onLongPress={onMore}
       delayLongPress={350}
+      accessibilityActions={onMore ? [{ name: 'report', label: 'Report or block' }] : undefined}
+      onAccessibilityAction={onMore}
       accessibilityRole="link"
       accessibilityLabel={`Trip: ${trip.title}. Open trip`}
       style={({ pressed }) => [

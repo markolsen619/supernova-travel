@@ -21,6 +21,7 @@ import { StyleSheet } from 'react-native';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { useRevenueCatSync } from '@/hooks/useRevenueCatSync';
 import { useNotificationRouting } from '@/hooks/useNotificationRouting';
+import { useLinkRouting } from '@/hooks/useLinkRouting';
 
 SplashScreen.preventAutoHideAsync();
 configureGoogleSignIn();
@@ -49,6 +50,7 @@ function AppStack() {
   // Sends a tapped notification to the screen it's about. Mounted here, below
   // the auth listener, so it can wait for routing to settle before navigating.
   useNotificationRouting();
+  useLinkRouting();
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />

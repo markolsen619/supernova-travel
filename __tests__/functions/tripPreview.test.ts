@@ -1,4 +1,4 @@
-import { previewEligibility, renderTripPreview, escapeHtml, tripIdFromPath, coverLookup } from '../../functions/src/tripPreview';
+import { previewEligibility, renderTripPreview, escapeHtml, tripIdFromPath, coverLookup, canonicalRedirect, cachedCover } from '../../functions/src/tripPreview';
 
 describe('previewEligibility', () => {
   const trip = { visibility: 'public', moderationHidden: false };
@@ -85,5 +85,46 @@ describe('coverLookup', () => {
     expect(coverLookup('not a url')).toEqual({ kind: 'none' });
     expect(coverLookup('http://x/a.jpg')).toEqual({ kind: 'none' });
     expect(coverLookup('https://maps.googleapis.com/maps/api/place/photo?key=SECRET')).toEqual({ kind: 'none' });
+  });
+});
+
+describe('renderTripPreview — generic page and photo credit', () => {
+  it('the generic page for a trip it can not show still opens that trip in the app', () => {
+    const html = renderTripPreview(null, [], 'AbC123');
+    expect(html).toContain('href="supernova://trip/AbC123"');
+    expect(html).not.toContain('AbC123</');
+  });
+  it('a Google photo carries its credit', () => {
+    const html = renderTripPreview({
+      id: 't1', title: 'Rome', coverImageUrl: 'https://lh3.googleusercontent.com/x', coverCredit: 'Google',
+      placeLabel: 'Rome', days: 3, authorName: 'Supernova',
+    }, []);
+    expect(html).toContain('Photo: Google');
+  });
+});
+
+describe('canonicalRedirect', () => {
+  it('sends any query string or trailing slash to the one cached path', () => {
+    expect(canonicalRedirect('/trip/AbC?a=1')).toBe('/trip/AbC');
+    expect(canonicalRedirect('/trip/AbC/')).toBe('/trip/AbC');
+    expect(canonicalRedirect('/trip/AbC/?x')).toBe('/trip/AbC');
+  });
+  it('leaves the canonical path and non-trip paths alone', () => {
+    expect(canonicalRedirect('/trip/AbC')).toBeNull();
+    expect(canonicalRedirect('/trip/<x>?a')).toBeNull();
+  });
+});
+
+describe('cachedCover', () => {
+  const now = Date.UTC(2026, 9, 3);
+  const entry = { source: 'https://places/x', photoUri: 'https://lh3/y', resolvedAt: now - 2 * 86400000 };
+  it('reuses a resolved photo for the same cover for a week', () => {
+    expect(cachedCover(entry, 'https://places/x', now)).toBe('https://lh3/y');
+    expect(cachedCover({ ...entry, resolvedAt: now - 8 * 86400000 }, 'https://places/x', now)).toBeNull();
+  });
+  it('a changed cover or a missing entry resolves again', () => {
+    expect(cachedCover(entry, 'https://places/other', now)).toBeNull();
+    expect(cachedCover(undefined, 'https://places/x', now)).toBeNull();
+    expect(cachedCover({ source: 'https://places/x' }, 'https://places/x', now)).toBeNull();
   });
 });
