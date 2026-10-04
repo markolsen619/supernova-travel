@@ -12,6 +12,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { AirplaneTilt } from 'phosphor-react-native';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { BookingTripRow } from '@/components/wallet/BookingTripRow';
+import { TripSuggestionCard } from '@/components/wallet/TripSuggestionCard';
 import { useTheme } from '@/hooks/useTheme';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
@@ -158,6 +160,12 @@ export default function BoardingPassDetailScreen() {
             question occurs, rather than beside the edit/delete actions. */}
         <FlightStatusUpsell />
 
+        {/* Which trip it's for (Pro): the suggestion card, then the Trip row. */}
+        <View style={styles.tripBlock}>
+          <TripSuggestionCard kind="boarding_pass" item={pass} />
+          <BookingTripRow kind="boarding_pass" item={pass} />
+        </View>
+
         {/* Edit button */}
         <TouchableOpacity
           style={[
@@ -188,6 +196,7 @@ export default function BoardingPassDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  tripBlock: { marginHorizontal: Spacing['4'], marginTop: Spacing['4'] },
   container: {
     flex: 1,
   },

@@ -10,6 +10,8 @@ import { formatCalendarDate } from '@/utils/calendarDate';
 interface ReservationCardProps {
   reservation: Reservation;
   onPress: () => void;
+  /** The linked trip's title, shown as an eyebrow (wallet ↔ trips). */
+  tripTitle?: string;
 }
 
 function formatDate(isoDate: string): string {
@@ -18,7 +20,7 @@ function formatDate(isoDate: string): string {
   return formatCalendarDate(isoDate, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export function ReservationCard({ reservation, onPress }: ReservationCardProps) {
+export function ReservationCard({ reservation, onPress, tripTitle }: ReservationCardProps) {
   const { colors } = useTheme();
   const { Icon, color } = RESERVATION_ICONS[reservation.type];
 
@@ -39,6 +41,11 @@ export function ReservationCard({ reservation, onPress }: ReservationCardProps) 
 
       {/* Main content */}
       <View style={styles.content}>
+        {!!tripTitle && (
+          <Text style={[styles.tripEyebrow, { color: colors.text.tertiary }]} numberOfLines={1}>
+            {tripTitle.toUpperCase()}
+          </Text>
+        )}
         <Text
           style={[styles.title, { color: colors.text.primary }]}
           numberOfLines={1}
@@ -63,6 +70,7 @@ export function ReservationCard({ reservation, onPress }: ReservationCardProps) 
 }
 
 const styles = StyleSheet.create({
+  tripEyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9, marginBottom: 2 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',

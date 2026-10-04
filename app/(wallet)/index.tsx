@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Plus, Wallet as WalletIcon } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useMyTrips } from '@/hooks/useMyTrips';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { useReservations } from '@/hooks/useReservations';
@@ -32,6 +33,10 @@ export default function WalletHubScreen() {
 
   const { boardingPasses, isLoading: passesLoading } = useBoardingPasses();
   const { reservations, isLoading: reservationsLoading } = useReservations();
+  // Linked items show their trip as an eyebrow; only fetch trips when something is linked.
+  const anyLinked = boardingPasses.some((p) => p.tripId) || reservations.some((r) => r.tripId);
+  const { trips: myTrips } = useMyTrips(anyLinked);
+  const tripTitleFor = (tripId?: string | null) => (tripId ? myTrips.find((t) => t.tripId === tripId)?.title : undefined);
   const { loyaltyPrograms, isLoading: loyaltyLoading } = useLoyaltyPrograms();
 
   const isLoading = passesLoading || reservationsLoading || loyaltyLoading;
@@ -175,14 +180,20 @@ export default function WalletHubScreen() {
                 <Text style={[styles.sectionLabel, { color: colors.text.tertiary }]}>Flights</Text>
               )}
               {boardingPasses.map((pass) => (
-                <BoardingPassCard
-                  key={pass.id}
-                  pass={pass}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push(`/(wallet)/boarding-pass/${pass.id}`);
-                  }}
-                />
+                <View key={pass.id}>
+                  {!!tripTitleFor(pass.tripId) && (
+                    <Text style={[styles.passTripEyebrow, { color: colors.text.tertiary }]} numberOfLines={1}>
+                      {tripTitleFor(pass.tripId)!.toUpperCase()}
+                    </Text>
+                  )}
+                  <BoardingPassCard
+                    pass={pass}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push(`/(wallet)/boarding-pass/${pass.id}`);
+                    }}
+                  />
+                </View>
               ))}
             </>
           )}
@@ -196,6 +207,7 @@ export default function WalletHubScreen() {
                 <ReservationCard
                   key={reservation.id}
                   reservation={reservation}
+                  tripTitle={tripTitleFor(reservation.tripId)}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push(`/(wallet)/reservation/${reservation.id}`);
@@ -229,6 +241,7 @@ export default function WalletHubScreen() {
 }
 
 const styles = StyleSheet.create({
+  passTripEyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9, marginHorizontal: Spacing['5'], marginTop: Spacing['3'], marginBottom: Spacing['1'] },
   planRow: {
     flexDirection: 'row',
     alignItems: 'center',
