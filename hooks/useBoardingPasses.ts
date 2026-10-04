@@ -29,21 +29,33 @@ export function useBoardingPasses() {
       const ref = await addDoc(collection(db, 'boarding_passes'), pass);
       return ref.id;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] });
+      // Edits and deletes show on the trip page (useTripBookings).
+      queryClient.invalidateQueries({ queryKey: ['tripBookings'] });
+    },
   });
 
   const updatePass = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<BoardingPass> & { id: string }) => {
       await updateDoc(doc(db, 'boarding_passes', id), updates);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] });
+      // Edits and deletes show on the trip page (useTripBookings).
+      queryClient.invalidateQueries({ queryKey: ['tripBookings'] });
+    },
   });
 
   const deletePass = useMutation({
     mutationFn: async (passId: string) => {
       await deleteDoc(doc(db, 'boarding_passes', passId));
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] });
+      // Edits and deletes show on the trip page (useTripBookings).
+      queryClient.invalidateQueries({ queryKey: ['tripBookings'] });
+    },
   });
 
   return { boardingPasses, isLoading, addPass, updatePass, deletePass };

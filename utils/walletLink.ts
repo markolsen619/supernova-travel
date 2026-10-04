@@ -1,5 +1,5 @@
 import type { ParseTravelConfirmationResult } from '@/types/ai';
-import { parseCalendarDate } from '@/utils/calendarDate';
+import { parseCalendarDate, toCalendarDate } from '@/utils/calendarDate';
 
 export interface TripSummary { tripId: string; title: string; start: string | null; end: string | null }
 export type MatchResult = { kind: 'link'; trip: TripSummary } | { kind: 'ask'; trips: TripSummary[] } | { kind: 'none' };
@@ -36,4 +36,27 @@ export function draftPlaceFields(draft: ParseTravelConfirmationResult): Record<s
     if (f.departureLocalDate && DAY.test(f.departureLocalDate)) out.localDate = f.departureLocalDate;
   }
   return out;
+}
+
+/** What the import guessed for a field stops counting once the user edits that field. */
+export function withoutDraftPlace(place: Record<string, string>, edited: 'city' | 'date'): Record<string, string> {
+  const { placeCity, placeCountryCode, localDate, ...rest } = place;
+  return edited === 'city'
+    ? { ...rest, ...(localDate ? { localDate } : {}) }
+    : { ...rest, ...(placeCity ? { placeCity } : {}), ...(placeCountryCode ? { placeCountryCode } : {}) };
+}
+
+/** A flight's place and day from its form, for an edit (null clears). */
+export function flightPlaceFields(destinationCity: string, departureDate: Date | null): { placeCity: string | null; localDate: string | null } {
+  return {
+    placeCity: destinationCity.trim() || null,
+    localDate: departureDate ? toCalendarDate(departureDate) : null,
+  };
+}
+
+const BANNER_MAX_AGE_MS = 10_000;
+
+/** An "Added to" banner only shows right after the save that caused it, never on a later visit. */
+export function isBannerFresh(shownAt: number, now: number): boolean {
+  return now - shownAt <= BANNER_MAX_AGE_MS;
 }

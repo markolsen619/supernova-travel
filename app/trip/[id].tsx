@@ -295,14 +295,16 @@ export default function TripDetailScreen() {
   const [inviteVisible, setInviteVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
   const [bookingsVisible, setBookingsVisible] = useState(false);
-  // Your own wallet bookings linked to this trip — never anyone else's (useTripBookings).
-  const { bookings: tripBookings } = useTripBookings(trip?.id ?? null);
   const openBooking = useCallback((b: TripBooking) => {
     router.push(b.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${b.item.id}` : `/(wallet)/reservation/${b.item.id}`);
   }, [router]);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
+  // Your own wallet bookings linked to this trip — never anyone else's. Only
+  // fetched when you're on the trip, the only trips a booking can link to;
+  // anyone else opening it would pay two queries for nothing.
+  const { bookings: tripBookings } = useTripBookings(trip && (isOwner || isCollaborator) ? trip.id : null);
   // The itinerary belongs to everyone taking the trip: the owner and accepted
   // invitees edit days and stops alike (firestore.rules allows both). Trip
   // settings (title, dates, visibility, delete) and the journal stay owner-only.

@@ -9,7 +9,7 @@ import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useBookingBannerStore } from '@/stores/useBookingBannerStore';
-import { linkPatch } from '@/utils/walletLink';
+import { isBannerFresh, linkPatch } from '@/utils/walletLink';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
@@ -30,13 +30,21 @@ export function BookingLinkedBanner() {
     Animated.spring(translateY, { toValue: 120, ...SPRING }).start(() => clear());
   }, [translateY, clear]);
 
+  // Leaving the wallet drops a pending banner, so it can't reappear (with a live Undo) on a later visit.
+  useEffect(() => () => clear(), [clear]);
+
   useEffect(() => {
     if (!banner) return;
+    // A match that answered after you'd left and come back is old news.
+    if (!isBannerFresh(banner.shownAt, Date.now())) {
+      clear();
+      return;
+    }
     translateY.setValue(120);
     Animated.spring(translateY, { toValue: 0, ...SPRING }).start();
     const timer = setTimeout(hide, VISIBLE_MS);
     return () => clearTimeout(timer);
-  }, [banner, translateY, hide]);
+  }, [banner, translateY, hide, clear]);
 
   const undo = useCallback(async () => {
     if (!banner) return;

@@ -12,6 +12,7 @@ export interface MatchableBooking {
   placeCity?: string | null; placeCountryCode?: string | null;
   originCity?: string | null; originCountryCode?: string | null;
   tripId?: string | null; tripLink?: 'auto' | 'manual' | null; tripLinkDismissed?: boolean;
+  tripSuggestions?: string[];
 }
 export interface MatchableTrip { id: string; title: string; start: string | null; end: string | null; places: BookingPlace[] }
 export type MatchDecision = { kind: 'link'; tripId: string } | { kind: 'ask'; tripIds: string[] } | { kind: 'none' };
@@ -102,10 +103,15 @@ export function linkPatchFor(b: MatchableBooking, d: MatchDecision, changedTripI
     return b.tripId === d.tripId && b.tripLink === 'auto' ? null : { tripId: d.tripId, tripLink: 'auto', tripSuggestions: [] };
   }
   const unlink = !!changedTripId && b.tripId === changedTripId && b.tripLink === 'auto';
+  const current = b.tripSuggestions ?? [];
   if (d.kind === 'ask') {
-    return unlink ? { tripId: null, tripLink: null, tripSuggestions: d.tripIds } : { tripSuggestions: d.tripIds };
+    if (unlink) return { tripId: null, tripLink: null, tripSuggestions: d.tripIds };
+    const same = current.length === d.tripIds.length && current.every((id, i) => id === d.tripIds[i]);
+    return same ? null : { tripSuggestions: d.tripIds };
   }
-  return unlink ? { tripId: null, tripLink: null, tripSuggestions: [] } : null;
+  if (unlink) return { tripId: null, tripLink: null, tripSuggestions: [] };
+  // A trip that no longer fits stops being offered by "Is this for a trip?".
+  return changedTripId && current.includes(changedTripId) ? { tripSuggestions: [] } : null;
 }
 
 /** Only these trip edits can change a match — likes, covers and titles can't. */

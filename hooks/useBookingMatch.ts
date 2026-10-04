@@ -18,6 +18,9 @@ export function useBookingMatch() {
     try {
       const result = await callMatchBooking(kind, id);
       queryClient.invalidateQueries({ queryKey: [kind === 'boarding_pass' ? 'boardingPasses' : 'reservations', uid] });
+      // A new link can be to a trip made moments ago, and shows on its trip page.
+      queryClient.invalidateQueries({ queryKey: ['myTrips'] });
+      queryClient.invalidateQueries({ queryKey: ['tripBookings'] });
       if (result.kind === 'link') show({ kind, id, trip: result.trip });
       if (result.kind === 'ask') {
         router.push(kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${id}` : `/(wallet)/reservation/${id}`);

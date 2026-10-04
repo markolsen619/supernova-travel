@@ -10,7 +10,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useBookingMatch } from '@/hooks/useBookingMatch';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { draftPlaceFields } from '@/utils/walletLink';
+import { draftPlaceFields, flightPlaceFields, withoutDraftPlace } from '@/utils/walletLink';
 import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
@@ -115,6 +115,13 @@ export default function AddBoardingPassScreen() {
 
   const updateField = useCallback((field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    // A city typed over the import's guess replaces it.
+    if (field === 'destinationCity') setDraftPlace((p) => withoutDraftPlace(p, 'city'));
+  }, []);
+
+  const handleDepartureDate = useCallback((d: Date | null) => {
+    setDepartureDate(d);
+    setDraftPlace((p) => withoutDraftPlace(p, 'date'));
   }, []);
 
   const handleSubmit = useCallback(() => {
@@ -149,6 +156,9 @@ export default function AddBoardingPassScreen() {
       const editFields: Record<string, unknown> = {
         ...baseFields,
         seat: form.seat.trim() || deleteField(),
+        // Keep where and when in step with the edit — matching and the trip page read these first.
+        placeCity: flightPlaceFields(form.destinationCity, departureDate).placeCity ?? deleteField(),
+        localDate: flightPlaceFields(form.destinationCity, departureDate).localDate ?? deleteField(),
         gate: form.gate.trim() || deleteField(),
         terminal: form.terminal.trim() || deleteField(),
       };
@@ -313,7 +323,7 @@ export default function AddBoardingPassScreen() {
             <DateField
               label="Departure date"
               value={departureDate}
-              onChange={setDepartureDate}
+              onChange={handleDepartureDate}
               mode="date"
               placeholder="Select date"
             />

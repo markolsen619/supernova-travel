@@ -145,3 +145,16 @@ describe('toMatchableTrip', () => {
     expect(toMatchableTrip('x', { title: 'X', destination: { name: 'Rome' } }).start).toBeNull();
   });
 });
+
+describe('linkPatchFor — suggestions (review fixes)', () => {
+  it('the same suggestions are not rewritten', () => {
+    expect(linkPatchFor({ kind: 'reservation', tripSuggestions: ['a', 'b'] } as never, { kind: 'ask', tripIds: ['a', 'b'] })).toBeNull();
+  });
+  it('a trip that no longer fits stops being suggested', () => {
+    expect(linkPatchFor({ kind: 'reservation', tripSuggestions: ['rome', 'lis'] } as never, { kind: 'none' }, 'rome'))
+      .toEqual({ tripSuggestions: [] });
+  });
+  it('suggestions about other trips are left alone on none', () => {
+    expect(linkPatchFor({ kind: 'reservation', tripSuggestions: ['lis'] } as never, { kind: 'none' }, 'rome')).toBeNull();
+  });
+});

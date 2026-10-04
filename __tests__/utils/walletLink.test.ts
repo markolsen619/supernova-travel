@@ -32,3 +32,20 @@ describe('draftPlaceFields', () => {
       .toEqual({ placeCity: 'Roma' });
   });
 });
+
+describe('review fixes', () => {
+  const { withoutDraftPlace, flightPlaceFields, isBannerFresh } = require('@/utils/walletLink');
+  it('editing the city or the date drops what the import guessed for it', () => {
+    const p = { placeCity: 'Roma', placeCountryCode: 'IT', originCountryCode: 'US', localDate: '2026-07-25' };
+    expect(withoutDraftPlace(p, 'city')).toEqual({ originCountryCode: 'US', localDate: '2026-07-25' });
+    expect(withoutDraftPlace(p, 'date')).toEqual({ placeCity: 'Roma', placeCountryCode: 'IT', originCountryCode: 'US' });
+  });
+  it('a flight edit rewrites its place and day from the form', () => {
+    expect(flightPlaceFields(' Rome ', new Date(2026, 6, 25, 23, 30))).toEqual({ placeCity: 'Rome', localDate: '2026-07-25' });
+    expect(flightPlaceFields('', null)).toEqual({ placeCity: null, localDate: null });
+  });
+  it('a banner from more than 10 seconds ago is stale', () => {
+    expect(isBannerFresh(1000, 5000)).toBe(true);
+    expect(isBannerFresh(1000, 12_000)).toBe(false);
+  });
+});

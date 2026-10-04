@@ -44,6 +44,8 @@ export function useCreateTrip() {
       updatedAt: serverTimestamp(),
     });
     await queryClient.invalidateQueries({ queryKey: ['trips', uid] });
+    // The wallet's trip picker and Trip rows (useMyTrips).
+    await queryClient.invalidateQueries({ queryKey: ['myTrips'] });
     if (data.visibility === 'public') {
       await queryClient.invalidateQueries({ queryKey: ['publicTrips'] });
     }
@@ -66,6 +68,7 @@ export function useCreateTrip() {
     // on the single trip's own detail query.
     await queryClient.invalidateQueries({ queryKey: ['trips'] });
     await queryClient.invalidateQueries({ queryKey: ['publicTrips'] });
+    await queryClient.invalidateQueries({ queryKey: ['myTrips'] });
   }
 
   async function deleteTrip(tripId: string): Promise<void> {
@@ -88,6 +91,7 @@ export function useCreateTrip() {
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
     await queryClient.invalidateQueries({ queryKey: ['trips'] });
     await queryClient.invalidateQueries({ queryKey: ['publicTrips'] });
+    await queryClient.invalidateQueries({ queryKey: ['myTrips'] });
   }
 
   async function addDay(
