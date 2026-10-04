@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -34,6 +34,9 @@ import { JournalSheet } from '@/components/trip/JournalSheet';
 import { TripRecapSheet } from '@/components/trip/TripRecapSheet';
 import { InviteFriendsSheet } from '@/components/trip/InviteFriendsSheet';
 import { ShareTripSheet } from '@/components/trip/ShareTripSheet';
+import { TripBookingsSheet } from '@/components/trip/TripBookingsSheet';
+import { useTripBookings } from '@/hooks/useTripBookings';
+import { bookingsByDay, type TripBooking } from '@/utils/bookingDays';
 import { canShareTrip } from '@/utils/tripShare';
 import { TripMapView } from '@/components/trip/TripMapView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
@@ -291,6 +294,12 @@ export default function TripDetailScreen() {
   // Invite friends (request/accept) — owner or existing collaborator only
   const [inviteVisible, setInviteVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
+  const [bookingsVisible, setBookingsVisible] = useState(false);
+  // Your own wallet bookings linked to this trip — never anyone else's (useTripBookings).
+  const { bookings: tripBookings } = useTripBookings(trip?.id ?? null);
+  const openBooking = useCallback((b: TripBooking) => {
+    router.push(b.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${b.item.id}` : `/(wallet)/reservation/${b.item.id}`);
+  }, [router]);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
@@ -936,6 +945,7 @@ export default function TripDetailScreen() {
   }
 
   const sortedDays = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
+  const bookingsOnDays = bookingsByDay(sortedDays.map((d) => ({ id: d.id, date: d.date?.toDate() ?? null })), tripBookings);
   const hasDescription = Boolean(trip.description?.trim());
   const dayCount = sortedDays.length;
   const eyebrow = `${formatDateRange(trip.startDate, trip.endDate).toUpperCase()}${
@@ -1254,6 +1264,22 @@ export default function TripDetailScreen() {
           </TouchableOpacity>
           )}
 
+          {/* Your wallet bookings linked to this trip (only you see them). */}
+          {tripBookings.length > 0 && (
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setBookingsVisible(true);
+              }}
+              style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              accessibilityLabel={`Bookings, ${tripBookings.length}`}
+            >
+              <Ticket size={13} color={colors.text.secondary} weight="duotone" />
+              <Text style={[styles.chipText, { color: colors.text.primary }]}>Bookings · {tripBookings.length}</Text>
+            </TouchableOpacity>
+          )}
+
           {/* TM-3d — only worth surfacing once there's a story to tell */}
           {visitedCount > 0 && (
             <TouchableOpacity
@@ -1334,6 +1360,8 @@ export default function TripDetailScreen() {
                     resolvingActivityId={resolvingActivityId}
                     highlightActivityId={highlightActivityId}
                     currentActivityId={currentActivityId}
+                    dayBookings={bookingsOnDays[day.id]}
+                    onBookingPress={openBooking}
                   />
                 </AnimatedDaySection>
               ))}
@@ -1444,6 +1472,12 @@ export default function TripDetailScreen() {
 
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
+      <TripBookingsSheet
+        visible={bookingsVisible}
+        bookings={tripBookings}
+        onClose={() => setBookingsVisible(false)}
+        onBookingPress={openBooking}
+      />
 
       <InviteFriendsSheet
         visible={inviteVisible}
