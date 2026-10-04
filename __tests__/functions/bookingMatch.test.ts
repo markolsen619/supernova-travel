@@ -1,6 +1,6 @@
 import {
   foldName, calendarDay, bookingWindow, tripWindow, placeMatches, matchDecision,
-  rematchable, linkPatchFor, tripMatchInputsChanged, type MatchableTrip,
+  rematchable, linkPatchFor, tripMatchInputsChanged, toMatchableTrip, type MatchableTrip,
 } from '../../functions/src/bookingMatch';
 
 const rome: MatchableTrip = { id: 'rome', title: 'Rome in Spring', start: '2026-07-25', end: '2026-07-30',
@@ -129,5 +129,19 @@ describe('tripMatchInputsChanged', () => {
   });
   it('likes, covers, titles: no', () => {
     expect(tripMatchInputsChanged(t, { ...t, likesCount: 5, coverImageUrl: 'x', title: 'New' })).toBe(false);
+  });
+});
+
+describe('toMatchableTrip', () => {
+  it('reads dates as UTC days and every destination as a place', () => {
+    const t = toMatchableTrip('rome', {
+      title: 'Rome', startDate: { toDate: () => new Date('2026-07-24T22:00:00Z') }, endDate: { toDate: () => new Date('2026-07-29T22:00:00Z') },
+      destination: { name: 'Rome', countryCode: 'IT' }, additionalDestinations: [{ name: 'Florence', countryCode: 'IT' }],
+    });
+    expect(t).toEqual({ id: 'rome', title: 'Rome', start: '2026-07-24', end: '2026-07-29',
+      places: [{ city: 'Rome', countryCode: 'IT' }, { city: 'Florence', countryCode: 'IT' }] });
+  });
+  it('a trip without dates is Dates TBD', () => {
+    expect(toMatchableTrip('x', { title: 'X', destination: { name: 'Rome' } }).start).toBeNull();
   });
 });

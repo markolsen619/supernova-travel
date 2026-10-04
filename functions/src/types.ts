@@ -81,6 +81,9 @@ export type ParseTravelConfirmationResult =
         originCity: string;
         destination: string;
         destinationCity: string;
+        originCountryCode: string;
+        destinationCountryCode: string;
+        departureLocalDate: string;
         departureTime: string; // ISO 8601, best-effort
         arrivalTime: string;
         seat: string;
@@ -98,6 +101,8 @@ export type ParseTravelConfirmationResult =
         checkIn: string;  // ISO 8601 date, best-effort
         checkOut: string;
         address: string;
+        city: string;
+        countryCode: string;
         notes: string;
       }>;
     };

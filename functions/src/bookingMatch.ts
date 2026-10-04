@@ -121,3 +121,14 @@ export function tripMatchInputsChanged(before: Record<string, any> | undefined, 
     || places(before) !== places(after)
     || JSON.stringify(before.collaborators ?? []) !== JSON.stringify(after.collaborators ?? []);
 }
+export function toMatchableTrip(id: string, data: Record<string, any>): MatchableTrip {
+  const day = (v: any) => (v && typeof v.toDate === 'function' ? v.toDate().toISOString().slice(0, 10) : null);
+  const dest = (d: any): BookingPlace => ({ city: d?.name ?? null, countryCode: d?.countryCode ?? null });
+  return {
+    id,
+    title: String(data.title ?? ''),
+    start: day(data.startDate),
+    end: day(data.endDate),
+    places: [dest(data.destination), ...((data.additionalDestinations ?? []) as any[]).map(dest)],
+  };
+}
