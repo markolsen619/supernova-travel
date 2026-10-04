@@ -82,13 +82,13 @@ import; Part 2's email pipeline will call the same function body directly.
 its dates or destinations change, re-run matching for the trip's members' Pro
 bookings that are unlinked and not dismissed, and for their `auto` links to
 this trip (a trip moved off those dates loses the link). It never touches
-`manual` links. A deleted trip clears `tripId` on every booking linked to it.
+`manual` links. Which bookings to re-decide is the pure `rematchPlan(trip, bookings)`. A deleted trip clears `tripId` on every booking linked to it.
 
 ## App
 
 **After add/import:** call `matchBooking`.
 - `link` → banner sliding up from the bottom: "Added to {trip title}" ·
-  **Undo** (clears the link and sets `tripLinkDismissed`). House spring; Light
+  **Undo** (clears the link and sets `tripLinkDismissed`, which only stops automatic matching — "Add to a trip" still works). House spring; Light
   haptic.
 - `ask` → the item's detail screen opens with an **"Is this for a trip?"**
   card: one row per suggested trip (eyebrow `JUL 25 – 30`, trip title) and
