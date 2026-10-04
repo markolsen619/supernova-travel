@@ -26,23 +26,36 @@ export function useReservations() {
 
   const addReservation = useMutation({
     mutationFn: async (reservation: Omit<Reservation, 'id'>) => {
-      await addDoc(collection(db, 'reservations'), reservation);
+      const ref = await addDoc(collection(db, 'reservations'), reservation);
+      return ref.id;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reservations', uid] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations', uid] });
+      // Edits and deletes show on the trip page (useTripBookings).
+      queryClient.invalidateQueries({ queryKey: ['tripBookings'] });
+    },
   });
 
   const updateReservation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Reservation> & { id: string }) => {
       await updateDoc(doc(db, 'reservations', id), updates);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reservations', uid] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations', uid] });
+      // Edits and deletes show on the trip page (useTripBookings).
+      queryClient.invalidateQueries({ queryKey: ['tripBookings'] });
+    },
   });
 
   const deleteReservation = useMutation({
     mutationFn: async (reservationId: string) => {
       await deleteDoc(doc(db, 'reservations', reservationId));
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reservations', uid] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations', uid] });
+      // Edits and deletes show on the trip page (useTripBookings).
+      queryClient.invalidateQueries({ queryKey: ['tripBookings'] });
+    },
   });
 
   return { reservations, isLoading, addReservation, updateReservation, deleteReservation };

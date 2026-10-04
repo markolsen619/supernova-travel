@@ -27,8 +27,11 @@ For a boarding pass:
     "flightNumber": "DL405",
     "origin": "JFK",
     "originCity": "New York",
+    "originCountryCode": "US",
     "destination": "LHR",
     "destinationCity": "London",
+    "destinationCountryCode": "GB",
+    "departureLocalDate": "2026-08-15",
     "departureTime": "2026-08-15T18:30:00.000Z",
     "arrivalTime": "2026-08-16T06:45:00.000Z",
     "seat": "14A",
@@ -48,6 +51,8 @@ For a reservation:
     "checkIn": "2026-08-15",
     "checkOut": "2026-08-18",
     "address": "9 Chome-7-1 Ginzaa, Tokyo",
+    "city": "Tokyo",
+    "countryCode": "JP",
     "notes": "Any other relevant detail worth keeping, e.g. room type or special requests"
   }
 }
@@ -62,6 +67,8 @@ Rules:
   Never emit midnight-UTC for these — it renders as the 14th anywhere in the
   Americas
 - flightNumber and origin/destination are uppercase
+- Country codes are ISO 3166-1 alpha-2. "departureLocalDate" is the departure day as printed
+  (local to the departure airport), "YYYY-MM-DD". "city" is the city the reservation is in
 - If you truly cannot identify what kind of booking this is at all, return {"kind": "reservation", "reservationType": "activity", "fields": {}}`;
 }
 

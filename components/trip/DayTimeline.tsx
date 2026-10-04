@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { TripDay, TripActivity } from '@/types';
+import { BookedRow } from '@/components/trip/BookedRow';
+import { bookingLines, bookingMatchesStop, type DayBooking, type TripBooking } from '@/utils/bookingDays';
 import { ActivityItem } from './ActivityItem';
 
 interface DayTimelineProps {
@@ -38,6 +40,9 @@ interface DayTimelineProps {
   /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
   currentActivityId?: string | null;
   editable?: boolean;
+  /** Your wallet bookings on this day (utils/bookingDays bookingsByDay) — only ever the viewer's own. */
+  dayBookings?: DayBooking[];
+  onBookingPress?: (booking: TripBooking) => void;
 }
 
 function formatDayHeader(dayNumber: number, date: Timestamp | null): string {
@@ -64,6 +69,8 @@ export function DayTimeline({
   highlightActivityId = null,
   currentActivityId = null,
   editable = false,
+  dayBookings,
+  onBookingPress,
 }: DayTimelineProps) {
   const { colors } = useTheme();
   const handleEditActivity = useCallback(
@@ -78,7 +85,27 @@ export function DayTimeline({
     (activity: TripActivity) => onToggleVisited?.(activity, day.id),
     [onToggleVisited, day.id],
   );
-  const sorted = [...day.activities].sort((a, b) => a.order - b.order);
+  const sorted = useMemo(() => [...day.activities].sort((a, b) => a.order - b.order), [day.activities]);
+
+  // A booking for the same place as a stop becomes a "Booked" line on that
+  // stop; the rest show as their own rows above the stops — not between
+  // them, which would put fixed rows inside the drag-to-reorder list.
+  const { bookedByStop, bookedRows } = useMemo(() => {
+    const byStop: Record<string, string> = {};
+    const rows: DayBooking[] = [];
+    for (const entry of dayBookings ?? []) {
+      const stop = entry.role === 'staying'
+        ? undefined
+        : sorted.find((a) => !byStop[a.id] && bookingMatchesStop(entry.booking, a));
+      if (stop) byStop[stop.id] = bookingLines(entry).detail || 'Booked';
+      else rows.push(entry);
+    }
+    rows.sort((a, b) => {
+      if (a.role === 'staying' || b.role === 'staying') return a.role === 'staying' ? -1 : 1;
+      return (a.time ?? '99:99').localeCompare(b.time ?? '99:99');
+    });
+    return { bookedByStop: byStop, bookedRows: rows };
+  }, [dayBookings, sorted]);
   const hasActivities = sorted.length > 0;
   const hasNotes = Boolean(day.notes);
   const canDrag = editable && !!onReorderActivities && sorted.length > 1;
@@ -127,6 +154,7 @@ export function DayTimeline({
             isDragging={isActive}
             isHighlighted={highlightActivityId === item.id}
             isCurrent={currentActivityId === item.id}
+            bookedDetail={bookedByStop[item.id]}
           />
           {!isLast && (
             <View style={[styles.connector, { backgroundColor: colors.background.cardBorder }]} />
@@ -148,6 +176,7 @@ export function DayTimeline({
       highlightActivityId,
       currentActivityId,
       colors.background.cardBorder,
+      bookedByStop,
     ],
   );
 
@@ -184,6 +213,15 @@ export function DayTimeline({
           </TouchableOpacity>
         ) : null}
       </View>
+
+      {/* ── Your bookings this day (private to you) ── */}
+      {bookedRows.length > 0 && (
+        <View style={styles.bookedBlock}>
+          {bookedRows.map((entry) => (
+            <BookedRow key={`${entry.booking.item.id}-${entry.role}`} entry={entry} onPress={onBookingPress} />
+          ))}
+        </View>
+      )}
 
       {/* ── Activities ── */}
       {hasActivities ? (
@@ -235,6 +273,7 @@ export function DayTimeline({
 }
 
 const styles = StyleSheet.create({
+  bookedBlock: { marginBottom: Spacing['2'] },
   container: {
     gap: Spacing['3'],
   },

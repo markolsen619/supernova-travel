@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { normalizeAiTripQuota } from '@/utils/aiTripQuota';
+import type { MatchResult } from '@/utils/walletLink';
 import { GenerateTripRequest, AiTripQuota, ParseTravelConfirmationRequest, ParseTravelConfirmationResult, ImportQuota } from '@/types/ai';
 
 export async function callGenerateTrip(
@@ -37,4 +38,10 @@ export async function callGetImportQuota(): Promise<ImportQuota> {
   const fn = httpsCallable<undefined, ImportQuota>(functions, 'getImportQuota');
   const result = await fn();
   return result.data;
+}
+
+/** Asks the server which trip a just-saved booking belongs to (Pro; free → none). */
+export async function callMatchBooking(kind: 'boarding_pass' | 'reservation', id: string): Promise<MatchResult> {
+  const fn = httpsCallable<{ kind: string; id: string }, MatchResult>(functions, 'matchBooking');
+  return (await fn({ kind, id })).data;
 }

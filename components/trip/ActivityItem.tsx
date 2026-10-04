@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PencilSimple, MapPinLine } from 'phosphor-react-native';
+import { PencilSimple, MapPinLine, CheckCircle } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -32,6 +32,8 @@ interface ActivityItemProps {
   isHighlighted?: boolean;
   /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
   isCurrent?: boolean;
+  /** Your wallet booking for this same place (utils/bookingDays bookingMatchesStop): "Booked · Conf. …". */
+  bookedDetail?: string;
 }
 
 export function ActivityItem({
@@ -45,6 +47,7 @@ export function ActivityItem({
   isDragging = false,
   isHighlighted = false,
   isCurrent = false,
+  bookedDetail,
 }: ActivityItemProps) {
   const { colors } = useTheme();
   const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
@@ -155,6 +158,14 @@ export function ActivityItem({
                 numberOfLines={1}
               >
                 {subtitle}
+              </Text>
+            </View>
+          ) : null}
+          {bookedDetail ? (
+            <View style={styles.subtitleRow}>
+              <CheckCircle size={11} color={colors.text.secondary} weight="fill" />
+              <Text style={[styles.subtitle, { color: colors.text.secondary }]} numberOfLines={1}>
+                Booked{bookedDetail === 'Booked' ? '' : ` · ${bookedDetail}`}
               </Text>
             </View>
           ) : null}

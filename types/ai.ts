@@ -73,6 +73,9 @@ export type ParseTravelConfirmationResult =
         originCity: string;
         destination: string;
         destinationCity: string;
+        originCountryCode: string;
+        destinationCountryCode: string;
+        departureLocalDate: string;
         departureTime: string;
         arrivalTime: string;
         seat: string;
@@ -90,6 +93,8 @@ export type ParseTravelConfirmationResult =
         checkIn: string;
         checkOut: string;
         address: string;
+        city: string;
+        countryCode: string;
         notes: string;
       }>;
     };

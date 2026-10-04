@@ -11,6 +11,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { CalendarX } from 'phosphor-react-native';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { BookingTripRow } from '@/components/wallet/BookingTripRow';
+import { TripSuggestionCard } from '@/components/wallet/TripSuggestionCard';
 import { useTheme } from '@/hooks/useTheme';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useReservations } from '@/hooks/useReservations';
@@ -129,6 +131,10 @@ export default function ReservationDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {/* Which trip it's for (Pro): the suggestion card, then the Trip row. */}
+        <TripSuggestionCard kind="reservation" item={reservation} />
+        <BookingTripRow kind="reservation" item={reservation} />
 
         {/* Confirmation code */}
         <View

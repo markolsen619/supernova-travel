@@ -529,15 +529,31 @@ service cloud.firestore {
     }
 
     // Boarding passes
+    // Wallet ↔ trip links (bookingMatchFunctions.ts) are Pro. Anyone may clear one.
+    function walletLinkKeys() { return ['tripId', 'tripLink', 'tripSuggestions', 'tripLinkDismissed']; }
+    function isPaidUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('tier', 'free') in ['pro', 'business'];
+    }
+    function walletLinkWriteAllowed() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(walletLinkKeys())
+        || isPaidUser()
+        || request.resource.data.get('tripId', null) == null;
+    }
+    function walletCreateLinkAllowed() {
+      return request.resource.data.get('tripId', null) == null || isPaidUser();
+    }
+
     match /boarding_passes/{passId} {
-      allow read, update, delete: if isAuthed() && isOwner(resource.data.ownerUid);
-      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid;
+      allow read, delete: if isAuthed() && isOwner(resource.data.ownerUid);
+      allow update: if isAuthed() && isOwner(resource.data.ownerUid) && walletLinkWriteAllowed();
+      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid && walletCreateLinkAllowed();
     }
 
     // Reservations
     match /reservations/{reservationId} {
-      allow read, update, delete: if isAuthed() && isOwner(resource.data.ownerUid);
-      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid;
+      allow read, delete: if isAuthed() && isOwner(resource.data.ownerUid);
+      allow update: if isAuthed() && isOwner(resource.data.ownerUid) && walletLinkWriteAllowed();
+      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid && walletCreateLinkAllowed();
     }
 
     // Loyalty programs

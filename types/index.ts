@@ -515,6 +515,21 @@ export interface BoardingPass {
   barcodeFormat?: BarcodeFormat;
   status: BoardingPassStatus;
   createdAt: string;        // ISO 8601
+  /** Linked trip (Pro; utils/walletLink.ts, functions/src/bookingMatch.ts). */
+  tripId?: string | null;
+  /** 'auto' links may be re-decided when the trip changes; 'manual' never are. */
+  tripLink?: 'auto' | 'manual' | null;
+  /** Trips for the "Is this for a trip?" card. */
+  tripSuggestions?: string[];
+  /** "Not for a trip" / Undo — never matched automatically again. */
+  tripLinkDismissed?: boolean;
+  placeCity?: string;
+  /** ISO 3166-1 alpha-2. For a flight, the destination's. */
+  placeCountryCode?: string;
+  /** Departure day as printed, `YYYY-MM-DD` (local to the departure airport). */
+  localDate?: string;
+  originCountryCode?: string;
+  confirmationCode?: string;
 }
 
 export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show';
@@ -535,6 +550,17 @@ export interface Reservation {
   notes?: string;
   attachmentUrls?: string[];
   createdAt: string;
+  /** Linked trip (Pro; utils/walletLink.ts, functions/src/bookingMatch.ts). */
+  tripId?: string | null;
+  /** 'auto' links may be re-decided when the trip changes; 'manual' never are. */
+  tripLink?: 'auto' | 'manual' | null;
+  /** Trips for the "Is this for a trip?" card. */
+  tripSuggestions?: string[];
+  /** "Not for a trip" / Undo — never matched automatically again. */
+  tripLinkDismissed?: boolean;
+  placeCity?: string;
+  /** ISO 3166-1 alpha-2. For a flight, the destination's. */
+  placeCountryCode?: string;
 }
 
 export type LoyaltyUnit = 'miles' | 'points' | 'nights' | 'segments';

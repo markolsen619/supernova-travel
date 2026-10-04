@@ -22,3 +22,4 @@ export { onCommentLikeCreated, onCommentDeleted } from './commentEvents';
 export { moveTripBudgetPrivate } from './budgetPrivacyFunctions';
 export { onFollowRequestCreated, respondToFollowRequest, onUserPrivacyChanged, onPostCreatedVisibility } from './privacyFunctions';
 export { tripPreview } from './tripPreviewFunction';
+export { matchBooking, onTripWrittenRematch } from './bookingMatchFunctions';
