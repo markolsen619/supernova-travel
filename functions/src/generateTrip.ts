@@ -6,6 +6,7 @@ import { parseGeneratedTrip, tripDocuments } from './tripDocs';
 import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES, destinationLabel } from './promptRules';
 import { multiCityAllowed, aiTripQuotaPolicy } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
+import { existingTripDecision, isValidRequestId } from './generationRequest';
 
 export const generateTrip = functions.https.onCall(
   { region: 'us-central1', enforceAppCheck: false, timeoutSeconds: 180 },
@@ -16,6 +17,34 @@ export const generateTrip = functions.https.onCall(
     }
     const uid = request.auth.uid;
     const db = admin.firestore();
+
+    // Retry-safe generation (generationRequest.ts): the trip lives at
+    // trips/{requestId}, so a retry after a dropped connection gets the trip
+    // already made — before any quota check or Gemini call. Older apps send
+    // no requestId and get an auto-id, as before.
+    const requestId = (request.data as GenerateTripRequest)?.requestId;
+    const tripRef = isValidRequestId(requestId)
+      ? db.collection('trips').doc(requestId)
+      : db.collection('trips').doc();
+    if (isValidRequestId(requestId)) {
+      const decision = existingTripDecision((await tripRef.get()).data(), uid);
+      if (decision === 'return') return { tripId: tripRef.id };
+      if (decision === 'conflict') {
+        throw new functions.https.HttpsError('invalid-argument', 'Start the trip again.');
+      }
+    }
+
+    // Log when the phone hangs up before we answer, and how far in — the app
+    // only ever sees "internal" for that, with no reason.
+    const startedAt = Date.now();
+    let answered = false;
+    request.rawRequest?.on?.('close', () => {
+      if (!answered) {
+        console.warn('generateTrip: client disconnected before the response', {
+          uid, tripId: tripRef.id, afterMs: Date.now() - startedAt,
+        });
+      }
+    });
 
     // 2. Quota check for free tier
     const userDoc = await db.doc(`users/${uid}`).get();
@@ -86,7 +115,6 @@ export const generateTrip = functions.https.onCall(
 
     // 6. Write to Firestore
     const now = admin.firestore.FieldValue.serverTimestamp();
-    const tripRef = db.collection('trips').doc();
 
     // The same writer the editorial seed uses (tripDocs.ts), so seeded and
     // generated trips can't drift apart.
@@ -94,7 +122,17 @@ export const generateTrip = functions.https.onCall(
       startDate: data.startDate ? admin.firestore.Timestamp.fromDate(new Date(data.startDate)) : null,
       endDate: data.endDate ? admin.firestore.Timestamp.fromDate(new Date(data.endDate)) : null,
     });
-    await tripRef.set(docs.trip);
+    try {
+      // create(), not set(): two overlapping attempts with one requestId can
+      // both get here, and only the first may write (and count) the trip.
+      await tripRef.create(docs.trip);
+    } catch (err) {
+      if ((err as { code?: number }).code === 6 /* ALREADY_EXISTS */) {
+        answered = true;
+        return { tripId: tripRef.id };
+      }
+      throw err;
+    }
 
     const batch = db.batch();
     for (const { day, activities } of docs.days) {
@@ -112,6 +150,8 @@ export const generateTrip = functions.https.onCall(
       { merge: true }
     );
 
+    answered = true;
+    console.log('generateTrip: done', { uid, tripId: tripRef.id, ms: Date.now() - startedAt });
     return { tripId: tripRef.id };
   }
 );
