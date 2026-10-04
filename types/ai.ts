@@ -4,6 +4,9 @@ export type TravelStyle = 'adventure' | 'luxury' | 'budget' | 'family' | 'cultur
 export type TripPace = 'relaxed' | 'moderate' | 'packed';
 
 export interface GenerateTripRequest {
+  /** A Firestore auto-id made by the app; the trip is written at trips/{requestId}
+   * so a retry after a dropped connection can't duplicate it. Absent from older apps. */
+  requestId?: string;
   destination: string;
   countryCode: string;
   /** The picked place (Places Autocomplete), so the trip keeps it rather than re-grounding the name. Absent from older apps. */
