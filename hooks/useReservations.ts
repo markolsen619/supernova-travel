@@ -26,7 +26,8 @@ export function useReservations() {
 
   const addReservation = useMutation({
     mutationFn: async (reservation: Omit<Reservation, 'id'>) => {
-      await addDoc(collection(db, 'reservations'), reservation);
+      const ref = await addDoc(collection(db, 'reservations'), reservation);
+      return ref.id;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reservations', uid] }),
   });

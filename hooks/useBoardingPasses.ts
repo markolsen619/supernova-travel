@@ -26,7 +26,8 @@ export function useBoardingPasses() {
 
   const addPass = useMutation({
     mutationFn: async (pass: Omit<BoardingPass, 'id'>) => {
-      await addDoc(collection(db, 'boarding_passes'), pass);
+      const ref = await addDoc(collection(db, 'boarding_passes'), pass);
+      return ref.id;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['boardingPasses', uid] }),
   });

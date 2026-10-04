@@ -8,6 +8,9 @@ import {
 } from 'react-native';
 import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useBookingMatch } from '@/hooks/useBookingMatch';
+import { toCalendarDate } from '@/utils/calendarDate';
+import { draftPlaceFields } from '@/utils/walletLink';
 import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
@@ -65,6 +68,9 @@ export default function AddBoardingPassScreen() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [departureDate, setDepartureDate] = useState<Date | null>(null);
   const [departureTime, setDepartureTime] = useState<Date | null>(null);
+  // The import draft is cleared once it fills the form, so its place fields are kept here for the save.
+  const [draftPlace, setDraftPlace] = useState<Record<string, string>>({});
+  const { afterSave } = useBookingMatch();
 
   useEffect(() => {
     if (!existing) return;
@@ -103,6 +109,7 @@ export default function AddBoardingPassScreen() {
       setDepartureDate(d);
       setDepartureTime(d);
     }
+    setDraftPlace(draftPlaceFields(draft));
     clearDraft();
   }, [draftParam, draft, clearDraft]);
 
@@ -166,10 +173,15 @@ export default function AddBoardingPassScreen() {
           ...(form.terminal.trim() ? { terminal: form.terminal.trim() } : {}),
           status: 'upcoming',
           createdAt: new Date().toISOString(),
+          // Where and when, for matching it to a trip (Pro; bookingMatch.ts).
+          ...(form.destinationCity.trim() ? { placeCity: form.destinationCity.trim() } : {}),
+          ...(departureDate ? { localDate: toCalendarDate(departureDate) } : {}),
+          ...draftPlace,
         },
         {
-          onSuccess: () => {
+          onSuccess: (newId) => {
             router.back();
+            afterSave('boarding_pass', newId);
             // The moment flight alerts become worth something to this user.
             // Pro-gated inside: checkFlightStatus skips free tiers, so asking
             // a free user here would promise a notification they can't get.
@@ -179,7 +191,7 @@ export default function AddBoardingPassScreen() {
         },
       );
     }
-  }, [form, user, tier, departureDate, departureTime, isEditMode, id, updatePass, addPass, allowance]);
+  }, [form, user, tier, departureDate, departureTime, isEditMode, id, updatePass, addPass, allowance, draftPlace, afterSave]);
 
   const inputStyle = [
     styles.input,

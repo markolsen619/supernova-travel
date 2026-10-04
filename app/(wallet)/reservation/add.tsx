@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useBookingMatch } from '@/hooks/useBookingMatch';
+import { draftPlaceFields } from '@/utils/walletLink';
 import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
 import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
@@ -66,6 +68,10 @@ export default function AddReservationScreen() {
     setCheckOut(existing.checkOut ? parseCalendarDate(existing.checkOut) : null);
   }, [existing]);
 
+  // The import draft is cleared once it fills the form, so its place fields are kept here for the save.
+  const [draftPlace, setDraftPlace] = useState<Record<string, string>>({});
+  const { afterSave } = useBookingMatch();
+
   useEffect(() => {
     if (draftParam !== 'true' || !draft || draft.kind !== 'reservation') return;
     setType(draft.reservationType);
@@ -75,6 +81,7 @@ export default function AddReservationScreen() {
     if (draft.fields.notes) setNotes(draft.fields.notes);
     if (draft.fields.checkIn) setCheckIn(parseCalendarDate(draft.fields.checkIn));
     if (draft.fields.checkOut) setCheckOut(parseCalendarDate(draft.fields.checkOut));
+    setDraftPlace(draftPlaceFields(draft));
     clearDraft();
   }, [draftParam, draft, clearDraft]);
 
@@ -137,14 +144,19 @@ export default function AddReservationScreen() {
           ...(address.trim() ? { address: address.trim() } : {}),
           ...(notes.trim() ? { notes: notes.trim() } : {}),
           createdAt: new Date().toISOString(),
+          // Where it is, for matching it to a trip (Pro; bookingMatch.ts).
+          ...draftPlace,
         },
         {
-          onSuccess: () => router.back(),
+          onSuccess: (newId) => {
+            router.back();
+            afterSave('reservation', newId);
+          },
           onError: () => Alert.alert('Save failed', "The reservation didn't save. Try again."),
         },
       );
     }
-  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance]);
+  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance, draftPlace, afterSave]);
 
   const inputStyle = [
     styles.input,
