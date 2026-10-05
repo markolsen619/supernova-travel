@@ -56,3 +56,14 @@ describe('follow notifications', () => {
     expect(resolveNotificationRoute({ type: 'follow_accepted', profileUid: 'u1' })).toBe('/user/u1');
   });
 });
+
+describe('email import routes', () => {
+  it('a single imported booking opens it; several open the email import screen', () => {
+    expect(resolveNotificationRoute({ type: 'email_import_pass', passId: 'p1' })).toBe('/(wallet)/boarding-pass/p1');
+    expect(resolveNotificationRoute({ type: 'email_import_reservation', reservationId: 'r1' })).toBe('/(wallet)/reservation/r1');
+    expect(resolveNotificationRoute({ type: 'email_import_batch', emailImportId: 'e1' })).toBe('/(wallet)/email-import');
+  });
+  it('a missing id is null, not a crash', () => {
+    expect(resolveNotificationRoute({ type: 'email_import_reservation' })).toBeNull();
+  });
+});

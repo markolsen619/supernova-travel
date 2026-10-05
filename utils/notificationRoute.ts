@@ -31,6 +31,10 @@ const ROUTES: Record<string, RouteSpec> = {
   trip_invite_accepted: { idKey: 'tripId', build: (id) => `/trip/${id}` },
   direct: { idKey: 'threadId', build: (id) => `/messages/${id}` },
   flight_status: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
+  // Email import (functions/src/emailImportFunctions.ts): one booking opens it, several open the log.
+  email_import_pass: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
+  email_import_reservation: { idKey: 'reservationId', build: (id) => `/(wallet)/reservation/${id}` },
+  email_import_batch: { idKey: 'emailImportId', build: () => '/(wallet)/email-import' },
 };
 
 /**

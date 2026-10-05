@@ -277,7 +277,21 @@ export interface FlightStatusNotification {
   createdAt: Timestamp;
 }
 
+/** A booking (or several) arrived by email (functions/src/emailImportFunctions.ts). */
+export interface EmailImportNotification {
+  id: string;
+  type: 'email_import_pass' | 'email_import_reservation' | 'email_import_batch';
+  passId?: string;
+  reservationId?: string;
+  emailImportId?: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
 export type AppNotification =
+  | EmailImportNotification
   | TripInviteNotification
   | TripInviteAcceptedNotification
   | PostLikeNotification

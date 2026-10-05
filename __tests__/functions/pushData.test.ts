@@ -41,3 +41,11 @@ describe('follow notifications', () => {
     expect(pushDataFor({ type: 'follow_request', profileUid: 'u1', requesterName: 'Ana' })).toEqual({ type: 'follow_request', profileUid: 'u1' });
   });
 });
+
+describe('email import push data', () => {
+it('carries the email import ids', () => {
+  expect(pushDataFor({ type: 'email_import_reservation', reservationId: 'r1', body: 'long text' }))
+    .toEqual({ type: 'email_import_reservation', reservationId: 'r1' });
+  expect(pushDataFor({ type: 'email_import_batch', emailImportId: 'e1' })).toEqual({ type: 'email_import_batch', emailImportId: 'e1' });
+});
+});
