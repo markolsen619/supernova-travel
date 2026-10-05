@@ -1,0 +1,7 @@
+{
+  "name": "supernova-email-inbound",
+  "private": true,
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1"
+  }
+}
