@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebas
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { callCreateImportAddress, callRotateImportAddress } from '@/services/gemini';
+import { reconcileServerTier } from '@/services/tier';
 import { addressFor, gmailCodeFresh, type EmailImportEntry } from '@/utils/emailImport';
 
 interface EmailImportState { address: string | null; gmailCode: string | null; entries: EmailImportEntry[] }
@@ -48,7 +49,14 @@ export function useEmailImport() {
     setBusy(true);
     setError(null);
     try {
-      await fn();
+      try {
+        await fn();
+      } catch (err) {
+        // Just bought Pro? The server may not have heard yet — sync the tier and try once more.
+        if ((err as { code?: string }).code !== 'functions/permission-denied') throw err;
+        await reconcileServerTier(queryClient);
+        await fn();
+      }
       await queryClient.invalidateQueries({ queryKey: ['emailImport', uid] });
     } catch (err) {
       console.warn('[email import]', err);

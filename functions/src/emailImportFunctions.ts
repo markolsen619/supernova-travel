@@ -4,7 +4,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { simpleParser } from 'mailparser';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
-  IMPORT_DOMAIN, MAX_BOOKINGS_PER_EMAIL, bookingsFromParse, dailyKey, emailPushCopy, gmailConfirmation,
+  IMPORT_DOMAIN, IMPORT_LOG_KEEP, MAX_BOOKINGS_PER_EMAIL, bookingsFromParse, importIdFor, dailyKey, emailPushCopy, gmailConfirmation,
   importGate, looksLikeBooking, newToken, signatureValid, tokenFromAddress, trimImportLog, type ImportStatus,
 } from './emailImport';
 import { buildExtractionPrompt } from './parseTravelConfirmation';
@@ -27,7 +27,7 @@ const privateDoc = (uid: string) => db.doc(`users/${uid}/private/emailImport`);
 async function log(uid: string, id: string, status: ImportStatus, subject: string, extra: Record<string, unknown> = {}) {
   const col = db.collection('users').doc(uid).collection('emailImports');
   await col.doc(id).set({ receivedAt: admin.firestore.FieldValue.serverTimestamp(), subject: subject.slice(0, 140), status, items: [], ...extra });
-  const rows = await col.orderBy('receivedAt', 'desc').get();
+  const rows = await col.orderBy('receivedAt', 'desc').limit(IMPORT_LOG_KEEP + 10).get();
   const stale = trimImportLog(rows.docs.map((d) => ({ id: d.id, receivedAt: d.data().receivedAt?.toMillis?.() ?? Date.now() })));
   await Promise.all(stale.map((s) => col.doc(s).delete()));
 }
@@ -37,11 +37,36 @@ function emailPrompt(): string {
 
 This is a forwarded email and may hold several bookings (for example an outbound and a return flight, or a
 hotel and a car). Return {"bookings": [ ... ]} where each entry is one object in exactly one of the two
-formats above. At most ${MAX_BOOKINGS_PER_EMAIL}. If there is no booking at all, return {"bookings": []}.`;
+formats above. At most ${MAX_BOOKINGS_PER_EMAIL}.
+This replaces the rule above about returning an empty "activity" reservation: if the email is not a confirmed
+booking — a newsletter, an offer or deal, a price alert, a receipt for something that isn't travel — return
+{"bookings": []}. Never invent a booking from an advertisement.`;
 }
 
 /** Cloudflare's Email Worker posts every message for @supernovatravel.xyz here (cloudflare/email-inbound). */
-export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, timeoutSeconds: 120, memory: '512MiB' }, async (req, res) => {
+/**
+ * Today's count, checked and counted in one transaction so a burst of
+ * emails can't all read "under the cap" before any of them counts.
+ */
+async function claimDailyImport(uid: string, decide: (usedToday: number) => ImportStatus | 'parse'): Promise<ImportStatus | 'parse'> {
+  const ref = db.doc(`usage_quotas/${uid}`);
+  const key = dailyKey(new Date());
+  return db.runTransaction(async (tx) => {
+    const used = ((await tx.get(ref)).data() ?? {})[key] ?? 0;
+    const gate = decide(used);
+    if (gate === 'parse') tx.set(ref, { [key]: admin.firestore.FieldValue.increment(1) }, { merge: true });
+    return gate;
+  });
+}
+
+/** Every live address this person has (normally one) — rotate and account deletion end them all. */
+export async function addressesOf(uid: string) {
+  return (await db.collection('inboundAddresses').where('uid', '==', uid).get()).docs;
+}
+
+// Low concurrency and 1 GiB: one 10 MB email peaks around 70 MB in flight, and
+// an out-of-memory crash would kill every request sharing the instance.
+export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, concurrency: 4, timeoutSeconds: 120, memory: '1GiB' }, async (req, res) => {
   const raw = req.rawBody;
   if (req.method !== 'POST' || !raw || !signatureValid(raw, req.get('X-Supernova-Signature'), process.env.INBOUND_EMAIL_SECRET ?? '')) {
     res.status(401).send('');
@@ -49,8 +74,9 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
   }
   // From here on always 200: a retry would import twice.
   let uid: string | null = null;
-  const importId = db.collection('_').doc().id;
+  let importId = '';
   let subject = '';
+  let committed = false;
   try {
     const { to, raw: mime } = req.body as { to?: string; raw?: string };
     const token = tokenFromAddress(to ?? '');
@@ -58,8 +84,18 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
     if (!addr?.exists) { res.status(200).send(''); return; }
     uid = addr.data()!.uid as string;
 
-    const mail = await simpleParser(Buffer.from(mime ?? '', 'base64'));
+    const rawMime = Buffer.from(mime ?? '', 'base64');
+    const mail = await simpleParser(rawMime);
     subject = mail.subject ?? '';
+    // Claim this message once: a redelivery or a second forward of the same email stops here.
+    importId = importIdFor(uid, mail.messageId, rawMime);
+    try {
+      await db.collection('users').doc(uid).collection('emailImports').doc(importId)
+        .create({ receivedAt: admin.firestore.FieldValue.serverTimestamp(), subject: subject.slice(0, 140), status: 'processing', items: [] });
+    } catch (err) {
+      if ((err as { code?: number }).code === 6) { res.status(200).send(''); return; }
+      throw err;
+    }
     const from = mail.from?.text ?? '';
     const text = (mail.text ?? (typeof mail.html === 'string' ? mail.html.replace(/<[^>]+>/g, ' ') : '')).slice(0, 60_000);
     const pdfs = mail.attachments.filter((a) => a.contentType === 'application/pdf' && a.size <= PDF_MAX).slice(0, 2);
@@ -73,19 +109,22 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
     }
 
     const user = (await db.doc(`users/${uid}`).get()).data();
-    const key = dailyKey(new Date());
-    const usedToday = ((await db.doc(`usage_quotas/${uid}`).get()).data() ?? {})[key] ?? 0;
-    const gate = importGate({ paid: isPaid(user), consent: hasAiConsent(user), usedToday, looksLikeBooking: looksLikeBooking(subject, text, pdfs.length > 0) });
+    const looks = looksLikeBooking(subject, text, pdfs.length > 0);
+    const gate = await claimDailyImport(uid, (usedToday) =>
+      importGate({ paid: isPaid(user), consent: hasAiConsent(user), usedToday, looksLikeBooking: looks }));
     if (gate !== 'parse') { await log(uid, importId, gate, subject); res.status(200).send(''); return; }
 
-    await db.doc(`usage_quotas/${uid}`).set({ [key]: admin.firestore.FieldValue.increment(1) }, { merge: true });
-    const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '').getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '').getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json' },
+    });
     const parts: ({ text: string } | { inlineData: { mimeType: string; data: string } })[] = [
       { text: emailPrompt() },
       { text: `Subject: ${subject}\n\n${text}` },
       ...pdfs.map((p) => ({ inlineData: { mimeType: 'application/pdf', data: p.content.toString('base64') } })),
     ];
-    const out = (await model.generateContent(parts)).response.text();
+    // Under the function's 120 s, so a slow answer still ends in a log row.
+    const out = (await model.generateContent(parts, { timeout: 90_000 })).response.text();
     let parsed: unknown = null;
     try { parsed = JSON.parse(out.replace(/^```json\s*/m, '').replace(/\s*```$/m, '').trim()); } catch { parsed = null; }
     const docs = bookingsFromParse(parsed, { uid, emailImportId: importId, nowIso: new Date().toISOString() });
@@ -95,6 +134,7 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
     const batch = db.batch();
     const refs = docs.map((d) => { const ref = db.collection(d.collection).doc(); batch.set(ref, d.data); return { ref, d }; });
     await batch.commit();
+    committed = true;
 
     let linkedTrip: string | null = null;
     let asked = false;
@@ -119,7 +159,13 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
     res.status(200).send('');
   } catch (err) {
     console.error('inboundEmail failed', err);
-    if (uid) await log(uid, importId, 'unreadable', subject).catch(() => undefined);
+    // After the bookings are saved, a later failure (matching, the push) must not
+    // relabel the email "Couldn't read" — the user would paste it in and duplicate them.
+    if (uid && importId && !committed) await log(uid, importId, 'unreadable', subject).catch(() => undefined);
+    if (uid && importId && committed) {
+      await db.collection('users').doc(uid).collection('emailImports').doc(importId)
+        .set({ status: 'imported' }, { merge: true }).catch(() => undefined);
+    }
     res.status(200).send('');
   }
 });
@@ -147,20 +193,29 @@ async function issueAddress(uid: string): Promise<string> {
 
 export const createImportAddress = onCall({ region: 'us-central1' }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first');
-  const user = await requireProUser(request.auth.uid);
+  const uid = request.auth.uid;
+  const user = await requireProUser(uid);
   if (!hasAiConsent(user)) throw new HttpsError('failed-precondition', 'Allow AI import first.');
-  const existing = (await privateDoc(request.auth.uid).get()).data()?.token;
-  if (typeof existing === 'string') return { address: `${existing}@${IMPORT_DOMAIN}` };
-  return { address: await issueAddress(request.auth.uid) };
+  // A live address on record wins — so two quick taps (or two devices) can't leave a second, forgotten one.
+  const live = await addressesOf(uid);
+  if (live.length > 0) {
+    const token = live[0].id;
+    await privateDoc(uid).set({ token }, { merge: true });
+    return { address: `${token}@${IMPORT_DOMAIN}` };
+  }
+  return { address: await issueAddress(uid) };
 });
 
+/**
+ * A new address; every old one stops working first. Not Pro-gated: someone
+ * whose Pro lapsed must still be able to shut off an address that leaked.
+ */
 export const rotateImportAddress = onCall({ region: 'us-central1' }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first');
   const uid = request.auth.uid;
-  await requireProUser(uid);
-  const old = (await privateDoc(uid).get()).data()?.token;
-  // The old address stops working before the new one exists.
-  if (typeof old === 'string') await db.doc(`inboundAddresses/${old}`).delete();
-  await privateDoc(uid).set({ gmailForwardingCode: admin.firestore.FieldValue.delete() }, { merge: true });
+  const live = await addressesOf(uid);
+  await Promise.all(live.map((d) => d.ref.delete()));
+  // The private doc never points at a dead address, even if issuing fails below.
+  await privateDoc(uid).set({ token: admin.firestore.FieldValue.delete(), gmailForwardingCode: admin.firestore.FieldValue.delete() }, { merge: true });
   return { address: await issueAddress(uid) };
 });

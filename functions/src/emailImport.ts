@@ -3,7 +3,7 @@
  * firebase-admin, no mailparser — so it is unit-tested; inboundEmail
  * (emailImportFunctions.ts) does the I/O. Spec: docs/superpowers/specs/2026-10-04-email-import-design.md
  */
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 
 export const IMPORT_DOMAIN = 'supernovatravel.xyz';
 export const DAILY_EMAIL_IMPORTS = 25;
@@ -60,6 +60,17 @@ export function importGate(a: { paid: boolean; consent: boolean; usedToday: numb
   return 'parse';
 }
 
+/**
+ * One import per message per person: a redelivery, a filter plus a manual
+ * forward, or an airline re-sending the same confirmation all land on the
+ * same id, which inboundEmail claims with create() before doing anything.
+ * Falls back to the raw message when it has no Message-ID.
+ */
+export function importIdFor(uid: string, messageId: string | undefined, raw: Buffer): string {
+  const key = messageId?.trim() ? `mid:${messageId.trim()}` : `raw:${createHash('sha256').update(raw).digest('hex')}`;
+  return createHash('sha256').update(`${uid}\n${key}`).digest('hex').slice(0, 40);
+}
+
 export function dailyKey(now: Date): string {
   return `email_imports_${now.toISOString().slice(0, 10)}`;
 }
@@ -69,13 +80,15 @@ export type WalletDoc = { collection: 'boarding_passes' | 'reservations'; data: 
 const RES_TYPES = new Set(['hotel', 'airbnb', 'rental_car', 'restaurant', 'activity', 'show']);
 const ISO2 = /^[A-Za-z]{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+const str = (v: unknown, max = 200) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 const clean = (o: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
 export function bookingsFromParse(parsed: unknown, ctx: { uid: string; emailImportId: string; nowIso: string }): WalletDoc[] {
-  const list = (parsed as { bookings?: unknown } | null)?.bookings;
-  if (!Array.isArray(list)) return [];
+  // A single booking returned without the list (the base prompt's own shape) still counts.
+  const p = parsed as { bookings?: unknown; kind?: unknown } | null;
+  const list = Array.isArray(p?.bookings) ? p!.bookings as unknown[] : p && typeof p.kind === 'string' ? [p] : null;
+  if (!list) return [];
   const out: WalletDoc[] = [];
   for (const b of list) {
     if (out.length >= MAX_BOOKINGS_PER_EMAIL) break;
@@ -101,14 +114,16 @@ export function bookingsFromParse(parsed: unknown, ctx: { uid: string; emailImpo
       }) });
     } else if ((b as { kind?: unknown })?.kind === 'reservation') {
       const title = str(f.title);
-      if (!title) continue;
+      // A title alone is a newsletter ("Paris hotel deals"), not a booking.
+      const checkInDay = str(f.checkIn);
+      if (!title || !(str(f.confirmationCode) || (checkInDay && DAY.test(checkInDay)) || str(f.address))) continue;
       const rawType = str((b as { reservationType?: unknown }).reservationType);
       const day = (v: unknown) => { const s = str(v); return s && DAY.test(s) ? s : undefined; };
       const country = str(f.countryCode);
       out.push({ collection: 'reservations', title, data: clean({
         ...base, type: rawType && RES_TYPES.has(rawType) ? rawType : 'activity', title,
-        confirmationCode: str(f.confirmationCode) ?? '', checkIn: day(f.checkIn), checkOut: day(f.checkOut),
-        address: str(f.address), notes: str(f.notes), placeCity: str(f.city),
+        confirmationCode: str(f.confirmationCode, 100) ?? '', checkIn: day(f.checkIn), checkOut: day(f.checkOut),
+        address: str(f.address, 500), notes: str(f.notes, 2000), placeCity: str(f.city),
         placeCountryCode: country && ISO2.test(country) ? country.toUpperCase() : undefined,
       }) });
     }

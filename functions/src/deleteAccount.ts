@@ -157,10 +157,11 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
     db.doc(`usage_quotas/${uid}`),
   ]);
 
-  // Email import address (emailImportFunctions.ts); its private doc and the
+  // Email import addresses (emailImportFunctions.ts); the private doc and the
   // log go with users/{uid} below.
-  const importToken = (await db.doc(`users/${uid}/private/emailImport`).get()).data()?.token;
-  if (typeof importToken === 'string') await db.doc(`inboundAddresses/${importToken}`).delete();
+  // Every address on record, not just the latest, so no forgotten one keeps writing under a deleted account.
+  const addresses = await db.collection('inboundAddresses').where('uid', '==', uid).get();
+  await Promise.all(addresses.docs.map((d) => d.ref.delete()));
 
   // Last in Firestore: feed, notifications, and savedTrips go with it.
   await db.recursiveDelete(db.doc(`users/${uid}`));

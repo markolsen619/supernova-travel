@@ -12,13 +12,18 @@ function toBase64(bytes: Uint8Array): string {
 export default {
   /** Every email to @supernovatravel.xyz (Email Routing catch-all). Never bounces. */
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
-    if (message.rawSize > MAX_BYTES) return;
+    if (message.rawSize > MAX_BYTES) {
+      console.warn(`dropped a ${message.rawSize}-byte message (over ${MAX_BYTES})`);
+      return;
+    }
     const raw = new Uint8Array(await new Response(message.raw).arrayBuffer());
     const body = JSON.stringify({ to: message.to, from: message.from, raw: toBase64(raw) });
-    await fetch(env.INBOUND_URL, {
+    const res = await fetch(env.INBOUND_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-Supernova-Signature': await signBody(body, env.INBOUND_SECRET) },
       body,
     });
+    // Never bounce, but leave a trace: a secret mismatch or an outage would otherwise lose mail silently.
+    if (!res.ok) console.error(`inboundEmail answered ${res.status} for a ${message.rawSize}-byte message`);
   },
 };

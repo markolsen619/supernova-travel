@@ -92,11 +92,11 @@ describe('bookingsFromParse', () => {
     expect(bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'activity', fields: {} }] }, ctx)).toEqual([]);
     expect(bookingsFromParse({ bookings: 'nope' }, ctx)).toEqual([]);
     expect(bookingsFromParse(null, ctx)).toEqual([]);
-    const many = Array.from({ length: 9 }, (_, i) => ({ kind: 'reservation', reservationType: 'restaurant', fields: { title: `R${i}` } }));
+    const many = Array.from({ length: 9 }, (_, i) => ({ kind: 'reservation', reservationType: 'restaurant', fields: { title: `R${i}`, confirmationCode: `C${i}` } }));
     expect(bookingsFromParse({ bookings: many }, ctx)).toHaveLength(6);
   });
   it('an unknown reservation type becomes an activity; a date that is not a date is dropped', () => {
-    const [d] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'spa', fields: { title: 'Spa', checkIn: 'soon' } }] }, ctx);
+    const [d] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'spa', fields: { title: 'Spa', checkIn: 'soon', confirmationCode: 'S1' } }] }, ctx);
     expect(d.data.type).toBe('activity');
     expect(d.data.checkIn).toBeUndefined();
   });
@@ -120,5 +120,39 @@ describe('trimImportLog', () => {
     const rows = Array.from({ length: 53 }, (_, i) => ({ id: `r${i}`, receivedAt: i }));
     expect(trimImportLog(rows).sort()).toEqual(['r0', 'r1', 'r2']);
     expect(trimImportLog(rows.slice(0, 10))).toEqual([]);
+  });
+});
+
+describe('review fixes', () => {
+  const { importIdFor } = require('../../functions/src/emailImport');
+  const ctx = { uid: 'u1', emailImportId: 'e1', nowIso: '2026-10-04T00:00:00.000Z' };
+
+  it('the same message for the same person always gets the same import id (redelivery imports once)', () => {
+    const raw = Buffer.from('Message-ID: <a@b>\r\n\r\nhi');
+    const a = importIdFor('u1', '<abc@mail.example>', raw);
+    expect(a).toMatch(/^[0-9a-f]{40}$/);
+    expect(importIdFor('u1', '<abc@mail.example>', Buffer.from('different body'))).toBe(a);
+    expect(importIdFor('u2', '<abc@mail.example>', raw)).not.toBe(a);
+    expect(importIdFor('u1', undefined, raw)).toBe(importIdFor('u1', undefined, raw));
+    expect(importIdFor('u1', undefined, raw)).not.toBe(importIdFor('u1', undefined, Buffer.from('other')));
+  });
+
+  it('a reservation needs something that makes it a booking, not just a title', () => {
+    expect(bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'hotel', fields: { title: 'Paris hotel deals' } }] }, ctx)).toEqual([]);
+    expect(bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'hotel', fields: { title: 'Artemide', confirmationCode: '1' } }] }, ctx)).toHaveLength(1);
+    expect(bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'restaurant', fields: { title: 'Luzzi', checkIn: '2026-07-26' } }] }, ctx)).toHaveLength(1);
+  });
+
+  it('a single booking returned without the list still counts', () => {
+    expect(bookingsFromParse({ kind: 'reservation', reservationType: 'hotel', fields: { title: 'Artemide', confirmationCode: '1' } }, ctx)).toHaveLength(1);
+  });
+
+  it('caps what an email can write', () => {
+    const [d] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'hotel',
+      fields: { title: 'x'.repeat(5000), confirmationCode: 'c'.repeat(500), notes: 'n'.repeat(9000) } }] }, ctx);
+    expect((d.data.title as string).length).toBeLessThanOrEqual(200);
+    expect(d.title.length).toBeLessThanOrEqual(200);
+    expect((d.data.confirmationCode as string).length).toBeLessThanOrEqual(100);
+    expect((d.data.notes as string).length).toBeLessThanOrEqual(2000);
   });
 });
