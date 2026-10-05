@@ -529,6 +529,8 @@ export interface BoardingPass {
   barcodeFormat?: BarcodeFormat;
   status: BoardingPassStatus;
   createdAt: string;        // ISO 8601
+  /** 'email' when it arrived through the forwarding address (functions/src/emailImportFunctions.ts). */
+  source?: 'email';
   /** Linked trip (Pro; utils/walletLink.ts, functions/src/bookingMatch.ts). */
   tripId?: string | null;
   /** 'auto' links may be re-decided when the trip changes; 'manual' never are. */
@@ -564,6 +566,8 @@ export interface Reservation {
   notes?: string;
   attachmentUrls?: string[];
   createdAt: string;
+  /** 'email' when it arrived through the forwarding address (functions/src/emailImportFunctions.ts). */
+  source?: 'email';
   /** Linked trip (Pro; utils/walletLink.ts, functions/src/bookingMatch.ts). */
   tripId?: string | null;
   /** 'auto' links may be re-decided when the trip changes; 'manual' never are. */

@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Plus, Wallet as WalletIcon } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useMyTrips } from '@/hooks/useMyTrips';
+import { EmailImportRow } from '@/components/wallet/EmailImportRow';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { useReservations } from '@/hooks/useReservations';
@@ -112,6 +113,9 @@ export default function WalletHubScreen() {
           <Text style={[styles.planLink, { color: colors.brand.purple }]}>Get unlimited</Text>
         </TouchableOpacity>
       ) : null}
+
+      {/* Forwarding address for confirmation emails (Pro). */}
+      <EmailImportRow />
 
       {/* Segmented control */}
       <View style={styles.segments}>
