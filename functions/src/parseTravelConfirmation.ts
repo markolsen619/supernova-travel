@@ -5,7 +5,7 @@ import { ParseTravelConfirmationRequest, ParseTravelConfirmationResult } from '.
 import { FREE_TIER_YEARLY_IMPORT_LIMIT, getYearlyQuotaKey } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
-function buildExtractionPrompt(): string {
+export function buildExtractionPrompt(): string {
   return `You are reading a travel booking confirmation (flight, hotel, car rental, restaurant, or event
 reservation). It may be pasted email text and/or a photo of a printed confirmation or a screenshot.
 

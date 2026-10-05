@@ -1,0 +1,5 @@
+name = "supernova-email-inbound"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+[vars]
+INBOUND_URL = "https://us-central1-supernova-a2125.cloudfunctions.net/inboundEmail"

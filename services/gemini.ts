@@ -45,3 +45,13 @@ export async function callMatchBooking(kind: 'boarding_pass' | 'reservation', id
   const fn = httpsCallable<{ kind: string; id: string }, MatchResult>(functions, 'matchBooking');
   return (await fn({ kind, id })).data;
 }
+
+/** Email import (functions/src/emailImportFunctions.ts): your forwarding address, made once (Pro + AI consent). */
+export async function callCreateImportAddress(): Promise<{ address: string }> {
+  return (await httpsCallable<undefined, { address: string }>(functions, 'createImportAddress')()).data;
+}
+
+/** A new forwarding address; the old one stops working at once. */
+export async function callRotateImportAddress(): Promise<{ address: string }> {
+  return (await httpsCallable<undefined, { address: string }>(functions, 'rotateImportAddress')()).data;
+}

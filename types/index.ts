@@ -277,7 +277,21 @@ export interface FlightStatusNotification {
   createdAt: Timestamp;
 }
 
+/** A booking (or several) arrived by email (functions/src/emailImportFunctions.ts). */
+export interface EmailImportNotification {
+  id: string;
+  type: 'email_import_pass' | 'email_import_reservation' | 'email_import_batch';
+  passId?: string;
+  reservationId?: string;
+  emailImportId?: string;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
 export type AppNotification =
+  | EmailImportNotification
   | TripInviteNotification
   | TripInviteAcceptedNotification
   | PostLikeNotification
@@ -515,6 +529,8 @@ export interface BoardingPass {
   barcodeFormat?: BarcodeFormat;
   status: BoardingPassStatus;
   createdAt: string;        // ISO 8601
+  /** 'email' when it arrived through the forwarding address (functions/src/emailImportFunctions.ts). */
+  source?: 'email';
   /** Linked trip (Pro; utils/walletLink.ts, functions/src/bookingMatch.ts). */
   tripId?: string | null;
   /** 'auto' links may be re-decided when the trip changes; 'manual' never are. */
@@ -550,6 +566,8 @@ export interface Reservation {
   notes?: string;
   attachmentUrls?: string[];
   createdAt: string;
+  /** 'email' when it arrived through the forwarding address (functions/src/emailImportFunctions.ts). */
+  source?: 'email';
   /** Linked trip (Pro; utils/walletLink.ts, functions/src/bookingMatch.ts). */
   tripId?: string | null;
   /** 'auto' links may be re-decided when the trip changes; 'manual' never are. */

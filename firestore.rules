@@ -118,6 +118,18 @@ service cloud.firestore {
       // Accounts this user blocked (doc id = the blocked uid). Private: the
       // blocked person is never told, and can't read this. onBlockCreated
       // removes follows in both directions.
+      // Email import (emailImportFunctions.ts). The log and the private doc
+      // holding your forwarding address token are yours to read; only the
+      // server writes them. The token must never sit on users/{uid}, which
+      // every signed-in user can read.
+      match /emailImports/{importId} {
+        allow read, delete: if isOwner(uid);
+      }
+      match /private/{docId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
       match /blocked/{blockedUid} {
         allow read, delete: if isOwner(uid);
         allow create: if isOwner(uid) && blockedUid != uid;

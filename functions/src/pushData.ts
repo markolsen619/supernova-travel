@@ -22,7 +22,7 @@
  * tap, and Expo caps a push payload at 4KiB, so the payload is a whitelist
  * rather than a spread of the doc.
  */
-const ID_KEYS = ['postId', 'tripId', 'threadId', 'passId', 'profileUid'] as const;
+const ID_KEYS = ['postId', 'tripId', 'threadId', 'passId', 'profileUid', 'reservationId', 'emailImportId'] as const;
 
 export function pushDataFor(
   notification: Record<string, unknown>,

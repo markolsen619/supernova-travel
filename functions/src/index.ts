@@ -23,3 +23,4 @@ export { moveTripBudgetPrivate } from './budgetPrivacyFunctions';
 export { onFollowRequestCreated, respondToFollowRequest, onUserPrivacyChanged, onPostCreatedVisibility } from './privacyFunctions';
 export { tripPreview } from './tripPreviewFunction';
 export { matchBooking, onTripWrittenRematch } from './bookingMatchFunctions';
+export { inboundEmail, createImportAddress, rotateImportAddress } from './emailImportFunctions';

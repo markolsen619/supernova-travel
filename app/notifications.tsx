@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable, Alert } fro
 import { FlashList } from '@shopify/flash-list';
 import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus } from 'phosphor-react-native';
+import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus, EnvelopeSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -369,6 +369,25 @@ export default function NotificationsScreen() {
             <View style={styles.rowText}>
               <Text style={[styles.rowBody, { color: colors.text.primary }]} numberOfLines={2}>
                 <Text style={styles.rowBold}>{item.likerName}</Text> liked your comment: {item.commentText}
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+
+      if (item.type === 'email_import_pass' || item.type === 'email_import_reservation' || item.type === 'email_import_batch') {
+        return (
+          <TouchableOpacity {...rowProps(item)}>
+            {/* A type icon, not an avatar: no person sent this. */}
+            <View style={[styles.iconBubble, { backgroundColor: colors.background.sunken }]}>
+              <EnvelopeSimple size={16} color={colors.text.secondary} weight="duotone" />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]} numberOfLines={2}>
+                <Text style={styles.rowBold}>{item.title}</Text>{item.body ? ` ${item.body}` : ''}
               </Text>
               <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
                 {timeAgo(item.createdAt.toDate())}
