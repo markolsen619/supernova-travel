@@ -1,6 +1,7 @@
 import { useUserStore } from '@/stores/useUserStore';
 import { isPrivateAccount, publicAllowed } from '@/utils/privacy';
 import React, { useState, useCallback } from 'react';
+import { MAX_AI_TRIP_DAYS } from '@/utils/aiTripLength';
 import {
   View,
   Text,
@@ -60,8 +61,8 @@ const TRAVEL_STYLES: { value: TravelStyle; label: string; Icon: PhosphorIcon }[]
   { value: 'cultural', label: 'Cultural', Icon: Bank },
 ];
 
-/** The generator's cap — generateTrip plans at most two weeks at a time. */
-export const MAX_AI_TRIP_DAYS = 14;
+/** The generator's cap — generateTrip enforces the same (utils/aiTripLength.ts). */
+export { MAX_AI_TRIP_DAYS };
 
 // Followers first: it's the default, and the reason the choice exists —
 // AI trips used to be private with no way to say otherwise, so friends never

@@ -171,3 +171,10 @@ export function aiTripQuotaPolicy(
         fairUse: false,
       };
 }
+
+/** The longest trip generateTrip will plan — the app's form offers the same (utils/aiTripLength.ts). */
+export const MAX_AI_TRIP_DAYS = 21;
+
+export function aiTripLengthAllowed(days: number): boolean {
+  return Number.isInteger(days) && days >= 1 && days <= MAX_AI_TRIP_DAYS;
+}
