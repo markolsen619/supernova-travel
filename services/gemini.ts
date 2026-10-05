@@ -10,7 +10,8 @@ export async function callGenerateTrip(
   const fn = httpsCallable<GenerateTripRequest, { tripId: string }>(
     functions,
     'generateTrip',
-    { timeout: 180000 }
+    // generateTrip may take up to 5 minutes for a three-week multi-city trip.
+    { timeout: 300000 }
   );
   const result = await fn(request);
   return result.data;

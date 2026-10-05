@@ -4,12 +4,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest } from './types';
 import { parseGeneratedTrip, tripDocuments } from './tripDocs';
 import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES, destinationLabel } from './promptRules';
-import { multiCityAllowed, aiTripQuotaPolicy } from './quotaUtils';
+import { multiCityAllowed, aiTripQuotaPolicy, aiTripLengthAllowed, MAX_AI_TRIP_DAYS } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 import { existingTripDecision, isValidRequestId } from './generationRequest';
 
 export const generateTrip = functions.https.onCall(
-  { region: 'us-central1', enforceAppCheck: false, timeoutSeconds: 180 },
+  { region: 'us-central1', enforceAppCheck: false, timeoutSeconds: 300 },
   async (request) => {
     // 1. Auth check
     if (!request.auth) {
@@ -92,6 +92,9 @@ export const generateTrip = functions.https.onCall(
     const data = request.data as GenerateTripRequest;
     if (!data.destination || !data.durationDays) {
       throw new functions.https.HttpsError('invalid-argument', 'destination and durationDays are required');
+    }
+    if (!aiTripLengthAllowed(data.durationDays)) {
+      throw new functions.https.HttpsError('invalid-argument', `AI trips can be up to ${MAX_AI_TRIP_DAYS} days.`);
     }
 
     // 4. Call Gemini
