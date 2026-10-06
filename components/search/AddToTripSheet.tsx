@@ -15,7 +15,7 @@ import { CheckCircle, MapPin, Plus, X } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import type { ThemeColors } from '@/constants/colors';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useTripList } from '@/hooks/useTripList';
+import { useOwnAndJoinedTrips } from '@/hooks/useTripList';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { placeToTripActivity } from '@/services/places/googlePlaces';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
@@ -43,7 +43,8 @@ export function AddToTripSheet({ visible, place, onClose, colors: colorsOverride
   const { colors: themeColors } = useTheme();
   const colors = colorsOverride ?? themeColors;
   const uid = useAuthStore((s) => s.user?.uid ?? null);
-  const { data: trips, isLoading } = useTripList(uid);
+  // Trips you joined too: members can edit the itinerary.
+  const { data: trips, isLoading } = useOwnAndJoinedTrips(uid);
   const { createTrip, addDay, addActivity, getOrCreateLastDay } = useCreateTrip();
 
   const [adding, setAdding] = useState(false);
