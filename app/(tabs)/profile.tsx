@@ -28,7 +28,8 @@ import { galleryCellWidth } from '@/utils/layout';
 import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
-import { useTripList } from '@/hooks/useTripList';
+import { useOwnAndJoinedTrips } from '@/hooks/useTripList';
+import { isJoinedTrip, joinedTripOwners } from '@/utils/joinedTrips';
 import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { db } from '@/services/firebase';
@@ -112,7 +113,10 @@ function ProfileScreenContent() {
   const fullName = profile?.fullName ?? user?.displayName ?? 'Explorer';
   const username = profile?.username ?? '';
 
-  const { data: allTrips = [], isLoading: tripsLoading, refetch: refetchTrips } = useTripList(uid);
+  // Your trips plus the ones you joined (accepted invites) — a joined trip
+  // used to appear nowhere but its invite notification.
+  const { data: allTrips = [], isLoading: tripsLoading, refetch: refetchTrips } = useOwnAndJoinedTrips(uid);
+  const { data: joinedOwners = {} } = useAuthorProfiles(uid ? joinedTripOwners(allTrips, uid) : []);
 
   // TanStack's staleTime keeps this list from refetching on every tab
   // switch — right, most of the time. But the cover/author backfill below
@@ -128,8 +132,8 @@ function ProfileScreenContent() {
 
   // Backfill missing cover photos AND missing destination bounds across every
   // one of your trips (Upcoming/Current/Past alike), not just the one you
-  // happen to open — every trip here is already yours (useTripList filters
-  // by authorUid), so isOwner is always true. The loop guard below only
+  // happen to open. Trips you joined are someone else's and are skipped —
+  // this must never write to another person's trip. The loop guard below only
   // skips a trip once BOTH are already resolved: a trip with a cover but no
   // bounds (or vice versa) must still reach resolveCover, which backfills
   // each independently. Sequential, not parallel: courteous to the Places
@@ -142,6 +146,7 @@ function ProfileScreenContent() {
     (async () => {
       for (const trip of allTrips) {
         if (cancelled) return;
+        if (!uid || isJoinedTrip(trip, uid)) continue;
         if (trip.coverImageUrl !== null && trip.destination.bounds !== null) continue;
         await resolveCover(trip, true);
       }
@@ -149,7 +154,7 @@ function ProfileScreenContent() {
     return () => {
       cancelled = true;
     };
-  }, [allTrips, resolveCover]);
+  }, [allTrips, resolveCover, uid]);
   const filteredTrips = allTrips.filter(
     (t) => displayStatus({ status: t.status, startDate: toDateOrNull(t.startDate), endDate: toDateOrNull(t.endDate) }, new Date()) === TRIP_STATUS_MAP[tripFilter],
   );
@@ -253,7 +258,8 @@ function ProfileScreenContent() {
             {([
               { label: 'Followers', value: profile?.followersCount ?? 0, tab: 'followers' },
               { label: 'Following', value: profile?.followingCount ?? 0, tab: 'following' },
-              { label: 'Trips', value: allTrips.length, tab: null },
+              // Trips you created — the same count others see on your profile.
+              { label: 'Trips', value: uid ? allTrips.filter((t) => !isJoinedTrip(t, uid)).length : allTrips.length, tab: null },
             ] as const).map(({ label, value, tab }, i) => (
               <TouchableOpacity
                 key={label}
@@ -391,10 +397,12 @@ function ProfileScreenContent() {
             <TripCard
               trip={item}
               onPress={() => router.push(`/trip/${item.id}`)}
-              // Every trip in this list is yours — useTripList filters by
-              // authorUid — so the author is always the profile owner, no
-              // batch lookup needed.
-              author={{ name: fullName, avatarUrl: profile?.avatarUrl ?? null }}
+              // Yours, or a trip you joined — then its owner, so it's clear whose it is.
+              author={
+                uid && isJoinedTrip(item, uid)
+                  ? (joinedOwners[item.authorUid] ?? undefined)
+                  : { name: fullName, avatarUrl: profile?.avatarUrl ?? null }
+              }
             />
             </View>
           )}

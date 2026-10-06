@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { Trip, Destination } from '@/types';
 import { mergeNewestFirst } from '@/utils/tripMerge';
+import { ownAndJoinedTrips } from '@/utils/joinedTrips';
 
 // Destinations predate the bounding-box feature — default rather than leaving
 // `undefined`, which Destination's type (PlaceViewportBounds | null, not
@@ -102,6 +103,35 @@ export function useTripList(uid: string | null) {
   return useQuery({
     queryKey: ['trips', uid],
     queryFn: () => fetchUserTrips(uid!),
+    enabled: !!uid,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/**
+ * Trips you're on but didn't create (accepted invites). No orderBy: an
+ * array-contains + orderBy pair would need a composite index, and the merge
+ * below sorts anyway. The trips rules allow it — `uid in collaborators`.
+ */
+async function fetchJoinedTrips(uid: string): Promise<Trip[]> {
+  const q = query(collection(db, 'trips'), where('collaborators', 'array-contains', uid), limit(50));
+  const snap = await getDocs(q);
+  return snap.docs.map((doc) => normalizeTrip(doc.id, doc.data()));
+}
+
+/**
+ * Your own Trips tab and "Add to a trip": trips you created plus trips you
+ * joined. useTripList stays author-only for places that must only offer your
+ * own trips (posting a trip to the feed). Key starts with 'trips' so every
+ * existing ['trips'] invalidation refreshes it too.
+ */
+export function useOwnAndJoinedTrips(uid: string | null) {
+  return useQuery({
+    queryKey: ['trips', uid, 'withJoined'],
+    queryFn: async () => {
+      const [own, joined] = await Promise.all([fetchUserTrips(uid!), fetchJoinedTrips(uid!)]);
+      return ownAndJoinedTrips(own, joined);
+    },
     enabled: !!uid,
     staleTime: 2 * 60 * 1000,
   });
