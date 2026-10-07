@@ -6,11 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
-import { X, UserCircle, LockSimple, Sparkle } from 'phosphor-react-native';
+import { X, UserCircle, LockSimple, Sparkle, Ticket } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { CancelReasonSheet } from '@/components/settings/CancelReasonSheet';
@@ -21,8 +22,9 @@ import { Button } from '@/components/ui/Button';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { auth } from '@/services/firebase';
 import { signOutGoogle } from '@/services/oauth';
-import { logOutRevenueCat } from '@/services/revenuecat';
+import { logOutRevenueCat, presentOfferCodeSheet } from '@/services/revenuecat';
 import { presentCustomerCenter } from '@/services/revenuecatUI';
+import Constants from 'expo-constants';
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -113,6 +115,11 @@ export default function SettingsScreen() {
     [tier],
   );
 
+  const handleRedeemCode = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    presentOfferCodeSheet();
+  }, []);
+
   const handleSubscriptionPress = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (tier === 'free') {
@@ -193,8 +200,12 @@ export default function SettingsScreen() {
             icon={Sparkle}
             value={capitalizedTier}
             onPress={handleSubscriptionPress}
-            showDivider={tier !== 'free'}
+            showDivider={tier !== 'free' || Platform.OS === 'ios'}
           />
+          {/* Apple offer codes (e.g. a friend's code) — the only allowed way to redeem one. */}
+          {Platform.OS === 'ios' && tier === 'free' ? (
+            <SettingsRow label="Redeem a code" icon={Ticket} onPress={handleRedeemCode} />
+          ) : null}
           {tier !== 'free' ? (
             <SettingsRow label="Cancel Supernova Pro" onPress={handleCancelPress} />
           ) : null}
@@ -205,7 +216,7 @@ export default function SettingsScreen() {
         <View style={sectionStyle}>
           <SettingsRow label="Privacy policy" onPress={handleOpenPrivacyPolicy} showDivider />
           <SettingsRow label="Terms of use" onPress={handleOpenTerms} showDivider />
-          <SettingsRow label="Version" value="1.0.0" />
+          <SettingsRow label="Version" value={Constants.expoConfig?.version ?? ''} />
         </View>
 
         {/* Sign out */}

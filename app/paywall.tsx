@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { X, Sparkle, WifiSlash } from 'phosphor-react-native';
@@ -13,7 +13,8 @@ import { PlanOption } from '@/components/paywall/PlanOption';
 import { LegalLinks } from '@/components/legal/LegalLinks';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { defaultSelectedPlanId } from '@/utils/offerings';
+import { defaultSelectedPlanId, trialTerms } from '@/utils/offerings';
+import { presentOfferCodeSheet } from '@/services/revenuecat';
 
 /** House spring — every state change on this screen uses it. */
 const SPRING = { tension: 65, friction: 11, useNativeDriver: true };
@@ -120,8 +121,19 @@ export default function PaywallScreen() {
   const ctaLabel = selectedPlan
     ? selectedPlan.isLifetime
       ? 'Unlock lifetime access'
-      : `Start ${selectedPlan.title.toLowerCase()} plan`
+      : selectedPlan.freeTrial
+        ? `Try free for ${selectedPlan.freeTrial}`
+        : `Start ${selectedPlan.title.toLowerCase()} plan`
     : 'Choose a plan';
+  // App Store 3.1.2: a trial's length, the price after it, and how to cancel, next to the button.
+  const terms = selectedPlan ? trialTerms(selectedPlan) : null;
+
+  const handleRedeem = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setNotice(null);
+    const shown = await presentOfferCodeSheet();
+    if (shown) setNotice('Once your code is accepted, Pro unlocks here automatically.');
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
@@ -212,6 +224,11 @@ export default function PaywallScreen() {
           {/* The single primary action on this screen. */}
           {plans.length > 0 && (
             <View style={styles.ctaContainer}>
+              {!!terms && (
+                <Text style={[styles.trialTerms, { color: colors.text.secondary }]} accessibilityLiveRegion="polite">
+                  {terms}
+                </Text>
+              )}
               <Button
                 label={ctaLabel}
                 variant="primary"
@@ -234,6 +251,9 @@ export default function PaywallScreen() {
               onPress={handleRestore}
               loading={isRestoring}
             />
+            {Platform.OS === 'ios' && (
+              <Button label="Redeem a code" variant="ghost" size="md" onPress={handleRedeem} />
+            )}
           </View>
 
           <Text style={[styles.finePrint, { color: colors.text.tertiary }]}>
@@ -335,6 +355,11 @@ const styles = StyleSheet.create({
   },
   ctaContainer: {
     marginTop: Spacing['1'],
+  },
+  trialTerms: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: Spacing['3'],
   },
   restoreContainer: {
     alignItems: 'center',

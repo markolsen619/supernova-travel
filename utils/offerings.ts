@@ -27,6 +27,49 @@ export interface PlanView {
   savingsPercent: number | null;
   /** The package to hand to Purchases.purchasePackage(). */
   pkg: PurchasesPackage;
+  /**
+   * "1 week" when this plan has a free introductory trial AND this person is
+   * eligible (Apple: never subscribed in this group). Null otherwise — the
+   * paywall must not promise a trial the store won't give.
+   */
+  freeTrial: string | null;
+}
+
+interface IntroPriceLike {
+  price: number;
+  periodUnit: string;
+  periodNumberOfUnits: number;
+}
+
+const UNIT_NAMES: Record<string, [string, string]> = {
+  DAY: ['day', 'days'],
+  WEEK: ['week', 'weeks'],
+  MONTH: ['month', 'months'],
+  YEAR: ['year', 'years'],
+};
+
+/** "1 week" for a free introductory period; null for none, or a paid discount. */
+export function freeTrialLength(intro: IntroPriceLike | null | undefined): string | null {
+  if (!intro || intro.price !== 0) return null;
+  const names = UNIT_NAMES[intro.periodUnit];
+  if (!names || intro.periodNumberOfUnits < 1) return null;
+  const n = intro.periodNumberOfUnits;
+  return `${n} ${n === 1 ? names[0] : names[1]}`;
+}
+
+const RENEWAL_UNIT: Record<string, string> = {
+  ANNUAL: 'year', MONTHLY: 'month', WEEKLY: 'week', SIX_MONTH: '6 months', THREE_MONTH: '3 months', TWO_MONTH: '2 months',
+};
+
+/**
+ * The trial terms Apple requires wherever a trial is offered (3.1.2): how
+ * long it's free, what it costs after, and that it can be cancelled.
+ */
+export function trialTerms(plan: PlanView): string | null {
+  if (!plan.freeTrial) return null;
+  const unit = RENEWAL_UNIT[plan.pkg.packageType];
+  const then = unit ? `${plan.priceString}/${unit}` : plan.priceString;
+  return `${plan.freeTrial} free, then ${then}. Cancel anytime.`;
 }
 
 function titleFor(packageType: string, fallback: string): string {
@@ -82,7 +125,11 @@ export function annualSavingsPercent(
  * ordering, labelling and savings maths are unit-testable without a renderer
  * or the native module (this project has no component-testing library).
  */
-export function buildPlanViews(packages: PurchasesPackage[]): PlanView[] {
+export function buildPlanViews(
+  packages: PurchasesPackage[],
+  /** Package id → eligible for its introductory offer (StoreKit's answer). Missing = not eligible. */
+  trialEligible: Record<string, boolean> = {},
+): PlanView[] {
   const monthly = packages.find((p) => p.packageType === 'MONTHLY');
   const annual = packages.find((p) => p.packageType === 'ANNUAL');
   const savings = annualSavingsPercent(monthly, annual);
@@ -100,6 +147,9 @@ export function buildPlanViews(packages: PurchasesPackage[]): PlanView[] {
       isLifetime,
       savingsPercent: pkg.packageType === 'ANNUAL' ? savings : null,
       pkg,
+      freeTrial: !isLifetime && trialEligible[pkg.identifier]
+        ? freeTrialLength((pkg.product as { introPrice?: IntroPriceLike | null }).introPrice)
+        : null,
     };
   });
 }

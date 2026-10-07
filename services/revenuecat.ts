@@ -245,3 +245,22 @@ export function __resetRevenueCatForTests(): void {
   currentAppUserId = null;
   configurePromise = null;
 }
+
+/**
+ * Apple's own offer-code sheet (e.g. SUPERNOVAFRIENDS). Codes must go through
+ * Apple — a home-made code field unlocking Pro breaks App Store 3.1.1. The
+ * sheet returns before redemption finishes; the customer-info listener
+ * (useRevenueCatSync) picks up the new entitlement. iOS only.
+ */
+export async function presentOfferCodeSheet(): Promise<boolean> {
+  if (Platform.OS !== 'ios') return false;
+  try {
+    if (!(await whenConfigured())) return false;
+    const mod = await import('react-native-purchases');
+    await mod.default.presentCodeRedemptionSheet();
+    return true;
+  } catch (err) {
+    console.warn('[revenuecat] offer code sheet failed', err);
+    return false;
+  }
+}

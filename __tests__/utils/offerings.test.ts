@@ -123,3 +123,41 @@ describe('defaultSelectedPlanId', () => {
     expect(defaultSelectedPlanId([])).toBeNull();
   });
 });
+
+describe('free trial', () => {
+  const { freeTrialLength, trialTerms } = require('@/utils/offerings');
+  const withIntro = (packageType: string, price: number, intro: Record<string, unknown> | null) => {
+    const p = pkg(packageType, price) as unknown as { product: Record<string, unknown> };
+    p.product.introPrice = intro;
+    return p as unknown as PurchasesPackage;
+  };
+  const week = { price: 0, priceString: '$0.00', cycles: 1, period: 'P1W', periodUnit: 'WEEK', periodNumberOfUnits: 1 };
+
+  it('names a free introductory period, and nothing else', () => {
+    expect(freeTrialLength(week)).toBe('1 week');
+    expect(freeTrialLength({ ...week, periodUnit: 'DAY', periodNumberOfUnits: 3 })).toBe('3 days');
+    expect(freeTrialLength({ ...week, periodUnit: 'MONTH', periodNumberOfUnits: 1 })).toBe('1 month');
+    expect(freeTrialLength({ ...week, price: 0.99 })).toBeNull(); // a discount, not a free trial
+    expect(freeTrialLength(null)).toBeNull();
+  });
+
+  it('offers the trial only to eligible people, never on lifetime', () => {
+    const plans = buildPlanViews(
+      [withIntro('ANNUAL', 39.99, week), withIntro('MONTHLY', 4.99, week), withIntro('LIFETIME', 99, null)],
+      { $rc_annual: true, $rc_monthly: false },
+    );
+    expect(plans.map((p: { freeTrial: string | null }) => p.freeTrial)).toEqual(['1 week', null, null]);
+  });
+
+  it('without eligibility information, no trial is promised', () => {
+    expect(buildPlanViews([withIntro('ANNUAL', 39.99, week)])[0].freeTrial).toBeNull();
+  });
+
+  it('spells out the terms Apple requires', () => {
+    const [annual] = buildPlanViews([withIntro('ANNUAL', 39.99, week)], { $rc_annual: true });
+    expect(trialTerms(annual)).toBe('1 week free, then $39.99/year. Cancel anytime.');
+    const [monthly] = buildPlanViews([withIntro('MONTHLY', 4.99, week)], { $rc_monthly: true });
+    expect(trialTerms(monthly)).toBe('1 week free, then $4.99/month. Cancel anytime.');
+    expect(trialTerms(buildPlanViews([withIntro('ANNUAL', 39.99, week)])[0])).toBeNull();
+  });
+});
