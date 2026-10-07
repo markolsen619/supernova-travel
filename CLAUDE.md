@@ -206,6 +206,11 @@ The tier (`free | pro | business`) is fetched from Firestore `users/{uid}.tier` 
 
 Free tier: 1 AI-generated trip per week (enforced server-side via `usage_quotas`).
 
+**Trials, offer codes, gifts (2026-10-06):**
+- **1-week free trial** — an Apple introductory offer on Monthly and Yearly (App Store Connect, no end date). Apple decides eligibility; the app asks `checkTrialOrIntroductoryPriceEligibility` in `useOfferings`, and `PlanView.freeTrial` is non-null only when eligible. Apple 3.1.2 requires the terms next to the button: `trialTerms()` ("1 week free, then $79.99/year. Cancel anytime.", CTA "Try free for 1 week"). The RevenueCat-hosted limit paywall has the same wording via an "Introductory offer" rule (edited in RevenueCat's builder; hosted paywalls update without an app release)
+- **Offer codes** — never a home-made code field (App Store 3.1.1). "Redeem a code" on the paywall and in Settings opens Apple's sheet (`presentOfferCodeSheet`). Live: **SUPERNOVAFRIENDS** on Yearly — free for 1 year, **does not auto-renew**, new/existing/expired subscribers, 500 uses (Apple's minimum for a custom code), expires 2026-12-31. Link: `https://apps.apple.com/redeem?ctx=offercodes&id=6810490710&code=SUPERNOVAFRIENDS`
+- **Gifting Pro** — `node scripts/gift-pro.mjs <username|uid:UID> [--days N | --lifetime] [--dry-run]` grants a RevenueCat promotional entitlement and sets `users/{uid}.tier` the way `reconcileTier` does. When it lapses, the client's tier mismatch triggers `reconcileTier`. Usernames can collide with leftover profiles that have no login — the script refuses unless exactly one account can sign in. Never gift the App Review demo account (the review notes say it is free)
+
 ### TypeScript Types (`types/`)
 
 `types/index.ts` — all core domain types:

@@ -8,7 +8,7 @@
 
 ## What's New
 
-Share any trip: send it to a friend in Supernova, or share a link that opens it. Supernova Pro adds email import — forward your confirmation emails to your own address and they land in your wallet, matched to the right trip and shown on its days. AI itineraries can now cover up to three weeks. Plus a fix for AI trips that showed an error even though they'd been made.
+Share any trip: send it to a friend in Supernova, or share a link that opens it. Try Supernova Pro free for a week, and redeem offer codes in the app. Pro adds email import — forward your confirmation emails to your own address and they land in your wallet, matched to the right trip and shown on its days. AI itineraries can now cover up to three weeks. Plus a fix for AI trips that showed an error even though they'd been made.
 
 ## Promotional text (unchanged)
 
@@ -69,13 +69,13 @@ FREE VS PRO
 Free accounts can plan and share trips, use the maps, browse destinations, post, search and message. They get one AI itinerary a month (one city) and up to two wallet items entered by hand. Pro adds unlimited and multi-city AI itineraries, inviting friends to plan a trip together (shared budget and packing list), an unlimited wallet with AI import from booking confirmations, and live flight alerts. The demo account is on the free plan and already holds five wallet items from before the two-item limit existed; they remain viewable and editable, and adding another opens the paywall. Purchasing Pro in the sandbox unlocks everything immediately.
 
 NEW IN 1.0.3
-Share: the share icon on any trip sends it to a mutual follower in Messages, or shares a web link that opens the app or a preview. Email import (Pro): Wallet > Email import creates a personal address; forwarded booking emails become wallet items, linked to matching trips. Buy Pro in the sandbox to try it.
+Share: the share icon on a trip sends it in Messages or as a web link. Email import (Pro): Wallet > Email import creates a personal address; forwarded booking emails become wallet items, linked to matching trips. Buy Pro in the sandbox to try it.
 
 SIGN-IN OPTIONS
 Email/password, Google and Sign in with Apple. Please use the demo account.
 
 IN-APP PURCHASES
-Supernova Pro is a monthly subscription, a yearly subscription, or a one-time lifetime (non-consumable) purchase, all granting the same entitlement. To reach the paywall: Settings > Subscription, or on a free account add a third wallet item or generate a second AI trip in a month. "Restore purchases" is on both paywalls and in Settings > Subscription.
+Supernova Pro is a monthly or yearly subscription (each with a 1-week free trial for new subscribers) or a one-time lifetime purchase, all granting the same entitlement. Offer codes redeem via "Redeem a code" on the paywall or in Settings. To reach the paywall: Settings > Subscription, or on a free account add a third wallet item or generate a second AI trip in a month. "Restore purchases" is on both paywalls and in Settings > Subscription.
 
 USER-GENERATED CONTENT (1.2)
 Posts, comments, trips, profiles and DMs are user-generated. Each has a three-dot menu with Report and Block; authors can delete their own posts, and any comment on their own posts. Reported content is hidden from the reporter immediately, and content reported by three distinct users is hidden from everyone pending review. A text filter rejects slurs and sexual content before anything is saved. Our terms (community guidelines, zero tolerance) are at https://supernova-a2125.web.app/terms, linked from the welcome screen, the paywall and Settings.
@@ -90,7 +90,7 @@ AGE RATING
 13+. Under-13 sign-ups are blocked by a date of birth check; the date is not stored.
 
 LOCATION
-Never requested; destinations come from a place search.
+Never requested.
 
 SUPPORT
 support@galaxielabs.space — https://supernova-a2125.web.app/support
@@ -99,10 +99,10 @@ EXTERNAL SERVICES
 Firebase: auth, data, functions. Google Gemini: itineraries, server-side, consent required. Google Places: place search, details, photos. Mapbox: maps. Algolia: search. RevenueCat: subscription state over Apple IAP (Apple processes payments). AviationStack: flight status. Expo: push. Cloudflare: receives mail sent to email import addresses. Sign in with Apple, Google Sign-In: optional auth. All in the privacy policy. No ads or analytics.
 
 REGIONAL DIFFERENCES
-None. Same features in every region, English only.
+None; English only.
 
 REGULATED INDUSTRY / THIRD-PARTY MATERIAL
-Not regulated: a planning tool, not a travel agency; no bookings or payments to third parties.
+Not regulated: a planning tool, not a travel agency.
 ```
 
 
