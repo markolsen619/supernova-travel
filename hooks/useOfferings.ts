@@ -12,6 +12,26 @@ async function fetchCurrentOffering(): Promise<PurchasesOffering | null> {
 }
 
 /**
+ * Which packages this person may start a free trial on — StoreKit decides
+ * (never subscribed in the group). On any failure, no trial is promised.
+ */
+async function trialEligibility(packages: PurchasesOffering['availablePackages']): Promise<Record<string, boolean>> {
+  try {
+    const mod = await import('react-native-purchases');
+    const ids = packages.map((p) => p.product.identifier);
+    const byProduct = await mod.default.checkTrialOrIntroductoryPriceEligibility(ids);
+    const out: Record<string, boolean> = {};
+    for (const p of packages) {
+      out[p.identifier] = byProduct[p.product.identifier]?.status === mod.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+    }
+    return out;
+  } catch (err) {
+    console.warn('[paywall] trial eligibility unavailable', err);
+    return {};
+  }
+}
+
+/**
  * The plans to show on the paywall, straight from the store.
  *
  * Prices are never hardcoded — they arrive localised and tax-correct from
@@ -30,7 +50,7 @@ export function useOfferings() {
       if (!ready) return [];
       const offering = await fetchCurrentOffering();
       if (!offering) return [];
-      return buildPlanViews(offering.availablePackages);
+      return buildPlanViews(offering.availablePackages, await trialEligibility(offering.availablePackages));
     },
     // Store metadata is stable; refetching it on every focus is wasted work.
     staleTime: 5 * 60 * 1000,
