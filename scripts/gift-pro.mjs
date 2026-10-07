@@ -4,6 +4,8 @@
  *
  *   node scripts/gift-pro.mjs kellbell424              # 365 days
  *   node scripts/gift-pro.mjs kellbell424 --days 30
+ *   node scripts/gift-pro.mjs kellbell424 --lifetime
+ *   node scripts/gift-pro.mjs uid:Dsmjg2lLz…           # exact account (usernames can collide with leftover profiles)
  *   node scripts/gift-pro.mjs kellbell424 --dry-run    # look up only
  *
  * Grants a RevenueCat *promotional* entitlement (the allowed way to comp an
@@ -29,10 +31,11 @@ const { PRO_ENTITLEMENT_ID, tierFromSubscriber } = require(join(root, 'functions
 const args = process.argv.slice(2);
 const username = args.find((a) => !a.startsWith('--'));
 const dryRun = args.includes('--dry-run');
+const lifetime = args.includes('--lifetime');
 const daysArg = args.indexOf('--days');
 const days = daysArg >= 0 ? Number(args[daysArg + 1]) : 365;
 if (!username || !Number.isInteger(days) || days < 1 || days > 3650) {
-  console.error('Usage: node scripts/gift-pro.mjs <username> [--days N] [--dry-run]');
+  console.error('Usage: node scripts/gift-pro.mjs <username|uid:UID> [--days N | --lifetime] [--dry-run]');
   process.exit(1);
 }
 
@@ -49,11 +52,23 @@ admin.initializeApp({
 });
 const db = admin.firestore();
 
-const found = await db.collection('users').where('username', '==', username.toLowerCase()).limit(1).get();
-if (found.empty) throw new Error(`No user with username "${username}"`);
-const userRef = found.docs[0].ref;
+// A username can belong to a leftover profile with no login behind it; prefer one that can sign in.
+async function resolve(who) {
+  if (who.startsWith('uid:')) {
+    const snap = await db.doc(`users/${who.slice(4)}`).get();
+    if (!snap.exists) throw new Error(`No profile ${who}`);
+    return snap;
+  }
+  const matches = (await db.collection('users').where('username', '==', who.toLowerCase()).get()).docs;
+  const live = [];
+  for (const m of matches) if (await admin.auth().getUser(m.id).catch(() => null)) live.push(m);
+  if (live.length !== 1) throw new Error(`"${who}" matches ${live.length} accounts that can sign in — use uid:…`);
+  return live[0];
+}
+const doc = await resolve(username);
+const userRef = doc.ref;
 const uid = userRef.id;
-const user = found.docs[0].data();
+const user = doc.data();
 console.log(`${user.fullName ?? user.displayName ?? '(no name)'} @${user.username} — tier now: ${user.tier ?? 'free'}`);
 
 const rc = (path, init = {}) => fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(uid)}${path}`, {
@@ -70,12 +85,16 @@ const existing = before?.entitlements?.[PRO_ENTITLEMENT_ID];
 if (existing) console.log(`Already has Pro until ${existing.expires_date ?? 'forever'} (${existing.product_identifier}).`);
 
 const endMs = Date.now() + days * 24 * 60 * 60 * 1000;
+const until = lifetime ? 'forever' : new Date(endMs).toDateString();
 if (dryRun) {
-  console.log(`Dry run: would gift Pro until ${new Date(endMs).toDateString()}.`);
+  console.log(`Dry run: would gift Pro until ${until}.`);
   process.exit(0);
 }
 
-await rc(`/entitlements/${PRO_ENTITLEMENT_ID}/promotional`, { method: 'POST', body: JSON.stringify({ end_time_ms: endMs }) });
+await rc(`/entitlements/${PRO_ENTITLEMENT_ID}/promotional`, {
+  method: 'POST',
+  body: JSON.stringify(lifetime ? { duration: 'lifetime' } : { end_time_ms: endMs }),
+});
 const readAtMs = Date.now();
 const after = (await rc('')).subscriber;
 const tier = tierFromSubscriber(after, readAtMs);
@@ -85,4 +104,4 @@ await userRef.update({
   tierEventId: `gift:${readAtMs}`,
   tierUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
 });
-console.log(`Gifted Pro until ${new Date(endMs).toDateString()} — tier is now ${tier}.`);
+console.log(`Gifted Pro until ${until} — tier is now ${tier}.`);
