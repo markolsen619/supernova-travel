@@ -1,6 +1,6 @@
 # App Store text for 1.0.3
 
-> **Entered and SUBMITTED 2026-10-08** with build 23 (Waiting for Review, manual release). App Privacy needed no change: "Emails or Text Messages" was already declared (linked, App Functionality).
+> **Entered and SUBMITTED 2026-10-08** with build 23, then withdrawn and RESUBMITTED with build 24 (review fixes; Waiting for Review, manual release). App Privacy needed no change: "Emails or Text Messages" was already declared (linked, App Functionality).
 > Changes from 1.0.2: What's New; four description bullets (three-week AI trips;
 > bookings on trip days; email import; sharing); review notes swap
 > "NEW IN 1.0.2" for "NEW IN 1.0.3" (keeps them under 4,000 characters) and
