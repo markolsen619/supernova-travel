@@ -198,6 +198,7 @@ All functions use Firebase Functions v2.
 | `useLoyaltyPrograms` | `{ loyaltyPrograms, isLoading, addProgram, deleteProgram }` |
 | `usePurchases` | `{ purchasePro, restorePurchases, isLoading, error }` |
 | `useTripBookings(tripId)` / `useMyTrips(enabled?)` / `useBookingTripLink(kind, id)` / `useBookingMatch()` | Wallet ↔ trips: your bookings on a trip (owner-only), your own + collaborator trips as `TripSummary`, manual link/unlink/"Not for a trip" (`utils/walletLink.ts` `linkPatch`), and match-after-save |
+| (wallet) **By trip** segment | Pro (free → paywall). `utils/walletByTrip.ts` `walletByTrip(trips, passes, reservations, today)` groups by `tripId`: upcoming trips soonest first (in-progress counts; empty ones still show), bookings on no trip or a deleted/foreign trip under NOT ON A TRIP, past trips folded. Rendered by `components/wallet/WalletByTripList`. No server work — it reads the links `matchBooking` already wrote |
 | `useNotificationRouting` | Nothing — mounted once in `app/_layout.tsx`. Routes a tapped notification (warm or cold-start) once navigation and auth have settled |
 
 ### Tier / Monetisation

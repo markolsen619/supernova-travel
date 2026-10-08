@@ -1,0 +1,151 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { CaretDown, CaretRight, SuitcaseRolling } from 'phosphor-react-native';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { useTheme } from '@/hooks/useTheme';
+import { BoardingPassCard } from '@/components/wallet/BoardingPassCard';
+import { ReservationCard } from '@/components/wallet/ReservationCard';
+import { walletByTrip, type TripSection } from '@/utils/walletByTrip';
+import { tripDateEyebrow, type TripSummary } from '@/utils/walletLink';
+import { toCalendarDate } from '@/utils/calendarDate';
+import type { BoardingPass, Reservation } from '@/types';
+import type { TripBooking } from '@/utils/bookingDays';
+import { FontWeight } from '@/constants/typography';
+import { Spacing } from '@/constants/spacing';
+
+interface WalletByTripListProps {
+  trips: TripSummary[];
+  boardingPasses: BoardingPass[];
+  reservations: Reservation[];
+}
+
+/** The wallet grouped by trip (Pro): upcoming trips soonest first, then bookings on no trip, then past trips. */
+export function WalletByTripList({ trips, boardingPasses, reservations }: WalletByTripListProps) {
+  const { colors } = useTheme();
+  const [pastOpen, setPastOpen] = useState(false);
+  const grouped = useMemo(
+    () => walletByTrip(trips, boardingPasses, reservations, toCalendarDate(new Date())),
+    [trips, boardingPasses, reservations],
+  );
+
+  const openBooking = useCallback((b: TripBooking) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(b.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${b.item.id}` : `/(wallet)/reservation/${b.item.id}`);
+  }, []);
+  const openTrip = useCallback((tripId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/trip/${tripId}`);
+  }, []);
+  const togglePast = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPastOpen((o) => !o);
+  }, []);
+
+  const renderItems = (items: TripBooking[]) =>
+    items.map((b) =>
+      b.kind === 'boarding_pass' ? (
+        <BoardingPassCard key={b.item.id} pass={b.item} onPress={() => openBooking(b)} />
+      ) : (
+        <ReservationCard key={b.item.id} reservation={b.item} onPress={() => openBooking(b)} />
+      ),
+    );
+
+  const renderSection = (s: TripSection) => (
+    <View key={s.trip.tripId} style={styles.section}>
+      <TouchableOpacity
+        onPress={() => openTrip(s.trip.tripId)}
+        style={styles.header}
+        accessibilityRole="link"
+        accessibilityLabel={`${s.trip.title}, ${tripDateEyebrow(s.trip.start, s.trip.end)}. Open trip`}
+      >
+        <View style={styles.headerText}>
+          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{tripDateEyebrow(s.trip.start, s.trip.end)}</Text>
+          <Text style={[styles.tripTitle, { color: colors.text.primary }]} numberOfLines={2}>{s.trip.title}</Text>
+        </View>
+        <CaretRight size={16} color={colors.text.tertiary} weight="bold" />
+      </TouchableOpacity>
+      {s.items.length > 0 ? (
+        renderItems(s.items)
+      ) : (
+        <Text style={[styles.empty, { color: colors.text.tertiary }]}>
+          Nothing booked yet · Forward a confirmation or add one
+        </Text>
+      )}
+    </View>
+  );
+
+  const openNewTrip = useCallback(() => router.push('/trip/new'), []);
+
+  if (grouped.upcoming.length === 0 && grouped.past.length === 0 && grouped.unlinked.length === 0) {
+    return (
+      <EmptyState
+        icon={SuitcaseRolling}
+        title="Your trips, with their bookings"
+        description="Plan a trip and the flights, trains and stays you add for it gather here."
+        actionLabel="Plan a trip"
+        onAction={openNewTrip}
+        actionHaptic="light"
+      />
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {grouped.upcoming.map(renderSection)}
+
+      {grouped.unlinked.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>NOT ON A TRIP</Text>
+              <Text style={[styles.hint, { color: colors.text.tertiary }]}>Open one to add it to a trip.</Text>
+            </View>
+          </View>
+          {renderItems(grouped.unlinked)}
+        </View>
+      )}
+
+      {grouped.past.length > 0 && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            onPress={togglePast}
+            style={styles.header}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: pastOpen }}
+          >
+            <Text style={[styles.eyebrow, styles.headerText, { color: colors.text.tertiary }]}>
+              PAST TRIPS ({grouped.past.length})
+            </Text>
+            {pastOpen ? (
+              <CaretDown size={16} color={colors.text.tertiary} weight="bold" />
+            ) : (
+              <CaretRight size={16} color={colors.text.tertiary} weight="bold" />
+            )}
+          </TouchableOpacity>
+          {pastOpen && (
+            <Animated.View entering={FadeIn.springify().damping(11).stiffness(65)}>
+              {grouped.past.map(renderSection)}
+            </Animated.View>
+          )}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { paddingTop: Spacing['2'], paddingBottom: 100 },
+  section: { marginBottom: Spacing['6'] },
+  header: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing['3'],
+    paddingHorizontal: Spacing['5'], minHeight: 44, marginBottom: Spacing['2'],
+  },
+  headerText: { flex: 1, gap: 2 },
+  eyebrow: { fontSize: 11, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
+  tripTitle: { fontSize: 17, fontWeight: FontWeight.medium },
+  hint: { fontSize: 13 },
+  empty: { fontSize: 13, paddingHorizontal: Spacing['5'] },
+});
