@@ -39,3 +39,17 @@ export function receivedLabel(at: Date | null, now: Date): string {
   if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} h ago`;
   return at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+/** Gmail's forwarding confirm link, only if it is Google's own (the server checks too). */
+export function safeGmailLink(link: unknown): string | null {
+  if (typeof link !== 'string') return null;
+  try {
+    const u = new URL(link);
+    const ok = u.protocol === 'https:'
+      && (u.hostname === 'mail.google.com' || u.hostname === 'mail-settings.google.com')
+      && u.pathname.startsWith('/mail/vf-');
+    return ok ? link : null;
+  } catch {
+    return null;
+  }
+}

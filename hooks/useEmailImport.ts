@@ -5,9 +5,9 @@ import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { callCreateImportAddress, callRotateImportAddress } from '@/services/gemini';
 import { reconcileServerTier } from '@/services/tier';
-import { addressFor, gmailCodeFresh, type EmailImportEntry } from '@/utils/emailImport';
+import { addressFor, gmailCodeFresh, safeGmailLink, type EmailImportEntry } from '@/utils/emailImport';
 
-interface EmailImportState { address: string | null; gmailCode: string | null; entries: EmailImportEntry[] }
+interface EmailImportState { address: string | null; gmailCode: string | null; gmailLink: string | null; entries: EmailImportEntry[] }
 
 /** Your forwarding address, Gmail's pending code and the import log. The token lives in users/{uid}/private/emailImport (owner-only). */
 export function useEmailImport() {
@@ -27,8 +27,10 @@ export function useEmailImport() {
       ]);
       const p = priv.data();
       const codeAt: Date | null = p?.gmailForwardingCode?.at?.toDate?.() ?? null;
+      const fresh = !!p?.gmailForwardingCode && gmailCodeFresh(codeAt, new Date());
       return {
         address: addressFor(p?.token),
+        gmailLink: fresh ? safeGmailLink(p?.gmailForwardingCode?.link) : null,
         gmailCode: p?.gmailForwardingCode?.code && gmailCodeFresh(codeAt, new Date()) ? String(p.gmailForwardingCode.code) : null,
         entries: log.docs.map((d) => {
           const e = d.data();
@@ -72,6 +74,7 @@ export function useEmailImport() {
   return {
     address: data?.address ?? null,
     gmailCode: data?.gmailCode ?? null,
+    gmailLink: data?.gmailLink ?? null,
     entries: data?.entries ?? [],
     isLoading,
     create,

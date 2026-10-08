@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Animated, ScrollView, StyleSheet, Text, Touch
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
+import * as WebBrowser from 'expo-web-browser';
 import { CaretDown, CaretRight, Check, CopySimple, EnvelopeSimple } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useEmailImport } from '@/hooks/useEmailImport';
@@ -75,7 +76,7 @@ function LogRow({ entry }: { entry: EmailImportEntry }) {
 /** Email import: your forwarding address, Gmail's confirmation code, setup steps and what arrived (Pro). */
 export default function EmailImportScreen() {
   const { colors } = useTheme();
-  const { address, gmailCode, entries, isLoading, create, rotate, busy, error } = useEmailImport();
+  const { address, gmailCode, gmailLink, entries, isLoading, create, rotate, busy, error } = useEmailImport();
   const { requireConsent, consentSheet } = useAiConsentGate();
   const [stepsOpen, setStepsOpen] = useState(false);
   const stepsAnim = useRef(new Animated.Value(0)).current;
@@ -150,14 +151,38 @@ export default function EmailImportScreen() {
             </View>
           </View>
 
-          {!!gmailCode && (
+          {/* Gmail confirms forwarding by a link now (its settings page has no code box). */}
+          {!!gmailLink && (
+            <View style={[styles.card, card]}>
+              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>GMAIL FORWARDING</Text>
+              <Text style={[styles.body, styles.gmailBody, { color: colors.text.primary }]}>
+                Gmail is asking you to confirm forwarding to this address.
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  WebBrowser.openBrowserAsync(gmailLink);
+                }}
+                style={[styles.secondary, { borderColor: colors.text.primary }]}
+                accessibilityRole="link"
+              >
+                <Text style={[styles.secondaryText, { color: colors.text.primary }]}>Confirm in Gmail</Text>
+              </TouchableOpacity>
+              <Text style={[styles.caption, { color: colors.text.tertiary }]}>
+                {"Sign in to the Gmail account you’re forwarding from if asked."}
+              </Text>
+            </View>
+          )}
+          {!gmailLink && !!gmailCode && (
             <View style={[styles.card, card]}>
               <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>GMAIL CONFIRMATION CODE</Text>
               <View style={styles.addressRow}>
                 <Text selectable style={[styles.code, { color: colors.text.primary }]}>{gmailCode}</Text>
                 <CopyButton value={gmailCode} label="Copy code" />
               </View>
-              <Text style={[styles.caption, { color: colors.text.tertiary }]}>Enter it in Gmail to finish setting up forwarding.</Text>
+              <Text style={[styles.caption, { color: colors.text.tertiary }]}>
+                No link came with it — in Gmail, tap Resend email next to your address.
+              </Text>
             </View>
           )}
 
@@ -171,8 +196,8 @@ export default function EmailImportScreen() {
               {[
                 'In Gmail on the web, open Settings → See all settings → Forwarding and POP/IMAP.',
                 'Add a forwarding address and paste your address above.',
-                'Gmail sends a confirmation code here. It appears on this screen; enter it in Gmail.',
-                'Open Filters → Create a new filter, and paste this into “Has the words”:',
+                'Gmail sends a confirmation here. Tap Confirm in Gmail when it appears on this screen.',
+                'Keep “Disable forwarding” selected, so not every email is sent. Then open Filters → Create a new filter, and paste this into “Has the words”:',
               ].map((step, i) => (
                 <Text key={step} style={[styles.step, { color: colors.text.secondary }]}>{i + 1}. {step}</Text>
               ))}
@@ -246,6 +271,9 @@ const styles = StyleSheet.create({
   logTime: { fontSize: 12 },
   logItem: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingLeft: Spacing['4'] },
   logItemText: { flex: 1, fontSize: 15 },
+  gmailBody: { marginTop: Spacing['2'] },
+  secondary: { marginTop: Spacing['3'], minHeight: 48, borderRadius: BorderRadius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  secondaryText: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold },
   rotate: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: Spacing['8'] },
   rotateText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
 });
