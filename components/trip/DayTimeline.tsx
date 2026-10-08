@@ -40,7 +40,7 @@ interface DayTimelineProps {
   /** The trip's next not-yet-visited stop, in day/order sequence — "you are here". */
   currentActivityId?: string | null;
   editable?: boolean;
-  /** Your wallet bookings on this day (utils/bookingDays bookingsByDay) — only ever the viewer's own. */
+  /** Wallet bookings on this day (utils/bookingDays bookingsByDay): yours plus what other members share with the trip. */
   dayBookings?: DayBooking[];
   onBookingPress?: (booking: TripBooking) => void;
 }
@@ -218,7 +218,7 @@ export function DayTimeline({
       {bookedRows.length > 0 && (
         <View style={styles.bookedBlock}>
           {bookedRows.map((entry) => (
-            <BookedRow key={`${entry.booking.item.id}-${entry.role}`} entry={entry} onPress={onBookingPress} />
+            <BookedRow key={`${entry.booking.kind}_${entry.booking.item.id}-${entry.role}`} entry={entry} onPress={onBookingPress} />
           ))}
         </View>
       )}

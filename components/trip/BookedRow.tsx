@@ -5,6 +5,7 @@ import { Bed } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { ACTIVITY_ICONS, RESERVATION_ICONS } from '@/constants/icons';
+import { firstName } from '@/utils/sharedBookings';
 import { bookingLines, reservationKind, type DayBooking, type TripBooking } from '@/utils/bookingDays';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -14,7 +15,7 @@ interface BookedRowProps {
   onPress?: (booking: TripBooking) => void;
 }
 
-/** One of your wallet bookings on a trip day. "Staying" nights are a slim line. */
+/** A wallet booking on a trip day — yours, or a member's (eyebrow names them). "Staying" nights are a slim line. */
 export function BookedRow({ entry, onPress }: BookedRowProps) {
   const { colors } = useTheme();
   const { title, detail } = bookingLines(entry);
@@ -44,7 +45,9 @@ export function BookedRow({ entry, onPress }: BookedRowProps) {
     >
       <TypeIconBubble Icon={Icon} color={color} bubbleSize={36} iconSize={18} />
       <View style={styles.text}>
-        <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>BOOKED</Text>
+        <Text style={[styles.eyebrow, { color: colors.text.tertiary }]} numberOfLines={1}>
+          {entry.booking.sharedBy ? `BOOKED · ${firstName(entry.booking.sharedBy.name).toUpperCase()}` : 'BOOKED'}
+        </Text>
         <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={1}>{title}</Text>
         {!!detail && <Text style={[styles.detail, { color: colors.text.tertiary }]} numberOfLines={1}>{detail}</Text>}
       </View>

@@ -43,3 +43,14 @@ describe('bookingDay', () => {
     expect(bookingDay({ kind: 'reservation', item: res('Z', undefined) })).toBeNull();
   });
 });
+
+describe("walletByTrip with members' shared bookings", () => {
+  it('files them under their trip by date, never under Not on a trip', () => {
+    const kells = { kind: 'reservation' as const, item: res('Sacher', '2026-11-20', 'europe'),
+      sharedBy: { uid: 'kell', name: 'Kell Bell', tripId: 'europe' } };
+    const w = walletByTrip(trips, [], [res('Falkenturm', '2026-11-28', 'europe')], today, [kells]);
+    const europe = w.upcoming.find((s) => s.trip.tripId === 'europe')!;
+    expect(europe.items.map((b) => b.item.id)).toEqual(['Sacher', 'Falkenturm']);
+    expect(w.unlinked).toEqual([]);
+  });
+});

@@ -37,6 +37,8 @@ export function walletByTrip(
   passes: BoardingPass[],
   reservations: Reservation[],
   today: string,
+  /** Other members' bookings shared with your trips (utils/sharedBookings.ts). */
+  shared: TripBooking[] = [],
 ): WalletByTrip {
   const all: TripBooking[] = [
     ...passes.map((item) => ({ kind: 'boarding_pass' as const, item })),
@@ -49,6 +51,10 @@ export function walletByTrip(
     const tripId = b.item.tripId;
     if (tripId && known.has(tripId)) (byTrip.get(tripId) ?? byTrip.set(tripId, []).get(tripId)!).push(b);
     else unlinked.push(b);
+  }
+  for (const b of shared) {
+    const tripId = b.sharedBy?.tripId;
+    if (tripId && known.has(tripId)) (byTrip.get(tripId) ?? byTrip.set(tripId, []).get(tripId)!).push(b);
   }
   const sections = trips.map((trip) => ({ trip, items: (byTrip.get(trip.tripId) ?? []).sort(byDay) }));
   const isPast = (t: TripSummary) => !!t.end && t.end < today;

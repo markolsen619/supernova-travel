@@ -10,9 +10,11 @@ export function reservationKind(r: { type: Reservation['type']; transitMode?: st
   return r.transitMode ? 'transit' : r.type;
 }
 
+/** A trip member's booking you see through the trip (utils/sharedBookings.ts) — read-only. */
+export interface SharedBy { uid: string; name: string; tripId: string }
 export type TripBooking =
-  | { kind: 'boarding_pass'; item: BoardingPass }
-  | { kind: 'reservation'; item: Reservation };
+  | { kind: 'boarding_pass'; item: BoardingPass; sharedBy?: SharedBy }
+  | { kind: 'reservation'; item: Reservation; sharedBy?: SharedBy };
 export type BookingRole = 'flight' | 'check_in' | 'staying' | 'check_out' | 'booked';
 export interface DayBooking { booking: TripBooking; role: BookingRole; time: string | null }
 

@@ -5,6 +5,7 @@ import {
   linkPatchFor, matchDecision, rematchable, toMatchableTrip, tripMatchInputsChanged,
   type MatchableBooking, type MatchableTrip,
 } from './bookingMatch';
+import { syncTripShares } from './sharedBookingFunctions';
 
 const db = admin.firestore();
 const COLLECTIONS = { boarding_pass: 'boarding_passes', reservation: 'reservations' } as const;
@@ -74,6 +75,7 @@ export const onTripWrittenRematch = onDocumentWritten('trips/{tripId}', async (e
       linked.docs.forEach((d) => batch.update(d.ref, { tripId: null, tripLink: null }));
       if (!linked.empty) await batch.commit();
     }
+    await syncTripShares(tripId, undefined);
     return;
   }
 
@@ -93,5 +95,9 @@ export const onTripWrittenRematch = onDocumentWritten('trips/{tripId}', async (e
       }
       if (writes) await batch.commit();
     }
+  }
+  // Who the trip's bookings are shared with follows who is on it.
+  if (JSON.stringify(before?.collaborators ?? []) !== JSON.stringify(after.collaborators ?? [])) {
+    await syncTripShares(tripId, after);
   }
 });

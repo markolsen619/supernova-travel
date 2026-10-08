@@ -539,6 +539,8 @@ export interface BoardingPass {
   tripSuggestions?: string[];
   /** "Not for a trip" / Undo — never matched automatically again. */
   tripLinkDismissed?: boolean;
+  /** false keeps it from the trip's other members; unset = shared (functions/src/sharedBookings.ts). */
+  sharedWithTrip?: boolean;
   placeCity?: string;
   /** ISO 3166-1 alpha-2. For a flight, the destination's. */
   placeCountryCode?: string;
@@ -587,6 +589,8 @@ export interface Reservation {
   tripSuggestions?: string[];
   /** "Not for a trip" / Undo — never matched automatically again. */
   tripLinkDismissed?: boolean;
+  /** false keeps it from the trip's other members; unset = shared (functions/src/sharedBookings.ts). */
+  sharedWithTrip?: boolean;
   placeCity?: string;
   /** ISO 3166-1 alpha-2. For a flight, the destination's. */
   placeCountryCode?: string;
