@@ -36,6 +36,16 @@ export function sharedTripId(data: Record<string, any> | undefined): string | nu
   return typeof data.tripId === 'string' && data.tripId ? data.tripId : null;
 }
 
+/**
+ * Where a write should leave this booking's copy. Nothing if its owner field
+ * changed: rules forbid that, and a copy must never show a booking under the
+ * name of someone who didn't make it.
+ */
+export function shareTarget(before: Record<string, any> | undefined, after: Record<string, any> | undefined): string | null {
+  if (before && after && before.ownerUid !== after.ownerUid) return null;
+  return sharedTripId(after);
+}
+
 export function sharedCopy(kind: BookingKind, id: string, data: Record<string, any>, ownerName: string): Record<string, unknown> {
   const copy: Record<string, unknown> = { kind, id, ownerUid: data.ownerUid, ownerName, tripId: data.tripId };
   for (const field of SHARED_FIELDS[kind]) {

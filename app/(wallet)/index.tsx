@@ -173,6 +173,9 @@ export default function WalletHubScreen() {
             <SkeletonCard key={i} height={120} radius={BorderRadius.xl} />
           ))}
         </View>
+      ) : segment === 'trips' ? (
+        // Before the empty wallet: your trips, and what others share with them, show even when you've booked nothing.
+        <WalletByTripList trips={myTrips} boardingPasses={boardingPasses} reservations={reservations} shared={sharedBookings} />
       ) : walletIsEmpty ? (
         <EmptyState
           icon={WalletIcon}
@@ -182,8 +185,6 @@ export default function WalletHubScreen() {
           onAction={handleAdd}
           actionHaptic="none"
         />
-      ) : segment === 'trips' ? (
-        <WalletByTripList trips={myTrips} boardingPasses={boardingPasses} reservations={reservations} shared={sharedBookings} />
       ) : currentSegmentIsEmpty ? (
         <EmptyState
           size="sm"
