@@ -22,6 +22,7 @@ export function tripDateEyebrow(start: string | null, end: string | null): strin
 
 const ISO2 = /^[A-Za-z]{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** The place and day fields a parsed confirmation adds to the saved item (spec: Data). */
 export function draftPlaceFields(draft: ParseTravelConfirmationResult): Record<string, string> {
@@ -34,6 +35,14 @@ export function draftPlaceFields(draft: ParseTravelConfirmationResult): Record<s
   if (draft.kind === 'boarding_pass') {
     if (f.originCountryCode && ISO2.test(f.originCountryCode)) out.originCountryCode = f.originCountryCode.toUpperCase();
     if (f.departureLocalDate && DAY.test(f.departureLocalDate)) out.localDate = f.departureLocalDate;
+  }
+  if (draft.kind === 'reservation' && (draft.reservationType === 'transit' || (draft.fields as Record<string, unknown>).transitMode)) {
+    if (f.originCity?.trim()) out.originCity = f.originCity.trim();
+    if (f.originCountryCode && ISO2.test(f.originCountryCode)) out.originCountryCode = f.originCountryCode.toUpperCase();
+    const mode = f.transitMode?.toLowerCase();
+    if (mode === 'train' || mode === 'bus' || mode === 'ferry') out.transitMode = mode;
+    for (const k of ['operator', 'fromPlace', 'toPlace', 'seat'] as const) if (f[k]?.trim()) out[k] = f[k]!.trim();
+    for (const k of ['departureLocalTime', 'arrivalLocalTime'] as const) if (f[k] && HHMM.test(f[k]!)) out[k] = f[k]!;
   }
   return out;
 }

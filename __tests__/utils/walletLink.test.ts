@@ -49,3 +49,21 @@ describe('review fixes', () => {
     expect(isBannerFresh(1000, 12_000)).toBe(false);
   });
 });
+
+describe('draftPlaceFields — transit', () => {
+  it('keeps a parsed train ticket\'s route, times and both cities', () => {
+    expect(draftPlaceFields({ kind: 'reservation', reservationType: 'transit', fields: {
+      title: 'ICE 918', city: 'Cologne', countryCode: 'de', originCity: 'Munich', originCountryCode: 'de',
+      transitMode: 'train', operator: 'Deutsche Bahn', fromPlace: 'München Hbf', toPlace: 'Köln Messe/Deutz',
+      departureLocalTime: '09:19', arrivalLocalTime: '13:29', seat: '55 (car 39)' } } as never))
+      .toEqual({ placeCity: 'Cologne', placeCountryCode: 'DE', originCity: 'Munich', originCountryCode: 'DE',
+        transitMode: 'train', operator: 'Deutsche Bahn', fromPlace: 'München Hbf', toPlace: 'Köln Messe/Deutz',
+        departureLocalTime: '09:19', arrivalLocalTime: '13:29', seat: '55 (car 39)' });
+  });
+});
+
+it('also reads a transit ticket the server handed over as an activity + transitMode', () => {
+  expect(draftPlaceFields({ kind: 'reservation', reservationType: 'activity', fields: {
+    title: 'ICE 918', transitMode: 'train', departureLocalTime: '09:19', originCity: 'Munich' } } as never))
+    .toEqual({ transitMode: 'train', departureLocalTime: '09:19', originCity: 'Munich' });
+});

@@ -18,6 +18,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useReservations } from '@/hooks/useReservations';
 import { RESERVATION_ICONS } from '@/constants/icons';
+import { reservationKind } from '@/utils/bookingDays';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { ReservationType } from '@/types';
 import { formatCalendarDate } from '@/utils/calendarDate';
@@ -31,6 +32,7 @@ const TYPE_LABELS: Record<ReservationType, string> = {
   restaurant: 'Restaurant',
   activity: 'Activity',
   show: 'Show',
+  transit: 'Train, bus or ferry',
 };
 
 function formatDate(isoDate?: string): string {
@@ -101,7 +103,7 @@ export default function ReservationDetailScreen() {
     );
   }
 
-  const { Icon: TypeIcon, color: typeColor } = RESERVATION_ICONS[reservation.type];
+  const { Icon: TypeIcon, color: typeColor } = RESERVATION_ICONS[reservationKind(reservation)];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
@@ -128,7 +130,7 @@ export default function ReservationDetailScreen() {
           </Text>
           <View style={[styles.typeBadge, { backgroundColor: `${typeColor}1F` }]}>
             <Text style={[styles.typeBadgeText, { color: typeColor }]}>
-              {TYPE_LABELS[reservation.type]}
+              {TYPE_LABELS[reservationKind(reservation)]}
             </Text>
           </View>
         </View>
@@ -156,12 +158,43 @@ export default function ReservationDetailScreen() {
             colors={colors}
             borderColor={colors.background.cardBorder}
           />
-          {reservation.checkIn ? (
-            <DetailRow label="Check-in" value={formatDate(reservation.checkIn)} colors={colors} borderColor={colors.background.cardBorder} />
-          ) : null}
-          {reservation.checkOut ? (
-            <DetailRow label="Check-out" value={formatDate(reservation.checkOut)} colors={colors} borderColor={colors.background.cardBorder} />
-          ) : null}
+          {reservationKind(reservation) === 'transit' ? (
+            <>
+              {/* A train/bus/ferry: route and times as printed on the ticket. */}
+              {reservation.operator ? (
+                <DetailRow label="Operator" value={reservation.operator} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+              {reservation.fromPlace ? (
+                <DetailRow label="From" value={reservation.fromPlace} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+              {reservation.toPlace ? (
+                <DetailRow label="To" value={reservation.toPlace} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+              {reservation.checkIn ? (
+                <DetailRow
+                  label="Departs"
+                  value={[formatDate(reservation.checkIn), reservation.departureLocalTime].filter(Boolean).join(' · ')}
+                  colors={colors}
+                  borderColor={colors.background.cardBorder}
+                />
+              ) : null}
+              {reservation.arrivalLocalTime ? (
+                <DetailRow label="Arrives" value={reservation.arrivalLocalTime} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+              {reservation.seat ? (
+                <DetailRow label="Seat" value={reservation.seat} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+            </>
+          ) : (
+            <>
+              {reservation.checkIn ? (
+                <DetailRow label="Check-in" value={formatDate(reservation.checkIn)} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+              {reservation.checkOut ? (
+                <DetailRow label="Check-out" value={formatDate(reservation.checkOut)} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+            </>
+          )}
           {reservation.address ? (
             <DetailRow label="Address" value={reservation.address} colors={colors} borderColor={colors.background.cardBorder} />
           ) : null}

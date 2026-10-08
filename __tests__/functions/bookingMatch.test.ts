@@ -158,3 +158,11 @@ describe('linkPatchFor — suggestions (review fixes)', () => {
     expect(linkPatchFor({ kind: 'reservation', tripSuggestions: ['lis'] } as never, { kind: 'none' }, 'rome')).toBeNull();
   });
 });
+
+describe('transit matching', () => {
+  it('a train matches its trip by where it leaves from, like a flight home', () => {
+    const munich: MatchableTrip = { id: 'eu', title: 'Europe', start: '2026-11-17', end: '2026-11-30', places: [{ city: 'Munich', countryCode: 'DE' }] };
+    const train = { kind: 'reservation' as const, checkIn: '2026-11-30', placeCity: 'Vienna', placeCountryCode: 'AT', originCity: 'Munich', originCountryCode: 'DE' };
+    expect(matchDecision(train, [munich])).toEqual({ kind: 'link', tripId: 'eu' });
+  });
+});

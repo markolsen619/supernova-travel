@@ -57,6 +57,8 @@ export function bookingWindow(b: MatchableBooking) {
   }
   const inDay = calendarDay(b.checkIn);
   if (!inDay) return null;
+  // A train or ferry, like a flight home, belongs to the trip it leaves from too.
+  if (b.originCity || b.originCountryCode) places.push({ city: b.originCity, countryCode: b.originCountryCode });
   const outDay = calendarDay(b.checkOut) ?? inDay;
   return { start: dayNumber(inDay), end: Math.max(dayNumber(inDay), dayNumber(outDay)), places };
 }
