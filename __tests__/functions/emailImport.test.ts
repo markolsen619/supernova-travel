@@ -156,3 +156,23 @@ describe('review fixes', () => {
     expect((d.data.notes as string).length).toBeLessThanOrEqual(2000);
   });
 });
+
+describe('gmailConfirmationLink', () => {
+  const { gmailConfirmationLink } = require('../../functions/src/emailImport');
+  const body = `mark@example.com has requested to automatically forward mail to your email address k7x2m9qpz4@supernovatravel.xyz.
+To allow mark@example.com to automatically forward mail to your address, please click the link below to confirm the request:
+
+https://mail-settings.google.com/mail/vf-%5BANGjdJ8abc%5D-def123
+
+If you click the link and it appears to be broken, please copy and paste it into a new browser window.`;
+
+  it('finds Gmail\'s confirm link — Gmail no longer takes a typed code', () => {
+    expect(gmailConfirmationLink(body)).toBe('https://mail-settings.google.com/mail/vf-%5BANGjdJ8abc%5D-def123');
+  });
+  it('only ever a Google https link, so a forged email cannot plant another', () => {
+    expect(gmailConfirmationLink('click https://evil.example/mail/vf-x')).toBeNull();
+    expect(gmailConfirmationLink('click http://mail-settings.google.com/mail/vf-x')).toBeNull();
+    expect(gmailConfirmationLink('click https://mail-settings.google.com.evil.io/mail/vf-x')).toBeNull();
+    expect(gmailConfirmationLink('no link here')).toBeNull();
+  });
+});

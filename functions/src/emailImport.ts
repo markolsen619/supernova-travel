@@ -52,6 +52,26 @@ export function gmailConfirmation(from: string, subject: string, text: string): 
   return m ? m[1] : null;
 }
 
+const GOOGLE_CONFIRM_HOSTS = new Set(['mail-settings.google.com', 'mail.google.com']);
+
+/**
+ * The link in Gmail's forwarding confirmation. Gmail now confirms forwarding
+ * only by this link (the settings page has no code box any more). Only an
+ * https link on Google's own hosts is accepted — the app shows it as a
+ * button, so a forged "confirmation" must not be able to plant another.
+ */
+export function gmailConfirmationLink(text: string): string | null {
+  for (const raw of text.match(/https?:\/\/[^\s<>"')\]]+/g) ?? []) {
+    try {
+      const u = new URL(raw);
+      if (u.protocol === 'https:' && GOOGLE_CONFIRM_HOSTS.has(u.hostname) && /\/mail\/vf-/.test(u.pathname)) return raw;
+    } catch {
+      // not a URL
+    }
+  }
+  return null;
+}
+
 export function importGate(a: { paid: boolean; consent: boolean; usedToday: number; looksLikeBooking: boolean }): ImportStatus | 'parse' {
   if (!a.paid) return 'needs_pro';
   if (!a.consent) return 'needs_consent';
