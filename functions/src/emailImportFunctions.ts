@@ -4,7 +4,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { simpleParser } from 'mailparser';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
-  IMPORT_DOMAIN, IMPORT_LOG_KEEP, MAX_BOOKINGS_PER_EMAIL, bookingsFromParse, importIdFor, dailyKey, emailPushCopy, gmailConfirmation,
+  IMPORT_DOMAIN, IMPORT_LOG_KEEP, MAX_BOOKINGS_PER_EMAIL, bookingsFromParse, importIdFor, dailyKey, emailPushCopy, gmailConfirmation, gmailConfirmationLink,
   importGate, looksLikeBooking, newToken, signatureValid, tokenFromAddress, trimImportLog, type ImportStatus,
 } from './emailImport';
 import { buildExtractionPrompt } from './parseTravelConfirmation';
@@ -102,7 +102,11 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
 
     const code = gmailConfirmation(from, subject, text);
     if (code) {
-      await privateDoc(uid).set({ gmailForwardingCode: { code, at: admin.firestore.FieldValue.serverTimestamp() } }, { merge: true });
+      // The link is what confirms forwarding now; the code is kept for older Gmail flows.
+      const link = gmailConfirmationLink(text);
+      await privateDoc(uid).set({
+        gmailForwardingCode: { code, at: admin.firestore.FieldValue.serverTimestamp(), ...(link ? { link } : {}) },
+      }, { merge: true });
       await log(uid, importId, 'gmail_confirmation', subject);
       res.status(200).send('');
       return;

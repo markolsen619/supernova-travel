@@ -43,3 +43,14 @@ describe('receivedLabel', () => {
     expect(receivedLabel(null, now)).toBe('');
   });
 });
+
+describe('safeGmailLink', () => {
+  const { safeGmailLink } = require('@/utils/emailImport');
+  it('only Google https confirmation links become a button', () => {
+    expect(safeGmailLink('https://mail.google.com/mail/vf-%5Babc%5D-def')).toBe('https://mail.google.com/mail/vf-%5Babc%5D-def');
+    expect(safeGmailLink('https://mail-settings.google.com/mail/vf-x')).toBe('https://mail-settings.google.com/mail/vf-x');
+    expect(safeGmailLink('https://evil.example/mail/vf-x')).toBeNull();
+    expect(safeGmailLink('http://mail.google.com/mail/vf-x')).toBeNull();
+    expect(safeGmailLink(undefined)).toBeNull();
+  });
+});
