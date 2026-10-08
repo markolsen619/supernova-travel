@@ -225,9 +225,14 @@ service cloud.firestore {
       allow read: if canRead();
       allow create: if isAuthed() && request.auth.uid == request.resource.data.authorUid
         && !request.resource.data.keys().hasAny(['moderationHidden', 'isEditorial', 'destinationKeys'])
+        && request.resource.data.get('collaborators', []).size() == 0
         && !(request.resource.data.visibility == 'public' && isPrivateAccount(request.resource.data.authorUid));
       // A private account's trips can't be made Public (they're followers-only while it's private).
+      // `collaborators` is written only by the invite functions (tripInvites.ts)
+      // and deleteAccount: it decides who reads the trip's members-only data,
+      // including the bookings members share, so no client may edit it.
       allow update: if isAuthed() && !touchesModerationFlag() && !touchesDiscoveryFields()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['collaborators'])
         && !(request.resource.data.visibility == 'public' && resource.data.visibility != 'public'
              && isPrivateAccount(resource.data.authorUid)) && (
         isOwner(resource.data.authorUid)
@@ -571,14 +576,16 @@ service cloud.firestore {
 
     match /boarding_passes/{passId} {
       allow read, delete: if isAuthed() && isOwner(resource.data.ownerUid);
-      allow update: if isAuthed() && isOwner(resource.data.ownerUid) && walletLinkWriteAllowed();
+      allow update: if isAuthed() && isOwner(resource.data.ownerUid) && walletLinkWriteAllowed()
+        && request.resource.data.ownerUid == resource.data.ownerUid;
       allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid && walletCreateLinkAllowed();
     }
 
     // Reservations
     match /reservations/{reservationId} {
       allow read, delete: if isAuthed() && isOwner(resource.data.ownerUid);
-      allow update: if isAuthed() && isOwner(resource.data.ownerUid) && walletLinkWriteAllowed();
+      allow update: if isAuthed() && isOwner(resource.data.ownerUid) && walletLinkWriteAllowed()
+        && request.resource.data.ownerUid == resource.data.ownerUid;
       allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid && walletCreateLinkAllowed();
     }
 

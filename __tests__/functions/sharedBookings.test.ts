@@ -1,4 +1,4 @@
-import { mirrorId, sharedTripId, sharedCopy, tripMembers, mirrorPlan } from '../../functions/src/sharedBookings';
+import { mirrorId, sharedTripId, sharedCopy, tripMembers, mirrorPlan, shareTarget } from '../../functions/src/sharedBookings';
 
 const pass = {
   ownerUid: 'mark', airline: 'Lufthansa', flightNumber: 'LH 431', origin: 'ORD', originCity: 'Chicago',
@@ -90,5 +90,19 @@ describe('mirrorPlan', () => {
   });
   it('removes every copy when the trip is gone', () => {
     expect(mirrorPlan([{ id: 'x', ownerUid: 'mark', shared: true }], ['x'], new Set()).remove).toEqual(['x']);
+  });
+});
+
+describe('shareTarget', () => {
+  it('is the shared trip for an ordinary write', () => {
+    expect(shareTarget(pass, { ...pass, seat: '12C' })).toBe('ce');
+    expect(shareTarget(undefined, pass)).toBe('ce');
+  });
+  it('shares nothing when the owner field was changed — a booking cannot be passed off as someone else\'s', () => {
+    expect(shareTarget({ ...pass, ownerUid: 'stranger' }, { ...pass, ownerUid: 'mark' })).toBeNull();
+  });
+  it('is null when the booking is deleted or not shared', () => {
+    expect(shareTarget(pass, undefined)).toBeNull();
+    expect(shareTarget(pass, { ...pass, sharedWithTrip: false })).toBeNull();
   });
 });

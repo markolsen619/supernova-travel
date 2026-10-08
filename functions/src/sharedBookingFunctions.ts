@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { mirrorId, mirrorPlan, sharedCopy, sharedTripId, tripMembers, type BookingKind } from './sharedBookings';
+import { mirrorId, mirrorPlan, shareTarget, sharedCopy, sharedTripId, tripMembers, type BookingKind } from './sharedBookings';
 
 const db = admin.firestore();
 const COLLECTIONS: Record<BookingKind, string> = { boarding_pass: 'boarding_passes', reservation: 'reservations' };
@@ -14,7 +14,7 @@ async function ownerName(uid: string): Promise<string> {
 async function syncBooking(kind: BookingKind, id: string, before: Record<string, any> | undefined, after: Record<string, any> | undefined) {
   const docId = mirrorId(kind, id);
   const oldTrip = sharedTripId(before);
-  const newTrip = sharedTripId(after);
+  const newTrip = shareTarget(before, after);
   if (oldTrip && oldTrip !== newTrip) await db.doc(`trips/${oldTrip}/bookings/${docId}`).delete();
   if (!newTrip || !after) return;
   // Flight-status polling rewrites passes every 30 min; skip when nothing members see changed.

@@ -69,14 +69,20 @@ export const onTripWrittenRematch = onDocumentWritten('trips/{tripId}', async (e
   const tripId = event.params.tripId;
 
   if (!after) {
+    await syncTripShares(tripId, undefined);
     for (const col of Object.values(COLLECTIONS)) {
       const linked = await db.collection(col).where('tripId', '==', tripId).get();
       const batch = db.batch();
       linked.docs.forEach((d) => batch.update(d.ref, { tripId: null, tripLink: null }));
       if (!linked.empty) await batch.commit();
     }
-    await syncTripShares(tripId, undefined);
     return;
+  }
+
+  // Who the trip's bookings are shared with follows who is on it. First, so
+  // a failure in the rematch below can't leave a removed member's bookings up.
+  if (JSON.stringify(before?.collaborators ?? []) !== JSON.stringify(after.collaborators ?? [])) {
+    await syncTripShares(tripId, after);
   }
 
   const members = new Set<string>([after.authorUid, ...((after.collaborators ?? []) as string[])].filter(Boolean));
@@ -95,9 +101,5 @@ export const onTripWrittenRematch = onDocumentWritten('trips/{tripId}', async (e
       }
       if (writes) await batch.commit();
     }
-  }
-  // Who the trip's bookings are shared with follows who is on it.
-  if (JSON.stringify(before?.collaborators ?? []) !== JSON.stringify(after.collaborators ?? [])) {
-    await syncTripShares(tripId, after);
   }
 });
