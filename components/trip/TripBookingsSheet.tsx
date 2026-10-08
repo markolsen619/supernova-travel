@@ -48,7 +48,7 @@ export function TripBookingsSheet({ visible, bookings, onClose, onBookingPress }
             <X size={20} color={colors.text.secondary} weight="bold" />
           </TouchableOpacity>
         </View>
-        <Text style={[styles.note, { color: colors.text.tertiary }]}>Only you can see these.</Text>
+        <Text style={[styles.note, { color: colors.text.tertiary }]}>Everyone on this trip sees these. Open one of yours to keep it to yourself.</Text>
         <ScrollView contentContainerStyle={styles.content}>
           {GROUPS.map((g) => {
             const items = bookings.filter(g.test);
@@ -56,7 +56,7 @@ export function TripBookingsSheet({ visible, bookings, onClose, onBookingPress }
             return (
               <View key={g.label} style={styles.group}>
                 <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{g.label}</Text>
-                {items.map((b) => <BookedRow key={b.item.id} entry={asEntry(b)} onPress={open} />)}
+                {items.map((b) => <BookedRow key={`${b.kind}_${b.item.id}`} entry={asEntry(b)} onPress={open} />)}
               </View>
             );
           })}

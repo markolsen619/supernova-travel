@@ -10,7 +10,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -37,6 +37,7 @@ import { ShareTripSheet } from '@/components/trip/ShareTripSheet';
 import { TripBookingsSheet } from '@/components/trip/TripBookingsSheet';
 import { useTripBookings } from '@/hooks/useTripBookings';
 import { bookingsByDay, type TripBooking } from '@/utils/bookingDays';
+import { bookingRoute } from '@/utils/sharedBookings';
 import { canShareTrip } from '@/utils/tripShare';
 import { TripMapView } from '@/components/trip/TripMapView';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
@@ -296,7 +297,7 @@ export default function TripDetailScreen() {
   const [shareVisible, setShareVisible] = useState(false);
   const [bookingsVisible, setBookingsVisible] = useState(false);
   const openBooking = useCallback((b: TripBooking) => {
-    router.push(b.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${b.item.id}` : `/(wallet)/reservation/${b.item.id}`);
+    router.push(bookingRoute(b) as Href);
   }, [router]);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;

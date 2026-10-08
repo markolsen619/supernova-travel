@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { CaretDown, CaretRight, SuitcaseRolling } from 'phosphor-react-native';
@@ -13,6 +13,7 @@ import { tripDateEyebrow, type TripSummary } from '@/utils/walletLink';
 import { toCalendarDate } from '@/utils/calendarDate';
 import type { BoardingPass, Reservation } from '@/types';
 import type { TripBooking } from '@/utils/bookingDays';
+import { bookingRoute, firstName } from '@/utils/sharedBookings';
 import { FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
@@ -20,20 +21,22 @@ interface WalletByTripListProps {
   trips: TripSummary[];
   boardingPasses: BoardingPass[];
   reservations: Reservation[];
+  /** Other members' bookings shared with these trips. */
+  shared: TripBooking[];
 }
 
 /** The wallet grouped by trip (Pro): upcoming trips soonest first, then bookings on no trip, then past trips. */
-export function WalletByTripList({ trips, boardingPasses, reservations }: WalletByTripListProps) {
+export function WalletByTripList({ trips, boardingPasses, reservations, shared }: WalletByTripListProps) {
   const { colors } = useTheme();
   const [pastOpen, setPastOpen] = useState(false);
   const grouped = useMemo(
-    () => walletByTrip(trips, boardingPasses, reservations, toCalendarDate(new Date())),
-    [trips, boardingPasses, reservations],
+    () => walletByTrip(trips, boardingPasses, reservations, toCalendarDate(new Date()), shared),
+    [trips, boardingPasses, reservations, shared],
   );
 
   const openBooking = useCallback((b: TripBooking) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(b.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${b.item.id}` : `/(wallet)/reservation/${b.item.id}`);
+    router.push(bookingRoute(b) as Href);
   }, []);
   const openTrip = useCallback((tripId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -45,13 +48,20 @@ export function WalletByTripList({ trips, boardingPasses, reservations }: Wallet
   }, []);
 
   const renderItems = (items: TripBooking[]) =>
-    items.map((b) =>
-      b.kind === 'boarding_pass' ? (
-        <BoardingPassCard key={b.item.id} pass={b.item} onPress={() => openBooking(b)} />
-      ) : (
-        <ReservationCard key={b.item.id} reservation={b.item} onPress={() => openBooking(b)} />
-      ),
-    );
+    items.map((b) => (
+      <View key={`${b.kind}_${b.item.id}_${b.sharedBy?.uid ?? 'me'}`}>
+        {b.sharedBy && (
+          <Text style={[styles.sharedBy, { color: colors.text.tertiary }]}>
+            {firstName(b.sharedBy.name).toUpperCase()}&apos;S BOOKING
+          </Text>
+        )}
+        {b.kind === 'boarding_pass' ? (
+          <BoardingPassCard pass={b.item} onPress={() => openBooking(b)} />
+        ) : (
+          <ReservationCard reservation={b.item} onPress={() => openBooking(b)} />
+        )}
+      </View>
+    ));
 
   const renderSection = (s: TripSection) => (
     <View key={s.trip.tripId} style={styles.section}>
@@ -147,5 +157,6 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   tripTitle: { fontSize: 17, fontWeight: FontWeight.medium },
   hint: { fontSize: 13 },
+  sharedBy: { fontSize: 11, fontWeight: FontWeight.medium, letterSpacing: 0.9, paddingHorizontal: Spacing['5'], marginBottom: Spacing['1'] },
   empty: { fontSize: 13, paddingHorizontal: Spacing['5'] },
 });

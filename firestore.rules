@@ -319,6 +319,20 @@ service cloud.firestore {
         allow create, update, delete: if canWriteTrip();
       }
 
+      // Members' wallet bookings shared with this trip: barcode-free copies
+      // kept by functions/src/sharedBookingFunctions.ts. The wallet documents
+      // themselves stay owner-only. Members read; nobody writes from the app.
+      match /bookings/{bookingId} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        allow read: if isAuthed() && (
+          isOwner(parentTrip().data.authorUid)
+          || request.auth.uid in parentTrip().data.get('collaborators', [])
+        );
+        allow write: if false;
+      }
+
       // Packing list — generated once (owner-gated, client-side) then
       // editable by any collaborator, same trust model as `days`/`expenses`.
       // Being a collaborator IS the "share this list" mechanism.

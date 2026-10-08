@@ -38,5 +38,10 @@ export function useBookingTripLink(kind: 'boarding_pass' | 'reservation', id: st
     write(linkPatch('not_for_trip'));
   }, [write]);
 
-  return { link, unlink, notForTrip, pending };
+  const setShared = useCallback((shared: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    write({ sharedWithTrip: shared });
+  }, [write]);
+
+  return { link, unlink, notForTrip, setShared, pending };
 }

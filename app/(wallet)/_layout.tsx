@@ -13,6 +13,7 @@ export default function WalletLayout() {
         <Stack.Screen name="boarding-pass/add" />
         <Stack.Screen name="reservation/[id]" />
         <Stack.Screen name="reservation/add" />
+        <Stack.Screen name="shared-booking" />
         <Stack.Screen name="loyalty/[id]" />
         <Stack.Screen name="loyalty/add" />
       </Stack>

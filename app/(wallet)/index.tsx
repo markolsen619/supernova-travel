@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Plus, Wallet as WalletIcon } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useMyTrips } from '@/hooks/useMyTrips';
+import { useSharedTripBookings } from '@/hooks/useTripBookings';
 import { useProGate } from '@/hooks/useProGate';
 import { WalletByTripList } from '@/components/wallet/WalletByTripList';
 import { EmailImportRow } from '@/components/wallet/EmailImportRow';
@@ -42,6 +43,8 @@ export default function WalletHubScreen() {
   const anyLinked = boardingPasses.some((p) => p.tripId) || reservations.some((r) => r.tripId);
   const { isPro, openPaywall } = useProGate();
   const { trips: myTrips, isLoading: tripsLoading } = useMyTrips(anyLinked || segment === 'trips');
+  const myTripIds = useMemo(() => myTrips.map((t) => t.tripId), [myTrips]);
+  const { shared: sharedBookings } = useSharedTripBookings(myTripIds, segment === 'trips');
   const tripTitleFor = (tripId?: string | null) => (tripId ? myTrips.find((t) => t.tripId === tripId)?.title : undefined);
   const { loyaltyPrograms, isLoading: loyaltyLoading } = useLoyaltyPrograms();
 
@@ -180,7 +183,7 @@ export default function WalletHubScreen() {
           actionHaptic="none"
         />
       ) : segment === 'trips' ? (
-        <WalletByTripList trips={myTrips} boardingPasses={boardingPasses} reservations={reservations} />
+        <WalletByTripList trips={myTrips} boardingPasses={boardingPasses} reservations={reservations} shared={sharedBookings} />
       ) : currentSegmentIsEmpty ? (
         <EmptyState
           size="sm"

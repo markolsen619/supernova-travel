@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { CaretRight, MapTrifold } from 'phosphor-react-native';
@@ -14,7 +14,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 
 interface BookingTripRowProps {
   kind: 'boarding_pass' | 'reservation';
-  item: { id: string; tripId?: string | null };
+  item: { id: string; tripId?: string | null; sharedWithTrip?: boolean };
 }
 
 /** The booking's trip on its detail screen: open it, change it, remove it — or add one (Pro). */
@@ -22,7 +22,7 @@ export function BookingTripRow({ kind, item }: BookingTripRowProps) {
   const { colors } = useTheme();
   const { isPro, openPaywall } = useProGate();
   const { trips, isLoading } = useMyTrips();
-  const { link, unlink, pending } = useBookingTripLink(kind, item.id);
+  const { link, unlink, setShared, pending } = useBookingTripLink(kind, item.id);
   const [pickerOpen, setPickerOpen] = useState(false);
   const trip = item.tripId ? trips.find((t) => t.tripId === item.tripId) : undefined;
 
@@ -61,6 +61,22 @@ export function BookingTripRow({ kind, item }: BookingTripRowProps) {
           ) : (
             <Text style={[styles.unavailable, { color: colors.text.secondary }]}>Trip unavailable</Text>
           )}
+          {trip && (
+            <View style={[styles.shareLine, { borderColor: colors.background.cardBorder }]}>
+              <View style={styles.tripText}>
+                <Text style={[styles.shareTitle, { color: colors.text.primary }]}>Shared with trip members</Text>
+                <Text style={[styles.shareHint, { color: colors.text.tertiary }]}>
+                  {kind === 'boarding_pass' ? 'They see your flight and seat, never your boarding pass.' : 'They see it on the trip, read-only.'}
+                </Text>
+              </View>
+              <Switch
+                value={item.sharedWithTrip !== false}
+                onValueChange={setShared}
+                disabled={pending}
+                accessibilityLabel="Shared with trip members"
+              />
+            </View>
+          )}
           <View style={[styles.actions, { borderColor: colors.background.cardBorder }]}>
             {trip && (
               <TouchableOpacity onPress={openPicker} style={styles.action} disabled={pending}>
@@ -92,6 +108,9 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   tripTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold },
   unavailable: { padding: Spacing['4'], fontSize: FontSize.sm },
+  shareLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], paddingHorizontal: Spacing['4'], paddingVertical: Spacing['3'], minHeight: 56, borderTopWidth: StyleSheet.hairlineWidth },
+  shareTitle: { fontSize: FontSize.md, fontWeight: FontWeight.medium },
+  shareHint: { fontSize: 13 },
   actions: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth },
   action: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   actionText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
