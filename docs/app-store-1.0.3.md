@@ -1,6 +1,6 @@
 # App Store text for 1.0.3
 
-> **Draft 2026-10-05**, not yet entered. Build: the next production build (1.0.3).
+> **Entered and SUBMITTED 2026-10-08** with build 23 (Waiting for Review, manual release). App Privacy needed no change: "Emails or Text Messages" was already declared (linked, App Functionality).
 > Changes from 1.0.2: What's New; four description bullets (three-week AI trips;
 > bookings on trip days; email import; sharing); review notes swap
 > "NEW IN 1.0.2" for "NEW IN 1.0.3" (keeps them under 4,000 characters) and
@@ -8,7 +8,7 @@
 
 ## What's New
 
-Share any trip: send it to a friend in Supernova, or share a link that opens it. Try Supernova Pro free for a week, and redeem offer codes in the app. Pro adds email import — forward your confirmation emails to your own address and they land in your wallet, matched to the right trip and shown on its days. AI itineraries can now cover up to three weeks. Plus a fix for AI trips that showed an error even though they'd been made.
+Share any trip: send it to a friend in Supernova, or share a link that opens it. Try Supernova Pro free for a week, and redeem offer codes in the app. Pro adds email import — forward your confirmation emails to your own address and they land in your wallet, matched to the right trip and shown on its days. Train, bus and ferry tickets get their own place in the wallet, with the route and times as printed. See your wallet by trip, and everyone on a trip now sees its bookings, never anyone's boarding pass. AI itineraries can now cover up to three weeks. Plus a fix for AI trips that showed an error even though they'd been made.
 
 ## Promotional text (unchanged)
 
@@ -33,9 +33,9 @@ PLAN
 
 YOUR TRAVEL WALLET
 • Boarding passes with a scannable code, so you're not digging through email at the gate
-• Hotel, rental car and restaurant reservations in one list
+• Hotel, rental car, restaurant, train, bus and ferry reservations in one list
 • Loyalty programs with their balances, all in one place
-• Bookings show up on the right days of your trip, with their confirmation numbers
+• Bookings show up on the right days of your trip, with their confirmation numbers, and everyone on the trip sees them
 • Forward confirmation emails to your own Supernova address and they land in your wallet, matched to your trip (Pro)
 
 SHARE
@@ -69,7 +69,7 @@ FREE VS PRO
 Free accounts can plan and share trips, use the maps, browse destinations, post, search and message. They get one AI itinerary a month (one city) and up to two wallet items entered by hand. Pro adds unlimited and multi-city AI itineraries, inviting friends to plan a trip together (shared budget and packing list), an unlimited wallet with AI import from booking confirmations, and live flight alerts. The demo account is on the free plan and already holds five wallet items from before the two-item limit existed; they remain viewable and editable, and adding another opens the paywall. Purchasing Pro in the sandbox unlocks everything immediately.
 
 NEW IN 1.0.3
-Share: the share icon on a trip sends it in Messages or as a web link. Email import (Pro): Wallet > Email import creates a personal address; forwarded booking emails become wallet items, linked to matching trips. Buy Pro in the sandbox to try it.
+Share: the share icon on a trip sends it in Messages or as a web link. Email import (Pro): Wallet > Email import creates a personal address; forwarded booking emails become wallet items, linked to matching trips; Wallet > By trip groups them, and trip members see each other's. Buy Pro in the sandbox to try it.
 
 SIGN-IN OPTIONS
 Email/password, Google and Sign in with Apple. Please use the demo account.
