@@ -97,12 +97,44 @@ export function dailyKey(now: Date): string {
 
 export type WalletDoc = { collection: 'boarding_passes' | 'reservations'; data: Record<string, unknown>; title: string };
 
-const RES_TYPES = new Set(['hotel', 'airbnb', 'rental_car', 'restaurant', 'activity', 'show']);
+const RES_TYPES = new Set(['hotel', 'airbnb', 'rental_car', 'restaurant', 'activity', 'show', 'transit']);
+const TRANSIT_MODES = new Set(['train', 'bus', 'ferry']);
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO2 = /^[A-Za-z]{2}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const str = (v: unknown, max = 200) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
 const clean = (o: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+
+/** A train/bus/ferry ticket's route and times — times as printed ("09:19"), never converted. */
+function transitFields(type: string | undefined, f: Record<string, unknown>): Record<string, unknown> {
+  if (type !== 'transit') return {};
+  const time = (v: unknown) => { const s = str(v); return s && HHMM.test(s) ? s : undefined; };
+  const mode = str(f.transitMode)?.toLowerCase();
+  const originCountry = str(f.originCountryCode);
+  return {
+    transitMode: mode && TRANSIT_MODES.has(mode) ? mode : 'train',
+    operator: str(f.operator, 100),
+    fromPlace: str(f.fromPlace),
+    toPlace: str(f.toPlace),
+    departureLocalTime: time(f.departureLocalTime),
+    arrivalLocalTime: time(f.arrivalLocalTime),
+    seat: str(f.seat, 100),
+    originCity: str(f.originCity),
+    originCountryCode: originCountry && ISO2.test(originCountry) ? originCountry.toUpperCase() : undefined,
+  };
+}
+
+/**
+ * The paste import's answer as an older app can draw it: "transit" becomes an
+ * activity with a transitMode (which 1.0.3+ reads back as a train/bus/ferry).
+ */
+export function forOlderApps<T extends { kind?: unknown; reservationType?: unknown; fields?: Record<string, unknown> }>(parsed: T): T {
+  if (parsed?.kind !== 'reservation' || parsed.reservationType !== 'transit') return parsed;
+  const mode = typeof parsed.fields?.transitMode === 'string' && TRANSIT_MODES.has(parsed.fields.transitMode.toLowerCase())
+    ? parsed.fields.transitMode.toLowerCase() : 'train';
+  return { ...parsed, reservationType: 'activity', fields: { ...(parsed.fields ?? {}), transitMode: mode } };
+}
 
 export function bookingsFromParse(parsed: unknown, ctx: { uid: string; emailImportId: string; nowIso: string }): WalletDoc[] {
   // A single booking returned without the list (the base prompt's own shape) still counts.
@@ -141,10 +173,13 @@ export function bookingsFromParse(parsed: unknown, ctx: { uid: string; emailImpo
       const day = (v: unknown) => { const s = str(v); return s && DAY.test(s) ? s : undefined; };
       const country = str(f.countryCode);
       out.push({ collection: 'reservations', title, data: clean({
-        ...base, type: rawType && RES_TYPES.has(rawType) ? rawType : 'activity', title,
+        // A transit ticket is stored as an activity + transitMode: apps before 1.0.3
+        // look up an icon by type and crash on one they don't know.
+        ...base, type: rawType && RES_TYPES.has(rawType) && rawType !== 'transit' ? rawType : 'activity', title,
         confirmationCode: str(f.confirmationCode, 100) ?? '', checkIn: day(f.checkIn), checkOut: day(f.checkOut),
         address: str(f.address, 500), notes: str(f.notes, 2000), placeCity: str(f.city),
         placeCountryCode: country && ISO2.test(country) ? country.toUpperCase() : undefined,
+        ...transitFields(rawType, f),
       }) });
     }
   }

@@ -86,7 +86,7 @@ export type ParseTravelConfirmationResult =
     }
   | {
       kind: 'reservation';
-      reservationType: 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show';
+      reservationType: 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show' | 'transit';
       fields: Partial<{
         title: string;
         confirmationCode: string;
@@ -95,6 +95,16 @@ export type ParseTravelConfirmationResult =
         address: string;
         city: string;
         countryCode: string;
+        // transit (train / bus / ferry)
+        transitMode: string;
+        operator: string;
+        fromPlace: string;
+        toPlace: string;
+        departureLocalTime: string; // HH:MM as printed
+        arrivalLocalTime: string;
+        seat: string;
+        originCity: string;
+        originCountryCode: string;
         notes: string;
       }>;
     };

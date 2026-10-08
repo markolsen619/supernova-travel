@@ -11,6 +11,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useBookingMatch } from '@/hooks/useBookingMatch';
 import { draftPlaceFields } from '@/utils/walletLink';
+import { reservationKind } from '@/utils/bookingDays';
 import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
 import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
@@ -34,6 +35,7 @@ const RESERVATION_TYPES: { type: ReservationType; label: string }[] = [
   { type: 'restaurant', label: 'Restaurant' },
   { type: 'activity', label: 'Activity' },
   { type: 'show', label: 'Show' },
+  { type: 'transit', label: 'Train, bus or ferry' },
 ];
 
 export default function AddReservationScreen() {
@@ -59,7 +61,7 @@ export default function AddReservationScreen() {
 
   useEffect(() => {
     if (!existing) return;
-    setType(existing.type);
+    setType(reservationKind(existing));
     setTitle(existing.title);
     setConfirmationCode(existing.confirmationCode);
     setAddress(existing.address ?? '');
@@ -74,7 +76,8 @@ export default function AddReservationScreen() {
 
   useEffect(() => {
     if (draftParam !== 'true' || !draft || draft.kind !== 'reservation') return;
-    setType(draft.reservationType);
+    // The server hands a transit ticket over as an activity with a transitMode (older apps can't draw 'transit').
+    setType(draft.fields.transitMode ? 'transit' : draft.reservationType);
     if (draft.fields.title) setTitle(draft.fields.title);
     if (draft.fields.confirmationCode) setConfirmationCode(draft.fields.confirmationCode);
     if (draft.fields.address) setAddress(draft.fields.address);
@@ -105,8 +108,12 @@ export default function AddReservationScreen() {
       return;
     }
 
+    // Train/bus/ferry is stored as an activity + transitMode — apps before
+    // 1.0.3 crash on an unknown type (utils/bookingDays reservationKind).
+    const isTransit = type === 'transit';
+    const transitMode = isTransit ? (existing?.transitMode ?? (draftPlace.transitMode as Reservation['transitMode']) ?? 'train') : undefined;
     const baseFields = {
-      type,
+      type: isTransit ? 'activity' as const : type,
       title: title.trim(),
       confirmationCode: confirmationCode.trim(),
     };
@@ -118,6 +125,7 @@ export default function AddReservationScreen() {
       // untouched).
       const editFields: Record<string, unknown> = {
         ...baseFields,
+        transitMode: transitMode ?? deleteField(),
         checkIn: checkIn ? toCalendarDate(checkIn) : deleteField(),
         checkOut: checkOut ? toCalendarDate(checkOut) : deleteField(),
         address: address.trim() || deleteField(),
@@ -146,6 +154,7 @@ export default function AddReservationScreen() {
           createdAt: new Date().toISOString(),
           // Where it is, for matching it to a trip (Pro; bookingMatch.ts).
           ...draftPlace,
+          ...(transitMode ? { transitMode } : {}),
         },
         {
           onSuccess: (newId) => {
@@ -156,7 +165,7 @@ export default function AddReservationScreen() {
         },
       );
     }
-  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance, draftPlace, afterSave]);
+  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance, draftPlace, afterSave, existing?.transitMode]);
 
   const inputStyle = [
     styles.input,

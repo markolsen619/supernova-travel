@@ -21,6 +21,7 @@ import {
   LockSimple,
   DotsThree,
   Confetti,
+  Train,
 } from 'phosphor-react-native';
 import type { Icon } from 'phosphor-react-native';
 import type { ActivityType, ReservationType, LoyaltyProgram, TripVisibility, ExpenseCategory } from '@/types';
@@ -45,6 +46,8 @@ export const RESERVATION_ICONS: Record<ReservationType, IconEntry> = {
   restaurant: { Icon: ForkKnife, color: '#f472b6' },
   activity:   { Icon: Ticket,    color: '#34d399' },
   show:       { Icon: Confetti,  color: '#f472b6' },
+  // Train / bus / ferry — amber, like transport stops in the itinerary.
+  transit:    { Icon: Train,     color: '#fbbf24' },
 };
 
 export const LOYALTY_ICONS: Record<LoyaltyProgram['programType'], IconEntry> = {

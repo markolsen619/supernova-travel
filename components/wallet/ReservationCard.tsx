@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import { RESERVATION_ICONS } from '@/constants/icons';
+import { reservationKind } from '@/utils/bookingDays';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { formatCalendarDate } from '@/utils/calendarDate';
 
@@ -22,7 +23,7 @@ function formatDate(isoDate: string): string {
 
 export function ReservationCard({ reservation, onPress, tripTitle }: ReservationCardProps) {
   const { colors } = useTheme();
-  const { Icon, color } = RESERVATION_ICONS[reservation.type];
+  const { Icon, color } = RESERVATION_ICONS[reservationKind(reservation)];
 
   return (
     <TouchableOpacity
@@ -63,6 +64,9 @@ export function ReservationCard({ reservation, onPress, tripTitle }: Reservation
           <Text style={[styles.dateText, { color: colors.text.secondary }]}>
             {formatDate(reservation.checkIn)}
           </Text>
+          {reservationKind(reservation) === 'transit' && reservation.departureLocalTime ? (
+            <Text style={[styles.dateText, { color: colors.text.tertiary }]}>{reservation.departureLocalTime}</Text>
+          ) : null}
         </View>
       ) : null}
     </TouchableOpacity>

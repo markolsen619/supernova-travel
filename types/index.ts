@@ -548,7 +548,7 @@ export interface BoardingPass {
   confirmationCode?: string;
 }
 
-export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show';
+export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show' | 'transit';
 
 export interface Reservation {
   id: string;
@@ -566,6 +566,17 @@ export interface Reservation {
   notes?: string;
   attachmentUrls?: string[];
   createdAt: string;
+  // ── Transit (type 'transit': train / bus / ferry). Times are as printed on
+  // the ticket ("09:19", local to each station) and never converted.
+  transitMode?: 'train' | 'bus' | 'ferry';
+  operator?: string;
+  fromPlace?: string;
+  toPlace?: string;
+  departureLocalTime?: string;
+  arrivalLocalTime?: string;
+  seat?: string;
+  originCity?: string;
+  originCountryCode?: string;
   /** 'email' when it arrived through the forwarding address (functions/src/emailImportFunctions.ts). */
   source?: 'email';
   /** Linked trip (Pro; utils/walletLink.ts, functions/src/bookingMatch.ts). */

@@ -60,3 +60,28 @@ describe('bookingLines', () => {
     expect(bookingLines({ booking: hotel, role: 'staying', time: null }).title).toBe('Staying at Hotel Artemide');
   });
 });
+
+describe('transit tickets on trip days', () => {
+  const train = { kind: 'reservation', item: {
+    id: 't', ownerUid: 'me', type: 'transit', title: 'ICE 918 Munich → Cologne', confirmationCode: '584772518091',
+    checkIn: '2026-07-26', departureLocalTime: '09:19', fromPlace: 'München Hbf', toPlace: 'Köln Messe/Deutz',
+    seat: '55, 56 (car 39)', createdAt: '',
+  } } as unknown as TripBooking;
+  it('lands on its date at the printed departure time', () => {
+    expect(bookingsByDay(days, [train]).d2).toEqual([{ booking: train, role: 'booked', time: '09:19' }]);
+  });
+  it('reads as a route with seat and booking reference', () => {
+    expect(bookingLines({ booking: train, role: 'booked', time: '09:19' }))
+      .toEqual({ title: 'ICE 918 Munich → Cologne · 09:19', detail: 'Seat 55, 56 (car 39) · Conf. 584772518091' });
+  });
+});
+
+describe('reservationKind', () => {
+  const { reservationKind } = require('@/utils/bookingDays');
+  it('a stored activity with a transitMode is a transit ticket', () => {
+    expect(reservationKind({ type: 'activity', transitMode: 'train' })).toBe('transit');
+    expect(reservationKind({ type: 'activity' })).toBe('activity');
+    expect(reservationKind({ type: 'hotel' })).toBe('hotel');
+    expect(reservationKind({ type: 'transit' })).toBe('transit');
+  });
+});

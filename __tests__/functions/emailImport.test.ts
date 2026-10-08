@@ -176,3 +176,40 @@ If you click the link and it appears to be broken, please copy and paste it into
     expect(gmailConfirmationLink('no link here')).toBeNull();
   });
 });
+
+describe('transit tickets', () => {
+  const ctx = { uid: 'u1', emailImportId: 'e1', nowIso: '2026-10-08T00:00:00.000Z' };
+  it('a train ticket becomes a transit reservation with its route, times as printed, and both cities', () => {
+    const [d] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'transit', fields: {
+      title: 'ICE 918 Munich → Cologne', confirmationCode: '584772518091', checkIn: '2026-12-01',
+      transitMode: 'train', operator: 'Deutsche Bahn', fromPlace: 'München Hbf', toPlace: 'Köln Messe/Deutz',
+      departureLocalTime: '09:19', arrivalLocalTime: '13:29', seat: '55, 56 (car 39)',
+      city: 'Cologne', countryCode: 'DE', originCity: 'Munich', originCountryCode: 'DE',
+    } }] }, ctx);
+    expect(d.collection).toBe('reservations');
+    // Stored as an activity + transitMode: apps before 1.0.3 crash on an unknown reservation type.
+    expect(d.data).toEqual(expect.objectContaining({
+      type: 'activity', title: 'ICE 918 Munich → Cologne', checkIn: '2026-12-01', transitMode: 'train',
+      operator: 'Deutsche Bahn', fromPlace: 'München Hbf', toPlace: 'Köln Messe/Deutz',
+      departureLocalTime: '09:19', arrivalLocalTime: '13:29', seat: '55, 56 (car 39)',
+      placeCity: 'Cologne', placeCountryCode: 'DE', originCity: 'Munich', originCountryCode: 'DE',
+    }));
+  });
+  it('drops a time that is not HH:MM and an unknown mode', () => {
+    const [d] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'transit', fields: {
+      title: 'Ferry', confirmationCode: 'F1', departureLocalTime: '9am', transitMode: 'hovercraft' } }] }, ctx);
+    expect(d.data.departureLocalTime).toBeUndefined();
+    expect(d.data.transitMode).toBe('train'); // unknown mode: still a transit ticket
+    expect(d.data.type).toBe('activity');
+  });
+});
+
+describe('parse result for older apps', () => {
+  const { forOlderApps } = require('../../functions/src/emailImport');
+  it('never hands "transit" to an app that cannot draw it', () => {
+    expect(forOlderApps({ kind: 'reservation', reservationType: 'transit', fields: { title: 'ICE 918' } }))
+      .toEqual({ kind: 'reservation', reservationType: 'activity', fields: { title: 'ICE 918', transitMode: 'train' } });
+    const hotel = { kind: 'reservation', reservationType: 'hotel', fields: { title: 'H' } };
+    expect(forOlderApps(hotel)).toBe(hotel);
+  });
+});

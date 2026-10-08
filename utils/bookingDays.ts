@@ -1,6 +1,15 @@
 import type { ActivityType, BoardingPass, Reservation } from '@/types';
 import { parseCalendarDate, toCalendarDate } from '@/utils/calendarDate';
 
+/**
+ * What a reservation is, for icons, labels and placement. Train/bus/ferry
+ * tickets are stored as type 'activity' + transitMode (apps before 1.0.3
+ * crash on an unknown type), and read back here as 'transit'.
+ */
+export function reservationKind(r: { type: Reservation['type']; transitMode?: string | null }): Reservation['type'] {
+  return r.transitMode ? 'transit' : r.type;
+}
+
 export type TripBooking =
   | { kind: 'boarding_pass'; item: BoardingPass }
   | { kind: 'reservation'; item: Reservation };
@@ -41,7 +50,8 @@ export function bookingsByDay(days: { id: string; date: Date | null }[], booking
     const inDay = calendar(b.item.checkIn);
     const outDay = calendar(b.item.checkOut);
     if (b.item.type !== 'hotel' && b.item.type !== 'airbnb') {
-      put(inDay, { booking: b, role: 'booked', time: null });
+      // A train or ferry sorts by the departure time printed on the ticket.
+      put(inDay, { booking: b, role: 'booked', time: reservationKind(b.item) === 'transit' ? (b.item.departureLocalTime ?? null) : null });
       continue;
     }
     if (!inDay) continue;
@@ -61,12 +71,12 @@ const words = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
   .split(/[^a-z0-9]+/).filter((t) => t.length >= 3 && !GENERIC.has(t));
 
 const STOP_TYPE: Partial<Record<Reservation['type'], ActivityType>> = {
-  hotel: 'hotel', airbnb: 'hotel', restaurant: 'restaurant', activity: 'activity', show: 'activity',
+  hotel: 'hotel', airbnb: 'hotel', restaurant: 'restaurant', activity: 'activity', show: 'activity', transit: 'transport',
 };
 
 /** The planned stop is this booking's venue: same kind, and every distinctive word of the booking's name is in the stop's. */
 export function bookingMatchesStop(b: TripBooking, stop: { type: ActivityType; title: string; placeName?: string | null }): boolean {
-  if (b.kind !== 'reservation' || STOP_TYPE[b.item.type] !== stop.type) return false;
+  if (b.kind !== 'reservation' || STOP_TYPE[reservationKind(b.item)] !== stop.type) return false;
   const want = words(b.item.title);
   if (want.length === 0) return false;
   const have = new Set(words(`${stop.title} ${stop.placeName ?? ''}`));
@@ -85,5 +95,11 @@ export function bookingLines(d: DayBooking): { title: string; detail: string } {
   if (d.role === 'check_in') return { title: `Check in · ${r.title}`, detail: conf };
   if (d.role === 'check_out') return { title: `Check out · ${r.title}`, detail: '' };
   if (d.role === 'staying') return { title: `Staying at ${r.title}`, detail: '' };
+  if (reservationKind(r) === 'transit') {
+    return {
+      title: d.time ? `${r.title} · ${d.time}` : r.title,
+      detail: [r.seat ? `Seat ${r.seat}` : null, conf || null].filter(Boolean).join(' · '),
+    };
+  }
   return { title: r.title, detail: conf };
 }

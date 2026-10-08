@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ParseTravelConfirmationRequest, ParseTravelConfirmationResult } from './types';
 import { FREE_TIER_YEARLY_IMPORT_LIMIT, getYearlyQuotaKey } from './quotaUtils';
+import { forOlderApps } from './emailImport';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 
 export function buildExtractionPrompt(): string {
@@ -11,8 +12,10 @@ reservation). It may be pasted email text and/or a photo of a printed confirmati
 
 First, decide what kind of thing this is:
 - A flight boarding pass or flight confirmation → "boarding_pass"
+- A train, bus/coach or ferry ticket → "reservation" with reservationType "transit" (never "boarding_pass" —
+  boarding passes are for flights only)
 - Anything else (hotel, Airbnb, rental car, restaurant, activity/tour, show/concert/theater) → "reservation",
-  and pick the single closest reservationType: "hotel", "airbnb", "rental_car", "restaurant", "activity", or "show"
+  and pick the single closest reservationType: "hotel", "airbnb", "rental_car", "restaurant", "activity", "show", or "transit"
 
 Then extract every field you can confidently find. Do NOT guess or make up a value for a field you can't
 find with reasonable confidence — omit that key entirely rather than fill it with a placeholder.
@@ -69,6 +72,11 @@ Rules:
 - flightNumber and origin/destination are uppercase
 - Country codes are ISO 3166-1 alpha-2. "departureLocalDate" is the departure day as printed
   (local to the departure airport), "YYYY-MM-DD". "city" is the city the reservation is in
+- For "transit": "title" is the service and route ("ICE 918 Munich → Cologne"), "checkIn" is the departure
+  date, and also include when present: "transitMode" ("train", "bus" or "ferry"), "operator" ("Deutsche Bahn"),
+  "fromPlace" / "toPlace" (station or port names as printed), "departureLocalTime" / "arrivalLocalTime"
+  ("HH:MM", 24-hour, exactly as printed — local to each station, never converted), "seat" (seat and car/coach),
+  "city" / "countryCode" (where it arrives), "originCity" / "originCountryCode" (where it leaves from)
 - If you truly cannot identify what kind of booking this is at all, return {"kind": "reservation", "reservationType": "activity", "fields": {}}`;
 }
 
@@ -153,6 +161,7 @@ export const parseTravelConfirmation = functions.https.onCall(
       );
     }
 
-    return parsed;
+    // Never hand "transit" to an app that predates it (emailImport.ts forOlderApps).
+    return forOlderApps(parsed);
   }
 );

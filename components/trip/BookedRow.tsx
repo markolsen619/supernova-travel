@@ -5,7 +5,7 @@ import { Bed } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { ACTIVITY_ICONS, RESERVATION_ICONS } from '@/constants/icons';
-import { bookingLines, type DayBooking, type TripBooking } from '@/utils/bookingDays';
+import { bookingLines, reservationKind, type DayBooking, type TripBooking } from '@/utils/bookingDays';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -34,7 +34,7 @@ export function BookedRow({ entry, onPress }: BookedRowProps) {
 
   const { Icon, color } = entry.booking.kind === 'boarding_pass'
     ? ACTIVITY_ICONS.flight
-    : RESERVATION_ICONS[entry.booking.item.type];
+    : RESERVATION_ICONS[reservationKind(entry.booking.item)];
   return (
     <TouchableOpacity
       onPress={handlePress}
