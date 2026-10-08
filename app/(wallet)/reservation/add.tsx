@@ -12,6 +12,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useBookingMatch } from '@/hooks/useBookingMatch';
 import { draftPlaceFields } from '@/utils/walletLink';
 import { reservationKind } from '@/utils/bookingDays';
+import { chunk, normalizeTime } from '@/utils/transitTime';
 import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
 import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
@@ -66,9 +67,23 @@ export default function AddReservationScreen() {
     setConfirmationCode(existing.confirmationCode);
     setAddress(existing.address ?? '');
     setNotes(existing.notes ?? '');
+    setFromPlace(existing.fromPlace ?? '');
+    setToPlace(existing.toPlace ?? '');
+    setDeparts(existing.departureLocalTime ?? '');
+    setArrives(existing.arrivalLocalTime ?? '');
+    setSeat(existing.seat ?? '');
+    setOperator(existing.operator ?? '');
     setCheckIn(existing.checkIn ? parseCalendarDate(existing.checkIn) : null);
     setCheckOut(existing.checkOut ? parseCalendarDate(existing.checkOut) : null);
   }, [existing]);
+
+  // Train / bus / ferry: route and times as printed on the ticket.
+  const [fromPlace, setFromPlace] = useState('');
+  const [toPlace, setToPlace] = useState('');
+  const [departs, setDeparts] = useState('');
+  const [arrives, setArrives] = useState('');
+  const [seat, setSeat] = useState('');
+  const [operator, setOperator] = useState('');
 
   // The import draft is cleared once it fills the form, so its place fields are kept here for the save.
   const [draftPlace, setDraftPlace] = useState<Record<string, string>>({});
@@ -84,7 +99,14 @@ export default function AddReservationScreen() {
     if (draft.fields.notes) setNotes(draft.fields.notes);
     if (draft.fields.checkIn) setCheckIn(parseCalendarDate(draft.fields.checkIn));
     if (draft.fields.checkOut) setCheckOut(parseCalendarDate(draft.fields.checkOut));
-    setDraftPlace(draftPlaceFields(draft));
+    const place = draftPlaceFields(draft);
+    setDraftPlace(place);
+    setFromPlace(place.fromPlace ?? '');
+    setToPlace(place.toPlace ?? '');
+    setDeparts(place.departureLocalTime ?? '');
+    setArrives(place.arrivalLocalTime ?? '');
+    setSeat(place.seat ?? '');
+    setOperator(place.operator ?? '');
     clearDraft();
   }, [draftParam, draft, clearDraft]);
 
@@ -111,6 +133,23 @@ export default function AddReservationScreen() {
     // Train/bus/ferry is stored as an activity + transitMode — apps before
     // 1.0.3 crash on an unknown type (utils/bookingDays reservationKind).
     const isTransit = type === 'transit';
+    const departsTime = departs.trim() ? normalizeTime(departs) : null;
+    const arrivesTime = arrives.trim() ? normalizeTime(arrives) : null;
+    if (isTransit && ((departs.trim() && !departsTime) || (arrives.trim() && !arrivesTime))) {
+      Alert.alert('Check the times', 'Enter times as they appear on the ticket, like 10:19.');
+      return;
+    }
+    // The form owns these fields now — they replace whatever the import guessed.
+    const transitValues: Record<string, string | undefined> = isTransit
+      ? {
+          fromPlace: fromPlace.trim() || undefined,
+          toPlace: toPlace.trim() || undefined,
+          departureLocalTime: departsTime ?? undefined,
+          arrivalLocalTime: arrivesTime ?? undefined,
+          seat: seat.trim() || undefined,
+          operator: operator.trim() || undefined,
+        }
+      : {};
     const transitMode = isTransit ? (existing?.transitMode ?? (draftPlace.transitMode as Reservation['transitMode']) ?? 'train') : undefined;
     const baseFields = {
       type: isTransit ? 'activity' as const : type,
@@ -126,6 +165,13 @@ export default function AddReservationScreen() {
       const editFields: Record<string, unknown> = {
         ...baseFields,
         transitMode: transitMode ?? deleteField(),
+        // Blank (or no longer a train) clears them, rather than leaving the old values.
+        fromPlace: transitValues.fromPlace ?? deleteField(),
+        toPlace: transitValues.toPlace ?? deleteField(),
+        departureLocalTime: transitValues.departureLocalTime ?? deleteField(),
+        arrivalLocalTime: transitValues.arrivalLocalTime ?? deleteField(),
+        seat: transitValues.seat ?? deleteField(),
+        operator: transitValues.operator ?? deleteField(),
         checkIn: checkIn ? toCalendarDate(checkIn) : deleteField(),
         checkOut: checkOut ? toCalendarDate(checkOut) : deleteField(),
         address: address.trim() || deleteField(),
@@ -155,6 +201,7 @@ export default function AddReservationScreen() {
           // Where it is, for matching it to a trip (Pro; bookingMatch.ts).
           ...draftPlace,
           ...(transitMode ? { transitMode } : {}),
+          ...Object.fromEntries(Object.entries(transitValues).filter(([, v]) => v !== undefined)),
         },
         {
           onSuccess: (newId) => {
@@ -165,7 +212,7 @@ export default function AddReservationScreen() {
         },
       );
     }
-  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance, draftPlace, afterSave, existing?.transitMode]);
+  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance, draftPlace, afterSave, existing?.transitMode, fromPlace, toPlace, departs, arrives, seat, operator]);
 
   const inputStyle = [
     styles.input,
@@ -201,8 +248,11 @@ export default function AddReservationScreen() {
       >
         {/* Type */}
         <Text style={labelStyle}>Type</Text>
-        <View style={styles.typeRow}>
-          {RESERVATION_TYPES.map(({ type: t, label }) => {
+        {/* Explicit rows of three: a wrapping row with gaps mis-measures its height
+            once it needs a third line, and the fields below were drawn over it. */}
+        {chunk(RESERVATION_TYPES, 3).map((rowTypes, rowIndex) => (
+        <View key={rowIndex} style={styles.typeRow}>
+          {rowTypes.map(({ type: t, label }) => {
             const isSelected = type === t;
             const { Icon: TypeIcon, color: typeColor } = RESERVATION_ICONS[t];
             return (
@@ -231,7 +281,10 @@ export default function AddReservationScreen() {
               </TouchableOpacity>
             );
           })}
+          {/* Keep a short last row's buttons the same width as the rows above. */}
+          {Array.from({ length: 3 - rowTypes.length }, (_, i) => <View key={`pad-${i}`} style={styles.typeSpacer} />)}
         </View>
+        ))}
 
         {/* Title */}
         <Text style={labelStyle}>Title</Text>
@@ -255,17 +308,27 @@ export default function AddReservationScreen() {
           autoCapitalize="characters"
         />
 
-        {/* Check-in / check-out */}
+        {type === 'transit' && (
+          <>
+            <Text style={labelStyle}>From</Text>
+            <TextInput style={inputStyle} value={fromPlace} onChangeText={setFromPlace} placeholder="e.g. München Hbf" placeholderTextColor={colors.text.tertiary} />
+            <Text style={labelStyle}>To</Text>
+            <TextInput style={inputStyle} value={toPlace} onChangeText={setToPlace} placeholder="e.g. Köln Messe/Deutz" placeholderTextColor={colors.text.tertiary} />
+          </>
+        )}
+
+        {/* Date(s) — a train has one date and its times as printed */}
         <View style={styles.row}>
           <View style={styles.rowItem}>
             <DateField
-              label="Check-in"
+              label={type === 'transit' ? 'Date' : 'Check-in'}
               value={checkIn}
               onChange={setCheckIn}
               mode="date"
               placeholder="Select date"
             />
           </View>
+          {type !== 'transit' && (
           <View style={styles.rowItem}>
             <DateField
               label="Check-out"
@@ -275,18 +338,43 @@ export default function AddReservationScreen() {
               placeholder="Select date"
             />
           </View>
+          )}
         </View>
 
-        {/* Address */}
-        <Text style={labelStyle}>Address (optional)</Text>
-        <TextInput
-          style={inputStyle}
-          value={address}
-          onChangeText={setAddress}
-          placeholder="e.g. 9 Chome-7-1 Ginza, Tokyo"
-          placeholderTextColor={colors.text.tertiary}
-          autoCapitalize="words"
-        />
+        {type === 'transit' && (
+          <>
+            <View style={styles.row}>
+              <View style={styles.rowItem}>
+                <Text style={labelStyle}>Departs</Text>
+                <TextInput style={inputStyle} value={departs} onChangeText={setDeparts} placeholder="10:19" placeholderTextColor={colors.text.tertiary} keyboardType="numbers-and-punctuation" />
+              </View>
+              <View style={styles.rowItem}>
+                <Text style={labelStyle}>Arrives</Text>
+                <TextInput style={inputStyle} value={arrives} onChangeText={setArrives} placeholder="14:29" placeholderTextColor={colors.text.tertiary} keyboardType="numbers-and-punctuation" />
+              </View>
+            </View>
+            <Text style={[styles.hint, { color: colors.text.tertiary }]}>Times as printed on the ticket, local to each station.</Text>
+            <Text style={labelStyle}>Seat (optional)</Text>
+            <TextInput style={inputStyle} value={seat} onChangeText={setSeat} placeholder="e.g. 55 (car 39)" placeholderTextColor={colors.text.tertiary} />
+            <Text style={labelStyle}>Operator (optional)</Text>
+            <TextInput style={inputStyle} value={operator} onChangeText={setOperator} placeholder="e.g. Deutsche Bahn" placeholderTextColor={colors.text.tertiary} />
+          </>
+        )}
+
+        {type !== 'transit' && (
+          <>
+            {/* Address */}
+            <Text style={labelStyle}>Address (optional)</Text>
+            <TextInput
+              style={inputStyle}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="e.g. 9 Chome-7-1 Ginza, Tokyo"
+              placeholderTextColor={colors.text.tertiary}
+              autoCapitalize="words"
+            />
+          </>
+        )}
 
         {/* Notes */}
         <Text style={labelStyle}>Notes (optional)</Text>
@@ -344,12 +432,12 @@ const styles = StyleSheet.create({
   },
   typeRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing['2'],
+    marginBottom: Spacing['2'],
   },
+  typeSpacer: { flex: 1 },
   typeButton: {
     flex: 1,
-    minWidth: '30%',
     minHeight: 44,
     borderWidth: 1,
     borderRadius: BorderRadius.md,
@@ -362,6 +450,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     fontWeight: FontWeight.medium,
   },
+  hint: { fontSize: 13, marginTop: Spacing['1'] },
   submitButton: {
     marginTop: Spacing['6'],
   },
