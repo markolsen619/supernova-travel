@@ -5,6 +5,8 @@ import * as Haptics from 'expo-haptics';
 import { Plus, Wallet as WalletIcon } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useMyTrips } from '@/hooks/useMyTrips';
+import { useProGate } from '@/hooks/useProGate';
+import { WalletByTripList } from '@/components/wallet/WalletByTripList';
 import { EmailImportRow } from '@/components/wallet/EmailImportRow';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
@@ -19,13 +21,15 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 
-type Segment = 'all' | 'flights' | 'reservations' | 'loyalty';
+type Segment = 'all' | 'flights' | 'reservations' | 'loyalty' | 'trips';
 
 const SEGMENTS: { key: Segment; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'flights', label: 'Flights' },
   { key: 'reservations', label: 'Reservations' },
   { key: 'loyalty', label: 'Loyalty' },
+  // Pro: the wallet grouped by trip (components/wallet/WalletByTripList).
+  { key: 'trips', label: 'By trip' },
 ];
 
 export default function WalletHubScreen() {
@@ -36,7 +40,8 @@ export default function WalletHubScreen() {
   const { reservations, isLoading: reservationsLoading } = useReservations();
   // Linked items show their trip as an eyebrow; only fetch trips when something is linked.
   const anyLinked = boardingPasses.some((p) => p.tripId) || reservations.some((r) => r.tripId);
-  const { trips: myTrips } = useMyTrips(anyLinked);
+  const { isPro, openPaywall } = useProGate();
+  const { trips: myTrips, isLoading: tripsLoading } = useMyTrips(anyLinked || segment === 'trips');
   const tripTitleFor = (tripId?: string | null) => (tripId ? myTrips.find((t) => t.tripId === tripId)?.title : undefined);
   const { loyaltyPrograms, isLoading: loyaltyLoading } = useLoyaltyPrograms();
 
@@ -48,9 +53,14 @@ export default function WalletHubScreen() {
   }, []);
 
   const handleSelectSegment = useCallback((s: Segment) => {
+    // Bookings are linked to trips on Pro, so "By trip" is Pro too.
+    if (s === 'trips' && !isPro) {
+      openPaywall();
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSegment(s);
-  }, []);
+  }, [isPro, openPaywall]);
 
   const allowance = useWalletAllowance();
 
@@ -118,7 +128,12 @@ export default function WalletHubScreen() {
       <EmailImportRow />
 
       {/* Segmented control */}
-      <View style={styles.segments}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.segmentsScroll}
+        contentContainerStyle={styles.segments}
+      >
         {SEGMENTS.map(({ key, label }) => {
           const isSelected = segment === key;
           return (
@@ -141,14 +156,15 @@ export default function WalletHubScreen() {
                 numberOfLines={1}
               >
                 {label}
+                {key === 'trips' && !isPro ? '  PRO' : ''}
               </Text>
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Content */}
-      {isLoading ? (
+      {isLoading || (segment === 'trips' && tripsLoading) ? (
         <View style={{ paddingHorizontal: Spacing['5'], paddingTop: Spacing['2'], gap: Spacing['4'] }}>
           {[0, 1, 2].map((i) => (
             <SkeletonCard key={i} height={120} radius={BorderRadius.xl} />
@@ -163,6 +179,8 @@ export default function WalletHubScreen() {
           onAction={handleAdd}
           actionHaptic="none"
         />
+      ) : segment === 'trips' ? (
+        <WalletByTripList trips={myTrips} boardingPasses={boardingPasses} reservations={reservations} />
       ) : currentSegmentIsEmpty ? (
         <EmptyState
           size="sm"
@@ -267,13 +285,13 @@ const styles = StyleSheet.create({
     paddingTop: Spacing['5'],
     paddingBottom: Spacing['4'],
   },
+  segmentsScroll: { flexGrow: 0 },
   segmentPill: {
-    flex: 1,
+    paddingHorizontal: Spacing['4'],
     minHeight: 44,
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing['2'],
   },
   segmentLabel: {
     fontSize: FontSize.xs,
