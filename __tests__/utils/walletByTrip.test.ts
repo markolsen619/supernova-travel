@@ -1,4 +1,4 @@
-import { walletByTrip, bookingDay } from '@/utils/walletByTrip';
+import { walletByTrip, bookingDay, isSectionOpen, bookingCountLabel, defaultSegment } from '@/utils/walletByTrip';
 import type { BoardingPass, Reservation } from '@/types';
 import type { TripSummary } from '@/utils/walletLink';
 
@@ -52,5 +52,23 @@ describe("walletByTrip with members' shared bookings", () => {
     const europe = w.upcoming.find((s) => s.trip.tripId === 'europe')!;
     expect(europe.items.map((b) => b.item.id)).toEqual(['Sacher', 'Falkenturm']);
     expect(w.unlinked).toEqual([]);
+  });
+});
+
+describe('By trip sections', () => {
+  it('opens the soonest trip and folds the rest until you choose', () => {
+    expect(isSectionOpen('europe', 0, {})).toBe(true);
+    expect(isSectionOpen('japan', 1, {})).toBe(false);
+    expect(isSectionOpen('europe', 0, { europe: false })).toBe(false);
+    expect(isSectionOpen('japan', 1, { japan: true })).toBe(true);
+  });
+  it('counts what a folded trip holds', () => {
+    expect(bookingCountLabel(0)).toBe('Nothing booked yet');
+    expect(bookingCountLabel(1)).toBe('1 booking');
+    expect(bookingCountLabel(3)).toBe('3 bookings');
+  });
+  it('lands Pro on By trip and everyone else on All', () => {
+    expect(defaultSegment(true)).toBe('trips');
+    expect(defaultSegment(false)).toBe('all');
   });
 });
