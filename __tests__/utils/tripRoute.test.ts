@@ -1,6 +1,6 @@
 import {
   cityRanges, nightsFromDays, evenNights, routeNights, planRoute, endDateFor, absorbEndDateChange,
-  bookingCityIndex, citySummary, type RouteDay,
+  bookingCityIndex, citySummary, moveRow, setRowNights, removeRow, addRow, rowsToEntries, routeDatesLine, dropsWarning, type RouteDay,
 } from '@/utils/tripRoute';
 
 describe('cityRanges', () => {
@@ -83,6 +83,12 @@ describe('planRoute', () => {
     expect(move.updates).toContainEqual({ id: 's1', dayNumber: 5, city: 1 });
   });
 
+  it('the last city’s days move back into the one before it, after its own days', () => {
+    const p = planRoute(days, [{ from: 0, nights: 3, absorbsAfter: [1] }]);
+    expect(p.deletes).toEqual([]);
+    expect(p.updates).toEqual([{ id: 'v1', dayNumber: 3, city: 0 }, { id: 'v2', dayNumber: 4, city: 0 }]);
+  });
+
   it('a new city gets fresh days', () => {
     const p = planRoute(days, [{ from: 0, nights: 2 }, { from: 1, nights: 1 }, { from: null, nights: 1 }]);
     // Vienna loses its departure day (no longer last): v2 is empty, so dropped; the new city gets 2 days.
@@ -131,5 +137,52 @@ describe('citySummary', () => {
     expect(citySummary({ days: 3, stops: 12, staying: true })).toBe('3 days · 12 stops · hotel booked');
     expect(citySummary({ days: 1, stops: 1, staying: false })).toBe('1 day · 1 stop');
     expect(citySummary({ days: 2, stops: 0, staying: false })).toBe('2 days · nothing planned yet');
+  });
+});
+
+describe('route editor operations', () => {
+  const rows = () => [
+    { key: 'a', from: 0, nights: 3, absorbs: [], absorbsAfter: [], place: 'Prague' },
+    { key: 'b', from: 1, nights: 2, absorbs: [], absorbsAfter: [], place: 'Vienna' },
+    { key: 'c', from: 2, nights: 2, absorbs: [], absorbsAfter: [], place: 'Munich' },
+  ];
+  it('moves a city and keeps nights within 1–60', () => {
+    expect(moveRow(rows(), 2, -1).map((r) => r.place)).toEqual(['Prague', 'Munich', 'Vienna']);
+    expect(moveRow(rows(), 0, -1).map((r) => r.place)).toEqual(['Prague', 'Vienna', 'Munich']);
+    expect(setRowNights(rows(), 1, 0)[1].nights).toBe(1);
+    expect(setRowNights(rows(), 1, 99)[1].nights).toBe(60);
+  });
+  it('removing a city hands its days and nights to the next city', () => {
+    const r = removeRow(rows(), 1, 'move');
+    expect(r.map((x) => x.place)).toEqual(['Prague', 'Munich']);
+    expect(r[1]).toMatchObject({ nights: 4, absorbs: [1] });
+  });
+  it('removing the last city hands them back to the one before', () => {
+    const r = removeRow(rows(), 2, 'move');
+    expect(r[1]).toMatchObject({ place: 'Vienna', nights: 4, absorbsAfter: [2] });
+  });
+  it('removing to delete just drops the city', () => {
+    expect(removeRow(rows(), 1, 'delete').map((x) => x.nights)).toEqual([3, 2]);
+  });
+  it('carries cities already absorbed', () => {
+    const r = removeRow(removeRow(rows(), 0, 'move'), 0, 'move');
+    expect(r[0]).toMatchObject({ place: 'Munich', nights: 7, absorbs: [0, 1] });
+  });
+  it('adds a city at the end with one night, and turns rows into a plan', () => {
+    const r = addRow(rows(), 'Amsterdam', 'd');
+    expect(r[3]).toMatchObject({ from: null, nights: 1, place: 'Amsterdam' });
+    expect(rowsToEntries(r)[3]).toEqual({ from: null, nights: 1, absorbs: [], absorbsAfter: [] });
+  });
+});
+
+describe('route editor copy', () => {
+  it('sums the route into its dates', () => {
+    expect(routeDatesLine('2026-11-18', [3, 3, 3, 2, 2, 2, 2])).toBe('Nov 18 – Dec 5 · 17 nights');
+    expect(routeDatesLine(null, [2, 1])).toBe('3 nights · no dates yet');
+    expect(routeDatesLine('2026-11-18', [1])).toBe('Nov 18 – Nov 19 · 1 night');
+  });
+  it('names the days that would lose their stops', () => {
+    expect(dropsWarning([{ id: 'x', dayNumber: 3, city: 0, stops: 4 }, { id: 'y', dayNumber: 9, city: 2, stops: 1 }], ['Prague', 'Vienna', 'Munich']))
+      .toBe('Day 3 in Prague (4 stops) and Day 9 in Munich (1 stop) will be deleted with everything on them.');
   });
 });

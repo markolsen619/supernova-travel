@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import type { Destination, TripWithDays } from '@/types';
 import { resolveDayDestinationIndices } from '@/utils/dayDestination';
-import { endDateFor, planRoute, type RouteEntry, type RoutePlan, type RouteDay } from '@/utils/tripRoute';
+import { endDateFor, planRoute, routeNights, rowsToEntries, type RouteEntry, type RoutePlan, type RouteDay, type RouteRow } from '@/utils/tripRoute';
 import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
 
 /** A route the editor is about to save: the cities in their new order, each with where it came from. */
@@ -74,4 +74,23 @@ export function useTripRoute() {
   }, [queryClient]);
 
   return { saveRoute };
+}
+
+/** The trip's current route as editor rows (nights saved, else derived — utils/tripRoute routeNights). */
+export function routeRowsFromTrip(trip: TripWithDays): RouteRow<Destination>[] {
+  const cities = [trip.destination, ...trip.additionalDestinations];
+  const nights = routeNights({
+    nights: cities.map((c) => c.nights),
+    dayCities: routeDays(trip).map((d) => d.city),
+    start: trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null,
+    end: trip.endDate ? toCalendarDate(trip.endDate.toDate()) : null,
+  });
+  return cities.map((place, i) => ({ key: `${i}-${place.name}`, from: i, nights: nights[i], absorbs: [], absorbsAfter: [], place }));
+}
+
+export function draftFromRows(rows: RouteRow<Destination>[]): RouteDraft {
+  return {
+    cities: rows.map((r) => ({ ...r.place, nights: r.nights })),
+    entries: rowsToEntries(rows),
+  };
 }

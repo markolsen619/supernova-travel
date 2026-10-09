@@ -69,8 +69,8 @@ export function routeNights(a: { nights: (number | null | undefined)[]; dayCitie
 }
 
 export interface RouteDay { id: string; dayNumber: number; city: number; stops: number }
-/** One city of the new route: `from` is its index in the current route (null = new); `absorbs` are removed cities whose days join it. */
-export interface RouteEntry { from: number | null; nights: number; absorbs?: number[] }
+/** One city of the new route: `from` is its index in the current route (null = new); `absorbs` / `absorbsAfter` are removed cities whose days join it before / after its own (the city before or after it). */
+export interface RouteEntry { from: number | null; nights: number; absorbs?: number[]; absorbsAfter?: number[] }
 export interface RoutePlan {
   creates: { dayNumber: number; city: number }[];
   updates: { id: string; dayNumber: number; city: number }[];
@@ -87,7 +87,7 @@ export function planRoute(days: RouteDay[], route: RouteEntry[]): RoutePlan {
   route.forEach((entry, city) => {
     const need = entry.nights + (city === route.length - 1 ? 1 : 0);
     // A removed city's days come first: it sat before this one in the route.
-    const pool = [...(entry.absorbs ?? []).flatMap(byCity), ...(entry.from === null ? [] : byCity(entry.from))];
+    const pool = [...(entry.absorbs ?? []).flatMap(byCity), ...(entry.from === null ? [] : byCity(entry.from)), ...(entry.absorbsAfter ?? []).flatMap(byCity)];
     pool.slice(0, need).forEach((d) => {
       kept.add(d.id);
       if (d.dayNumber !== dayNumber || d.city !== city) plan.updates.push({ id: d.id, dayNumber, city });
@@ -136,4 +136,59 @@ export function citySummary(a: { days: number; stops: number; staying: boolean }
   if (a.staying) parts.push('hotel booked');
   if (a.stops === 0 && !a.staying) parts.push('nothing planned yet');
   return parts.join(' · ');
+}
+
+// ── The route editor's operations (components/trip/RouteEditorSheet) ──────────
+
+export interface RouteRow<T> { key: string; from: number | null; nights: number; absorbs: number[]; absorbsAfter: number[]; place: T }
+const MAX_NIGHTS = 60;
+
+export function moveRow<T>(rows: RouteRow<T>[], i: number, by: -1 | 1): RouteRow<T>[] {
+  const j = i + by;
+  if (j < 0 || j >= rows.length) return rows;
+  const next = [...rows];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
+}
+
+export function setRowNights<T>(rows: RouteRow<T>[], i: number, nights: number): RouteRow<T>[] {
+  return rows.map((r, k) => (k === i ? { ...r, nights: Math.min(MAX_NIGHTS, Math.max(1, Math.round(nights))) } : r));
+}
+
+/** Remove a city: 'delete' drops its days; 'move' gives its days and nights to the next city (or the one before, if it was last). */
+export function removeRow<T>(rows: RouteRow<T>[], i: number, mode: 'delete' | 'move'): RouteRow<T>[] {
+  const gone = rows[i];
+  const rest = rows.filter((_, k) => k !== i);
+  if (mode === 'delete' || rest.length === 0) return rest;
+  const carried = [...gone.absorbs, ...(gone.from === null ? [] : [gone.from]), ...gone.absorbsAfter];
+  if (i < rows.length - 1) {
+    return rest.map((r, k) => (k === i ? { ...r, nights: Math.min(MAX_NIGHTS, r.nights + gone.nights), absorbs: [...carried, ...r.absorbs] } : r));
+  }
+  return rest.map((r, k) => (k === i - 1 ? { ...r, nights: Math.min(MAX_NIGHTS, r.nights + gone.nights), absorbsAfter: [...r.absorbsAfter, ...carried] } : r));
+}
+
+export function addRow<T>(rows: RouteRow<T>[], place: T, key: string): RouteRow<T>[] {
+  return [...rows, { key, from: null, nights: 1, absorbs: [], absorbsAfter: [], place }];
+}
+
+export function rowsToEntries<T>(rows: RouteRow<T>[]): RouteEntry[] {
+  return rows.map((r) => ({ from: r.from, nights: r.nights, absorbs: r.absorbs, absorbsAfter: r.absorbsAfter }));
+}
+
+function shortDate(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+export function routeDatesLine(start: string | null, nights: number[]): string {
+  const total = nights.reduce((s, n) => s + n, 0);
+  const n = `${total} night${total === 1 ? '' : 's'}`;
+  return start ? `${shortDate(start)} – ${shortDate(endDateFor(start, total))} · ${n}` : `${n} · no dates yet`;
+}
+
+/** The confirm before a route save deletes days that hold stops (`names` = the current route). */
+export function dropsWarning(drops: RouteDay[], names: string[]): string {
+  const each = drops.map((d) => `Day ${d.dayNumber} in ${names[d.city] ?? 'this trip'} (${d.stops} stop${d.stops === 1 ? '' : 's'})`);
+  const list = each.length > 1 ? `${each.slice(0, -1).join(', ')} and ${each[each.length - 1]}` : each[0];
+  return `${list} will be deleted with everything on them.`;
 }
