@@ -78,7 +78,7 @@ export function useTripCoverResolver() {
         const resolved = await Promise.all(
           all.map(async (dest) => {
             if (dest.bounds) return dest;
-            const bounds = await resolveCityBounds(dest.name, dest.countryCode);
+            const bounds = await resolveCityBounds(dest.name, dest.countryCode, dest.lat != null && dest.lng != null ? { lat: dest.lat, lng: dest.lng } : null);
             return bounds ? { ...dest, bounds } : dest;
           }),
         );

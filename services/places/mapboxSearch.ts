@@ -1,6 +1,6 @@
 import { buildMapboxForwardUrl, normalizeMapboxFeature, type GroundedPlace } from '@/utils/mapboxQuery';
 import { regionFromMapboxFeature, type PlaceRegion } from '@/utils/tripRegion';
-import { isBboxUsable, type Bbox } from '@/utils/geoBounds';
+import { boundsHoldPoint, boxAround, isBboxUsable, type Bbox } from '@/utils/geoBounds';
 import type { PlaceViewportBounds } from '@/services/places/googlePlaces';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
@@ -38,34 +38,58 @@ export async function searchPlaceInBounds(
 }
 
 /**
- * Resolves a destination city to its bounding box.
+ * Resolves a destination to the box its stops are searched in.
  *
- * A city name plus a country filter is the unambiguous case for a geocoder:
- * "La Paz" + MX lands in Baja California Sur, not Bolivia. Free on the Search
- * Box tier, so every destination box costs nothing to obtain.
+ * With the destination's own coordinates (every picked destination has them),
+ * the box is the city that point is in — Mapbox Geocoding v6 reverse, types
+ * place: "Mission Beach" (a San Diego neighbourhood) → San Diego. By name
+ * alone the geocoder answered with a namesake city — Mission, Texas — and every
+ * stop of that San Diego trip was grounded in Texas. So a by-name box is kept
+ * only if it holds the point; failing everything, a ±0.2° box around the point.
+ * Without coordinates, name + country as before ("La Paz" + MX → Baja California Sur).
  */
 export async function resolveCityBounds(
   name: string,
   countryCode: string | null,
+  point?: { lat: number; lng: number } | null,
 ): Promise<PlaceViewportBounds | null> {
   if (!TOKEN || !name.trim()) return null;
+  const at = point && Number.isFinite(point.lat) && Number.isFinite(point.lng) ? point : null;
+  if (at) {
+    try {
+      const res = await fetch(`https://api.mapbox.com/search/geocode/v6/reverse?longitude=${at.lng}&latitude=${at.lat}&types=place&access_token=${TOKEN}`);
+      if (res.ok) {
+        const json = (await res.json()) as { features?: { properties?: { bbox?: number[] } }[] };
+        const bbox = json.features?.[0]?.properties?.bbox;
+        if (bbox && bbox.length >= 4) {
+          const box: PlaceViewportBounds = { sw: [bbox[0], bbox[1]], ne: [bbox[2], bbox[3]] };
+          if (boundsHoldPoint(box, at)) return box;
+        }
+      } else {
+        console.error('[resolveCityBounds] reverse HTTP', res.status);
+      }
+    } catch (error) {
+      console.error('[resolveCityBounds] reverse failed', error);
+    }
+  }
   try {
     const res = await fetch(buildMapboxForwardUrl({
-      query: name, token: TOKEN, country: countryCode, types: 'place', limit: 1,
+      query: name, token: TOKEN, country: countryCode, types: 'place', limit: 1, ...(at ? { proximity: at } : {}),
     }));
-    if (!res.ok) {
+    if (res.ok) {
+      const json = (await res.json()) as { features?: { properties?: { bbox?: number[] } }[] };
+      const bbox = json.features?.[0]?.properties?.bbox;
+      if (bbox && bbox.length >= 4) {
+        const box: PlaceViewportBounds = { sw: [bbox[0], bbox[1]], ne: [bbox[2], bbox[3]] };
+        if (!at || boundsHoldPoint(box, at)) return box;
+      }
+    } else {
       console.error('[resolveCityBounds] HTTP', res.status);
-      return null;
     }
-    const json = (await res.json()) as { features?: { properties?: { bbox?: number[] } }[] };
-    const bbox = json.features?.[0]?.properties?.bbox;
-    if (!bbox || bbox.length < 4) return null;
-    const [w, s, e, n] = bbox;
-    return { sw: [w, s], ne: [e, n] };
   } catch (error) {
     console.error('[resolveCityBounds] failed', error);
-    return null;
   }
+  return at ? boxAround(at, 0.2) : null;
 }
 
 /**
