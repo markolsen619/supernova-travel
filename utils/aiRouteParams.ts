@@ -6,7 +6,7 @@ import type { TripVisibility } from '@/types';
  * pushes ai-generating with everything as strings).
  */
 
-export const TRAVEL_STYLE_VALUES: readonly TravelStyle[] = ['adventure', 'luxury', 'budget', 'family', 'cultural'];
+export const TRAVEL_STYLE_VALUES: readonly TravelStyle[] = ['adventure', 'luxury', 'budget', 'family', 'cultural', 'party', 'relax', 'foodie', 'romantic'];
 
 function isTravelStyle(v: string): v is TravelStyle {
   return (TRAVEL_STYLE_VALUES as readonly string[]).includes(v);

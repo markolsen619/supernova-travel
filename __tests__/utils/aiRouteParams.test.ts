@@ -6,7 +6,7 @@ describe('parseTravelStyles', () => {
   });
 
   it('drops unknown and repeated values', () => {
-    expect(parseTravelStyles('family,party,family, budget')).toEqual(['family', 'budget']);
+    expect(parseTravelStyles('family,karaoke,family, budget')).toEqual(['family', 'budget']);
   });
 
   it('falls back to the single legacy param, then adventure', () => {

@@ -1,6 +1,6 @@
 // Relative path, not @/: functions/ is a separate npm package and
 // promptRules.ts imports no firebase-admin, so it is testable here.
-import { resolveTripVisibility, resolveTravelStyles, travelStyleSummary, travelStyleRules, VENUE_NAMING_RULES, destinationLabel } from '../../functions/src/promptRules';
+import { resolveTripVisibility, resolveTravelStyles, travelStyleSummary, travelStyleRules, VENUE_NAMING_RULES, destinationLabel, STYLE_RULES } from '../../functions/src/promptRules';
 
 describe('resolveTravelStyles', () => {
   it('uses the list when a current client sends one', () => {
@@ -12,7 +12,7 @@ describe('resolveTravelStyles', () => {
   });
 
   it('ignores unknown and repeated styles, and never returns none', () => {
-    expect(resolveTravelStyles({ travelStyle: 'budget', travelStyles: ['party', 'budget', 'budget'] as never })).toEqual(['budget']);
+    expect(resolveTravelStyles({ travelStyle: 'budget', travelStyles: ['karaoke', 'budget', 'budget'] as never })).toEqual(['budget']);
     expect(resolveTravelStyles({ travelStyle: 'nonsense' as never, travelStyles: [] })).toEqual(['adventure']);
   });
 });
@@ -66,5 +66,12 @@ describe('destinationLabel', () => {
     expect(destinationLabel('Lisbon', null, null)).toBe('Lisbon');
     expect(destinationLabel('Lisbon', undefined, 5)).toBe('Lisbon');
     expect(destinationLabel('Lisbon', Number.NaN, 5)).toBe('Lisbon');
+  });
+});
+
+describe('nine travel styles', () => {
+  it('plans for party, relax, foodie and romantic trips too', () => {
+    expect(resolveTravelStyles({ travelStyles: ['party', 'relax', 'foodie', 'romantic'] } as never)).toEqual(['party', 'relax', 'foodie', 'romantic']);
+    for (const s of ['party', 'relax', 'foodie', 'romantic'] as const) expect(STYLE_RULES[s].length).toBeGreaterThan(40);
   });
 });
