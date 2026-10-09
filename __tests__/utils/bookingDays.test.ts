@@ -93,3 +93,10 @@ describe('a reservation’s own time', () => {
     expect(bookingsByDay(days, [dinner]).d1[0].time).toBe('19:30');
   });
 });
+
+describe('a timed reservation on its day', () => {
+  it('shows its time in the row, like a train', () => {
+    const dinner = { kind: 'reservation', item: { id: 'r', type: 'restaurant', title: 'Lokál', confirmationCode: 'L1', checkIn: '2026-11-19', time: '19:30', ownerUid: 'u', createdAt: '' } } as never;
+    expect(bookingLines({ booking: dinner, role: 'booked', time: '19:30' }).title).toBe('Lokál · 19:30');
+  });
+});

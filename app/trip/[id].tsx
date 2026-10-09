@@ -319,6 +319,8 @@ export default function TripDetailScreen() {
   const handleDragState = useCallback((dragging: boolean) => {
     navigation.setOptions({ gestureEnabled: !dragging });
   }, [navigation]);
+  // Never leave the sheet unable to swipe closed after a drag that ended oddly.
+  useEffect(() => () => navigation.setOptions({ gestureEnabled: true }), [navigation]);
   const openBooking = useCallback((b: TripBooking) => {
     router.push(bookingRoute(b) as Href);
   }, [router]);

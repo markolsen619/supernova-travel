@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -133,6 +133,12 @@ export function DayTimeline({
   );
   // Released without moving (or the gesture was taken away): still hand the sheet its swipe back.
   const handleRelease = useCallback(() => onDragStateChange?.(false), [onDragStateChange]);
+  // A drag the list abandons (its stops changed under it, or this day went away) fires neither
+  // callback above — so leaving, and any change to this day's stops, also give the swipe back.
+  // Keyed on the stop ids (what makes the list abandon a drag), not the activities object, which
+  // background grounding replaces mid-drag without the drag ending.
+  const stopIds = day.activities.map((a) => a.id).join(',');
+  useEffect(() => () => onDragStateChange?.(false), [onDragStateChange, stopIds]);
 
   // "Add manually" only opens ActivityFormSheet — it doesn't write anything
   // itself, so Light (not Medium) per the haptics rule. Only used by the

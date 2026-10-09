@@ -103,5 +103,6 @@ export function bookingLines(d: DayBooking): { title: string; detail: string } {
       detail: [r.seat ? `Seat ${r.seat}` : null, conf || null].filter(Boolean).join(' · '),
     };
   }
-  return { title: r.title, detail: conf };
+  // A table or ticket time (Reservation.time) shows like a train's.
+  return { title: d.time ? `${r.title} · ${d.time}` : r.title, detail: conf };
 }
