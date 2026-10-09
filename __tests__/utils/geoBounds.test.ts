@@ -1,5 +1,5 @@
 // __tests__/utils/geoBounds.test.ts
-import { boundsToBbox, bboxCenter, isBboxUsable } from '@/utils/geoBounds';
+import { boundsToBbox, bboxCenter, isBboxUsable, boundsHoldPoint, boxAround } from '@/utils/geoBounds';
 
 const LA_PAZ = { sw: [-110.42, 24.05] as [number, number], ne: [-110.24, 24.22] as [number, number] };
 
@@ -36,5 +36,24 @@ describe('isBboxUsable', () => {
 
   it('rejects an antimeridian-crossing box rather than silently inverting it', () => {
     expect(isBboxUsable([179.5, 24.0, -179.5, 24.5])).toBe(false);
+  });
+});
+
+describe('destination boxes must hold the destination', () => {
+  const missionBeach = { lat: 32.7706, lng: -117.2514 };
+  const missionTexas = { sw: [-98.444656, 26.102133] as [number, number], ne: [-98.257977, 26.391675] as [number, number] };
+  const sanDiego = { sw: [-117.3, 32.53] as [number, number], ne: [-116.9, 33.11] as [number, number] };
+  it('rejects a box found by name that is somewhere else entirely (Mission, Texas for Mission Beach)', () => {
+    expect(boundsHoldPoint(missionTexas, missionBeach)).toBe(false);
+    expect(boundsHoldPoint(sanDiego, missionBeach)).toBe(true);
+  });
+  it('allows a little slack at the edges', () => {
+    expect(boundsHoldPoint(sanDiego, { lat: 32.52, lng: -117.31 })).toBe(true);
+  });
+  it('falls back to a box around the point, about 20 km each way', () => {
+    const b = boxAround(missionBeach, 0.2);
+    expect(b.sw[0]).toBeCloseTo(-117.4514);
+    expect(b.ne[1]).toBeCloseTo(32.9706);
+    expect(boundsHoldPoint(b, missionBeach)).toBe(true);
   });
 });

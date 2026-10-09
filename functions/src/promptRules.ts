@@ -25,6 +25,10 @@ export const STYLE_RULES: Record<TravelStyle, string> = {
   budget: 'Favor free or low-cost activities, casual local eateries, and public transport. Avoid luxury/fine-dining language.',
   family: 'Favor kid-friendly venues and gentler pacing (shorter walks, earlier bedtimes, no late-night or adult-oriented activities).',
   cultural: 'Prioritize museums, historic sites, and local traditions over shopping, nightlife, or generic tourist attractions.',
+  party: 'Build the days around nightlife: lively bars, clubs, beach clubs and late dinners; plan slow, late-starting mornings and keep daytime light (brunch, pools, beaches).',
+  relax: 'Keep the pace unhurried: spas, beaches, scenic cafés, gardens and long lunches; few stops per day, no early starts, and plenty of open downtime.',
+  foodie: 'Make food the itinerary: standout local restaurants, markets, street food, food tours, tastings and cooking classes, with meals as the anchor of each day.',
+  romantic: 'Plan for a couple: sunset viewpoints, intimate restaurants, scenic walks, boat rides and memorable shared experiences; avoid crowded, family-oriented spots.',
 };
 
 function isTravelStyle(v: unknown): v is TravelStyle {

@@ -11,7 +11,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useNavigation, useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -68,7 +68,7 @@ import { cityBookings } from '@/utils/cityBookings';
 import { buildBookingAction } from '@/utils/bookingLinks';
 import { isSectionOpen } from '@/utils/walletByTrip';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { selectStopsToGround } from '@/utils/groundingQueue';
+import { manualSearchQuery, selectStopsToGround, typedStopMatches } from '@/utils/groundingQueue';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
 import { tripPlaceLabel } from '@/utils/tripRegion';
@@ -314,13 +314,6 @@ export default function TripDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCityFilter((current) => (current === index ? null : index));
   }, []);
-  // While a stop is being dragged, the sheet must not swipe closed (components/trip/DayTimeline).
-  const navigation = useNavigation();
-  const handleDragState = useCallback((dragging: boolean) => {
-    navigation.setOptions({ gestureEnabled: !dragging });
-  }, [navigation]);
-  // Never leave the sheet unable to swipe closed after a drag that ended oddly.
-  useEffect(() => () => navigation.setOptions({ gestureEnabled: true }), [navigation]);
   const openBooking = useCallback((b: TripBooking) => {
     router.push(bookingRoute(b) as Href);
   }, [router]);
@@ -494,14 +487,25 @@ export default function TripDetailScreen() {
 
   const handleSubmitActivityForm = useCallback(
     async (data: ActivityFormData) => {
-      if (!id || !activeDay) return;
+      if (!id || !activeDay || !trip) return;
+      // The day's city, so a typed stop is looked up there and lands on the map (utils/groundingQueue).
+      const sortedForCity = [...trip.days].sort((x, y) => x.dayNumber - y.dayNumber);
+      const cityIndices = resolveDayDestinationIndices(sortedForCity, [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)]);
+      const city = destinationAt(trip, cityIndices[sortedForCity.findIndex((d) => d.id === activeDay.id)] ?? 0).name;
+      const searchQuery = manualSearchQuery(data.type, data.title, city);
       if (formMode === 'edit' && editingActivity) {
+        const unplaced = editingActivity.lat == null || editingActivity.lng == null;
+        const renamed = data.title.trim() !== editingActivity.title.trim() || data.type !== editingActivity.type;
         await updateActivity(id, activeDay.id, editingActivity.id, {
           type: data.type,
           title: data.title,
           startTime: data.startTime,
           endTime: data.endTime,
           notes: data.notes,
+          // Renamed (or retyped) before it was ever placed: it's yours now — look up the new name, never rename it.
+          // Editing only the time or notes keeps an AI stop's own, more precise search query.
+          ...(unplaced && renamed ? { searchQuery, groundingFailedAt: null, titleSource: 'user' as const } : {}),
+          ...(!unplaced && renamed ? { titleSource: 'user' as const } : {}),
         });
         return;
       }
@@ -523,11 +527,12 @@ export default function TripDetailScreen() {
         currency: null,
         mediaUrls: [],
         createdAt: Timestamp.now(),
-        searchQuery: null, // manually created — nothing to lazily ground
+        searchQuery, // looked up by the background pass, like an AI stop — typed places belong on the map too
         groundingFailedAt: null,
+        titleSource: 'user',
       });
     },
-    [id, activeDay, formMode, editingActivity, addActivity, updateActivity],
+    [id, trip, activeDay, formMode, editingActivity, addActivity, updateActivity],
   );
 
   const handleDeleteActivity = useCallback(async () => {
@@ -683,7 +688,14 @@ export default function TripDetailScreen() {
       // tripRef, not trip: keying this on trip would restart the background
       // pass on every write it makes (see tripRef above).
       const activity = tripRef.current?.days.find((d) => d.id === dayId)?.activities.find((a) => a.id === activityId);
-      const renamed = resolved.isVenue && activity ? venueTitle(activity, resolved.name) : null;
+      // A stop typed by hand is never renamed, and is pinned only to a place that shares a real word with it
+      // ("Dinner with Kelly" must not become "Dinner at" whichever restaurant the search found).
+      if (activity?.titleSource === 'user' && !typedStopMatches(activity.title, resolved.name)) {
+        setUnresolvedActivityIds((prev) => new Set(prev).add(activityId));
+        await patchActivityGrounding(id, dayId, activityId, { groundingFailedAt: Timestamp.now() });
+        return;
+      }
+      const renamed = resolved.isVenue && activity && activity.titleSource !== 'user' ? venueTitle(activity, resolved.name) : null;
       await patchActivityGrounding(id, dayId, activityId, {
         placeId: resolved.placeId,
         address: resolved.address,
@@ -795,6 +807,12 @@ export default function TripDetailScreen() {
   // strictly better than grounding the whole itinerary against the planet.
   const destReady =
     trip?.destination.bounds != null || trip?.destination.lat != null;
+  // The stops still waiting to be placed. A stop added during the visit changes it, so the pass
+  // picks it up straight away; grounding writes alone (same set) don't restart the pass.
+  const pendingGroundKey = useMemo(
+    () => (trip ? trip.days.flatMap((d) => d.activities.filter((a) => a.lat == null && a.searchQuery && !a.groundingFailedAt).map((a) => a.id)).sort().join(',') : ''),
+    [trip],
+  );
 
   // ── Background auto-grounding (Fix 10) ───────────────────────────────────────
   // A freshly generated trip otherwise opens to an empty map, asking the
@@ -825,7 +843,8 @@ export default function TripDetailScreen() {
   // exactly once, when the bounds/destination backfill lands, and that is the
   // first moment the pass has a geographic anchor to search inside.
   useEffect(() => {
-    if (!trip?.isAiGenerated || !isOwner || !destReady) return;
+    // Any trip: stops typed by hand carry a search query too (utils/groundingQueue manualSearchQuery).
+    if (!trip || !isOwner || !destReady) return;
     let cancelled = false;
 
     (async () => {
@@ -862,7 +881,7 @@ export default function TripDetailScreen() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip?.id, isOwner, destReady]);
+  }, [trip?.id, isOwner, destReady, pendingGroundKey]);
 
   // Timeline tap: ungrounded → ground it in place; already-grounded → jump to
   // the map, centered on its pin (Part C: "tapping an activity in the
@@ -1094,7 +1113,6 @@ export default function TripDetailScreen() {
                     onActivityPress={canEditItinerary ? handleActivityPress : undefined}
                     onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
                     onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
-                    onDragStateChange={handleDragState}
                     onDeleteDay={canEditItinerary ? () => (ci !== undefined && routeSaved ? deleteDayInCity(day, ci) : handleDeleteDay(day)) : undefined}
                     resolvingActivityId={resolvingActivityId}
                     highlightActivityId={highlightActivityId}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
-import { NestableDraggableFlatList, RenderItemParams } from 'react-native-draggable-flatlist';
+import { ReorderStopsSheet } from '@/components/trip/ReorderStopsSheet';
 import { TrashSimple, NotePencil, MagnifyingGlass, MapPin } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/Button';
@@ -21,9 +21,6 @@ import { ActivityItem } from './ActivityItem';
 
 interface DayTimelineProps {
   day: TripDay;
-  /** True while a stop is lifted. The trip screen is an iOS sheet whose swipe-to-close would
-   *  otherwise take over a downward drag and leave the card stuck mid-air. */
-  onDragStateChange?: (dragging: boolean) => void;
   onAddActivity?: () => void;
   /** Opens the place-search flow (Part B) to add a grounded stop to this day. */
   onAddStop?: () => void;
@@ -61,7 +58,6 @@ function formatDayHeader(dayNumber: number, date: Timestamp | null): string {
 
 export function DayTimeline({
   day,
-  onDragStateChange,
   onAddActivity,
   onAddStop,
   onEditActivity,
@@ -119,26 +115,18 @@ export function DayTimeline({
   const canDrag = editable && !!onReorderActivities && sorted.length > 1;
 
   // A tap you can feel when the stop lifts, so it's clear the long press took.
-  const handleDragBegin = useCallback(() => {
+  // Long-press a stop → the day's reorder screen (components/trip/ReorderStopsSheet). Not drag-in-place:
+  // a draggable list nested in the trip page's scroll lifted the stop to the top and wouldn't move it.
+  const [reorderOpen, setReorderOpen] = useState(false);
+  const openReorder = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onDragStateChange?.(true);
-  }, [onDragStateChange]);
-
-  const handleDragEnd = useCallback(
-    ({ data }: { data: TripActivity[] }) => {
-      onDragStateChange?.(false);
-      onReorderActivities?.(day.id, data);
-    },
-    [onReorderActivities, onDragStateChange, day.id],
+    setReorderOpen(true);
+  }, []);
+  const closeReorder = useCallback(() => setReorderOpen(false), []);
+  const saveOrder = useCallback(
+    (ordered: TripActivity[]) => onReorderActivities?.(day.id, ordered),
+    [onReorderActivities, day.id],
   );
-  // Released without moving (or the gesture was taken away): still hand the sheet its swipe back.
-  const handleRelease = useCallback(() => onDragStateChange?.(false), [onDragStateChange]);
-  // A drag the list abandons (its stops changed under it, or this day went away) fires neither
-  // callback above — so leaving, and any change to this day's stops, also give the swipe back.
-  // Keyed on the stop ids (what makes the list abandon a drag), not the activities object, which
-  // background grounding replaces mid-drag without the drag ending.
-  const stopIds = day.activities.map((a) => a.id).join(',');
-  useEffect(() => () => onDragStateChange?.(false), [onDragStateChange, stopIds]);
 
   // "Add manually" only opens ActivityFormSheet — it doesn't write anything
   // itself, so Light (not Medium) per the haptics rule. Only used by the
@@ -157,21 +145,19 @@ export function DayTimeline({
     onDeleteDay?.();
   }, [onDeleteDay]);
 
-  const renderItem = useCallback(
-    ({ item, drag, isActive, getIndex }: RenderItemParams<TripActivity>) => {
-      const index = getIndex() ?? 0;
+  const renderStop = useCallback(
+    (item: TripActivity, index: number) => {
       const isLast = index === sorted.length - 1;
       return (
-        <View>
+        <View key={item.id}>
           <ActivityItem
             activity={item}
             onPress={onActivityPress ? () => handleActivityPress(item) : undefined}
             onEdit={onEditActivity ? () => handleEditActivity(item) : undefined}
-            onLongPress={canDrag ? drag : undefined}
+            onLongPress={canDrag ? openReorder : undefined}
             onToggleVisited={onToggleVisited ? () => handleToggleVisited(item) : undefined}
             showEdit={editable}
             isResolving={resolvingActivityId === item.id}
-            isDragging={isActive}
             isHighlighted={highlightActivityId === item.id}
             isCurrent={currentActivityId === item.id}
             bookedDetail={bookedByStop[item.id]}
@@ -192,6 +178,7 @@ export function DayTimeline({
       onToggleVisited,
       handleToggleVisited,
       canDrag,
+      openReorder,
       editable,
       resolvingActivityId,
       highlightActivityId,
@@ -247,15 +234,7 @@ export function DayTimeline({
 
       {/* ── Activities ── */}
       {hasActivities ? (
-        <NestableDraggableFlatList
-          data={sorted}
-          keyExtractor={(activity) => activity.id}
-          renderItem={renderItem}
-          onDragBegin={handleDragBegin}
-          onDragEnd={handleDragEnd}
-          onRelease={handleRelease}
-          containerStyle={styles.activitiesContainer}
-        />
+        <View style={styles.activitiesContainer}>{sorted.map(renderStop)}</View>
       ) : (
         <EmptyState
           icon={MapPin}
@@ -290,6 +269,15 @@ export function DayTimeline({
             </TouchableOpacity>
           )}
         </View>
+      )}
+      {canDrag && (
+        <ReorderStopsSheet
+          visible={reorderOpen}
+          dayLabel={`Day ${day.dayNumber}`}
+          stops={sorted}
+          onClose={closeReorder}
+          onSave={saveOrder}
+        />
       )}
     </View>
   );

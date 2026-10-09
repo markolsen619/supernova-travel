@@ -1,6 +1,6 @@
 import type { TripVisibility } from '@/types';
 
-export type TravelStyle = 'adventure' | 'luxury' | 'budget' | 'family' | 'cultural';
+export type TravelStyle = 'adventure' | 'luxury' | 'budget' | 'family' | 'cultural' | 'party' | 'relax' | 'foodie' | 'romantic';
 export type TripPace = 'relaxed' | 'moderate' | 'packed';
 
 export interface GenerateTripRequest {

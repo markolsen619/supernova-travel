@@ -10,7 +10,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { MapPin, MagnifyingGlass, X, Mountains, Diamond, Wallet, UsersThree, Bank } from 'phosphor-react-native';
+import { chunk } from '@/utils/transitTime';
+import { MapPin, MagnifyingGlass, X, Mountains, Diamond, Wallet, UsersThree, Bank, Champagne, FlowerLotus, ForkKnife, Heart } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { TravelStyle, TripPace } from '@/types/ai';
 import { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
@@ -59,6 +60,10 @@ const TRAVEL_STYLES: { value: TravelStyle; label: string; Icon: PhosphorIcon }[]
   { value: 'budget', label: 'Budget', Icon: Wallet },
   { value: 'family', label: 'Family', Icon: UsersThree },
   { value: 'cultural', label: 'Cultural', Icon: Bank },
+  { value: 'party', label: 'Party', Icon: Champagne },
+  { value: 'relax', label: 'Relax', Icon: FlowerLotus },
+  { value: 'foodie', label: 'Foodie', Icon: ForkKnife },
+  { value: 'romantic', label: 'Romantic', Icon: Heart },
 ];
 
 /** The generator's cap — generateTrip enforces the same (utils/aiTripLength.ts). */
@@ -262,8 +267,11 @@ export function AiPromptForm({
       {/* Travel Style */}
       <View style={styles.field}>
         <Text style={[styles.label, { color: colors.text.secondary }]}>Travel style</Text>
-        <View style={styles.styleGrid}>
-          {TRAVEL_STYLES.map((option) => {
+        {/* Explicit rows of three: a wrapping row with gap mis-measures its third row (fields drew over it — see reservation/add). */}
+        <View style={styles.styleRows}>
+          {chunk(TRAVEL_STYLES, 3).map((row) => (
+          <View key={row[0].value} style={styles.styleGrid}>
+          {row.map((option) => {
             const active = travelStyles.includes(option.value);
             return (
               <TouchableOpacity
@@ -285,6 +293,8 @@ export function AiPromptForm({
               </TouchableOpacity>
             );
           })}
+          </View>
+          ))}
         </View>
         <Text style={[styles.hint, { color: colors.text.tertiary }]}>Pick as many as fit</Text>
       </View>
@@ -453,6 +463,7 @@ const styles = StyleSheet.create({
 
 
   // Travel style / pace pills
+  styleRows: { gap: Spacing['2'] },
   styleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

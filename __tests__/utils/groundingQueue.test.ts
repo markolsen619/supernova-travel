@@ -1,4 +1,4 @@
-import { selectStopsToGround } from '@/utils/groundingQueue';
+import { selectStopsToGround, manualSearchQuery, typedStopMatches } from '@/utils/groundingQueue';
 
 const act = (over: any = {}) => ({
   id: 'a1', lat: null, lng: null, searchQuery: 'Malecón', groundingFailedAt: null, ...over,
@@ -56,5 +56,31 @@ describe('selectStopsToGround', () => {
       { id: 'd2', activities: [act({ id: 'a2', searchQuery: 'Colosseum' })] },
     ];
     expect(selectStopsToGround(days, [0, 1]).map((s) => s.destinationIndex)).toEqual([0, 1]);
+  });
+});
+
+describe('manualSearchQuery', () => {
+  it('lets a typed place be found on the map, in its day’s city', () => {
+    expect(manualSearchQuery('activity', 'Sagrada Família', 'Barcelona')).toBe('Sagrada Família, Barcelona');
+    expect(manualSearchQuery('restaurant', 'Lokál Dlouhá', 'Prague')).toBe('Lokál Dlouhá, Prague');
+  });
+  it('does not look up free time, transport, flights, or a title too short to mean a place', () => {
+    expect(manualSearchQuery('free', 'Beach afternoon', 'Nice')).toBeNull();
+    expect(manualSearchQuery('transport', 'Train to Rome', 'Florence')).toBeNull();
+    expect(manualSearchQuery('flight', 'LH 431', 'Munich')).toBeNull();
+    expect(manualSearchQuery('activity', 'Go', 'Paris')).toBeNull();
+  });
+  it('does not repeat the city', () => {
+    expect(manualSearchQuery('activity', 'Prague Castle', 'Prague')).toBe('Prague Castle');
+  });
+});
+
+describe('typedStopMatches', () => {
+  it('pins a typed place only to somewhere that shares a real word with it', () => {
+    expect(typedStopMatches('Sagrada Família', 'Basílica de la Sagrada Família')).toBe(true);
+    expect(typedStopMatches('Lokál Dlouhá', 'Lokál Dlouhááá')).toBe(true);
+    expect(typedStopMatches('Dinner with Kelly', 'The Fish Market')).toBe(false);
+    expect(typedStopMatches('Drinks with the team', 'Team Rubicon Bar')).toBe(true);
+    expect(typedStopMatches('Lunch', 'Lunch Box Cafe')).toBe(false);
   });
 });

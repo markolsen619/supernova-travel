@@ -29,3 +29,20 @@ export function isBboxUsable(bbox: Bbox | null): boolean {
   if (![w, s, e, n].every(finite)) return false;
   return e > w && n > s;
 }
+
+/**
+ * Whether a destination's box actually contains the destination (with a
+ * little slack, `margin` degrees ≈ 2 km). A box found by name alone can be a
+ * namesake elsewhere — "Mission Beach" matched the city of Mission, Texas, and
+ * every stop of a San Diego trip was then searched for in Texas.
+ */
+export function boundsHoldPoint(bounds: PlaceViewportBounds, point: { lat: number; lng: number }, margin = 0.02): boolean {
+  const [w, s] = bounds.sw;
+  const [e, n] = bounds.ne;
+  return point.lng >= w - margin && point.lng <= e + margin && point.lat >= s - margin && point.lat <= n + margin;
+}
+
+/** A square box of ±`degrees` around a point — when no city box can be trusted. */
+export function boxAround(point: { lat: number; lng: number }, degrees: number): PlaceViewportBounds {
+  return { sw: [point.lng - degrees, point.lat - degrees], ne: [point.lng + degrees, point.lat + degrees] };
+}
