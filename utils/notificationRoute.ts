@@ -59,3 +59,15 @@ export function resolveNotificationRoute(data: unknown): string | null {
 
   return spec.build(id);
 }
+
+/**
+ * Where a tapped push goes: its screen, or — for a type this build can't open
+ * (older or newer than it) — the notifications list at that notification, so
+ * the tap always shows what it was about.
+ */
+export function notificationTapRoute(data: unknown): string {
+  const route = resolveNotificationRoute(data);
+  if (route) return route;
+  const id = (data as { notificationId?: unknown } | null | undefined)?.notificationId;
+  return typeof id === 'string' && id ? `/notifications?highlight=${id}` : '/notifications';
+}

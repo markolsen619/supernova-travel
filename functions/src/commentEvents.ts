@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentCreated, onDocumentDeleted } from 'firebase-functions/v2/firestore';
+import { commentLikePushCopy } from './pushCopy';
 import { notifyUser } from './notify';
 import { commentInboxes } from './commentNotifications';
 
@@ -36,7 +37,7 @@ export const onCommentLikeCreated = onDocumentCreated(
         likerName,
         likerAvatarUrl: liker.avatarUrl ?? null,
       },
-      push: { title: 'New like', body: `${likerName} liked your comment: ${preview}` },
+      push: commentLikePushCopy(likerName, preview),
     });
   },
 );

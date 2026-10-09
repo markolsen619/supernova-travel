@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useRootNavigationState, type Href } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { resolveNotificationRoute } from '@/utils/notificationRoute';
+import { notificationTapRoute } from '@/utils/notificationRoute';
+import { useNotificationBannerStore } from '@/stores/useNotificationBannerStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
@@ -37,13 +38,17 @@ export function useNotificationRouting() {
       const { identifier } = response.notification.request;
       if (handled.current.has(identifier)) return;
 
-      const route = resolveNotificationRoute(response.notification.request.content.data);
-      // No route means an unknown or unroutable payload: leave the user
-      // wherever the app opens rather than guessing.
-      if (!route) return;
+      const { content } = response.notification.request;
+      // Its screen, or — for a type this build can't open — the notifications
+      // list at that notification. Never "open the app and leave you guessing".
+      const route = notificationTapRoute(content.data);
 
       handled.current.add(identifier);
       setPendingRoute(route);
+      // The list already shows the notification; anywhere else, say why you're there.
+      if (!route.startsWith('/notifications') && content.title) {
+        useNotificationBannerStore.getState().show(content.title, content.body ?? '');
+      }
     }
 
     Notifications.getLastNotificationResponseAsync()

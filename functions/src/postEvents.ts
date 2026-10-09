@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { likePushCopy, commentPushCopy } from './pushCopy';
 import { notifyUser } from './notify';
 import { commentNotificationTargets } from './commentNotifications';
 
@@ -39,10 +40,7 @@ export const onLikeCreated = onDocumentCreated(
         likerName,
         likerAvatarUrl: likerData.avatarUrl ?? null,
       },
-      push: {
-        title: 'New like',
-        body: `${likerName} liked your post`,
-      },
+      push: likePushCopy(likerName, post.caption),
     });
   },
 );
@@ -82,9 +80,7 @@ export const onCommentCreated = onDocumentCreated(
         commenterName,
         commenterAvatarUrl: comment.authorAvatarUrl ?? null,
       },
-      push: type === 'comment_reply'
-        ? { title: 'New reply', body: `${commenterName} replied: ${preview}` }
-        : { title: 'New comment', body: `${commenterName}: ${preview}` },
+      push: commentPushCopy(type, commenterName, preview),
     })));
   },
 );

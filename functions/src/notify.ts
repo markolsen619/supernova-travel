@@ -22,7 +22,7 @@ export interface NotifyPayload {
 }
 
 export async function notifyUser(uid: string, payload: NotifyPayload): Promise<void> {
-  await db
+  const ref = await db
     .collection('users')
     .doc(uid)
     .collection('notifications')
@@ -40,7 +40,7 @@ export async function notifyUser(uid: string, payload: NotifyPayload): Promise<v
     tokens,
     payload.push.title,
     payload.push.body,
-    pushDataFor(payload.notification),
+    pushDataFor(payload.notification, ref.id),
   );
 }
 

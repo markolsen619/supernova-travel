@@ -455,6 +455,23 @@ export default function PostDetailScreen() {
     );
   }
 
+  // Deleted (or never there) — say so, rather than a header over an empty page;
+  // a notification about it is the usual way here.
+  if (!post) {
+    return (
+      <View style={[styles.unavailable, { backgroundColor: colors.background.primary, paddingTop: insets.top }]}>
+        <EmptyState
+          icon={EyeSlash}
+          title="This post is gone"
+          description="Its author deleted it, so there's nothing left to see."
+          actionLabel="Go back"
+          onAction={() => router.back()}
+          actionHaptic="light"
+        />
+      </View>
+    );
+  }
+
   return (
     // Not KeyboardAvoidingView: this screen is a page-sheet modal, where it
     // pads too little and the comment bar sat behind the keyboard. The inset

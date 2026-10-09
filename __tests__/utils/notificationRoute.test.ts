@@ -1,4 +1,4 @@
-import { resolveNotificationRoute } from '@/utils/notificationRoute';
+import { resolveNotificationRoute, notificationTapRoute } from '@/utils/notificationRoute';
 
 describe('resolveNotificationRoute', () => {
   it('sends a like or a comment to the post it happened on', () => {
@@ -71,5 +71,16 @@ describe('email import routes', () => {
 describe('email_import_loyalty', () => {
   it('opens the updated program', () => {
     expect(resolveNotificationRoute({ type: 'email_import_loyalty', programId: 'l1' })).toBe('/(wallet)/loyalty/l1');
+  });
+});
+
+describe('notificationTapRoute', () => {
+  it('opens what the notification is about', () => {
+    expect(notificationTapRoute({ type: 'post_like', postId: 'p1', notificationId: 'n1' })).toBe('/post/p1');
+  });
+  it('otherwise opens the list at that notification', () => {
+    expect(notificationTapRoute({ type: 'something_new', notificationId: 'n1' })).toBe('/notifications?highlight=n1');
+    expect(notificationTapRoute({ type: 'something_new' })).toBe('/notifications');
+    expect(notificationTapRoute(undefined)).toBe('/notifications');
   });
 });
