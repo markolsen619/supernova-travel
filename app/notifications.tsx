@@ -378,7 +378,8 @@ export default function NotificationsScreen() {
         );
       }
 
-      if (item.type === 'email_import_pass' || item.type === 'email_import_reservation' || item.type === 'email_import_batch') {
+      if (item.type === 'email_import_pass' || item.type === 'email_import_reservation' || item.type === 'email_import_batch'
+        || item.type === 'email_import_loyalty') {
         return (
           <TouchableOpacity {...rowProps(item)}>
             {/* A type icon, not an avatar: no person sent this. */}

@@ -83,6 +83,17 @@ export function resolveDayDestinationIndices(days: DayLike[], destinationNames: 
  * (indices from resolveDayDestinationIndices, same order as `days`), or every
  * day when nothing is selected. Days keep their own dayNumber.
  */
+/**
+ * Which city pills filter anything: a city holding some, but not all, of the
+ * days. Manual trips put every day in the first city, so none of theirs do.
+ */
+export function filterableCities(indices: number[], cityCount: number): boolean[] {
+  return Array.from({ length: cityCount }, (_, i) => {
+    const n = indices.filter((x) => x === i).length;
+    return n > 0 && n < indices.length;
+  });
+}
+
 export function daysInDestination<T>(days: T[], indices: number[], selected: number | null): T[] {
   if (selected === null) return days;
   return days.filter((_, i) => indices[i] === selected);

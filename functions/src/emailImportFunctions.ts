@@ -8,7 +8,7 @@ import {
   importGate, looksLikeBooking, newToken, signatureValid, tokenFromAddress, trimImportLog, type ImportStatus,
 } from './emailImport';
 import { buildExtractionPrompt } from './parseTravelConfirmation';
-import { loyaltyFromParse, loyaltyPushCopy, loyaltyWrite, looksLikeLoyalty, matchLoyalty, MAX_LOYALTY_PER_EMAIL } from './loyaltyImport';
+import { loyaltyFromParse, loyaltyPushCopy, mixedPushCopy, loyaltyWrite, looksLikeLoyalty, matchLoyalty, MAX_LOYALTY_PER_EMAIL } from './loyaltyImport';
 import { matchOne } from './bookingMatchFunctions';
 import { hasAiConsent } from './aiConsent';
 import { notifyUser } from './notify';
@@ -194,9 +194,11 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
       res.status(200).send('');
       return;
     }
-    const copy = loyalty.length && refs.length === 0
+    const copy = refs.length === 0
       ? { title: 'Balances updated', body: loyalty.map((l) => l.title).join(' · ') }
-      : emailPushCopy(items, linkedTrip, asked);
+      : loyalty.length > 0
+        ? mixedPushCopy(refs.length, loyalty.length)
+        : emailPushCopy(items, linkedTrip, asked);
     const single = items.length === 1 ? items[0] : null;
     await notifyUser(uid, {
       notification: single

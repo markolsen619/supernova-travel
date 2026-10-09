@@ -69,14 +69,20 @@ export function loyaltyFromParse(parsed: unknown): LoyaltyUpdate[] {
 const digits = (s: string | undefined) => (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const fold = (s: string | undefined) => (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+const tailOf = (n: string) => digits(n.split(MASK).pop());
+
 function numberMatches(update: LoyaltyUpdate, existing: string | undefined): boolean {
-  const have = digits(existing);
-  if (!have || !update.memberNumber) return false;
+  if (!existing || !digits(existing) || !update.memberNumber) return false;
   if (update.masked) {
-    const tail = digits(update.memberNumber.split(MASK).pop());
-    return tail.length >= 3 && have.endsWith(tail);
+    const tail = tailOf(update.memberNumber);
+    return tail.length >= 3 && (MASK.test(existing) ? tailOf(existing) === tail : digits(existing).endsWith(tail));
   }
-  return have === digits(update.memberNumber);
+  // A program first saved from a masked statement, now seen in full.
+  if (MASK.test(existing)) {
+    const tail = tailOf(existing);
+    return tail.length >= 3 && digits(update.memberNumber).endsWith(tail);
+  }
+  return digits(existing) === digits(update.memberNumber);
 }
 
 /**
@@ -121,13 +127,24 @@ export function loyaltyWrite(
       isManual: false, createdAt: ctx.nowIso,
     } };
   }
-  if (update.memberNumber && !update.masked && !digits(existing.memberNumber)) common.memberNumber = update.memberNumber;
+  // A full number fills a blank or a masked one, never the other way round.
+  if (update.memberNumber && !update.masked && (!digits(existing.memberNumber) || MASK.test(existing.memberNumber ?? ''))) {
+    common.memberNumber = update.memberNumber;
+  }
   return { create: false, data: common };
 }
 
 const LOYALTY_WORDS = /statement|points balance|miles balance|account summary|rewards|loyalty|elite status|status update|your (miles|points)|award miles|member(ship)? (summary|update)/i;
 export function looksLikeLoyalty(subject: string, text: string): boolean {
   return LOYALTY_WORDS.test(subject) || LOYALTY_WORDS.test(text.slice(0, 20_000));
+}
+
+/** One email with bookings and balances: the push leads with the bookings. */
+export function mixedPushCopy(bookings: number, balances: number): { title: string; body: string } {
+  return {
+    title: `Added ${bookings} booking${bookings === 1 ? '' : 's'} to your wallet`,
+    body: `${balances} balance${balances === 1 ? '' : 's'} updated too`,
+  };
 }
 
 export function loyaltyPushCopy(u: LoyaltyUpdate): { title: string; body: string } {

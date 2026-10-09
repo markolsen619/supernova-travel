@@ -13,6 +13,7 @@ import * as Haptics from 'expo-haptics';
 import { deleteField } from 'firebase/firestore';
 import { useTheme } from '@/hooks/useTheme';
 import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
+import { handEditedBalance } from '@/utils/loyaltyEdit';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { DateField } from '@/components/wallet/DateField';
 import { Button } from '@/components/ui/Button';
@@ -113,6 +114,11 @@ export default function AddLoyaltyScreen() {
         memberNumber: memberNumber.trim() || deleteField(),
         expiryDate: expiryDate ? toCalendarDate(expiryDate) : deleteField(),
       };
+      const stamp = handEditedBalance(existing?.balance, Number(balanceText), toCalendarDate(new Date()));
+      if (stamp) {
+        editFields.balanceAsOf = stamp.balanceAsOf;
+        editFields.source = deleteField();
+      }
       updateProgram.mutate(
         { id, ...editFields } as Partial<LoyaltyProgram> & { id: string },
         {

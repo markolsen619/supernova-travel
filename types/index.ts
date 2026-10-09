@@ -280,10 +280,12 @@ export interface FlightStatusNotification {
 /** A booking (or several) arrived by email (functions/src/emailImportFunctions.ts). */
 export interface EmailImportNotification {
   id: string;
-  type: 'email_import_pass' | 'email_import_reservation' | 'email_import_batch';
+  type: 'email_import_pass' | 'email_import_reservation' | 'email_import_batch' | 'email_import_loyalty';
   passId?: string;
   reservationId?: string;
   emailImportId?: string;
+  /** email_import_loyalty: the program whose balance changed. */
+  programId?: string;
   title: string;
   body: string;
   read: boolean;
