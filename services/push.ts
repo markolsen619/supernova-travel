@@ -96,3 +96,44 @@ export async function maybePromptForPush(
     console.warn('[push] permission prompt failed:', error);
   }
 }
+
+/** The intro screen (app/notification-intro.tsx) is shown once per account per device. */
+const introKey = (uid: string) => `push_intro_shown:${uid}`;
+
+export async function pushIntroState(uid: string): Promise<{ permission: PushPermission; introShown: boolean }> {
+  const [{ status }, shown] = await Promise.all([
+    Notifications.getPermissionsAsync(),
+    AsyncStorage.getItem(introKey(uid)),
+  ]);
+  return { permission: status as PushPermission, introShown: shown !== null };
+}
+
+export async function markPushIntroShown(uid: string): Promise<void> {
+  await AsyncStorage.setItem(introKey(uid), '1');
+}
+
+/**
+ * "Turn on notifications" — the one place besides maybePromptForPush that
+ * shows the iOS sheet, because the person just asked for it. Records the ask
+ * so the in-context prompts don't ask again. Never throws.
+ */
+export async function requestPushNow(uid: string): Promise<PushPermission> {
+  if (Platform.OS === 'web') return 'denied';
+  try {
+    await AsyncStorage.setItem(askedKey(uid), '1');
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status === 'granted') await storeToken(uid);
+    return status as PushPermission;
+  } catch (error) {
+    console.warn('[push] permission request failed:', error);
+    return 'undetermined';
+  }
+}
+
+export async function pushPermission(): Promise<PushPermission> {
+  try {
+    return (await Notifications.getPermissionsAsync()).status as PushPermission;
+  } catch {
+    return 'undetermined';
+  }
+}

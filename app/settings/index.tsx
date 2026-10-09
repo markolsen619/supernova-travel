@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  AppState,
+  Linking,
   Platform,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
-import { X, UserCircle, LockSimple, Sparkle, Ticket } from 'phosphor-react-native';
+import { X, UserCircle, LockSimple, Sparkle, Ticket, BellSimple } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { CancelReasonSheet } from '@/components/settings/CancelReasonSheet';
@@ -20,6 +22,8 @@ import { useThemeStore, ThemeMode } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/Button';
 import { SettingsRow } from '@/components/settings/SettingsRow';
+import { pushPermission, requestPushNow } from '@/services/push';
+import { notificationSettingAction, type PushPermission } from '@/utils/pushIntro';
 import { auth } from '@/services/firebase';
 import { signOutGoogle } from '@/services/oauth';
 import { logOutRevenueCat, presentOfferCodeSheet } from '@/services/revenuecat';
@@ -40,6 +44,22 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { mode, setMode } = useThemeStore();
   const tier = useAuthStore((s) => s.tier);
+  const uid = useAuthStore((s) => s.user?.uid ?? null);
+
+  // Notifications: re-read on focus and on return from iOS Settings, where the switch actually lives.
+  const [pushState, setPushState] = useState<PushPermission>('undetermined');
+  const refreshPush = useCallback(() => { pushPermission().then(setPushState); }, []);
+  useFocusEffect(refreshPush);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') refreshPush(); });
+    return () => sub.remove();
+  }, [refreshPush]);
+  const pushRow = notificationSettingAction(pushState);
+  const handleNotificationsPress = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (pushRow.action === 'ask' && uid) setPushState(await requestPushNow(uid));
+    else if (pushRow.action === 'open_settings') Linking.openSettings();
+  }, [pushRow.action, uid]);
 
   const capitalizedTier = tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : 'Free';
 
@@ -193,6 +213,13 @@ export default function SettingsScreen() {
             label="Privacy"
             icon={LockSimple}
             onPress={() => router.push('/settings/privacy')}
+            showDivider
+          />
+          <SettingsRow
+            label="Notifications"
+            icon={BellSimple}
+            value={pushRow.label}
+            onPress={pushRow.action === 'none' ? undefined : handleNotificationsPress}
             showDivider
           />
           <SettingsRow

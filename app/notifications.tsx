@@ -1,8 +1,8 @@
 import { useRespondToFollowRequest } from '@/hooks/useFollowRequests';
-import { useCallback, useState, useEffect, useMemo } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable, Alert } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import { router, type Href } from 'expo-router';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus, EnvelopeSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
@@ -69,6 +69,22 @@ export default function NotificationsScreen() {
   const [handled, setHandled] = useState<Record<string, 'accepted' | 'declined'>>({});
 
   const [tab, setTab] = useState<'Activity' | 'Messages'>('Activity');
+  // A tapped push the app couldn't open lands here at its notification (utils/notificationRoute notificationTapRoute).
+  const { highlight } = useLocalSearchParams<{ highlight?: string }>();
+  const [highlightId, setHighlightId] = useState<string | null>(highlight ?? null);
+  const listRef = useRef<FlashListRef<AppNotification>>(null);
+  useEffect(() => {
+    if (!highlight) return;
+    setHighlightId(highlight);
+    setTab('Activity');
+    const t = setTimeout(() => setHighlightId(null), 6000);
+    return () => clearTimeout(t);
+  }, [highlight]);
+  useEffect(() => {
+    if (!highlightId) return;
+    const index = notifications.findIndex((n) => n.id === highlightId);
+    if (index > 0) requestAnimationFrame(() => listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 }));
+  }, [highlightId, notifications]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const myUid = useAuthStore((s) => s.user?.uid ?? '');
   const markRead = useMarkNotificationsRead();
@@ -500,9 +516,13 @@ export default function NotificationsScreen() {
           </View>
         ) : (
           <FlashList
+            ref={listRef}
             data={notifications}
             keyExtractor={(n) => n.id}
-            renderItem={renderItem}
+            extraData={highlightId}
+            renderItem={(info) => (info.item.id === highlightId ? (
+              <View style={[styles.highlighted, { backgroundColor: colors.background.sunken }]}>{renderItem(info)}</View>
+            ) : renderItem(info))}
             contentContainerStyle={{ paddingHorizontal: Spacing['4'], paddingBottom: insets.bottom + Spacing['6'] }}
           />
         )
@@ -565,6 +585,7 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  highlighted: { borderRadius: 16 },
   container: {
     flex: 1,
   },

@@ -21,6 +21,8 @@ import { StyleSheet } from 'react-native';
 import { SplashOverlay } from '@/components/SplashOverlay';
 import { useRevenueCatSync } from '@/hooks/useRevenueCatSync';
 import { useNotificationRouting } from '@/hooks/useNotificationRouting';
+import { usePushIntro } from '@/hooks/usePushIntro';
+import { NotificationArrivalBanner } from '@/components/NotificationArrivalBanner';
 import { useLinkRouting } from '@/hooks/useLinkRouting';
 
 SplashScreen.preventAutoHideAsync();
@@ -50,6 +52,8 @@ function AppStack() {
   // Sends a tapped notification to the screen it's about. Mounted here, below
   // the auth listener, so it can wait for routing to settle before navigating.
   useNotificationRouting();
+  // "Know when it matters", once per account, after it first reaches the tabs.
+  usePushIntro();
   useLinkRouting();
   return (
     <>
@@ -82,7 +86,9 @@ function AppStack() {
         <Stack.Screen name="add-to-feed" options={{ presentation: 'modal' }} />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="(wallet)" />
+        <Stack.Screen name="notification-intro" options={{ presentation: 'modal', gestureEnabled: false }} />
       </Stack>
+      <NotificationArrivalBanner />
     </>
   );
 }

@@ -26,11 +26,14 @@ const ID_KEYS = ['postId', 'tripId', 'threadId', 'passId', 'profileUid', 'reserv
 
 export function pushDataFor(
   notification: Record<string, unknown>,
+  /** The in-app notification doc's id: a tap the app can't route opens the list at it. */
+  notificationId?: string,
 ): Record<string, string> | undefined {
   const { type } = notification;
   if (typeof type !== 'string' || type.length === 0) return undefined;
 
   const data: Record<string, string> = { type };
+  if (notificationId) data.notificationId = notificationId;
   for (const key of ID_KEYS) {
     const value = notification[key];
     if (typeof value === 'string' && value.length > 0) data[key] = value;
