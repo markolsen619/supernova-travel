@@ -1,4 +1,4 @@
-import { loyaltyFromParse, matchLoyalty, loyaltyWrite, looksLikeLoyalty, loyaltyPushCopy } from '../../functions/src/loyaltyImport';
+import { loyaltyFromParse, matchLoyalty, loyaltyWrite, looksLikeLoyalty, loyaltyPushCopy, mixedPushCopy } from '../../functions/src/loyaltyImport';
 
 const ctx = { uid: 'mark', emailImportId: 'imp1', nowIso: '2026-10-08T18:00:00.000Z' };
 const delta = { kind: 'loyalty', fields: { programName: 'Delta SkyMiles', programType: 'airline', memberNumber: '••••4821',
@@ -92,5 +92,23 @@ describe('looksLikeLoyalty', () => {
 describe('loyaltyPushCopy', () => {
   it('names the program and the new balance', () => {
     expect(loyaltyPushCopy(loyaltyFromParse({ bookings: [delta] })[0])).toEqual({ title: 'Balance updated', body: 'Delta SkyMiles: 45,210 miles' });
+  });
+});
+
+describe('a program first saved from a masked number', () => {
+  const masked = [{ id: 'a', programName: 'Delta SkyMiles', memberNumber: '••••4821' }];
+  const full = { ...loyaltyFromParse({ bookings: [delta] })[0], memberNumber: '9012344821', masked: false };
+  it('is the same account when a statement prints the full number', () => {
+    expect(matchLoyalty(full, masked)).toBe('a');
+  });
+  it('takes the full number', () => {
+    expect(loyaltyWrite(full, { memberNumber: '••••4821' }, ctx)!.data.memberNumber).toBe('9012344821');
+  });
+});
+
+describe('mixedPushCopy', () => {
+  it('names bookings and balances apart', () => {
+    expect(mixedPushCopy(1, 1)).toEqual({ title: 'Added 1 booking to your wallet', body: '1 balance updated too' });
+    expect(mixedPushCopy(2, 3)).toEqual({ title: 'Added 2 bookings to your wallet', body: '3 balances updated too' });
   });
 });

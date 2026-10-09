@@ -1,4 +1,4 @@
-import { resolveDayDestinationIndices, daysInDestination } from '@/utils/dayDestination';
+import { resolveDayDestinationIndices, daysInDestination, filterableCities } from '@/utils/dayDestination';
 
 const CITIES = ['Paris', 'Rome', 'Barcelona'];
 const day = (over: Partial<{ destinationIndex: number | null; activities: { type: string; title: string }[] }> = {}) => ({
@@ -73,5 +73,14 @@ describe('daysInDestination', () => {
   });
   it('shows every day when no city is chosen', () => {
     expect(daysInDestination(days, indices, null)).toHaveLength(4);
+  });
+});
+
+describe('filterableCities', () => {
+  it('lets you pick a city only when it holds some, but not all, of the days', () => {
+    expect(filterableCities([0, 0, 1, 2], 3)).toEqual([true, true, true]);
+    // A manual trip: every day is in the first city, so no pill filters anything.
+    expect(filterableCities([0, 0, 0], 3)).toEqual([false, false, false]);
+    expect(filterableCities([0, 1, 1], 3)).toEqual([true, true, false]);
   });
 });

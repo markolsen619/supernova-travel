@@ -57,7 +57,7 @@ import { contentKey, isContentVisible } from '@/utils/moderation';
 import { groundStop, type GroundingContext } from '@/services/places/groundStop';
 import type { GroundedPlace } from '@/utils/mapboxQuery';
 import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
-import { daysInDestination, resolveDayDestinationIndices } from '@/utils/dayDestination';
+import { daysInDestination, filterableCities, resolveDayDestinationIndices } from '@/utils/dayDestination';
 import { selectStopsToGround } from '@/utils/groundingQueue';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
@@ -956,9 +956,10 @@ export default function TripDetailScreen() {
 
   const sortedDays = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
   const multiCity = destinationNames.length > 1;
-  const shownDays = multiCity
-    ? daysInDestination(sortedDays, resolveDayDestinationIndices(sortedDays, destinationNames), cityFilter)
-    : sortedDays;
+  const sortedDayCities = multiCity ? resolveDayDestinationIndices(sortedDays, destinationNames) : [];
+  // A pill filters only if its city has some, but not all, of the days (manual trips keep every day in the first).
+  const pickableCities = multiCity ? filterableCities(sortedDayCities, destinationNames.length) : [];
+  const shownDays = multiCity ? daysInDestination(sortedDays, sortedDayCities, cityFilter) : sortedDays;
   const bookingsOnDays = bookingsByDay(sortedDays.map((d) => ({ id: d.id, date: d.date?.toDate() ?? null })), tripBookings);
   const hasDescription = Boolean(trip.description?.trim());
   const dayCount = sortedDays.length;
@@ -1186,16 +1187,17 @@ export default function TripDetailScreen() {
           )}
           {destinationNames.map((name, i) => {
             const selected = cityFilter === i;
+            const pickable = !!pickableCities[i];
             return (
               <TouchableOpacity
                 key={`${name}-${i}`}
-                disabled={!multiCity}
+                disabled={!pickable}
                 hitSlop={6}
                 onPress={() => toggleCity(i)}
                 style={[styles.chip, { backgroundColor: selected ? colors.text.primary : colors.background.sunken }]}
-                accessibilityRole={multiCity ? 'button' : 'text'}
-                accessibilityState={multiCity ? { selected } : undefined}
-                accessibilityLabel={multiCity ? `${name}, show its days` : name}
+                accessibilityRole={pickable ? 'button' : 'text'}
+                accessibilityState={pickable ? { selected } : undefined}
+                accessibilityLabel={pickable ? `${name}, show its days` : name}
               >
                 <MapPin size={13} color={selected ? colors.background.primary : colors.text.secondary} weight="bold" />
                 <Text style={[styles.chipText, { color: selected ? colors.background.primary : colors.text.primary }]} numberOfLines={1}>
