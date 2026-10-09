@@ -60,3 +60,19 @@ export function selectStopsToGround(days: QueueDay[], destinationIndices: number
 
   return out;
 }
+
+const NOT_A_PLACE = new Set(['free', 'transport', 'flight']);
+
+/**
+ * A stop typed by hand gets a search query too, so the background pass puts it
+ * on the map (within its day's city) like an AI stop — people place their own
+ * stops to check they're near each other. Free time, transport and flights
+ * aren't places to pin.
+ */
+export function manualSearchQuery(type: string, title: string, city: string | null | undefined): string | null {
+  const t = title.trim();
+  if (NOT_A_PLACE.has(type) || t.length < 3) return null;
+  const c = (city ?? '').trim();
+  if (!c || t.toLowerCase().includes(c.toLowerCase())) return t;
+  return `${t}, ${c}`;
+}

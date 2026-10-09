@@ -68,7 +68,7 @@ import { cityBookings } from '@/utils/cityBookings';
 import { buildBookingAction } from '@/utils/bookingLinks';
 import { isSectionOpen } from '@/utils/walletByTrip';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { selectStopsToGround } from '@/utils/groundingQueue';
+import { manualSearchQuery, selectStopsToGround } from '@/utils/groundingQueue';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
 import { tripPlaceLabel } from '@/utils/tripRegion';
@@ -487,14 +487,22 @@ export default function TripDetailScreen() {
 
   const handleSubmitActivityForm = useCallback(
     async (data: ActivityFormData) => {
-      if (!id || !activeDay) return;
+      if (!id || !activeDay || !trip) return;
+      // The day's city, so a typed stop is looked up there and lands on the map (utils/groundingQueue).
+      const sortedForCity = [...trip.days].sort((x, y) => x.dayNumber - y.dayNumber);
+      const cityIndices = resolveDayDestinationIndices(sortedForCity, [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)]);
+      const city = destinationAt(trip, cityIndices[sortedForCity.findIndex((d) => d.id === activeDay.id)] ?? 0).name;
+      const searchQuery = manualSearchQuery(data.type, data.title, city);
       if (formMode === 'edit' && editingActivity) {
+        const unplaced = editingActivity.lat == null || editingActivity.lng == null;
         await updateActivity(id, activeDay.id, editingActivity.id, {
           type: data.type,
           title: data.title,
           startTime: data.startTime,
           endTime: data.endTime,
           notes: data.notes,
+          // Renamed before it was ever placed: look up the new name instead.
+          ...(unplaced ? { searchQuery, groundingFailedAt: null } : {}),
         });
         return;
       }
@@ -516,11 +524,11 @@ export default function TripDetailScreen() {
         currency: null,
         mediaUrls: [],
         createdAt: Timestamp.now(),
-        searchQuery: null, // manually created — nothing to lazily ground
+        searchQuery, // looked up by the background pass, like an AI stop — typed places belong on the map too
         groundingFailedAt: null,
       });
     },
-    [id, activeDay, formMode, editingActivity, addActivity, updateActivity],
+    [id, trip, activeDay, formMode, editingActivity, addActivity, updateActivity],
   );
 
   const handleDeleteActivity = useCallback(async () => {
