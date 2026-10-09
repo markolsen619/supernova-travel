@@ -20,6 +20,8 @@ interface RouteEditorSheetProps {
   visible: boolean;
   trip: TripWithDays;
   onClose: () => void;
+  /** After a save: the city indices may have changed. */
+  onSaved?: () => void;
 }
 
 const toDestination = (s: PlaceSelection): Destination => ({
@@ -31,7 +33,7 @@ const toDestination = (s: PlaceSelection): Destination => ({
  * (docs/superpowers/specs/2026-10-09-city-route-design.md). Saving moves days
  * and stops with their cities and sets the trip's end date.
  */
-export function RouteEditorSheet({ visible, trip, onClose }: RouteEditorSheetProps) {
+export function RouteEditorSheet({ visible, trip, onClose, onSaved }: RouteEditorSheetProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { saveRoute } = useTripRoute();
@@ -40,9 +42,12 @@ export function RouteEditorSheet({ visible, trip, onClose }: RouteEditorSheetPro
   const [saving, setSaving] = useState(false);
   const nextKey = useRef(0);
 
-  // Fresh from the trip each time the sheet opens.
+  // Fresh from the trip each time the sheet opens — and only then: the trip refetches while you
+  // edit (background stop grounding), which must not wipe your changes.
+  const wasVisible = useRef(false);
   useEffect(() => {
-    if (visible) setRows(routeRowsFromTrip(trip));
+    if (visible && !wasVisible.current) setRows(routeRowsFromTrip(trip));
+    wasVisible.current = visible;
   }, [visible, trip]);
 
   const start = trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null;
@@ -81,6 +86,7 @@ export function RouteEditorSheet({ visible, trip, onClose }: RouteEditorSheetPro
       setSaving(true);
       try {
         await saveRoute(trip, draft);
+        onSaved?.();
         onClose();
       } catch (err) {
         console.warn('[route] save failed', err);
@@ -97,7 +103,7 @@ export function RouteEditorSheet({ visible, trip, onClose }: RouteEditorSheetPro
     } else {
       await commit();
     }
-  }, [rows, trip, names, saveRoute, onClose]);
+  }, [rows, trip, names, saveRoute, onClose, onSaved]);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>

@@ -1,6 +1,6 @@
 import {
   cityRanges, nightsFromDays, evenNights, routeNights, planRoute, endDateFor, absorbEndDateChange,
-  bookingCityIndex, citySummary, moveRow, setRowNights, removeRow, addRow, rowsToEntries, routeDatesLine, dropsWarning, type RouteDay,
+  bookingCityIndex, citySummary, moveRow, setRowNights, removeRow, addRow, rowsToEntries, routeDatesLine, dropsWarning, routeLayout, type RouteDay,
 } from '@/utils/tripRoute';
 
 describe('cityRanges', () => {
@@ -184,5 +184,63 @@ describe('route editor copy', () => {
   it('names the days that would lose their stops', () => {
     expect(dropsWarning([{ id: 'x', dayNumber: 3, city: 0, stops: 4 }, { id: 'y', dayNumber: 9, city: 2, stops: 1 }], ['Prague', 'Vienna', 'Munich']))
       .toBe('Day 3 in Prague (4 stops) and Day 9 in Munich (1 stop) will be deleted with everything on them.');
+  });
+});
+
+describe('review fixes', () => {
+  it('writes the city onto a kept day whose stored city was missing (one null day turns off every explicit city)', () => {
+    const p = planRoute([{ id: 'a', dayNumber: 1, city: 0, stops: 0, stored: null }, { id: 'b', dayNumber: 2, city: 0, stops: 0, stored: 0 }], [{ from: 0, nights: 1 }]);
+    expect(p.updates).toEqual([{ id: 'a', dayNumber: 1, city: 0 }]);
+  });
+
+  it('lays out a trip whose days all sit in the first city by position, keeping its length', () => {
+    const l = routeLayout({ nights: [null, null], dayCities: [0, 0, 0, 0, 0], start: null, end: null });
+    expect(l.nights).toEqual([2, 2]);
+    expect(l.dayCities).toEqual([0, 0, 1, 1, 1]);
+    // An untouched save then changes no day count.
+    const days = l.dayCities.map((c, i) => ({ id: `d${i}`, dayNumber: i + 1, city: c, stops: 1, stored: 0 }));
+    const p = planRoute(days, l.nights.map((n, i) => ({ from: i, nights: n })));
+    expect(p.creates).toEqual([]);
+    expect(p.deletes).toEqual([]);
+  });
+
+  it('keeps days counted per city when they add up', () => {
+    expect(routeLayout({ nights: [null, null], dayCities: [0, 0, 1, 1], start: null, end: null }))
+      .toEqual({ nights: [2, 1], dayCities: [0, 0, 1, 1] });
+  });
+
+  it('a city that stops being last keeps its departure day as a night; the new last city gives one back', () => {
+    const rows = [
+      { key: 'a', from: 0, nights: 2, absorbs: [], absorbsAfter: [], place: 'Paris' },
+      { key: 'b', from: 1, nights: 3, absorbs: [], absorbsAfter: [], place: 'Rome' },
+    ];
+    expect(moveRow(rows, 1, -1).map((r) => [r.place, r.nights])).toEqual([['Rome', 4], ['Paris', 1]]);
+    expect(addRow(rows, 'Florence', 'f').map((r) => r.nights)).toEqual([2, 4, 1]);
+    expect(removeRow(rows, 1, 'delete').map((r) => r.nights)).toEqual([1]);
+  });
+
+  it('a move conserves every stop', () => {
+    const days = [{ id: 'p1', dayNumber: 1, city: 0, stops: 1 }, { id: 'p2', dayNumber: 2, city: 0, stops: 1 },
+      { id: 'r1', dayNumber: 3, city: 1, stops: 1 }, { id: 'r2', dayNumber: 4, city: 1, stops: 1 }, { id: 'r3', dayNumber: 5, city: 1, stops: 4 }];
+    const rows = moveRow([
+      { key: 'a', from: 0, nights: 2, absorbs: [], absorbsAfter: [], place: 'Paris' },
+      { key: 'b', from: 1, nights: 2, absorbs: [], absorbsAfter: [], place: 'Rome' },
+    ], 1, -1);
+    const p = planRoute(days, rowsToEntries(rows));
+    expect(p.deletes).toEqual([]);
+    expect(p.creates).toEqual([]);
+  });
+
+  it('matches whole city names, longest first', () => {
+    const ranges = cityRanges([2, 2], '2026-06-01');
+    expect(bookingCityIndex({ city: 'Venice', date: null }, ['Nice', 'Venice'], ranges)).toBe(1);
+    expect(bookingCityIndex({ city: 'Hotel Danieli, Riva degli Schiavoni, Venice', date: null }, ['Nice', 'Venice'], ranges)).toBe(1);
+    expect(bookingCityIndex({ city: 'Frankfurt am Main', date: null }, ['Frankfurt'], cityRanges([1], null))).toBe(0);
+  });
+
+  it('a booking dated the trip’s last day can be left out of arrivals (the flight home)', () => {
+    const ranges = cityRanges([2, 2], '2026-06-01');
+    expect(bookingCityIndex({ city: 'Chicago', date: '2026-06-05' }, ['Paris', 'Rome'], ranges, { departureDay: false })).toBeNull();
+    expect(bookingCityIndex({ city: 'Chicago', date: '2026-06-05' }, ['Paris', 'Rome'], ranges)).toBe(1);
   });
 });

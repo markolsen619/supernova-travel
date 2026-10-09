@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import type { Destination, TripWithDays } from '@/types';
 import { resolveDayDestinationIndices } from '@/utils/dayDestination';
-import { endDateFor, planRoute, routeNights, rowsToEntries, type RouteEntry, type RoutePlan, type RouteDay, type RouteRow } from '@/utils/tripRoute';
+import { endDateFor, planRoute, routeLayout, rowsToEntries, type RouteEntry, type RoutePlan, type RouteDay, type RouteRow } from '@/utils/tripRoute';
 import { toCalendarDate, parseCalendarDate } from '@/utils/calendarDate';
 
 /** A route the editor is about to save: the cities in their new order, each with where it came from. */
@@ -13,12 +13,28 @@ export interface RouteDraft {
   entries: RouteEntry[];
 }
 
-/** The trip's days as the route math sees them (city = resolved destinationIndex). */
+/**
+ * The route as a save would lay it out: nights per city and each day's city, in day order
+ * (utils/tripRoute routeLayout — a trip whose days all sit in the first city is split by position).
+ */
+export function tripLayout(trip: TripWithDays): { nights: number[]; dayCities: number[] } {
+  const sorted = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
+  const cities = [trip.destination, ...trip.additionalDestinations];
+  return routeLayout({
+    nights: cities.map((c) => c.nights),
+    dayCities: resolveDayDestinationIndices(sorted, cities.map((c) => c.name)),
+    start: trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null,
+    end: trip.endDate ? toCalendarDate(trip.endDate.toDate()) : null,
+  });
+}
+
+/** The trip's days as the route math sees them. */
 export function routeDays(trip: TripWithDays): RouteDay[] {
   const sorted = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
-  const names = [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)];
-  const cities = resolveDayDestinationIndices(sorted, names);
-  return sorted.map((d, i) => ({ id: d.id, dayNumber: d.dayNumber, city: cities[i] ?? 0, stops: d.activities.length }));
+  const { dayCities } = tripLayout(trip);
+  return sorted.map((d, i) => ({
+    id: d.id, dayNumber: d.dayNumber, city: dayCities[i] ?? 0, stops: d.activities.length, stored: d.destinationIndex ?? null,
+  }));
 }
 
 export function previewRoute(trip: TripWithDays, draft: RouteDraft): RoutePlan {
@@ -34,7 +50,8 @@ export function previewRoute(trip: TripWithDays, draft: RouteDraft): RoutePlan {
 export function useTripRoute() {
   const queryClient = useQueryClient();
 
-  const saveRoute = useCallback(async (trip: TripWithDays, draft: RouteDraft) => {
+  /** `alsoDelete`: a day removed on purpose (deleting one day in a city) — `trip` is passed without it. */
+  const saveRoute = useCallback(async (trip: TripWithDays, draft: RouteDraft, alsoDelete: TripWithDays['days'] = []) => {
     const plan = previewRoute(trip, draft);
     const [first, ...rest] = draft.cities;
     const totalNights = draft.cities.reduce((s, c) => s + c.nights, 0);
@@ -54,6 +71,10 @@ export function useTripRoute() {
     for (const c of plan.creates) {
       const ref = doc(collection(db, 'trips', trip.id, 'days'));
       ops.push((b) => b.set(ref, { dayNumber: c.dayNumber, destinationIndex: c.city, date: null, title: '', notes: '' }));
+    }
+    for (const gone of alsoDelete) {
+      for (const a of gone.activities) ops.push((b) => b.delete(doc(db, 'trips', trip.id, 'days', gone.id, 'activities', a.id)));
+      ops.push((b) => b.delete(doc(db, 'trips', trip.id, 'days', gone.id)));
     }
     for (const id of plan.deletes) {
       const day = trip.days.find((d) => d.id === id);
@@ -79,12 +100,7 @@ export function useTripRoute() {
 /** The trip's current route as editor rows (nights saved, else derived — utils/tripRoute routeNights). */
 export function routeRowsFromTrip(trip: TripWithDays): RouteRow<Destination>[] {
   const cities = [trip.destination, ...trip.additionalDestinations];
-  const nights = routeNights({
-    nights: cities.map((c) => c.nights),
-    dayCities: routeDays(trip).map((d) => d.city),
-    start: trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null,
-    end: trip.endDate ? toCalendarDate(trip.endDate.toDate()) : null,
-  });
+  const { nights } = tripLayout(trip);
   return cities.map((place, i) => ({ key: `${i}-${place.name}`, from: i, nights: nights[i], absorbs: [], absorbsAfter: [], place }));
 }
 

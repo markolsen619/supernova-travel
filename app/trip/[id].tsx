@@ -9,6 +9,7 @@ import {
   Animated,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,7 +61,7 @@ import { resolveDayDestinationIndices } from '@/utils/dayDestination';
 import * as WebBrowser from 'expo-web-browser';
 import { CitySection } from '@/components/trip/CitySection';
 import { RouteEditorSheet } from '@/components/trip/RouteEditorSheet';
-import { draftFromRows, previewRoute, routeRowsFromTrip, useTripRoute } from '@/hooks/useTripRoute';
+import { draftFromRows, previewRoute, routeRowsFromTrip, tripLayout, useTripRoute } from '@/hooks/useTripRoute';
 import { useTripSectionsStore } from '@/stores/useTripSectionsStore';
 import { cityRanges, citySummary, dropsWarning, shortDay, moveRow, removeRow, setRowNights, type CityRange, type RouteRow } from '@/utils/tripRoute';
 import { cityBookings } from '@/utils/cityBookings';
@@ -323,17 +324,23 @@ export default function TripDetailScreen() {
   const sectionsOpen = useTripSectionsStore((s) => s.open);
   const setSectionOpen = useTripSectionsStore((s) => s.setOpen);
   /** Save a changed route, confirming first if it would delete days that hold stops. */
-  const applyRoute = useCallback((rows: RouteRow<Destination>[]) => {
-    if (!trip) return;
+  // One route save at a time: a second tap would plan from the same, not-yet-refreshed trip.
+  const routeSaving = useRef(false);
+  const applyRoute = useCallback((rows: RouteRow<Destination>[], alsoDelete: TripDay[] = []) => {
+    if (!trip || routeSaving.current) return;
+    const base = alsoDelete.length ? { ...trip, days: trip.days.filter((d) => !alsoDelete.some((g) => g.id === d.id)) } : trip;
     const draft = draftFromRows(rows);
-    const plan = previewRoute(trip, draft);
+    const plan = previewRoute(base, draft);
     const commit = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCityFilter(null); // city indices may have moved
-      saveRoute(trip, draft).catch((err) => {
-        console.warn('[route] save failed', err);
-        Alert.alert("The route didn't save", 'Check your connection and try again.');
-      });
+      routeSaving.current = true;
+      saveRoute(base, draft, alsoDelete)
+        .catch((err) => {
+          console.warn('[route] save failed', err);
+          Alert.alert("The route didn't save", 'Check your connection and try again.');
+        })
+        .finally(() => { routeSaving.current = false; });
     };
     if (plan.dropsWithStops.length === 0) { commit(); return; }
     const names = [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)];
@@ -344,6 +351,8 @@ export default function TripDetailScreen() {
   }, [trip, saveRoute]);
   const openCityMenu = useCallback((ci: number) => {
     if (!trip) return;
+    // Android shows at most three alert buttons; the route editor has every action.
+    if (Platform.OS === 'android') { setRouteEditorVisible(true); return; }
     const rows = routeRowsFromTrip(trip);
     const name = rows[ci]?.place.name ?? '';
     const neighbour = ci < rows.length - 1 ? rows[ci + 1].place.name : rows[ci - 1]?.place.name;
@@ -358,6 +367,19 @@ export default function TripDetailScreen() {
       ...(ci < rows.length - 1 ? [{ text: 'Move later', onPress: () => applyRoute(moveRow(rows, ci, 1)) }] : []),
       ...(rows.length > 1 ? [{ text: 'Remove city', style: 'destructive' as const, onPress: confirmRemove }] : []),
       { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  }, [trip, applyRoute]);
+  /** Deleting one day in a city: that city loses a night, so later cities' dates stay right. */
+  const deleteDayInCity = useCallback((day: TripDay, ci: number) => {
+    if (!trip) return;
+    const rows = routeRowsFromTrip(trip);
+    if (!rows[ci] || rows[ci].nights <= 1) {
+      Alert.alert(`${rows[ci]?.place.name ?? 'A city'} needs at least one night`, 'To drop it, remove the city from its ⋯ menu instead.');
+      return;
+    }
+    Alert.alert(`Delete Day ${day.dayNumber}?`, `${rows[ci].place.name} becomes a night shorter, and the days after it move one day earlier.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => applyRoute(setRowNights(rows, ci, rows[ci].nights - 1), [day]) },
     ]);
   }, [trip, applyRoute]);
   const addDayInCity = useCallback((ci: number) => {
@@ -905,8 +927,7 @@ export default function TripDetailScreen() {
     let city: number | null = null;
     if (trip && trip.additionalDestinations.length > 0) {
       const sorted = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
-      const names = [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)];
-      const cities = resolveDayDestinationIndices(sorted, names);
+      const cities = tripLayout(trip).dayCities; // the same layout the city sections use
       const k = sorted.findIndex((d) => d.activities.some((a) => a.id === activityId));
       city = k >= 0 ? cities[k] ?? null : null;
     }
@@ -1036,15 +1057,18 @@ export default function TripDetailScreen() {
 
   const sortedDays = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
   const multiCity = destinationNames.length > 1;
-  const sortedDayCities = multiCity ? resolveDayDestinationIndices(sortedDays, destinationNames) : [];
   // Each city's nights (saved, else derived) → its dates and day numbers (utils/tripRoute).
   const routeRows = multiCity ? routeRowsFromTrip(trip) : [];
   const tripStart = trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null;
   const ranges = cityRanges(routeRows.map((r) => r.nights), tripStart);
   const perCity = multiCity ? cityBookings(tripBookings, destinationNames, ranges) : [];
   const routeSaved = [trip.destination, ...trip.additionalDestinations].every((d) => typeof d.nights === 'number');
-  const shownCities = cityFilter === null ? destinationNames.map((_, i) => i) : [cityFilter];
-  const renderDay = (day: (typeof sortedDays)[number], index: number) => (
+  // A save can remove cities; a stale selection falls back to All.
+  const activeCity = cityFilter !== null && cityFilter < destinationNames.length ? cityFilter : null;
+  // Days per city as a route save would lay them out (a trip whose days all sit in the first city is split by position).
+  const sectionDayCities = multiCity ? tripLayout(trip).dayCities : [];
+  const shownCities = activeCity === null ? destinationNames.map((_, i) => i) : [activeCity];
+  const renderDay = (day: (typeof sortedDays)[number], index: number, ci?: number) => (
                 <AnimatedDaySection
                   key={day.id}
                   index={index}
@@ -1063,7 +1087,7 @@ export default function TripDetailScreen() {
                     onActivityPress={canEditItinerary ? handleActivityPress : undefined}
                     onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
                     onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
-                    onDeleteDay={canEditItinerary ? () => handleDeleteDay(day) : undefined}
+                    onDeleteDay={canEditItinerary ? () => (ci !== undefined && routeSaved ? deleteDayInCity(day, ci) : handleDeleteDay(day)) : undefined}
                     resolvingActivityId={resolvingActivityId}
                     highlightActivityId={highlightActivityId}
                     currentActivityId={currentActivityId}
@@ -1288,18 +1312,18 @@ export default function TripDetailScreen() {
         >
           {multiCity && (
             <TouchableOpacity
-              onPress={() => cityFilter !== null && toggleCity(cityFilter)}
+              onPress={() => activeCity !== null && toggleCity(activeCity)}
               hitSlop={6}
-              style={[styles.chip, { backgroundColor: cityFilter === null ? colors.text.primary : colors.background.sunken }]}
+              style={[styles.chip, { backgroundColor: activeCity === null ? colors.text.primary : colors.background.sunken }]}
               accessibilityRole="button"
-              accessibilityState={{ selected: cityFilter === null }}
+              accessibilityState={{ selected: activeCity === null }}
               accessibilityLabel="All cities"
             >
-              <Text style={[styles.chipText, { color: cityFilter === null ? colors.background.primary : colors.text.primary }]}>All</Text>
+              <Text style={[styles.chipText, { color: activeCity === null ? colors.background.primary : colors.text.primary }]}>All</Text>
             </TouchableOpacity>
           )}
           {destinationNames.map((name, i) => {
-            const selected = cityFilter === i;
+            const selected = activeCity === i;
             const pickable = multiCity;
             return (
               <TouchableOpacity
@@ -1493,16 +1517,16 @@ export default function TripDetailScreen() {
               )
             ) : (
               shownCities.map((ci) => {
-                const days = sortedDays.filter((_, k) => sortedDayCities[k] === ci);
+                const days = sortedDays.filter((_, k) => sectionDayCities[k] === ci);
                 const key = `${trip.id}:${ci}`;
-                const open = cityFilter !== null || isSectionOpen(key, ci, sectionsOpen);
+                const open = activeCity !== null || isSectionOpen(key, ci, sectionsOpen);
                 const range = ranges[ci];
                 const dates = range?.arrive && range.leave
                   ? `${shortDay(range.arrive).toUpperCase()} – ${shortDay(range.leave).toUpperCase()}`
                   : `DAYS ${range?.firstDay ?? 1}–${range?.lastDay ?? 1}`;
                 const nights = range?.nights ?? days.length;
                 return (
-                  <View key={key} onLayout={cityFilter !== null ? (e) => { citySectionY.current = e.nativeEvent.layout.y; } : undefined}>
+                  <View key={key} onLayout={activeCity !== null ? (e) => { citySectionY.current = e.nativeEvent.layout.y; } : undefined}>
                   <CitySection
                     name={destinationNames[ci]}
                     eyebrow={`${dates} · ${nights} NIGHT${nights === 1 ? '' : 'S'}`}
@@ -1512,7 +1536,7 @@ export default function TripDetailScreen() {
                       staying: (perCity[ci]?.staying.length ?? 0) > 0,
                     })}
                     open={open}
-                    onToggle={cityFilter === null ? () => setSectionOpen(key, !open) : undefined}
+                    onToggle={activeCity === null ? () => setSectionOpen(key, !open) : undefined}
                     onMenu={canEditItinerary ? () => openCityMenu(ci) : undefined}
                     arriving={perCity[ci]?.arriving ?? []}
                     staying={perCity[ci]?.staying ?? []}
@@ -1521,7 +1545,7 @@ export default function TripDetailScreen() {
                     onFindStay={range ? () => findStay(destinationNames[ci], range) : undefined}
                     onAddDay={canEditItinerary ? () => addDayInCity(ci) : undefined}
                   >
-                    {days.map((day, index) => renderDay(day, index))}
+                    {days.map((day, index) => renderDay(day, index, ci))}
                   </CitySection>
                   </View>
                 );
@@ -1650,7 +1674,7 @@ export default function TripDetailScreen() {
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
       {multiCity && canEditItinerary && (
-        <RouteEditorSheet visible={routeEditorVisible} trip={trip} onClose={() => setRouteEditorVisible(false)} />
+        <RouteEditorSheet visible={routeEditorVisible} trip={trip} onClose={() => setRouteEditorVisible(false)} onSaved={() => setCityFilter(null)} />
       )}
       <TripBookingsSheet
         visible={bookingsVisible}

@@ -59,6 +59,29 @@ export function evenNights(totalNights: number, cityCount: number): number[] {
   return Array.from({ length: cityCount }, (_, i) => Math.max(1, base + (i < extra ? 1 : 0)));
 }
 
+/**
+ * Nights per city and the city of each existing day (in day order), as a route save would lay them out.
+ * Saved nights win, with the days' own cities. Unsaved: the days per city when they add up (every city
+ * has a day, the last a departure day); otherwise — a manual trip whose days all sit in the first city —
+ * the days are split evenly by position, so the trip keeps its length and nothing moves between days.
+ */
+export function routeLayout(a: { nights: (number | null | undefined)[]; dayCities: number[]; start: string | null; end: string | null }): { nights: number[]; dayCities: number[] } {
+  const n = a.nights.length;
+  const count = a.dayCities.length;
+  if (a.nights.every((x) => typeof x === 'number' && x >= 1) || count === 0) {
+    return { nights: routeNights(a), dayCities: a.dayCities };
+  }
+  const perCity = Array.from({ length: n }, (_, i) => a.dayCities.filter((c) => c === i).length);
+  if (perCity.every((c, i) => c >= (i === n - 1 ? 2 : 1))) return { nights: nightsFromDays(a.dayCities, n), dayCities: a.dayCities };
+  const nights = evenNights(Math.max(n, count - 1), n);
+  const ranges = cityRanges(nights, null);
+  const dayCities = Array.from({ length: count }, (_, k) => {
+    const r = ranges.find((x) => k + 1 >= x.firstDay && k + 1 <= x.lastDay);
+    return r ? r.index : n - 1;
+  });
+  return { nights, dayCities };
+}
+
 /** Saved nights if every city has them; else from the trip's days; else its dates split evenly; else 1 each. */
 export function routeNights(a: { nights: (number | null | undefined)[]; dayCities: number[]; start: string | null; end: string | null }): number[] {
   const n = a.nights.length;
@@ -68,7 +91,12 @@ export function routeNights(a: { nights: (number | null | undefined)[]; dayCitie
   return Array(n).fill(1);
 }
 
-export interface RouteDay { id: string; dayNumber: number; city: number; stops: number }
+export interface RouteDay {
+  id: string; dayNumber: number; city: number; stops: number;
+  /** The day's stored destinationIndex. A kept day is rewritten when it isn't exactly `city`: one null day
+   *  makes resolveDayDestinationIndices ignore every explicit index (utils/dayDestination). */
+  stored?: number | null;
+}
 /** One city of the new route: `from` is its index in the current route (null = new); `absorbs` / `absorbsAfter` are removed cities whose days join it before / after its own (the city before or after it). */
 export interface RouteEntry { from: number | null; nights: number; absorbs?: number[]; absorbsAfter?: number[] }
 export interface RoutePlan {
@@ -90,7 +118,7 @@ export function planRoute(days: RouteDay[], route: RouteEntry[]): RoutePlan {
     const pool = [...(entry.absorbs ?? []).flatMap(byCity), ...(entry.from === null ? [] : byCity(entry.from)), ...(entry.absorbsAfter ?? []).flatMap(byCity)];
     pool.slice(0, need).forEach((d) => {
       kept.add(d.id);
-      if (d.dayNumber !== dayNumber || d.city !== city) plan.updates.push({ id: d.id, dayNumber, city });
+      if (d.dayNumber !== dayNumber || d.city !== city || (d.stored !== undefined && d.stored !== city)) plan.updates.push({ id: d.id, dayNumber, city });
       dayNumber++;
     });
     for (let i = pool.length; i < need; i++) plan.creates.push({ dayNumber: dayNumber++, city });
@@ -113,18 +141,31 @@ export function absorbEndDateChange(nights: number[], start: string, newEnd: str
   return [...nights.slice(0, -1), Math.max(1, daysBetween(start, newEnd) - others)];
 }
 
-const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+/** Lowercase words without accents, padded: "München Hbf" → " munchen hbf ", so a name matches only whole words. */
+const words = (s: string) => ` ${s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
 
-/** Which city a booking belongs to: by its city name, else by its date; null if neither places it. */
-export function bookingCityIndex(b: { city: string | null | undefined; date: string | null | undefined }, names: string[], ranges: CityRange[]): number | null {
-  const city = b.city ? fold(b.city) : '';
-  if (city) {
-    const hit = names.findIndex((n) => { const f = fold(n); return !!f && (city.includes(f) || f.includes(city)); });
-    if (hit >= 0) return hit;
+/**
+ * Which city a booking belongs to: by a city name appearing as whole words (longest name wins, so Nice
+ * never takes Venice), else by its date; null if neither places it. `departureDay: false` leaves out a
+ * booking dated the trip's last day — the flight home is not a way into the last city.
+ */
+export function bookingCityIndex(
+  b: { city: string | null | undefined; date: string | null | undefined }, names: string[], ranges: CityRange[],
+  opts: { departureDay?: boolean } = {},
+): number | null {
+  if (b.city) {
+    const hay = words(b.city);
+    let best = -1;
+    names.forEach((n, i) => {
+      const w = words(n);
+      if (w.trim() && hay.includes(w) && (best < 0 || w.length > words(names[best]).length)) best = i;
+    });
+    if (best >= 0) return best;
   }
   if (b.date) {
     const last = ranges.length - 1;
-    const hit = ranges.findIndex((r, i) => !!r.arrive && !!r.leave && b.date! >= r.arrive && (b.date! < r.leave || (i === last && b.date === r.leave)));
+    const departure = opts.departureDay ?? true;
+    const hit = ranges.findIndex((r, i) => !!r.arrive && !!r.leave && b.date! >= r.arrive && (b.date! < r.leave || (departure && i === last && b.date === r.leave)));
     if (hit >= 0) return hit;
   }
   return null;
@@ -143,12 +184,29 @@ export function citySummary(a: { days: number; stops: number; staying: boolean }
 export interface RouteRow<T> { key: string; from: number | null; nights: number; absorbs: number[]; absorbsAfter: number[]; place: T }
 const MAX_NIGHTS = 60;
 
+/**
+ * The last city holds its departure day too (nights + 1 days). When a city stops being last it keeps
+ * that day as a night, and the city that becomes last gives one night back — so moving cities never
+ * deletes a day (or its stops).
+ */
+function relast<T>(before: RouteRow<T>[], after: RouteRow<T>[]): RouteRow<T>[] {
+  const oldLast = before[before.length - 1]?.key;
+  const newLast = after[after.length - 1]?.key;
+  if (!oldLast || oldLast === newLast) return after;
+  const existedBefore = before.some((r) => r.key === newLast);
+  return after.map((r) => {
+    if (r.key === oldLast) return { ...r, nights: Math.min(MAX_NIGHTS, r.nights + 1) };
+    if (r.key === newLast && existedBefore) return { ...r, nights: Math.max(1, r.nights - 1) };
+    return r;
+  });
+}
+
 export function moveRow<T>(rows: RouteRow<T>[], i: number, by: -1 | 1): RouteRow<T>[] {
   const j = i + by;
   if (j < 0 || j >= rows.length) return rows;
   const next = [...rows];
   [next[i], next[j]] = [next[j], next[i]];
-  return next;
+  return relast(rows, next);
 }
 
 export function setRowNights<T>(rows: RouteRow<T>[], i: number, nights: number): RouteRow<T>[] {
@@ -159,7 +217,7 @@ export function setRowNights<T>(rows: RouteRow<T>[], i: number, nights: number):
 export function removeRow<T>(rows: RouteRow<T>[], i: number, mode: 'delete' | 'move'): RouteRow<T>[] {
   const gone = rows[i];
   const rest = rows.filter((_, k) => k !== i);
-  if (mode === 'delete' || rest.length === 0) return rest;
+  if (mode === 'delete' || rest.length === 0) return relast(rows, rest);
   const carried = [...gone.absorbs, ...(gone.from === null ? [] : [gone.from]), ...gone.absorbsAfter];
   if (i < rows.length - 1) {
     return rest.map((r, k) => (k === i ? { ...r, nights: Math.min(MAX_NIGHTS, r.nights + gone.nights), absorbs: [...carried, ...r.absorbs] } : r));
@@ -168,7 +226,7 @@ export function removeRow<T>(rows: RouteRow<T>[], i: number, mode: 'delete' | 'm
 }
 
 export function addRow<T>(rows: RouteRow<T>[], place: T, key: string): RouteRow<T>[] {
-  return [...rows, { key, from: null, nights: 1, absorbs: [], absorbsAfter: [], place }];
+  return relast(rows, [...rows, { key, from: null, nights: 1, absorbs: [], absorbsAfter: [], place }]);
 }
 
 export function rowsToEntries<T>(rows: RouteRow<T>[]): RouteEntry[] {

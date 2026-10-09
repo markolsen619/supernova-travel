@@ -36,7 +36,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { TripVisibility, TripWithDays } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 import { draftFromRows, previewRoute, routeRowsFromTrip, useTripRoute, type RouteDraft } from '@/hooks/useTripRoute';
-import { absorbEndDateChange, dropsWarning } from '@/utils/tripRoute';
+import { absorbEndDateChange, dropsWarning, endDateFor } from '@/utils/tripRoute';
 import { toCalendarDate } from '@/utils/calendarDate';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
@@ -118,7 +118,12 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     let routeDraft: RouteDraft | null = null;
     const day = (d: Date | null) => (d ? toCalendarDate(d) : null);
     const datesChanged = day(startDate) !== day(trip.startDate?.toDate() ?? null) || day(endDate) !== day(trip.endDate?.toDate() ?? null);
-    if (trip.additionalDestinations.length > 0 && startDate && endDate && datesChanged) {
+    // Also when the dates were saved but the route wasn't (a failed earlier save): the route must end on the trip's end.
+    const routeEnd = startDate
+      ? endDateFor(toCalendarDate(startDate), routeRowsFromTrip(trip).reduce((n, r) => n + r.nights, 0))
+      : null;
+    const routeOutOfStep = !!endDate && !!routeEnd && routeEnd !== toCalendarDate(endDate) && [trip.destination, ...trip.additionalDestinations].every((d) => typeof d.nights === 'number');
+    if (trip.additionalDestinations.length > 0 && startDate && endDate && (datesChanged || routeOutOfStep)) {
       routeTrip = { ...trip, startDate: Timestamp.fromDate(startDate) };
       const rows = routeRowsFromTrip(routeTrip);
       const nights = absorbEndDateChange(rows.map((r) => r.nights), toCalendarDate(startDate), toCalendarDate(endDate));

@@ -23,7 +23,7 @@ export function cityBookings(bookings: TripBooking[], names: string[], ranges: C
       date = b.item.checkIn;
     }
     if (!slot) continue;
-    const i = bookingCityIndex({ city, date }, names, ranges);
+    const i = bookingCityIndex({ city, date }, names, ranges, { departureDay: slot !== 'arriving' });
     if (i !== null) out[i][slot].push(b);
   }
   return out;
