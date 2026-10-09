@@ -96,6 +96,8 @@ export interface Destination {
   /** Bounding box used to constrain stop grounding to this city. Resolved once
    *  and persisted; null until then, and for trips created before this field. */
   bounds: PlaceViewportBounds | null;
+  /** Nights in this city (utils/tripRoute.ts). Unset on trips saved before 1.0.4 — derived from their days then. */
+  nights?: number | null;
 }
 
 export interface Trip {
