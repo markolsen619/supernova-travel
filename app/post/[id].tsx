@@ -34,7 +34,7 @@ import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
 import { Comment } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash, Heart, X } from 'phosphor-react-native';
+import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash, Heart, X, WifiSlash } from 'phosphor-react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useCommentLike } from '@/hooks/usePostLike';
 import { threadComments, replyFieldsFor, commentMenu } from '@/utils/commentThreads';
@@ -277,7 +277,7 @@ export default function PostDetailScreen() {
   const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
 
-  const { data: post, isLoading: postLoading } = usePost(id ?? null);
+  const { data: post, isLoading: postLoading, isError: postError, refetch: refetchPost } = usePost(id ?? null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   // The comment being answered, shown as a chip above the input.
@@ -460,14 +460,27 @@ export default function PostDetailScreen() {
   if (!post) {
     return (
       <View style={[styles.unavailable, { backgroundColor: colors.background.primary, paddingTop: insets.top }]}>
-        <EmptyState
-          icon={EyeSlash}
-          title="This post is gone"
-          description="Its author deleted it, so there's nothing left to see."
-          actionLabel="Go back"
-          onAction={() => router.back()}
-          actionHaptic="light"
-        />
+        {postError ? (
+          <EmptyState
+            icon={WifiSlash}
+            title="Couldn't load this post"
+            description="Check your connection and try again."
+            actionLabel="Try again"
+            onAction={() => refetchPost()}
+            actionHaptic="light"
+            secondaryLabel="Go back"
+            onSecondary={() => router.back()}
+          />
+        ) : (
+          <EmptyState
+            icon={EyeSlash}
+            title="This post is gone"
+            description="Its author deleted it, so there's nothing left to see."
+            actionLabel="Go back"
+            onAction={() => router.back()}
+            actionHaptic="light"
+          />
+        )}
       </View>
     );
   }

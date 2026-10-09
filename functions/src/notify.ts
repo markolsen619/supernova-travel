@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import * as https from 'https';
 import { pushDataFor } from './pushData';
+import { notificationDocWithCopy } from './pushCopy';
 
 const db = admin.firestore();
 
@@ -27,7 +28,7 @@ export async function notifyUser(uid: string, payload: NotifyPayload): Promise<v
     .doc(uid)
     .collection('notifications')
     .add({
-      ...payload.notification,
+      ...notificationDocWithCopy(payload.notification, payload.push),
       read: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });

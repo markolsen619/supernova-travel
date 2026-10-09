@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FullWindowOverlay } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { BellSimple } from 'phosphor-react-native';
@@ -40,7 +41,7 @@ export function NotificationArrivalBanner() {
   }, [hide]);
 
   if (!banner) return null;
-  return (
+  const content = (
     <Animated.View pointerEvents="box-none" style={[styles.wrap, { top: insets.top + Spacing['2'], transform: [{ translateY }] }]}>
       <TouchableOpacity
         onPress={dismiss}
@@ -61,6 +62,9 @@ export function NotificationArrivalBanner() {
       </TouchableOpacity>
     </Animated.View>
   );
+  // On iOS, modal screens (a post, a trip) are native view controllers above the root view;
+  // only a full-window overlay draws over them.
+  return Platform.OS === 'ios' ? <FullWindowOverlay>{content}</FullWindowOverlay> : content;
 }
 
 const styles = StyleSheet.create({

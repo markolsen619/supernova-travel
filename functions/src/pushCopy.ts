@@ -25,3 +25,12 @@ export function commentPushCopy(type: 'post_comment' | 'comment_reply', name: st
     body: quote(comment) ?? 'Tap to see it',
   };
 }
+
+/**
+ * The in-app notification doc carries the push's own wording too, so a build
+ * that doesn't know a newer type can still show what it was (its own
+ * title/body, when it has them, win).
+ */
+export function notificationDocWithCopy(notification: Record<string, unknown>, push: Copy): Record<string, unknown> {
+  return { title: push.title, body: push.body, ...notification };
+}

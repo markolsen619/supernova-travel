@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable, Alert } fro
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus, EnvelopeSimple } from 'phosphor-react-native';
+import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus, EnvelopeSimple, BellSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -435,7 +435,26 @@ export default function NotificationsScreen() {
         );
       }
 
-      if (item.type !== 'trip_invite_accepted') return null;
+      if (item.type !== 'trip_invite_accepted') {
+        // A type this build doesn't know: the server saves the push wording on every notification.
+        const { title, body } = item as unknown as { title?: string; body?: string };
+        if (!title) return null;
+        return (
+          <TouchableOpacity {...rowProps(item)}>
+            <View style={[styles.iconBubble, { backgroundColor: colors.background.sunken }]}>
+              <BellSimple size={16} color={colors.text.secondary} weight="duotone" />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowBody, { color: colors.text.primary }]} numberOfLines={3}>
+                <Text style={styles.rowBold}>{title}</Text>{body ? ` ${body}` : ''}
+              </Text>
+              <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
+                {timeAgo(item.createdAt.toDate())}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }
 
       return (
         <TouchableOpacity {...rowProps(item)}>
