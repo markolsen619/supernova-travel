@@ -227,13 +227,13 @@ Free tier: 1 AI-generated trip per week (enforced server-side via `usage_quotas`
 | `Trip` | title, destination (name/placeId/lat/lng/countryCode), visibility, collaborators[], isAiGenerated, status, tags, likesCount, savesCount |
 | `TripWithDays` | `Trip` extended with `days: TripDay[]` |
 | `TripDay` | dayNumber, date, title, notes, activities[] (loaded from subcollection client-side) |
-| `TripActivity` | type (ActivityType), title, placeId, startTime/endTime (wall-clock strings, NOT Timestamps), durationMinutes, notes, bookingRef, cost, currency, mediaUrls, order |
+| `TripActivity` | type (ActivityType), title, placeId, startTime/endTime (wall-clock strings, NOT Timestamps — **never preset**: AI itineraries are written without them since 2026-10-09, `order` is the plan; the stop shows `utils/stopTime` = your time, else the matched booking's `time` / train departure), durationMinutes, notes, bookingRef, cost, currency, mediaUrls, order |
 | `ActivityType` | `'flight' \| 'hotel' \| 'restaurant' \| 'activity' \| 'transport' \| 'free'` |
 | `TripStatus` | `'planning' \| 'active' \| 'completed'` |
 | `TripVisibility` | `'public' \| 'followers' \| 'private'` |
 | `BoardingPass` | airline, flightNumber, origin/destination (IATA codes), departureTime/arrivalTime (ISO 8601), seat, gate, barcode, status |
 | `BoardingPassStatus` | `'upcoming' \| 'checked_in' \| 'boarded' \| 'completed' \| 'cancelled'` |
-| `Reservation` | type (ReservationType), title, confirmationCode, checkIn/checkOut (ISO 8601 date) |
+| `Reservation` | type (ReservationType), title, confirmationCode, checkIn/checkOut (ISO 8601 date), `time` ("HH:MM" as printed, restaurant/activity/show — parsed from confirmations, entered on the form) |
 | `ReservationType` | `'hotel' \| 'airbnb' \| 'rental_car' \| 'restaurant' \| 'activity'` |
 | `LoyaltyProgram` | programType, programName, memberNumber, balance, unit, tier, expiryDate, isManual |
 | `LoyaltyUnit` | `'miles' \| 'points' \| 'nights' \| 'segments'` |

@@ -11,7 +11,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -314,6 +314,13 @@ export default function TripDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCityFilter((current) => (current === index ? null : index));
   }, []);
+  // While a stop is being dragged, the sheet must not swipe closed (components/trip/DayTimeline).
+  const navigation = useNavigation();
+  const handleDragState = useCallback((dragging: boolean) => {
+    navigation.setOptions({ gestureEnabled: !dragging });
+  }, [navigation]);
+  // Never leave the sheet unable to swipe closed after a drag that ended oddly.
+  useEffect(() => () => navigation.setOptions({ gestureEnabled: true }), [navigation]);
   const openBooking = useCallback((b: TripBooking) => {
     router.push(bookingRoute(b) as Href);
   }, [router]);
@@ -1087,6 +1094,7 @@ export default function TripDetailScreen() {
                     onActivityPress={canEditItinerary ? handleActivityPress : undefined}
                     onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
                     onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
+                    onDragStateChange={handleDragState}
                     onDeleteDay={canEditItinerary ? () => (ci !== undefined && routeSaved ? deleteDayInCity(day, ci) : handleDeleteDay(day)) : undefined}
                     resolvingActivityId={resolvingActivityId}
                     highlightActivityId={highlightActivityId}

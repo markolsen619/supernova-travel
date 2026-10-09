@@ -55,7 +55,7 @@ export function sharedDetailRows(b: TripBooking): { label: string; value: string
         { label: 'Seat', value: r.seat },
       );
     } else {
-      rows.push({ label: 'Check-in', value: day(r.checkIn) }, { label: 'Check-out', value: day(r.checkOut) });
+      rows.push({ label: 'Check-in', value: day(r.checkIn) }, { label: 'Time', value: r.time }, { label: 'Check-out', value: day(r.checkOut) });
     }
     rows.push({ label: 'Address', value: r.address });
   }

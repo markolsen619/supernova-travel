@@ -94,7 +94,19 @@ export function useTripRoute() {
     await queryClient.invalidateQueries({ queryKey: ['myTrips'] });
   }, [queryClient]);
 
-  return { saveRoute };
+  /** Edit trip → "Clear all times": every stop loses its time; the order stays (AI trips made before 1.0.4 came with times). */
+  const clearStopTimes = useCallback(async (trip: TripWithDays) => {
+    const timed = trip.days.flatMap((d) => d.activities.filter((a) => a.startTime || a.endTime).map((a) => ({ day: d.id, id: a.id })));
+    for (let i = 0; i < timed.length; i += 450) {
+      const batch = writeBatch(db);
+      timed.slice(i, i + 450).forEach((t) => batch.update(doc(db, 'trips', trip.id, 'days', t.day, 'activities', t.id), { startTime: null, endTime: null }));
+      await batch.commit();
+    }
+    await queryClient.invalidateQueries({ queryKey: ['trip', trip.id] });
+    return timed.length;
+  }, [queryClient]);
+
+  return { saveRoute, clearStopTimes };
 }
 
 /** The trip's current route as editor rows (nights saved, else derived — utils/tripRoute routeNights). */

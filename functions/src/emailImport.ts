@@ -178,6 +178,8 @@ export function bookingsFromParse(parsed: unknown, ctx: { uid: string; emailImpo
         ...base, type: rawType && RES_TYPES.has(rawType) && rawType !== 'transit' ? rawType : 'activity', title,
         confirmationCode: str(f.confirmationCode, 100) ?? '', checkIn: day(f.checkIn), checkOut: day(f.checkOut),
         address: str(f.address, 500), notes: str(f.notes, 2000), placeCity: str(f.city),
+        // A table or ticket time as printed ("19:30"); fills the matching stop's time (utils/stopTime.ts).
+        time: typeof f.time === 'string' && HHMM.test(f.time) ? f.time : undefined,
         placeCountryCode: country && ISO2.test(country) ? country.toUpperCase() : undefined,
         ...transitFields(rawType, f),
       }) });

@@ -53,7 +53,7 @@ export function bookingsByDay(days: { id: string; date: Date | null }[], booking
     const outDay = calendar(b.item.checkOut);
     if (b.item.type !== 'hotel' && b.item.type !== 'airbnb') {
       // A train or ferry sorts by the departure time printed on the ticket.
-      put(inDay, { booking: b, role: 'booked', time: reservationKind(b.item) === 'transit' ? (b.item.departureLocalTime ?? null) : null });
+      put(inDay, { booking: b, role: 'booked', time: reservationKind(b.item) === 'transit' ? (b.item.departureLocalTime ?? null) : (b.item.time ?? null) });
       continue;
     }
     if (!inDay) continue;
@@ -103,5 +103,6 @@ export function bookingLines(d: DayBooking): { title: string; detail: string } {
       detail: [r.seat ? `Seat ${r.seat}` : null, conf || null].filter(Boolean).join(' · '),
     };
   }
-  return { title: r.title, detail: conf };
+  // A table or ticket time (Reservation.time) shows like a train's.
+  return { title: d.time ? `${r.title} · ${d.time}` : r.title, detail: conf };
 }

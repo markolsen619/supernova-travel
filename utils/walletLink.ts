@@ -43,6 +43,9 @@ export function draftPlaceFields(draft: ParseTravelConfirmationResult): Record<s
     if (mode === 'train' || mode === 'bus' || mode === 'ferry') out.transitMode = mode;
     for (const k of ['operator', 'fromPlace', 'toPlace', 'seat'] as const) if (f[k]?.trim()) out[k] = f[k]!.trim();
     for (const k of ['departureLocalTime', 'arrivalLocalTime'] as const) if (f[k] && HHMM.test(f[k]!)) out[k] = f[k]!;
+  } else if (draft.kind === 'reservation' && f.time && HHMM.test(f.time)) {
+    // A table or ticket time as printed — fills the matching stop's time (utils/stopTime.ts).
+    out.time = f.time;
   }
   return out;
 }

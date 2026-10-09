@@ -97,7 +97,22 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     onClose();
   }, [onClose]);
 
-  const { saveRoute } = useTripRoute();
+  const { saveRoute, clearStopTimes } = useTripRoute();
+  const timedStops = trip.days.reduce((n, d) => n + d.activities.filter((a) => a.startTime || a.endTime).length, 0);
+  const handleClearTimes = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(`Clear times from ${timedStops} stop${timedStops === 1 ? '' : 's'}?`, 'Their order stays. Stops with a matching booking show its time.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear times',
+        style: 'destructive',
+        onPress: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          clearStopTimes(trip).catch(() => setSaveError("Couldn't clear the times. Try again in a moment."));
+        },
+      },
+    ]);
+  }, [timedStops, clearStopTimes, trip]);
   const save = useCallback(async (confirmedDrops: boolean) => {
     if (saving || deleting) return;
     if (!title.trim()) {
@@ -264,6 +279,12 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
                 <DateRangeField start={startDate} end={endDate} onChange={handleDatesChange} />
               </View>
 
+              {timedStops > 0 && (
+                <TouchableOpacity onPress={handleClearTimes} style={styles.clearTimes} accessibilityRole="button">
+                  <Text style={[styles.clearTimesText, { color: colors.text.secondary }]}>Clear all stop times</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Visibility */}
               <View style={styles.fieldGroup}>
                 <Text style={[styles.label, { color: colors.text.secondary }]}>Visibility</Text>
@@ -356,6 +377,8 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
 }
 
 const styles = StyleSheet.create({
+  clearTimes: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  clearTimesText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, textDecorationLine: 'underline' },
   root: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: {

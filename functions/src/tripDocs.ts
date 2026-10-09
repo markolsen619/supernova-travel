@@ -80,8 +80,10 @@ export function tripDocuments(
       address: act.address ?? null,
       lat: null,
       lng: null,
-      startTime: act.startTime ?? null,
-      endTime: act.endTime ?? null,
+      // No preset clock times (2026-10-09): the day's order is the plan; a time comes from you or from a
+      // matching wallet booking (utils/stopTime.ts). Older prompts still return them, so they're dropped here.
+      startTime: null,
+      endTime: null,
       durationMinutes: null,
       notes: [act.rationale, act.notes].filter(Boolean).join(' — '),
       bookingRef: null,
