@@ -77,3 +77,13 @@ export function resolveDayDestinationIndices(days: DayLike[], destinationNames: 
   }
   return result;
 }
+
+/**
+ * The trip page's city filter: the days whose destination is `selected`
+ * (indices from resolveDayDestinationIndices, same order as `days`), or every
+ * day when nothing is selected. Days keep their own dayNumber.
+ */
+export function daysInDestination<T>(days: T[], indices: number[], selected: number | null): T[] {
+  if (selected === null) return days;
+  return days.filter((_, i) => indices[i] === selected);
+}
