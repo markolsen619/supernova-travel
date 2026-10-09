@@ -1,0 +1,135 @@
+import {
+  cityRanges, nightsFromDays, evenNights, routeNights, planRoute, endDateFor, absorbEndDateChange,
+  bookingCityIndex, citySummary, type RouteDay,
+} from '@/utils/tripRoute';
+
+describe('cityRanges', () => {
+  it('gives each city its dates and day numbers; the last city keeps the departure day', () => {
+    const r = cityRanges([3, 2, 1], '2026-11-18');
+    expect(r).toEqual([
+      { index: 0, nights: 3, firstDay: 1, lastDay: 3, arrive: '2026-11-18', leave: '2026-11-21' },
+      { index: 1, nights: 2, firstDay: 4, lastDay: 5, arrive: '2026-11-21', leave: '2026-11-23' },
+      { index: 2, nights: 1, firstDay: 6, lastDay: 7, arrive: '2026-11-23', leave: '2026-11-24' },
+    ]);
+  });
+  it('works on day numbers alone for a trip without dates', () => {
+    expect(cityRanges([2, 1], null)[1]).toEqual({ index: 1, nights: 1, firstDay: 3, lastDay: 4, arrive: null, leave: null });
+  });
+  it('crosses month ends', () => {
+    expect(cityRanges([3], '2026-11-29')[0].leave).toBe('2026-12-02');
+  });
+});
+
+describe('nights for a trip saved before nights existed', () => {
+  it('counts each city’s days (the last city’s last day is departure)', () => {
+    expect(nightsFromDays([0, 0, 0, 1, 1, 2, 2], 3)).toEqual([3, 2, 1]);
+  });
+  it('never gives a city fewer than one night', () => {
+    expect(nightsFromDays([0, 0, 0], 3)).toEqual([3, 1, 1]);
+  });
+  it('splits a date range evenly, remainder to the earlier cities', () => {
+    expect(evenNights(17, 7)).toEqual([3, 3, 3, 2, 2, 2, 2]);
+    expect(evenNights(2, 4)).toEqual([1, 1, 1, 1]);
+  });
+  it('prefers saved nights, then days, then the trip’s dates', () => {
+    expect(routeNights({ nights: [2, 3], dayCities: [0, 0, 0, 0], start: '2026-11-18', end: '2026-12-05' })).toEqual([2, 3]);
+    expect(routeNights({ nights: [null, null], dayCities: [0, 0, 1, 1], start: null, end: null })).toEqual([2, 1]);
+    expect(routeNights({ nights: [null, null, null], dayCities: [], start: '2026-11-18', end: '2026-12-05' })).toEqual([6, 6, 5]);
+    expect(routeNights({ nights: [null, null], dayCities: [], start: null, end: null })).toEqual([1, 1]);
+  });
+});
+
+const day = (id: string, dayNumber: number, city: number, stops = 0): RouteDay => ({ id, dayNumber, city, stops });
+
+describe('planRoute', () => {
+  // Prague 2 nights (days 1–2), Vienna 1 night + departure (days 3–4)
+  const days = [day('p1', 1, 0, 2), day('p2', 2, 0), day('v1', 3, 1, 1), day('v2', 4, 1)];
+
+  it('lengthening a city adds empty days to it and shifts the rest', () => {
+    const p = planRoute(days, [{ from: 0, nights: 3 }, { from: 1, nights: 1 }]);
+    expect(p.creates).toEqual([{ dayNumber: 3, city: 0 }]);
+    expect(p.updates).toEqual([{ id: 'v1', dayNumber: 4, city: 1 }, { id: 'v2', dayNumber: 5, city: 1 }]);
+    expect(p.deletes).toEqual([]);
+  });
+
+  it('shortening drops the city’s last days and reports the ones with stops', () => {
+    const p = planRoute(days, [{ from: 0, nights: 1 }, { from: 1, nights: 1 }]);
+    expect(p.deletes).toEqual(['p2']);
+    expect(p.dropsWithStops).toEqual([]);
+    const q = planRoute([day('p1', 1, 0), day('p2', 2, 0, 3), day('v1', 3, 1), day('v2', 4, 1)], [{ from: 0, nights: 1 }, { from: 1, nights: 1 }]);
+    expect(q.dropsWithStops.map((d) => d.id)).toEqual(['p2']);
+  });
+
+  it('reordering keeps every day with its own city', () => {
+    const p = planRoute(days, [{ from: 1, nights: 1 }, { from: 0, nights: 2 }]);
+    // Vienna first: its two days become 1 night (v1) — v2 (empty) dropped; Prague last gets 2 nights + departure.
+    expect(p.updates).toContainEqual({ id: 'v1', dayNumber: 1, city: 0 });
+    expect(p.updates).toContainEqual({ id: 'p1', dayNumber: 2, city: 1 });
+    expect(p.updates).toContainEqual({ id: 'p2', dayNumber: 3, city: 1 });
+    expect(p.deletes).toEqual(['v2']);
+    expect(p.creates).toEqual([{ dayNumber: 4, city: 1 }]);
+  });
+
+  it('a removed city’s days are deleted, or moved into the next city', () => {
+    const three = [...days.slice(0, 3), day('v2', 4, 1), day('s1', 5, 2), day('s2', 6, 2)];
+    const del = planRoute(three, [{ from: 0, nights: 2 }, { from: 2, nights: 1 }]);
+    expect(del.deletes.sort()).toEqual(['v1', 'v2']);
+    expect(del.dropsWithStops.map((d) => d.id)).toEqual(['v1']);
+    const move = planRoute(three, [{ from: 0, nights: 2 }, { from: 2, nights: 3, absorbs: [1] }]);
+    expect(move.deletes).toEqual([]);
+    // v1 is still day 3 of the city at index 1 (now Salzburg), so it needs no write.
+    expect(move.updates.find((u) => u.id === 'v1')).toBeUndefined();
+    expect(move.updates).toContainEqual({ id: 's2', dayNumber: 6, city: 1 });
+    expect(move.updates).toContainEqual({ id: 's1', dayNumber: 5, city: 1 });
+  });
+
+  it('a new city gets fresh days', () => {
+    const p = planRoute(days, [{ from: 0, nights: 2 }, { from: 1, nights: 1 }, { from: null, nights: 1 }]);
+    // Vienna loses its departure day (no longer last): v2 is empty, so dropped; the new city gets 2 days.
+    expect(p.deletes).toEqual(['v2']);
+    expect(p.creates).toEqual([{ dayNumber: 4, city: 2 }, { dayNumber: 5, city: 2 }]);
+  });
+
+  it('numbers days 1…N with no gaps', () => {
+    const p = planRoute(days, [{ from: 1, nights: 2 }, { from: 0, nights: 1 }]);
+    const numbers = [...p.updates.map((u) => u.dayNumber), ...p.creates.map((c) => c.dayNumber),
+      ...days.filter((d) => !p.deletes.includes(d.id) && !p.updates.some((u) => u.id === d.id)).map((d) => d.dayNumber)].sort((a, b) => a - b);
+    expect(numbers).toEqual([1, 2, 3, 4]); // 3 nights → 4 days
+  });
+
+  it('keeps an untouched route untouched', () => {
+    const p = planRoute(days, [{ from: 0, nights: 2 }, { from: 1, nights: 1 }]);
+    expect(p).toEqual({ creates: [], updates: [], deletes: [], dropsWithStops: [] });
+  });
+});
+
+describe('dates', () => {
+  it('ends the trip after its nights', () => {
+    expect(endDateFor('2026-11-18', 17)).toBe('2026-12-05');
+  });
+  it('a new end date lengthens or shortens the last city', () => {
+    expect(absorbEndDateChange([3, 2, 2], '2026-11-18', '2026-11-27')).toEqual([3, 2, 4]);
+    expect(absorbEndDateChange([3, 2, 2], '2026-11-18', '2026-11-20')).toEqual([3, 2, 1]);
+  });
+});
+
+describe('bookingCityIndex', () => {
+  const ranges = cityRanges([3, 2, 2], '2026-11-18');
+  const names = ['Prague', 'Vienna', 'München'];
+  it('places a booking by its city, accent- and case-insensitive', () => {
+    expect(bookingCityIndex({ city: 'MUNCHEN', date: null }, names, ranges)).toBe(2);
+    expect(bookingCityIndex({ city: 'Vienna, Austria', date: null }, names, ranges)).toBe(1);
+  });
+  it('falls back to its date', () => {
+    expect(bookingCityIndex({ city: 'Somewhere', date: '2026-11-22' }, names, ranges)).toBe(1);
+    expect(bookingCityIndex({ city: null, date: '2026-12-25' }, names, ranges)).toBeNull();
+  });
+});
+
+describe('citySummary', () => {
+  it('folds a city into one line', () => {
+    expect(citySummary({ days: 3, stops: 12, staying: true })).toBe('3 days · 12 stops · hotel booked');
+    expect(citySummary({ days: 1, stops: 1, staying: false })).toBe('1 day · 1 stop');
+    expect(citySummary({ days: 2, stops: 0, staying: false })).toBe('2 days · nothing planned yet');
+  });
+});
