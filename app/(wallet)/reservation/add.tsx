@@ -39,6 +39,10 @@ const RESERVATION_TYPES: { type: ReservationType; label: string }[] = [
   { type: 'transit', label: 'Train, bus or ferry' },
 ];
 
+
+/** Reservations with a time of day worth showing on a trip stop. */
+const TIMED_TYPES: ReadonlySet<ReservationType> = new Set(['restaurant', 'activity', 'show']);
+
 export default function AddReservationScreen() {
   const { colors } = useTheme();
   const uid = useAuthStore((s) => s.user?.uid ?? '');
@@ -70,6 +74,7 @@ export default function AddReservationScreen() {
     setFromPlace(existing.fromPlace ?? '');
     setToPlace(existing.toPlace ?? '');
     setDeparts(existing.departureLocalTime ?? '');
+    setTime(existing.time ?? '');
     setArrives(existing.arrivalLocalTime ?? '');
     setSeat(existing.seat ?? '');
     setOperator(existing.operator ?? '');
@@ -81,6 +86,8 @@ export default function AddReservationScreen() {
   const [fromPlace, setFromPlace] = useState('');
   const [toPlace, setToPlace] = useState('');
   const [departs, setDeparts] = useState('');
+  // A table or ticket time — it fills the matching trip stop's time (utils/stopTime.ts).
+  const [time, setTime] = useState('');
   const [arrives, setArrives] = useState('');
   const [seat, setSeat] = useState('');
   const [operator, setOperator] = useState('');
@@ -104,6 +111,7 @@ export default function AddReservationScreen() {
     setFromPlace(place.fromPlace ?? '');
     setToPlace(place.toPlace ?? '');
     setDeparts(place.departureLocalTime ?? '');
+    setTime(place.time ?? '');
     setArrives(place.arrivalLocalTime ?? '');
     setSeat(place.seat ?? '');
     setOperator(place.operator ?? '');
@@ -139,6 +147,14 @@ export default function AddReservationScreen() {
       Alert.alert('Check the times', 'Enter times as they appear on the ticket, like 10:19.');
       return;
     }
+    const timed = TIMED_TYPES.has(type);
+    const atTime = timed && time.trim() ? normalizeTime(time) : null;
+    if (timed && time.trim() && !atTime) {
+      Alert.alert('Check the time', 'Enter it like 19:30.');
+      return;
+    }
+    // The form owns the time now, not the import's guess.
+    const { time: _importedTime, ...placeFields } = draftPlace;
     // The form owns these fields now — they replace whatever the import guessed.
     const transitValues: Record<string, string | undefined> = isTransit
       ? {
@@ -172,6 +188,7 @@ export default function AddReservationScreen() {
         arrivalLocalTime: transitValues.arrivalLocalTime ?? deleteField(),
         seat: transitValues.seat ?? deleteField(),
         operator: transitValues.operator ?? deleteField(),
+        time: atTime ?? deleteField(),
         checkIn: checkIn ? toCalendarDate(checkIn) : deleteField(),
         checkOut: checkOut ? toCalendarDate(checkOut) : deleteField(),
         address: address.trim() || deleteField(),
@@ -199,7 +216,8 @@ export default function AddReservationScreen() {
           ...(notes.trim() ? { notes: notes.trim() } : {}),
           createdAt: new Date().toISOString(),
           // Where it is, for matching it to a trip (Pro; bookingMatch.ts).
-          ...draftPlace,
+          ...placeFields,
+          ...(atTime ? { time: atTime } : {}),
           ...(transitMode ? { transitMode } : {}),
           ...Object.fromEntries(Object.entries(transitValues).filter(([, v]) => v !== undefined)),
         },
@@ -212,7 +230,7 @@ export default function AddReservationScreen() {
         },
       );
     }
-  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance, draftPlace, afterSave, existing?.transitMode, fromPlace, toPlace, departs, arrives, seat, operator]);
+  }, [type, title, confirmationCode, checkIn, checkOut, address, notes, uid, isEditMode, id, addReservation, updateReservation, allowance, draftPlace, afterSave, existing?.transitMode, fromPlace, toPlace, departs, arrives, seat, operator, time]);
 
   const inputStyle = [
     styles.input,
@@ -340,6 +358,14 @@ export default function AddReservationScreen() {
           </View>
           )}
         </View>
+
+        {TIMED_TYPES.has(type) && (
+          <>
+            <Text style={labelStyle}>Time (optional)</Text>
+            <TextInput style={inputStyle} value={time} onChangeText={setTime} placeholder="e.g. 19:30" placeholderTextColor={colors.text.tertiary} keyboardType="numbers-and-punctuation" />
+            <Text style={[styles.hint, { color: colors.text.tertiary }]}>Shows on the matching stop in your trip.</Text>
+          </>
+        )}
 
         {type === 'transit' && (
           <>

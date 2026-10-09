@@ -77,6 +77,8 @@ Rules:
   "fromPlace" / "toPlace" (station or port names as printed), "departureLocalTime" / "arrivalLocalTime"
   ("HH:MM", 24-hour, exactly as printed — local to each station, never converted), "seat" (seat and car/coach),
   "city" / "countryCode" (where it arrives), "originCity" / "originCountryCode" (where it leaves from)
+- For a restaurant, activity, tour or show reservation, include "time" when one is printed: the reservation or
+  start time, "HH:MM", 24-hour, exactly as printed (local to the place, never converted)
 - If you truly cannot identify what kind of booking this is at all, return {"kind": "reservation", "reservationType": "activity", "fields": {}}`;
 }
 

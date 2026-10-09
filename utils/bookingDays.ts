@@ -53,7 +53,7 @@ export function bookingsByDay(days: { id: string; date: Date | null }[], booking
     const outDay = calendar(b.item.checkOut);
     if (b.item.type !== 'hotel' && b.item.type !== 'airbnb') {
       // A train or ferry sorts by the departure time printed on the ticket.
-      put(inDay, { booking: b, role: 'booked', time: reservationKind(b.item) === 'transit' ? (b.item.departureLocalTime ?? null) : null });
+      put(inDay, { booking: b, role: 'booked', time: reservationKind(b.item) === 'transit' ? (b.item.departureLocalTime ?? null) : (b.item.time ?? null) });
       continue;
     }
     if (!inDay) continue;

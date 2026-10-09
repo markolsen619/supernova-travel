@@ -200,8 +200,6 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
           "address": "Best-guess one-line address or null — this is NOT verified, so approximate is fine",
           "rationale": "One sentence on why this stop fits this traveler's style/pace/preferences",
           "searchQuery": "A specific, geographically-qualified search string for this place, e.g. 'Louvre Museum, Paris' — this is the ONLY place-identifying field you may output",
-          "startTime": "09:00 or null",
-          "endTime": "11:00 or null",
           "notes": "Brief description",
           "cost": 25 or null,
           "currency": "USD or null"
@@ -215,6 +213,7 @@ Rules:
 - Follow the pace rule above for how many activities to include per day — do not default to a generic count
 - Follow the travel style rules above — the itinerary should look visibly different for a different style/pace than this one
 - Mix activity types naturally
+- List each day's activities in the order they would naturally happen, morning to evening — do not give clock times; the traveler sets times themselves
 - Use local currency for costs
 - Include at least one meal per day
 ${VENUE_NAMING_RULES}
@@ -269,8 +268,6 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
           "address": "Best-guess one-line address or null — this is NOT verified, so approximate is fine",
           "rationale": "One sentence on why this stop fits this traveler's style/pace/preferences",
           "searchQuery": "A specific, geographically-qualified search string for this place, e.g. 'Louvre Museum, Paris' — this is the ONLY place-identifying field you may output",
-          "startTime": "09:00 or null",
-          "endTime": "11:00 or null",
           "notes": "Brief description",
           "cost": 25 or null,
           "currency": "USD or null"
@@ -284,6 +281,7 @@ Rules:
 - Follow the pace rule above for how many activities to include per day — do not default to a generic count
 - Follow the travel style rules above — the itinerary should look visibly different for a different style/pace than this one
 - Mix activity types naturally
+- List each day's activities in the order they would naturally happen, morning to evening — do not give clock times; the traveler sets times themselves
 - Allocate the ${data.durationDays} total days across all ${cities.length} destinations yourself, in the order listed above — consider how much there typically is to see and do in each place. Do not split evenly by default; weight it realistically based on each destination's size and typical stay length.
 - region is the most specific common name for where ALL the destinations are: a shared state or province when there is one ("Baja California Sur"), otherwise a shared country ("Italy"), otherwise a travel region people actually use ("Central Europe", "Southeast Asia") — never just the first destination's name
 - Visit the destinations strictly in the order listed above — do not reorder them and do not revisit an earlier destination later in the trip

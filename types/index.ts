@@ -581,6 +581,8 @@ export interface Reservation {
   departureLocalTime?: string;
   arrivalLocalTime?: string;
   seat?: string;
+  /** Table or ticket time, "HH:MM" as printed (restaurant / activity / show). */
+  time?: string;
   originCity?: string;
   originCountryCode?: string;
   /** 'email' when it arrived through the forwarding address (functions/src/emailImportFunctions.ts). */

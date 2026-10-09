@@ -21,6 +21,9 @@ import { ActivityItem } from './ActivityItem';
 
 interface DayTimelineProps {
   day: TripDay;
+  /** True while a stop is lifted. The trip screen is an iOS sheet whose swipe-to-close would
+   *  otherwise take over a downward drag and leave the card stuck mid-air. */
+  onDragStateChange?: (dragging: boolean) => void;
   onAddActivity?: () => void;
   /** Opens the place-search flow (Part B) to add a grounded stop to this day. */
   onAddStop?: () => void;
@@ -58,6 +61,7 @@ function formatDayHeader(dayNumber: number, date: Timestamp | null): string {
 
 export function DayTimeline({
   day,
+  onDragStateChange,
   onAddActivity,
   onAddStop,
   onEditActivity,
@@ -90,21 +94,25 @@ export function DayTimeline({
   // A booking for the same place as a stop becomes a "Booked" line on that
   // stop; the rest show as their own rows above the stops — not between
   // them, which would put fixed rows inside the drag-to-reorder list.
-  const { bookedByStop, bookedRows } = useMemo(() => {
+  const { bookedByStop, bookedTimeByStop, bookedRows } = useMemo(() => {
     const byStop: Record<string, string> = {};
+    const timeByStop: Record<string, string | null> = {};
     const rows: DayBooking[] = [];
     for (const entry of dayBookings ?? []) {
       const stop = entry.role === 'staying'
         ? undefined
         : sorted.find((a) => !byStop[a.id] && bookingMatchesStop(entry.booking, a));
-      if (stop) byStop[stop.id] = bookingLines(entry).detail || 'Booked';
+      if (stop) {
+        byStop[stop.id] = bookingLines(entry).detail || 'Booked';
+        timeByStop[stop.id] = entry.time;
+      }
       else rows.push(entry);
     }
     rows.sort((a, b) => {
       if (a.role === 'staying' || b.role === 'staying') return a.role === 'staying' ? -1 : 1;
       return (a.time ?? '99:99').localeCompare(b.time ?? '99:99');
     });
-    return { bookedByStop: byStop, bookedRows: rows };
+    return { bookedByStop: byStop, bookedTimeByStop: timeByStop, bookedRows: rows };
   }, [dayBookings, sorted]);
   const hasActivities = sorted.length > 0;
   const hasNotes = Boolean(day.notes);
@@ -113,12 +121,18 @@ export function DayTimeline({
   // A tap you can feel when the stop lifts, so it's clear the long press took.
   const handleDragBegin = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+    onDragStateChange?.(true);
+  }, [onDragStateChange]);
 
   const handleDragEnd = useCallback(
-    ({ data }: { data: TripActivity[] }) => onReorderActivities?.(day.id, data),
-    [onReorderActivities, day.id],
+    ({ data }: { data: TripActivity[] }) => {
+      onDragStateChange?.(false);
+      onReorderActivities?.(day.id, data);
+    },
+    [onReorderActivities, onDragStateChange, day.id],
   );
+  // Released without moving (or the gesture was taken away): still hand the sheet its swipe back.
+  const handleRelease = useCallback(() => onDragStateChange?.(false), [onDragStateChange]);
 
   // "Add manually" only opens ActivityFormSheet — it doesn't write anything
   // itself, so Light (not Medium) per the haptics rule. Only used by the
@@ -155,6 +169,7 @@ export function DayTimeline({
             isHighlighted={highlightActivityId === item.id}
             isCurrent={currentActivityId === item.id}
             bookedDetail={bookedByStop[item.id]}
+            bookedTime={bookedTimeByStop[item.id]}
           />
           {!isLast && (
             <View style={[styles.connector, { backgroundColor: colors.background.cardBorder }]} />
@@ -177,6 +192,7 @@ export function DayTimeline({
       currentActivityId,
       colors.background.cardBorder,
       bookedByStop,
+      bookedTimeByStop,
     ],
   );
 
@@ -231,6 +247,7 @@ export function DayTimeline({
           renderItem={renderItem}
           onDragBegin={handleDragBegin}
           onDragEnd={handleDragEnd}
+          onRelease={handleRelease}
           containerStyle={styles.activitiesContainer}
         />
       ) : (

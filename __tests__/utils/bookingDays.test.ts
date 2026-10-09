@@ -85,3 +85,11 @@ describe('reservationKind', () => {
     expect(reservationKind({ type: 'transit' })).toBe('transit');
   });
 });
+
+describe('a reservation’s own time', () => {
+  it('a dinner booking carries its table time onto its day', () => {
+    const days = [{ id: 'd1', date: new Date(2026, 10, 19) }];
+    const dinner = { kind: 'reservation', item: { id: 'r', type: 'restaurant', title: 'Lokál', confirmationCode: 'L', checkIn: '2026-11-19', time: '19:30', ownerUid: 'u', createdAt: '' } } as never;
+    expect(bookingsByDay(days, [dinner]).d1[0].time).toBe('19:30');
+  });
+});

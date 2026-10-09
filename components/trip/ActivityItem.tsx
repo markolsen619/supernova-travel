@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { PencilSimple, MapPinLine, CheckCircle } from 'phosphor-react-native';
+import { stopTime } from '@/utils/stopTime';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -34,6 +35,8 @@ interface ActivityItemProps {
   isCurrent?: boolean;
   /** Your wallet booking for this same place (utils/bookingDays bookingMatchesStop): "Booked · Conf. …". */
   bookedDetail?: string;
+  /** That booking's time, shown when the stop has none of its own (utils/stopTime). */
+  bookedTime?: string | null;
 }
 
 export function ActivityItem({
@@ -48,8 +51,10 @@ export function ActivityItem({
   isHighlighted = false,
   isCurrent = false,
   bookedDetail,
+  bookedTime,
 }: ActivityItemProps) {
   const { colors } = useTheme();
+  const shown = stopTime(activity, bookedTime);
   const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
   // An AI-generated stop not yet resolved to a real place — tapping it
   // triggers lazy grounding (see trip/[id].tsx). Grounded means "has
@@ -113,9 +118,12 @@ export function ActivityItem({
 
         {/* Time column */}
         <View style={styles.timeCol}>
-          {activity.startTime ? (
-            <Text style={[styles.timeText, { color: colors.text.secondary }]}>
-              {activity.startTime}
+          {shown.time ? (
+            <Text
+              style={[styles.timeText, { color: colors.text.secondary }]}
+              accessibilityLabel={shown.fromBooking ? `${shown.time}, from your booking` : shown.time}
+            >
+              {shown.time}
             </Text>
           ) : (
             <View style={[styles.typeDot, { backgroundColor: accentColor }]} />

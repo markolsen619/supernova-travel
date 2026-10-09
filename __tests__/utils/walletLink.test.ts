@@ -67,3 +67,10 @@ it('also reads a transit ticket the server handed over as an activity + transitM
     title: 'ICE 918', transitMode: 'train', departureLocalTime: '09:19', originCity: 'Munich' } } as never))
     .toEqual({ transitMode: 'train', departureLocalTime: '09:19', originCity: 'Munich' });
 });
+
+describe('draftPlaceFields keeps a reservation time', () => {
+  it('carries a restaurant time as printed, and drops anything else', () => {
+    expect(draftPlaceFields({ kind: 'reservation', reservationType: 'restaurant', fields: { title: 'Lokál', time: '19:30' } } as never).time).toBe('19:30');
+    expect(draftPlaceFields({ kind: 'reservation', reservationType: 'restaurant', fields: { title: 'Lokál', time: 'evening' } } as never).time).toBeUndefined();
+  });
+});

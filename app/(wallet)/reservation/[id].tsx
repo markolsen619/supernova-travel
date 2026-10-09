@@ -188,7 +188,10 @@ export default function ReservationDetailScreen() {
           ) : (
             <>
               {reservation.checkIn ? (
-                <DetailRow label="Check-in" value={formatDate(reservation.checkIn)} colors={colors} borderColor={colors.background.cardBorder} />
+                <DetailRow label={reservation.type === 'hotel' || reservation.type === 'airbnb' ? 'Check-in' : 'Date'} value={formatDate(reservation.checkIn)} colors={colors} borderColor={colors.background.cardBorder} />
+              ) : null}
+              {reservation.time ? (
+                <DetailRow label="Time" value={reservation.time} colors={colors} borderColor={colors.background.cardBorder} />
               ) : null}
               {reservation.checkOut ? (
                 <DetailRow label="Check-out" value={formatDate(reservation.checkOut)} colors={colors} borderColor={colors.background.cardBorder} />

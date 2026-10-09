@@ -213,3 +213,15 @@ describe('parse result for older apps', () => {
     expect(forOlderApps(hotel)).toBe(hotel);
   });
 });
+
+describe('reservation times', () => {
+  const ctx = { uid: 'u1', emailImportId: 'e1', nowIso: '2026-10-08T00:00:00.000Z' };
+  it('keeps a restaurant’s time as printed, and drops one that is not HH:MM', () => {
+    const [d] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'restaurant', fields: {
+      title: 'Lokál Dlouhá', confirmationCode: 'L1', checkIn: '2026-11-19', time: '19:30' } }] }, ctx);
+    expect(d.data.time).toBe('19:30');
+    const [e] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'restaurant', fields: {
+      title: 'Lokál Dlouhá', confirmationCode: 'L1', checkIn: '2026-11-19', time: '7:30pm' } }] }, ctx);
+    expect(e.data.time).toBeUndefined();
+  });
+});

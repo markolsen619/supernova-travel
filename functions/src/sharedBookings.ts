@@ -20,7 +20,7 @@ const SHARED_FIELDS: Record<BookingKind, readonly string[]> = {
     'localDate', 'placeCity', 'placeCountryCode', 'originCountryCode', 'createdAt',
   ],
   reservation: [
-    'type', 'title', 'confirmationCode', 'checkIn', 'checkOut', 'address',
+    'type', 'title', 'confirmationCode', 'checkIn', 'checkOut', 'time', 'address',
     'transitMode', 'operator', 'fromPlace', 'toPlace', 'departureLocalTime', 'arrivalLocalTime', 'seat',
     'originCity', 'originCountryCode', 'placeCity', 'placeCountryCode', 'createdAt',
   ],

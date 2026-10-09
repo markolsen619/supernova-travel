@@ -92,3 +92,10 @@ describe('the picked destination place', () => {
     expect(d).toMatchObject({ placeId: null, lat: null, lng: null });
   });
 });
+
+describe('AI stops have no preset times', () => {
+  it('keeps the order but never the clock time the model suggested — you add a time, or a booking brings one', () => {
+    const docs = tripDocuments('u1', request as never, generated as never, 'NOW');
+    expect(docs.days[0].activities[0]).toMatchObject({ startTime: null, endTime: null, order: 0 });
+  });
+});
