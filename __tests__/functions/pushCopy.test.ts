@@ -1,4 +1,4 @@
-import { likePushCopy, commentLikePushCopy, commentPushCopy } from '../../functions/src/pushCopy';
+import { likePushCopy, commentLikePushCopy, commentPushCopy, notificationDocWithCopy } from '../../functions/src/pushCopy';
 import { pushDataFor } from '../../functions/src/pushData';
 
 describe('push copy says who did what', () => {
@@ -20,5 +20,16 @@ describe('push copy says who did what', () => {
 describe('pushDataFor carries the notification id', () => {
   it('so a tap the app cannot route still finds the notification', () => {
     expect(pushDataFor({ type: 'post_like', postId: 'p1', likerName: 'K' }, 'n1')).toEqual({ type: 'post_like', postId: 'p1', notificationId: 'n1' });
+  });
+});
+
+describe('notificationDocWithCopy', () => {
+  it('saves the push wording on the in-app notification, so any build can show it', () => {
+    expect(notificationDocWithCopy({ type: 'post_like', postId: 'p1' }, { title: 'Kell liked your post', body: '“Hi”' }))
+      .toEqual({ type: 'post_like', postId: 'p1', title: 'Kell liked your post', body: '“Hi”' });
+  });
+  it('keeps a notification’s own title and body', () => {
+    expect(notificationDocWithCopy({ type: 'x', title: 'Own', body: 'Mine' }, { title: 'Push', body: 'P' }))
+      .toEqual({ type: 'x', title: 'Own', body: 'Mine' });
   });
 });

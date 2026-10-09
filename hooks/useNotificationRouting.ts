@@ -27,7 +27,8 @@ export function useNotificationRouting() {
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const uid = useAuthStore((s) => s.user?.uid ?? null);
 
-  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+  // The route and the push's wording travel together: the banner shows when the screen does, not at the tap.
+  const [pending, setPending] = useState<{ route: string; title: string; body: string } | null>(null);
   /** Notification ids already turned into a route. The launching tap can
    *  arrive from BOTH paths above; without this it would navigate twice. */
   const handled = useRef(new Set<string>());
@@ -44,11 +45,7 @@ export function useNotificationRouting() {
       const route = notificationTapRoute(content.data);
 
       handled.current.add(identifier);
-      setPendingRoute(route);
-      // The list already shows the notification; anywhere else, say why you're there.
-      if (!route.startsWith('/notifications') && content.title) {
-        useNotificationBannerStore.getState().show(content.title, content.body ?? '');
-      }
+      setPending({ route, title: content.title ?? '', body: content.body ?? '' });
     }
 
     Notifications.getLastNotificationResponseAsync()
@@ -62,15 +59,19 @@ export function useNotificationRouting() {
   }, []);
 
   useEffect(() => {
-    if (!pendingRoute) return;
+    if (!pending) return;
     // navigationState.key is expo-router's "the root navigator is mounted"
     // signal. Navigating before it exists is dropped without an error.
     if (!navigationState?.key || !isInitialized || !uid) return;
 
-    setPendingRoute(null);
+    setPending(null);
     // expo-router's typedRoutes can't statically check a route built at
     // runtime from a server payload; resolveNotificationRoute is the thing
     // that guarantees it's one of ours.
-    router.push(pendingRoute as Href);
-  }, [pendingRoute, navigationState?.key, isInitialized, uid]);
+    router.push(pending.route as Href);
+    // The list already shows the notification; anywhere else, say why you're there.
+    if (!pending.route.startsWith('/notifications') && pending.title) {
+      useNotificationBannerStore.getState().show(pending.title, pending.body);
+    }
+  }, [pending, navigationState?.key, isInitialized, uid]);
 }
