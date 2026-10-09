@@ -399,6 +399,8 @@ export interface PackingItem {
 export type ActivityType = 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transport' | 'free';
 
 export interface TripActivity {
+  /** 'user' when the title was typed by hand: lookups never rename it, and only pin a place sharing a word with it (utils/groundingQueue typedStopMatches). */
+  titleSource?: 'user';
   id: string;
   type: ActivityType;
   title: string;

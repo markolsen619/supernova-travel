@@ -1,4 +1,4 @@
-import { selectStopsToGround, manualSearchQuery } from '@/utils/groundingQueue';
+import { selectStopsToGround, manualSearchQuery, typedStopMatches } from '@/utils/groundingQueue';
 
 const act = (over: any = {}) => ({
   id: 'a1', lat: null, lng: null, searchQuery: 'Malecón', groundingFailedAt: null, ...over,
@@ -72,5 +72,15 @@ describe('manualSearchQuery', () => {
   });
   it('does not repeat the city', () => {
     expect(manualSearchQuery('activity', 'Prague Castle', 'Prague')).toBe('Prague Castle');
+  });
+});
+
+describe('typedStopMatches', () => {
+  it('pins a typed place only to somewhere that shares a real word with it', () => {
+    expect(typedStopMatches('Sagrada Família', 'Basílica de la Sagrada Família')).toBe(true);
+    expect(typedStopMatches('Lokál Dlouhá', 'Lokál Dlouhááá')).toBe(true);
+    expect(typedStopMatches('Dinner with Kelly', 'The Fish Market')).toBe(false);
+    expect(typedStopMatches('Drinks with the team', 'Team Rubicon Bar')).toBe(true);
+    expect(typedStopMatches('Lunch', 'Lunch Box Cafe')).toBe(false);
   });
 });
