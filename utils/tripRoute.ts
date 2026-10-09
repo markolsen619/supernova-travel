@@ -175,7 +175,7 @@ export function rowsToEntries<T>(rows: RouteRow<T>[]): RouteEntry[] {
   return rows.map((r) => ({ from: r.from, nights: r.nights, absorbs: r.absorbs, absorbsAfter: r.absorbsAfter }));
 }
 
-function shortDate(day: string): string {
+export function shortDay(day: string): string {
   const [y, m, d] = day.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
@@ -183,7 +183,7 @@ function shortDate(day: string): string {
 export function routeDatesLine(start: string | null, nights: number[]): string {
   const total = nights.reduce((s, n) => s + n, 0);
   const n = `${total} night${total === 1 ? '' : 's'}`;
-  return start ? `${shortDate(start)} – ${shortDate(endDateFor(start, total))} · ${n}` : `${n} · no dates yet`;
+  return start ? `${shortDay(start)} – ${shortDay(endDateFor(start, total))} · ${n}` : `${n} · no dates yet`;
 }
 
 /** The confirm before a route save deletes days that hold stops (`names` = the current route). */

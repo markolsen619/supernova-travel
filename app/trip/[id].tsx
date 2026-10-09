@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -46,7 +46,6 @@ import { Avatar } from '@/components/ui/Avatar';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
-import { toCalendarDate } from '@/utils/calendarDate';
 import { TripActivity, TripDay, Destination } from '@/types';
 import { usePlacesStore } from '@/stores/usePlacesStore';
 import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
@@ -57,7 +56,17 @@ import { contentKey, isContentVisible } from '@/utils/moderation';
 import { groundStop, type GroundingContext } from '@/services/places/groundStop';
 import type { GroundedPlace } from '@/utils/mapboxQuery';
 import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
-import { daysInDestination, filterableCities, resolveDayDestinationIndices } from '@/utils/dayDestination';
+import { resolveDayDestinationIndices } from '@/utils/dayDestination';
+import * as WebBrowser from 'expo-web-browser';
+import { CitySection } from '@/components/trip/CitySection';
+import { RouteEditorSheet } from '@/components/trip/RouteEditorSheet';
+import { draftFromRows, previewRoute, routeRowsFromTrip, useTripRoute } from '@/hooks/useTripRoute';
+import { useTripSectionsStore } from '@/stores/useTripSectionsStore';
+import { cityRanges, citySummary, dropsWarning, shortDay, moveRow, removeRow, setRowNights, type CityRange, type RouteRow } from '@/utils/tripRoute';
+import { cityBookings } from '@/utils/cityBookings';
+import { buildBookingAction } from '@/utils/bookingLinks';
+import { isSectionOpen } from '@/utils/walletByTrip';
+import { toCalendarDate } from '@/utils/calendarDate';
 import { selectStopsToGround } from '@/utils/groundingQueue';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
@@ -260,6 +269,8 @@ export default function TripDetailScreen() {
   const [highlightActivityId, setHighlightActivityId] = useState<string | null>(null);
   const scrollRef = useRef<React.ElementRef<typeof NestableScrollContainer>>(null);
   const dayLayoutY = useRef<Record<string, number>>({});
+  // The one-city view's section top (multi-city trips): day positions inside it are relative to it.
+  const citySectionY = useRef(0);
 
   // Owner-only trip edit/delete sheet
   const [editTripVisible, setEditTripVisible] = useState(false);
@@ -305,6 +316,63 @@ export default function TripDetailScreen() {
   const openBooking = useCallback((b: TripBooking) => {
     router.push(bookingRoute(b) as Href);
   }, [router]);
+
+  // ── Multi-city route (docs/superpowers/specs/2026-10-09-city-route-design.md) ──
+  const [routeEditorVisible, setRouteEditorVisible] = useState(false);
+  const { saveRoute } = useTripRoute();
+  const sectionsOpen = useTripSectionsStore((s) => s.open);
+  const setSectionOpen = useTripSectionsStore((s) => s.setOpen);
+  /** Save a changed route, confirming first if it would delete days that hold stops. */
+  const applyRoute = useCallback((rows: RouteRow<Destination>[]) => {
+    if (!trip) return;
+    const draft = draftFromRows(rows);
+    const plan = previewRoute(trip, draft);
+    const commit = () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setCityFilter(null); // city indices may have moved
+      saveRoute(trip, draft).catch((err) => {
+        console.warn('[route] save failed', err);
+        Alert.alert("The route didn't save", 'Check your connection and try again.');
+      });
+    };
+    if (plan.dropsWithStops.length === 0) { commit(); return; }
+    const names = [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)];
+    Alert.alert('Delete these days?', dropsWarning(plan.dropsWithStops, names), [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: commit },
+    ]);
+  }, [trip, saveRoute]);
+  const openCityMenu = useCallback((ci: number) => {
+    if (!trip) return;
+    const rows = routeRowsFromTrip(trip);
+    const name = rows[ci]?.place.name ?? '';
+    const neighbour = ci < rows.length - 1 ? rows[ci + 1].place.name : rows[ci - 1]?.place.name;
+    const confirmRemove = () => Alert.alert(`Remove ${name}?`, 'What should happen to its days?', [
+      ...(neighbour ? [{ text: `Move them to ${neighbour}`, onPress: () => applyRoute(removeRow(rows, ci, 'move')) }] : []),
+      { text: 'Delete its days', style: 'destructive' as const, onPress: () => applyRoute(removeRow(rows, ci, 'delete')) },
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+    Alert.alert(name, undefined, [
+      { text: 'Change nights', onPress: () => setRouteEditorVisible(true) },
+      ...(ci > 0 ? [{ text: 'Move earlier', onPress: () => applyRoute(moveRow(rows, ci, -1)) }] : []),
+      ...(ci < rows.length - 1 ? [{ text: 'Move later', onPress: () => applyRoute(moveRow(rows, ci, 1)) }] : []),
+      ...(rows.length > 1 ? [{ text: 'Remove city', style: 'destructive' as const, onPress: confirmRemove }] : []),
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  }, [trip, applyRoute]);
+  const addDayInCity = useCallback((ci: number) => {
+    if (!trip) return;
+    const rows = routeRowsFromTrip(trip);
+    applyRoute(setRowNights(rows, ci, rows[ci].nights + 1));
+  }, [trip, applyRoute]);
+  const findStay = useCallback((name: string, range: CityRange) => {
+    const action = buildBookingAction({
+      type: 'hotel', placeId: '', name, near: null, checkIn: range.arrive, checkOut: range.leave,
+      affiliateId: process.env.EXPO_PUBLIC_BOOKING_AFFILIATE_ID ?? null,
+    });
+    if (action) WebBrowser.openBrowserAsync(action.url);
+  }, []);
+  const addBooking = useCallback(() => router.push('/(wallet)/reservation/add'), [router]);
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
@@ -833,17 +901,29 @@ export default function TripDetailScreen() {
   // layout position.
   const handleViewInTimeline = useCallback((activityId: string) => {
     setViewMode('timeline');
-    setCityFilter(null); // the stop's day may be in another city
+    // A multi-city trip opens the stop's own city (one section, never folded); others show everything.
+    let city: number | null = null;
+    if (trip && trip.additionalDestinations.length > 0) {
+      const sorted = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
+      const names = [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)];
+      const cities = resolveDayDestinationIndices(sorted, names);
+      const k = sorted.findIndex((d) => d.activities.some((a) => a.id === activityId));
+      city = k >= 0 ? cities[k] ?? null : null;
+    }
+    setCityFilter(city);
     setFocusActivityId(null);
     setHighlightActivityId(activityId);
-  }, []);
+  }, [trip]);
 
   useEffect(() => {
     if (viewMode !== 'timeline' || !highlightActivityId || !trip) return;
     const day = trip.days.find((d) => d.activities.some((a) => a.id === highlightActivityId));
     if (!day) return;
     const scrollTimer = setTimeout(() => {
-      const y = dayLayoutY.current[day.id];
+      // Inside a city section, a day's y is relative to that section.
+      const y = dayLayoutY.current[day.id] != null
+        ? dayLayoutY.current[day.id] + (trip.additionalDestinations.length > 0 ? citySectionY.current : 0)
+        : null;
       if (y != null) {
         scrollRef.current?.scrollTo({ y: Math.max(0, y - Spacing['4']), animated: true });
       }
@@ -957,9 +1037,41 @@ export default function TripDetailScreen() {
   const sortedDays = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
   const multiCity = destinationNames.length > 1;
   const sortedDayCities = multiCity ? resolveDayDestinationIndices(sortedDays, destinationNames) : [];
-  // A pill filters only if its city has some, but not all, of the days (manual trips keep every day in the first).
-  const pickableCities = multiCity ? filterableCities(sortedDayCities, destinationNames.length) : [];
-  const shownDays = multiCity ? daysInDestination(sortedDays, sortedDayCities, cityFilter) : sortedDays;
+  // Each city's nights (saved, else derived) → its dates and day numbers (utils/tripRoute).
+  const routeRows = multiCity ? routeRowsFromTrip(trip) : [];
+  const tripStart = trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null;
+  const ranges = cityRanges(routeRows.map((r) => r.nights), tripStart);
+  const perCity = multiCity ? cityBookings(tripBookings, destinationNames, ranges) : [];
+  const routeSaved = [trip.destination, ...trip.additionalDestinations].every((d) => typeof d.nights === 'number');
+  const shownCities = cityFilter === null ? destinationNames.map((_, i) => i) : [cityFilter];
+  const renderDay = (day: (typeof sortedDays)[number], index: number) => (
+                <AnimatedDaySection
+                  key={day.id}
+                  index={index}
+                  style={[
+                    styles.daySection,
+                    index > 0 && { borderTopColor: colors.background.cardBorder, borderTopWidth: StyleSheet.hairlineWidth },
+                  ]}
+                  onLayout={(e) => { dayLayoutY.current[day.id] = e.nativeEvent.layout.y; }}
+                >
+                  <DayTimeline
+                    day={day}
+                    editable={canEditItinerary}
+                    onAddActivity={canEditItinerary ? () => handleOpenAddActivity(day) : undefined}
+                    onAddStop={canEditItinerary ? () => handleOpenAddStop(day) : undefined}
+                    onEditActivity={canEditItinerary ? (activity) => handleOpenEditActivity(activity, day.id) : undefined}
+                    onActivityPress={canEditItinerary ? handleActivityPress : undefined}
+                    onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
+                    onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
+                    onDeleteDay={canEditItinerary ? () => handleDeleteDay(day) : undefined}
+                    resolvingActivityId={resolvingActivityId}
+                    highlightActivityId={highlightActivityId}
+                    currentActivityId={currentActivityId}
+                    dayBookings={bookingsOnDays[day.id]}
+                    onBookingPress={openBooking}
+                  />
+                </AnimatedDaySection>
+  );
   const bookingsOnDays = bookingsByDay(sortedDays.map((d) => ({ id: d.id, date: d.date?.toDate() ?? null })), tripBookings);
   const hasDescription = Boolean(trip.description?.trim());
   const dayCount = sortedDays.length;
@@ -1174,20 +1286,21 @@ export default function TripDetailScreen() {
           style={styles.chipStrip}
           contentContainerStyle={styles.chipStripContent}
         >
-          {multiCity && cityFilter !== null && (
+          {multiCity && (
             <TouchableOpacity
-              onPress={() => toggleCity(cityFilter)}
+              onPress={() => cityFilter !== null && toggleCity(cityFilter)}
               hitSlop={6}
-              style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+              style={[styles.chip, { backgroundColor: cityFilter === null ? colors.text.primary : colors.background.sunken }]}
               accessibilityRole="button"
-              accessibilityLabel="Show all days"
+              accessibilityState={{ selected: cityFilter === null }}
+              accessibilityLabel="All cities"
             >
-              <Text style={[styles.chipText, { color: colors.text.primary }]}>All days</Text>
+              <Text style={[styles.chipText, { color: cityFilter === null ? colors.background.primary : colors.text.primary }]}>All</Text>
             </TouchableOpacity>
           )}
           {destinationNames.map((name, i) => {
             const selected = cityFilter === i;
-            const pickable = !!pickableCities[i];
+            const pickable = multiCity;
             return (
               <TouchableOpacity
                 key={`${name}-${i}`}
@@ -1206,6 +1319,18 @@ export default function TripDetailScreen() {
               </TouchableOpacity>
             );
           })}
+
+          {multiCity && canEditItinerary && (
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRouteEditorVisible(true); }}
+              hitSlop={6}
+              style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+              accessibilityRole="button"
+            >
+              <Signpost size={13} color={colors.text.secondary} weight="bold" />
+              <Text style={[styles.chipText, { color: colors.text.primary }]}>Edit route</Text>
+            </TouchableOpacity>
+          )}
 
           <View
             style={[
@@ -1352,7 +1477,57 @@ export default function TripDetailScreen() {
 
         {/* ── 5. Day sections — hairline-divided, not boxed cards ── */}
         <View style={styles.daysSection}>
-          {sortedDays.length === 0 ? (
+          {multiCity ? (
+            sortedDays.length === 0 && !routeSaved ? (
+              canEditItinerary ? (
+                <EmptyState
+                  icon={Signpost}
+                  title="Plan it city by city"
+                  description="Set how many nights you'll spend in each city, and every city gets its own days."
+                  actionLabel="Set your route"
+                  onAction={() => setRouteEditorVisible(true)}
+                  actionHaptic="light"
+                />
+              ) : (
+                <EmptyState icon={MapTrifold} title="No itinerary yet" />
+              )
+            ) : (
+              shownCities.map((ci) => {
+                const days = sortedDays.filter((_, k) => sortedDayCities[k] === ci);
+                const key = `${trip.id}:${ci}`;
+                const open = cityFilter !== null || isSectionOpen(key, ci, sectionsOpen);
+                const range = ranges[ci];
+                const dates = range?.arrive && range.leave
+                  ? `${shortDay(range.arrive).toUpperCase()} – ${shortDay(range.leave).toUpperCase()}`
+                  : `DAYS ${range?.firstDay ?? 1}–${range?.lastDay ?? 1}`;
+                const nights = range?.nights ?? days.length;
+                return (
+                  <View key={key} onLayout={cityFilter !== null ? (e) => { citySectionY.current = e.nativeEvent.layout.y; } : undefined}>
+                  <CitySection
+                    name={destinationNames[ci]}
+                    eyebrow={`${dates} · ${nights} NIGHT${nights === 1 ? '' : 'S'}`}
+                    summary={citySummary({
+                      days: days.length,
+                      stops: days.reduce((n, d) => n + d.activities.length, 0),
+                      staying: (perCity[ci]?.staying.length ?? 0) > 0,
+                    })}
+                    open={open}
+                    onToggle={cityFilter === null ? () => setSectionOpen(key, !open) : undefined}
+                    onMenu={canEditItinerary ? () => openCityMenu(ci) : undefined}
+                    arriving={perCity[ci]?.arriving ?? []}
+                    staying={perCity[ci]?.staying ?? []}
+                    onBookingPress={openBooking}
+                    onAddBooking={isOwner || isCollaborator ? addBooking : undefined}
+                    onFindStay={range ? () => findStay(destinationNames[ci], range) : undefined}
+                    onAddDay={canEditItinerary ? () => addDayInCity(ci) : undefined}
+                  >
+                    {days.map((day, index) => renderDay(day, index))}
+                  </CitySection>
+                  </View>
+                );
+              })
+            )
+          ) : sortedDays.length === 0 ? (
             canEditItinerary ? (
               <EmptyState
                 icon={MapTrifold}
@@ -1366,34 +1541,7 @@ export default function TripDetailScreen() {
             )
           ) : (
             <>
-              {shownDays.map((day, index) => (
-                <AnimatedDaySection
-                  key={day.id}
-                  index={index}
-                  style={[
-                    styles.daySection,
-                    index > 0 && { borderTopColor: colors.background.cardBorder, borderTopWidth: StyleSheet.hairlineWidth },
-                  ]}
-                  onLayout={(e) => { dayLayoutY.current[day.id] = e.nativeEvent.layout.y; }}
-                >
-                  <DayTimeline
-                    day={day}
-                    editable={canEditItinerary}
-                    onAddActivity={canEditItinerary ? () => handleOpenAddActivity(day) : undefined}
-                    onAddStop={canEditItinerary ? () => handleOpenAddStop(day) : undefined}
-                    onEditActivity={canEditItinerary ? (activity) => handleOpenEditActivity(activity, day.id) : undefined}
-                    onActivityPress={canEditItinerary ? handleActivityPress : undefined}
-                    onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
-                    onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
-                    onDeleteDay={canEditItinerary ? () => handleDeleteDay(day) : undefined}
-                    resolvingActivityId={resolvingActivityId}
-                    highlightActivityId={highlightActivityId}
-                    currentActivityId={currentActivityId}
-                    dayBookings={bookingsOnDays[day.id]}
-                    onBookingPress={openBooking}
-                  />
-                </AnimatedDaySection>
-              ))}
+              {sortedDays.map((day, index) => renderDay(day, index))}
 
               {/* ── 6. Add Day — tertiary text link, not a competing action ──
                   Writes a day immediately (handleAddDay), so Medium — fired
@@ -1404,7 +1552,6 @@ export default function TripDetailScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setCityFilter(null); // so the new day shows up
                     handleAddDay();
                   }}
                   style={styles.addDayLink}
@@ -1502,6 +1649,9 @@ export default function TripDetailScreen() {
 
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
+      {multiCity && canEditItinerary && (
+        <RouteEditorSheet visible={routeEditorVisible} trip={trip} onClose={() => setRouteEditorVisible(false)} />
+      )}
       <TripBookingsSheet
         visible={bookingsVisible}
         bookings={tripBookings}

@@ -33,7 +33,11 @@ import { DateRangeField } from '@/components/ui/DateRangeField';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import type { Trip, TripVisibility } from '@/types';
+import type { TripVisibility, TripWithDays } from '@/types';
+import { Timestamp } from 'firebase/firestore';
+import { draftFromRows, previewRoute, routeRowsFromTrip, useTripRoute, type RouteDraft } from '@/hooks/useTripRoute';
+import { absorbEndDateChange, dropsWarning } from '@/utils/tripRoute';
+import { toCalendarDate } from '@/utils/calendarDate';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 
 const VISIBILITY_OPTIONS: { value: TripVisibility; label: string }[] = [
@@ -44,7 +48,7 @@ const VISIBILITY_OPTIONS: { value: TripVisibility; label: string }[] = [
 
 interface EditTripSheetProps {
   visible: boolean;
-  trip: Trip;
+  trip: TripWithDays;
   onClose: () => void;
   /** Called after a confirmed, completed delete — navigate away here. */
   onDeleted: () => void;
@@ -93,7 +97,8 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     onClose();
   }, [onClose]);
 
-  const handleSave = useCallback(async () => {
+  const { saveRoute } = useTripRoute();
+  const save = useCallback(async (confirmedDrops: boolean) => {
     if (saving || deleting) return;
     if (!title.trim()) {
       setTitleError('Give your trip a title.');
@@ -107,6 +112,27 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
       setSaveError('End date must be after start date.');
       return;
     }
+    // A multi-city trip's new dates move its cities; a new end date lengthens or
+    // shortens the last city (utils/tripRoute absorbEndDateChange).
+    let routeTrip: TripWithDays | null = null;
+    let routeDraft: RouteDraft | null = null;
+    const day = (d: Date | null) => (d ? toCalendarDate(d) : null);
+    const datesChanged = day(startDate) !== day(trip.startDate?.toDate() ?? null) || day(endDate) !== day(trip.endDate?.toDate() ?? null);
+    if (trip.additionalDestinations.length > 0 && startDate && endDate && datesChanged) {
+      routeTrip = { ...trip, startDate: Timestamp.fromDate(startDate) };
+      const rows = routeRowsFromTrip(routeTrip);
+      const nights = absorbEndDateChange(rows.map((r) => r.nights), toCalendarDate(startDate), toCalendarDate(endDate));
+      routeDraft = draftFromRows(rows.map((r, i) => ({ ...r, nights: nights[i] })));
+      const plan = previewRoute(routeTrip, routeDraft);
+      if (plan.dropsWithStops.length > 0 && !confirmedDrops) {
+        const names = [trip.destination.name, ...trip.additionalDestinations.map((d) => d.name)];
+        Alert.alert('Delete these days?', dropsWarning(plan.dropsWithStops, names), [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete and save', style: 'destructive', onPress: () => { save(true); } },
+        ]);
+        return;
+      }
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSaving(true);
     setSaveError(null);
@@ -119,6 +145,7 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
         endDate,
         visibility,
       });
+      if (routeTrip && routeDraft) await saveRoute(routeTrip, routeDraft);
       const nextBudget = budgetAmount.trim() && !Number.isNaN(parsedBudget) && parsedBudget > 0 ? parsedBudget : null;
       if (nextBudget !== (budget?.amount ?? null)) await setBudget.mutateAsync(nextBudget);
       onClose();
@@ -128,7 +155,8 @@ export function EditTripSheet({ visible, trip, onClose, onDeleted }: EditTripShe
     } finally {
       setSaving(false);
     }
-  }, [saving, deleting, title, description, startDate, endDate, visibility, budgetAmount, trip.id, updateTrip, onClose, budget, setBudget]);
+  }, [saving, deleting, title, description, startDate, endDate, visibility, budgetAmount, trip, updateTrip, saveRoute, onClose, budget, setBudget]);
+  const handleSave = useCallback(() => { save(false); }, [save]);
 
   const handleDelete = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
