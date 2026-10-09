@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { LoyaltyProgram } from '@/types';
 import { LOYALTY_ICONS } from '@/constants/icons';
 import { PointsBalance } from './PointsBalance';
+import { loyaltySourceLine } from '@/utils/emailImport';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius, Shadow } from '@/constants/spacing';
 
@@ -45,6 +46,11 @@ export function LoyaltyCard({ program, onPress }: LoyaltyCardProps) {
               {program.memberNumber ? (
                 <Text style={[styles.memberNumber, { color: colors.text.tertiary }]} numberOfLines={1}>
                   {program.memberNumber}
+                </Text>
+              ) : null}
+              {loyaltySourceLine(program) ? (
+                <Text style={[styles.memberNumber, { color: colors.text.tertiary }]} numberOfLines={1}>
+                  {loyaltySourceLine(program)}
                 </Text>
               ) : null}
             </View>

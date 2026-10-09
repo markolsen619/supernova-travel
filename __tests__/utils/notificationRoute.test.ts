@@ -67,3 +67,9 @@ describe('email import routes', () => {
     expect(resolveNotificationRoute({ type: 'email_import_reservation' })).toBeNull();
   });
 });
+
+describe('email_import_loyalty', () => {
+  it('opens the updated program', () => {
+    expect(resolveNotificationRoute({ type: 'email_import_loyalty', programId: 'l1' })).toBe('/(wallet)/loyalty/l1');
+  });
+});

@@ -1,4 +1,4 @@
-import { statusLine, gmailCodeFresh, addressFor, GMAIL_FILTER, type EmailImportEntry } from '@/utils/emailImport';
+import { statusLine, gmailCodeFresh, addressFor, GMAIL_FILTER, type EmailImportEntry, LOYALTY_FILTER, loyaltySourceLine } from '@/utils/emailImport';
 
 const e = (over: Partial<EmailImportEntry>): EmailImportEntry =>
   ({ id: 'e', receivedAt: null, subject: 'S', status: 'imported', items: [], ...over });
@@ -52,5 +52,35 @@ describe('safeGmailLink', () => {
     expect(safeGmailLink('https://evil.example/mail/vf-x')).toBeNull();
     expect(safeGmailLink('http://mail.google.com/mail/vf-x')).toBeNull();
     expect(safeGmailLink(undefined)).toBeNull();
+  });
+});
+
+describe('statusLine for rewards statements', () => {
+  const base = { id: 'e', receivedAt: null, subject: 's', status: 'imported' as const };
+  it('says a balance was updated', () => {
+    expect(statusLine({ ...base, items: [{ kind: 'loyalty', id: 'l1', title: 'Delta SkyMiles: 45,210 miles' }] }))
+      .toBe('Updated Delta SkyMiles: 45,210 miles');
+  });
+  it('says nothing changed when the statement was older than the saved balance', () => {
+    expect(statusLine({ ...base, items: [] })).toBe('Already up to date');
+  });
+  it('counts bookings and balances apart', () => {
+    expect(statusLine({ ...base, items: [
+      { kind: 'reservation', id: 'r', title: 'Hotel' }, { kind: 'loyalty', id: 'l', title: 'Bonvoy: 1 points' },
+    ] })).toBe('Added 1 booking · 1 balance updated');
+  });
+});
+
+describe('LOYALTY_FILTER', () => {
+  it('is a Gmail search for statements', () => {
+    expect(LOYALTY_FILTER).toMatch(/^subject:\(/);
+    expect(LOYALTY_FILTER).toContain('statement');
+  });
+});
+
+describe('loyaltySourceLine', () => {
+  it('says when an email last updated the balance', () => {
+    expect(loyaltySourceLine({ source: 'email', balanceAsOf: '2026-10-08' })).toBe('Updated from email · Oct 8');
+    expect(loyaltySourceLine({ source: undefined, balanceAsOf: undefined })).toBeNull();
   });
 });

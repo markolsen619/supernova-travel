@@ -8,6 +8,7 @@ import {
   importGate, looksLikeBooking, newToken, signatureValid, tokenFromAddress, trimImportLog, type ImportStatus,
 } from './emailImport';
 import { buildExtractionPrompt } from './parseTravelConfirmation';
+import { loyaltyFromParse, loyaltyPushCopy, loyaltyWrite, looksLikeLoyalty, matchLoyalty, MAX_LOYALTY_PER_EMAIL } from './loyaltyImport';
 import { matchOne } from './bookingMatchFunctions';
 import { hasAiConsent } from './aiConsent';
 import { notifyUser } from './notify';
@@ -40,7 +41,16 @@ hotel and a car). Return {"bookings": [ ... ]} where each entry is one object in
 formats above. At most ${MAX_BOOKINGS_PER_EMAIL}.
 This replaces the rule above about returning an empty "activity" reservation: if the email is not a confirmed
 booking — a newsletter, an offer or deal, a price alert, a receipt for something that isn't travel — return
-{"bookings": []}. Never invent a booking from an advertisement.`;
+{"bookings": []}. Never invent a booking from an advertisement.
+
+A rewards-program statement or account summary (an airline, hotel, car rental or credit card loyalty program
+showing the member's CURRENT balance) is also an entry, in this third format:
+{"kind": "loyalty", "fields": {"programName": "Delta SkyMiles", "programType": "airline|hotel|car_rental|credit_card|other",
+"memberNumber": "as printed, keep any masking like ****1234, or null", "balance": 45210,
+"unit": "miles|points|nights|segments", "tier": "standard|silver|gold|platinum|diamond or null",
+"expiryDate": "YYYY-MM-DD or null", "statementDate": "YYYY-MM-DD the balance is as of, or null"}}
+At most ${MAX_LOYALTY_PER_EMAIL}. Only when the email states the member's own balance — never for a promotion,
+a "earn bonus points" offer, or a points estimate for a booking.`;
 }
 
 /** Cloudflare's Email Worker posts every message for @supernovatravel.xyz here (cloudflare/email-inbound). */
@@ -113,7 +123,7 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
     }
 
     const user = (await db.doc(`users/${uid}`).get()).data();
-    const looks = looksLikeBooking(subject, text, pdfs.length > 0);
+    const looks = looksLikeBooking(subject, text, pdfs.length > 0) || looksLikeLoyalty(subject, text);
     const gate = await claimDailyImport(uid, (usedToday) =>
       importGate({ paid: isPaid(user), consent: hasAiConsent(user), usedToday, looksLikeBooking: looks }));
     if (gate !== 'parse') { await log(uid, importId, gate, subject); res.status(200).send(''); return; }
@@ -131,12 +141,35 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
     const out = (await model.generateContent(parts, { timeout: 90_000 })).response.text();
     let parsed: unknown = null;
     try { parsed = JSON.parse(out.replace(/^```json\s*/m, '').replace(/\s*```$/m, '').trim()); } catch { parsed = null; }
-    const docs = bookingsFromParse(parsed, { uid, emailImportId: importId, nowIso: new Date().toISOString() });
-    if (docs.length === 0) { await log(uid, importId, 'unreadable', subject); res.status(200).send(''); return; }
+    const ctx = { uid, emailImportId: importId, nowIso: new Date().toISOString() };
+    const docs = bookingsFromParse(parsed, ctx);
+    const statements = loyaltyFromParse(parsed);
+    if (docs.length === 0 && statements.length === 0) { await log(uid, importId, 'unreadable', subject); res.status(200).send(''); return; }
 
-    // One batch: either every booking from this email is saved, or none is.
+    // One batch: either everything from this email is saved, or none of it is.
     const batch = db.batch();
     const refs = docs.map((d) => { const ref = db.collection(d.collection).doc(); batch.set(ref, d.data); return { ref, d }; });
+    const loyalty: { id: string; title: string; push: { title: string; body: string } }[] = [];
+    if (statements.length) {
+      const programs = (await db.collection('loyalty_programs').where('ownerUid', '==', uid).get()).docs;
+      const rows = programs.map((d) => ({ id: d.id, ...(d.data() as { programName?: string; memberNumber?: string; balanceAsOf?: string }) }));
+      for (const u of statements) {
+        const matchId = matchLoyalty(u, rows);
+        const existing = matchId ? rows.find((r) => r.id === matchId)! : null;
+        const write = loyaltyWrite(u, existing, ctx);
+        if (!write) continue; // an older statement than the balance on file
+        const ref = write.create ? db.collection('loyalty_programs').doc() : db.doc(`loyalty_programs/${matchId}`);
+        if (write.create) batch.set(ref, write.data); else batch.update(ref, write.data);
+        const push = loyaltyPushCopy(u);
+        loyalty.push({ id: ref.id, title: push.body, push });
+      }
+    }
+    if (refs.length === 0 && loyalty.length === 0) {
+      // Only statements older than what's already saved: nothing to change.
+      await log(uid, importId, 'imported', subject, { items: [] });
+      res.status(200).send('');
+      return;
+    }
     await batch.commit();
     committed = true;
 
@@ -147,10 +180,23 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
       if (r.kind === 'link') linkedTrip = linkedTrip ?? r.trip.title;
       if (r.kind === 'ask') asked = true;
     }
-    const items = refs.map(({ ref, d }) => ({ kind: d.collection === 'boarding_passes' ? 'boarding_pass' : 'reservation', id: ref.id, title: d.title }));
+    const items = [
+      ...refs.map(({ ref, d }) => ({ kind: d.collection === 'boarding_passes' ? 'boarding_pass' : 'reservation', id: ref.id, title: d.title })),
+      ...loyalty.map((l) => ({ kind: 'loyalty', id: l.id, title: l.title })),
+    ];
     await log(uid, importId, 'imported', subject, { items, ...(linkedTrip ? { tripTitle: linkedTrip } : {}) });
 
-    const copy = emailPushCopy(items, linkedTrip, asked);
+    if (refs.length === 0 && loyalty.length === 1) {
+      await notifyUser(uid, {
+        notification: { type: 'email_import_loyalty', programId: loyalty[0].id, ...loyalty[0].push },
+        push: loyalty[0].push,
+      });
+      res.status(200).send('');
+      return;
+    }
+    const copy = loyalty.length && refs.length === 0
+      ? { title: 'Balances updated', body: loyalty.map((l) => l.title).join(' · ') }
+      : emailPushCopy(items, linkedTrip, asked);
     const single = items.length === 1 ? items[0] : null;
     await notifyUser(uid, {
       notification: single
