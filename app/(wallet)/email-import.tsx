@@ -10,7 +10,7 @@ import { useEmailImport } from '@/hooks/useEmailImport';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { GMAIL_FILTER, receivedLabel, statusLine, type EmailImportEntry } from '@/utils/emailImport';
+import { GMAIL_FILTER, LOYALTY_FILTER, receivedLabel, statusLine, type EmailImportEntry } from '@/utils/emailImport';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
@@ -43,7 +43,8 @@ function LogRow({ entry }: { entry: EmailImportEntry }) {
   const several = entry.status === 'imported' && entry.items.length > 1;
   const openItem = useCallback((item: EmailImportEntry['items'][number]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(item.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${item.id}` : `/(wallet)/reservation/${item.id}`);
+    router.push(item.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${item.id}`
+      : item.kind === 'loyalty' ? `/(wallet)/loyalty/${item.id}` : `/(wallet)/reservation/${item.id}`);
   }, []);
   const onPress = single ? () => openItem(single) : several ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setOpen((o) => !o); } : undefined;
 
@@ -206,10 +207,17 @@ export default function EmailImportScreen() {
                 <CopyButton value={GMAIL_FILTER} label="Copy filter" />
               </View>
               <Text style={[styles.step, { color: colors.text.secondary }]}>{'5. Choose “Forward it to” your address, and create the filter.'}</Text>
+              <Text style={[styles.step, { color: colors.text.secondary }]}>
+                {'6. To keep your rewards balances current, create a second filter the same way with:'}
+              </Text>
+              <View style={[styles.filterBox, { backgroundColor: colors.background.sunken }]}>
+                <Text selectable style={[styles.filter, { color: colors.text.primary }]}>{LOYALTY_FILTER}</Text>
+                <CopyButton value={LOYALTY_FILTER} label="Copy statements filter" />
+              </View>
               <Text style={[styles.subhead, { color: colors.text.primary }]}>Outlook</Text>
-              <Text style={[styles.step, { color: colors.text.secondary }]}>Settings → Mail → Rules: forward booking emails to your address.</Text>
+              <Text style={[styles.step, { color: colors.text.secondary }]}>Settings → Mail → Rules: forward booking emails and rewards statements to your address.</Text>
               <Text style={[styles.subhead, { color: colors.text.primary }]}>iCloud Mail</Text>
-              <Text style={[styles.step, { color: colors.text.secondary }]}>Settings → Rules: forward booking emails to your address.</Text>
+              <Text style={[styles.step, { color: colors.text.secondary }]}>Settings → Rules: forward booking emails and rewards statements to your address.</Text>
             </Animated.View>
           )}
 

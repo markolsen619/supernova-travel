@@ -8,6 +8,7 @@ import { useMyTrips } from '@/hooks/useMyTrips';
 import { useSharedTripBookings } from '@/hooks/useTripBookings';
 import { useProGate } from '@/hooks/useProGate';
 import { WalletByTripList } from '@/components/wallet/WalletByTripList';
+import { defaultSegment } from '@/utils/walletByTrip';
 import { EmailImportRow } from '@/components/wallet/EmailImportRow';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
@@ -25,23 +26,25 @@ import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 type Segment = 'all' | 'flights' | 'reservations' | 'loyalty' | 'trips';
 
 const SEGMENTS: { key: Segment; label: string }[] = [
+  // Pro: the wallet grouped by trip (components/wallet/WalletByTripList). First, and where Pro lands.
+  { key: 'trips', label: 'By trip' },
   { key: 'all', label: 'All' },
   { key: 'flights', label: 'Flights' },
   { key: 'reservations', label: 'Reservations' },
   { key: 'loyalty', label: 'Loyalty' },
-  // Pro: the wallet grouped by trip (components/wallet/WalletByTripList).
-  { key: 'trips', label: 'By trip' },
 ];
 
 export default function WalletHubScreen() {
   const { colors } = useTheme();
-  const [segment, setSegment] = useState<Segment>('all');
+  const { isPro, openPaywall } = useProGate();
+  // Untouched, Pro opens on By trip and everyone else on All (utils/walletByTrip defaultSegment).
+  const [picked, setSegment] = useState<Segment | null>(null);
+  const segment: Segment = picked ?? defaultSegment(isPro);
 
   const { boardingPasses, isLoading: passesLoading } = useBoardingPasses();
   const { reservations, isLoading: reservationsLoading } = useReservations();
   // Linked items show their trip as an eyebrow; only fetch trips when something is linked.
   const anyLinked = boardingPasses.some((p) => p.tripId) || reservations.some((r) => r.tripId);
-  const { isPro, openPaywall } = useProGate();
   const { trips: myTrips, isLoading: tripsLoading } = useMyTrips(anyLinked || segment === 'trips');
   const myTripIds = useMemo(() => myTrips.map((t) => t.tripId), [myTrips]);
   const { shared: sharedBookings } = useSharedTripBookings(myTripIds, segment === 'trips');

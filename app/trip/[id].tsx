@@ -57,7 +57,7 @@ import { contentKey, isContentVisible } from '@/utils/moderation';
 import { groundStop, type GroundingContext } from '@/services/places/groundStop';
 import type { GroundedPlace } from '@/utils/mapboxQuery';
 import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
-import { resolveDayDestinationIndices } from '@/utils/dayDestination';
+import { daysInDestination, resolveDayDestinationIndices } from '@/utils/dayDestination';
 import { selectStopsToGround } from '@/utils/groundingQueue';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
@@ -296,6 +296,12 @@ export default function TripDetailScreen() {
   const [inviteVisible, setInviteVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
   const [bookingsVisible, setBookingsVisible] = useState(false);
+  // Multi-city trips: tapping a city's pill shows only its days (utils/dayDestination daysInDestination).
+  const [cityFilter, setCityFilter] = useState<number | null>(null);
+  const toggleCity = useCallback((index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCityFilter((current) => (current === index ? null : index));
+  }, []);
   const openBooking = useCallback((b: TripBooking) => {
     router.push(bookingRoute(b) as Href);
   }, [router]);
@@ -827,6 +833,7 @@ export default function TripDetailScreen() {
   // layout position.
   const handleViewInTimeline = useCallback((activityId: string) => {
     setViewMode('timeline');
+    setCityFilter(null); // the stop's day may be in another city
     setFocusActivityId(null);
     setHighlightActivityId(activityId);
   }, []);
@@ -948,6 +955,10 @@ export default function TripDetailScreen() {
   }
 
   const sortedDays = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
+  const multiCity = destinationNames.length > 1;
+  const shownDays = multiCity
+    ? daysInDestination(sortedDays, resolveDayDestinationIndices(sortedDays, destinationNames), cityFilter)
+    : sortedDays;
   const bookingsOnDays = bookingsByDay(sortedDays.map((d) => ({ id: d.id, date: d.date?.toDate() ?? null })), tripBookings);
   const hasDescription = Boolean(trip.description?.trim());
   const dayCount = sortedDays.length;
@@ -1162,24 +1173,37 @@ export default function TripDetailScreen() {
           style={styles.chipStrip}
           contentContainerStyle={styles.chipStripContent}
         >
-          <View style={[styles.chip, { backgroundColor: colors.background.sunken }]}>
-            <MapPin size={13} color={colors.text.secondary} weight="bold" />
-            <Text style={[styles.chipText, { color: colors.text.primary }]} numberOfLines={1}>
-              {trip.destination.name}
-            </Text>
-          </View>
-
-          {trip.additionalDestinations?.map((dest, i) => (
-            <View
-              key={`${dest.placeId}-${i}`}
+          {multiCity && cityFilter !== null && (
+            <TouchableOpacity
+              onPress={() => toggleCity(cityFilter)}
+              hitSlop={6}
               style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+              accessibilityRole="button"
+              accessibilityLabel="Show all days"
             >
-              <MapPin size={13} color={colors.text.secondary} weight="bold" />
-              <Text style={[styles.chipText, { color: colors.text.primary }]} numberOfLines={1}>
-                {dest.name}
-              </Text>
-            </View>
-          ))}
+              <Text style={[styles.chipText, { color: colors.text.primary }]}>All days</Text>
+            </TouchableOpacity>
+          )}
+          {destinationNames.map((name, i) => {
+            const selected = cityFilter === i;
+            return (
+              <TouchableOpacity
+                key={`${name}-${i}`}
+                disabled={!multiCity}
+                hitSlop={6}
+                onPress={() => toggleCity(i)}
+                style={[styles.chip, { backgroundColor: selected ? colors.text.primary : colors.background.sunken }]}
+                accessibilityRole={multiCity ? 'button' : 'text'}
+                accessibilityState={multiCity ? { selected } : undefined}
+                accessibilityLabel={multiCity ? `${name}, show its days` : name}
+              >
+                <MapPin size={13} color={selected ? colors.background.primary : colors.text.secondary} weight="bold" />
+                <Text style={[styles.chipText, { color: selected ? colors.background.primary : colors.text.primary }]} numberOfLines={1}>
+                  {name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
 
           <View
             style={[
@@ -1340,7 +1364,7 @@ export default function TripDetailScreen() {
             )
           ) : (
             <>
-              {sortedDays.map((day, index) => (
+              {shownDays.map((day, index) => (
                 <AnimatedDaySection
                   key={day.id}
                   index={index}
@@ -1378,6 +1402,7 @@ export default function TripDetailScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setCityFilter(null); // so the new day shows up
                     handleAddDay();
                   }}
                   style={styles.addDayLink}

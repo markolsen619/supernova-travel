@@ -3,12 +3,13 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { router, type Href } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { CaretDown, CaretRight, SuitcaseRolling } from 'phosphor-react-native';
+import { ArrowRight, CaretDown, CaretRight, SuitcaseRolling } from 'phosphor-react-native';
+import { useWalletSectionsStore } from '@/stores/useWalletSectionsStore';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/hooks/useTheme';
 import { BoardingPassCard } from '@/components/wallet/BoardingPassCard';
 import { ReservationCard } from '@/components/wallet/ReservationCard';
-import { walletByTrip, type TripSection } from '@/utils/walletByTrip';
+import { bookingCountLabel, isSectionOpen, walletByTrip, type TripSection } from '@/utils/walletByTrip';
 import { tripDateEyebrow, type TripSummary } from '@/utils/walletLink';
 import { toCalendarDate } from '@/utils/calendarDate';
 import type { BoardingPass, Reservation } from '@/types';
@@ -29,6 +30,12 @@ interface WalletByTripListProps {
 export function WalletByTripList({ trips, boardingPasses, reservations, shared }: WalletByTripListProps) {
   const { colors } = useTheme();
   const [pastOpen, setPastOpen] = useState(false);
+  const saved = useWalletSectionsStore((s) => s.open);
+  const setOpen = useWalletSectionsStore((s) => s.setOpen);
+  const toggleSection = useCallback((tripId: string, open: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setOpen(tripId, !open);
+  }, [setOpen]);
   const grouped = useMemo(
     () => walletByTrip(trips, boardingPasses, reservations, toCalendarDate(new Date()), shared),
     [trips, boardingPasses, reservations, shared],
@@ -63,29 +70,52 @@ export function WalletByTripList({ trips, boardingPasses, reservations, shared }
       </View>
     ));
 
-  const renderSection = (s: TripSection) => (
-    <View key={s.trip.tripId} style={styles.section}>
-      <TouchableOpacity
-        onPress={() => openTrip(s.trip.tripId)}
-        style={styles.header}
-        accessibilityRole="link"
-        accessibilityLabel={`${s.trip.title}, ${tripDateEyebrow(s.trip.start, s.trip.end)}. Open trip`}
-      >
-        <View style={styles.headerText}>
-          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{tripDateEyebrow(s.trip.start, s.trip.end)}</Text>
-          <Text style={[styles.tripTitle, { color: colors.text.primary }]} numberOfLines={2}>{s.trip.title}</Text>
+  // Past trips start folded whatever their position (only the soonest upcoming trip starts open).
+  const renderSection = (s: TripSection, index: number) => {
+    const open = isSectionOpen(s.trip.tripId, index, saved);
+    const Caret = open ? CaretDown : CaretRight;
+    return (
+      <View key={s.trip.tripId} style={styles.section}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => toggleSection(s.trip.tripId, open)}
+            style={styles.headerToggle}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+            accessibilityLabel={`${s.trip.title}, ${tripDateEyebrow(s.trip.start, s.trip.end)}, ${bookingCountLabel(s.items.length)}`}
+          >
+            <Caret size={14} color={colors.text.tertiary} weight="bold" />
+            <View style={styles.headerText}>
+              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{tripDateEyebrow(s.trip.start, s.trip.end)}</Text>
+              <Text style={[styles.tripTitle, { color: colors.text.primary }]} numberOfLines={2}>{s.trip.title}</Text>
+              {!open && (
+                <Text style={[styles.count, { color: colors.text.tertiary }]}>{bookingCountLabel(s.items.length)}</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => openTrip(s.trip.tripId)}
+            style={[styles.openTrip, { backgroundColor: colors.background.sunken }]}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${s.trip.title}`}
+          >
+            <ArrowRight size={16} color={colors.text.primary} weight="bold" />
+          </TouchableOpacity>
         </View>
-        <CaretRight size={16} color={colors.text.tertiary} weight="bold" />
-      </TouchableOpacity>
-      {s.items.length > 0 ? (
-        renderItems(s.items)
-      ) : (
-        <Text style={[styles.empty, { color: colors.text.tertiary }]}>
-          Nothing booked yet · Forward a confirmation or add one
-        </Text>
-      )}
-    </View>
-  );
+        {open && (
+          <Animated.View entering={FadeIn.springify().damping(11).stiffness(65)}>
+            {s.items.length > 0 ? (
+              renderItems(s.items)
+            ) : (
+              <Text style={[styles.empty, { color: colors.text.tertiary }]}>
+                Nothing booked yet · Forward a confirmation or add one
+              </Text>
+            )}
+          </Animated.View>
+        )}
+      </View>
+    );
+  };
 
   const openNewTrip = useCallback(() => router.push('/trip/new'), []);
 
@@ -104,7 +134,7 @@ export function WalletByTripList({ trips, boardingPasses, reservations, shared }
 
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {grouped.upcoming.map(renderSection)}
+      {grouped.upcoming.map((s, i) => renderSection(s, i))}
 
       {grouped.unlinked.length > 0 && (
         <View style={styles.section}>
@@ -137,7 +167,7 @@ export function WalletByTripList({ trips, boardingPasses, reservations, shared }
           </TouchableOpacity>
           {pastOpen && (
             <Animated.View entering={FadeIn.springify().damping(11).stiffness(65)}>
-              {grouped.past.map(renderSection)}
+              {grouped.past.map((s) => renderSection(s, -1))}
             </Animated.View>
           )}
         </View>
@@ -154,6 +184,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['5'], minHeight: 44, marginBottom: Spacing['2'],
   },
   headerText: { flex: 1, gap: 2 },
+  headerToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing['2'], minHeight: 44 },
+  openTrip: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  count: { fontSize: 13 },
   eyebrow: { fontSize: 11, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   tripTitle: { fontSize: 17, fontWeight: FontWeight.medium },
   hint: { fontSize: 13 },

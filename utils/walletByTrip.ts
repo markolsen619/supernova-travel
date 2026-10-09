@@ -68,3 +68,18 @@ export function walletByTrip(
     unlinked: unlinked.sort(byDay),
   };
 }
+
+/** A trip's section is open if you opened it; untouched, only the soonest (index 0) starts open. */
+export function isSectionOpen(tripId: string, index: number, saved: Record<string, boolean>): boolean {
+  return saved[tripId] ?? index === 0;
+}
+
+export function bookingCountLabel(n: number): string {
+  if (n === 0) return 'Nothing booked yet';
+  return `${n} booking${n === 1 ? '' : 's'}`;
+}
+
+/** The wallet opens on By trip for Pro (it's Pro-only), on All for everyone else. */
+export function defaultSegment(isPro: boolean): 'trips' | 'all' {
+  return isPro ? 'trips' : 'all';
+}

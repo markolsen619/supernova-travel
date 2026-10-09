@@ -49,3 +49,9 @@ it('carries the email import ids', () => {
   expect(pushDataFor({ type: 'email_import_batch', emailImportId: 'e1' })).toEqual({ type: 'email_import_batch', emailImportId: 'e1' });
 });
 });
+
+describe('pushDataFor loyalty', () => {
+  it('carries the program id', () => {
+    expect(pushDataFor({ type: 'email_import_loyalty', programId: 'l1', title: 'Balance updated' })).toEqual({ type: 'email_import_loyalty', programId: 'l1' });
+  });
+});

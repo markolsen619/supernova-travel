@@ -612,4 +612,8 @@ export interface LoyaltyProgram {
   expiryDate?: string;
   isManual: boolean;        // true = user entered manually, false = scanned/synced
   createdAt: string;
+  /** 'email' when a forwarded statement last set the balance (functions/src/loyaltyImport.ts). */
+  source?: 'email';
+  /** `YYYY-MM-DD` the saved balance is as of; an older statement never overwrites it. */
+  balanceAsOf?: string;
 }

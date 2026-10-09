@@ -1,4 +1,4 @@
-import { resolveDayDestinationIndices } from '@/utils/dayDestination';
+import { resolveDayDestinationIndices, daysInDestination } from '@/utils/dayDestination';
 
 const CITIES = ['Paris', 'Rome', 'Barcelona'];
 const day = (over: Partial<{ destinationIndex: number | null; activities: { type: string; title: string }[] }> = {}) => ({
@@ -61,5 +61,17 @@ describe('resolveDayDestinationIndices', () => {
   it('demotes to inference when an explicit index is not an integer', () => {
     const days = [day({ destinationIndex: 1.5 }), day()];
     expect(resolveDayDestinationIndices(days, CITIES)).toEqual([0, 0]);
+  });
+});
+
+describe('daysInDestination', () => {
+  const days = [{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }, { id: 'd4' }];
+  const indices = [0, 0, 1, 2];
+  it('keeps only the chosen city’s days, in order', () => {
+    expect(daysInDestination(days, indices, 0).map((d) => d.id)).toEqual(['d1', 'd2']);
+    expect(daysInDestination(days, indices, 2).map((d) => d.id)).toEqual(['d4']);
+  });
+  it('shows every day when no city is chosen', () => {
+    expect(daysInDestination(days, indices, null)).toHaveLength(4);
   });
 });

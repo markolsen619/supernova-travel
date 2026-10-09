@@ -35,6 +35,7 @@ const ROUTES: Record<string, RouteSpec> = {
   email_import_pass: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
   email_import_reservation: { idKey: 'reservationId', build: (id) => `/(wallet)/reservation/${id}` },
   email_import_batch: { idKey: 'emailImportId', build: () => '/(wallet)/email-import' },
+  email_import_loyalty: { idKey: 'programId', build: (id) => `/(wallet)/loyalty/${id}` },
 };
 
 /**
