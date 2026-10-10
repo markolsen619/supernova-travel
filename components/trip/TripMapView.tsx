@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
 import { arrivalCamera, basemapConfig, SATELLITE_TILES } from '@/utils/mapLook';
+import { aheadBearing, legZoom, limitTurn } from '@/utils/flyoverCamera';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -39,7 +40,7 @@ import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
-import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, zoomForLeg, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
+import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { routeFeatures } from '@/utils/routeFeatures';
 import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
@@ -356,6 +357,7 @@ export function TripMapView({
   flyoverRef.current = flyover;
   // Playing or paused only — a finished flyover hands the map back.
   const flying = isFlyoverActive(flyover.status);
+  const headingRef = useRef(0);
   // Sent only when it changes — a new object every flyover tick re-applied the whole config each second.
   const basemapConfig_ = useMemo(() => basemapConfig(lightPresetForNow(), flying), [flying]);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -407,22 +409,30 @@ export function TripMapView({
       if (!leg) return;
       const legCoords = day.path.coordinates.slice(leg.from, leg.to + 1);
       const span = leg.endFraction - leg.startFraction || 1;
-      const t = Math.min(1, Math.max(0, (progress - leg.startFraction) / span));
-      const { point, bearing } = pointAlongPath(legCoords, t);
+      // Aim where the drawing head will be when this glide ends, so the camera leads the line, not trails it.
+      const dayMs = durations[flyover.dayIndex] || 1;
+      const ahead = Math.min(leg.endFraction, progress + durationMs / dayMs);
+      const t = Math.min(1, Math.max(0, (ahead - leg.startFraction) / span));
+      const { point } = pointAlongPath(legCoords, t);
       const airborne = leg.travel === 'flight';
+      // Face where the route is going (not the bend underfoot), turning at most 25° a second.
+      const heading = airborne ? 0 : limitTurn(headingRef.current, aheadBearing(legCoords, t, 0.15), 25);
+      headingRef.current = heading;
       cameraRef.current?.setCamera({
         centerCoordinate: point,
-        zoomLevel: zoomForLeg(leg.travel, leg.meters),
+        // Lifts between stops and comes down into the next (utils/flyoverCamera).
+        zoomLevel: legZoom(leg.travel, leg.meters, t),
         pitch: airborne ? 40 : 58,
         // A long flight is framed north-up; spinning the globe with its heading is dizzying.
-        heading: airborne ? 0 : bearing,
+        heading,
         animationDuration: durationMs,
-        animationMode: 'easeTo',
+        // Constant speed: one easeTo a second accelerated and braked every second — a visible pulse.
+        animationMode: 'linearTo',
       });
     };
     const id = setInterval(() => move(1000), 1000);
     return () => clearInterval(id);
-  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef]);
+  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, durations]);
 
   // The leg being drawn, and how far along it the head is.
   const flyPath = flightPaths[flyover.dayIndex]?.path;

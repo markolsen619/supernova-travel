@@ -15,7 +15,8 @@ export const SATELLITE_TILES = 'mapbox://mapbox.satellite';
 export function basemapConfig(now: LightPreset, flying: boolean): Record<string, string | boolean> {
   return {
     lightPreset: flying ? 'day' : now,
-    showPointOfInterestLabels: true,
+    // A cinematic frame while flying: shop and café labels off; cities and landmarks stay.
+    showPointOfInterestLabels: !flying,
     showLandmarkIcons: true,
     showLandmarkIconLabels: true,
     show3dBuildings: true,

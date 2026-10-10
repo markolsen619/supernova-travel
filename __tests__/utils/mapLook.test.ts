@@ -9,6 +9,8 @@ describe('basemap', () => {
   });
   it('a flyover always plays in daylight, whatever the time', () => {
     expect(basemapConfig('night', true).lightPreset).toBe('day');
+    expect(basemapConfig('night', true).showPointOfInterestLabels).toBe(false);
+    expect(basemapConfig('night', true).showLandmarkIcons).toBe(true);
   });
 });
 
