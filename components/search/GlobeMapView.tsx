@@ -102,6 +102,9 @@ export function GlobeMapView({
     [selectedPlace],
   );
 
+  // Sent only when the light changes, not on every render.
+  const globeConfig = useMemo(() => basemapConfig(lightPreset, false), [lightPreset]);
+
   return (
     <MapView
       ref={mapRef}
@@ -124,7 +127,7 @@ export function GlobeMapView({
         id="basemap"
         existing
         // The same 3D city detail as the trip map (utils/mapLook): landmarks, facades, trees.
-        config={basemapConfig('map', lightPreset, false)}
+        config={globeConfig}
       />
       {/* Raised terrain: mountains read as mountains when you zoom into a region. */}
       <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14}>
