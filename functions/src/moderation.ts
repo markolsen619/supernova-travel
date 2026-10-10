@@ -38,6 +38,8 @@ export function autoHidePath(report: ReportDoc): string | null {
       return `trips/${report.targetId}`;
     case 'comment':
       return nonEmpty(report.targetParentId) ? `posts/${report.targetParentId}/comments/${report.targetId}` : null;
+    case 'review':
+      return `placeReviews/${report.targetId}`;
     default:
       return null;
   }

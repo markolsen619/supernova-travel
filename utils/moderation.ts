@@ -10,7 +10,7 @@
  *   functions/src/onReportCreated.ts)
  */
 
-export type ReportTargetType = 'post' | 'comment' | 'message' | 'trip' | 'user';
+export type ReportTargetType = 'post' | 'comment' | 'message' | 'trip' | 'user' | 'review';
 
 export const REPORT_REASONS = [
   { id: 'spam', label: 'Spam or scam' },

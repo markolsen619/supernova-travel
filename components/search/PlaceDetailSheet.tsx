@@ -19,6 +19,7 @@ import { useTheme } from '@/hooks/useTheme';
 import type { ThemeColors } from '@/constants/colors';
 import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
 import type { ActivityType } from '@/types';
+import { PlaceReviewsSummary } from '@/components/places/PlaceReviewsSummary';
 import { buildBookingAction } from '@/utils/bookingLinks';
 import * as WebBrowser from 'expo-web-browser';
 import { enrichPlaceById, photoUrl } from '@/services/places/googlePlaces';
@@ -227,6 +228,7 @@ export function PlaceDetailSheet({
   }, [bookingAction]);
 
   const typeLabel = humanizeType(displayPlace.primaryType);
+  const fromTrip = !!booking;
   const hoursLine = todaysHoursLine(displayPlace.openingHours);
   const priceLabel = displayPlace.priceLevel ? PRICE_LEVEL_LABELS[displayPlace.priceLevel] : null;
   const hasPhotos = !!displayPlace.photoNames && displayPlace.photoNames.length > 0;
@@ -347,6 +349,9 @@ export function PlaceDetailSheet({
         </TouchableOpacity>
       ) : null}
 
+      {/* Opened from a trip stop, you're already planning a trip here — its place is
+          photos and reviews instead (PlaceReviewsSummary below). */}
+      {!fromTrip && (
       <TouchableOpacity
         style={[bookingAction ? styles.addToTripBtn : styles.planBtn, bookingAction ? { borderColor: colors.brand.purple } : { backgroundColor: colors.brand.purple }]}
         onPress={handlePlanTrip}
@@ -357,6 +362,7 @@ export function PlaceDetailSheet({
         <Text style={[styles.planBtnText, bookingAction ? { color: colors.brand.purple } : null]}>Plan a trip here</Text>
         <ArrowRight size={16} color={bookingAction ? colors.brand.purple : 'rgba(255,255,255,0.7)'} weight="bold" />
       </TouchableOpacity>
+      )}
 
       <TouchableOpacity
         style={[styles.addToTripBtn, { borderColor: colors.brand.purple }]}
@@ -368,6 +374,12 @@ export function PlaceDetailSheet({
           {addToTripLabel ?? 'Add to Trip'}
         </Text>
       </TouchableOpacity>
+
+      {/* Travelers' photos and reviews (docs/superpowers/specs/2026-10-09-place-reviews-design.md). Only a
+          Google place id is shared by everyone; a Mapbox-only stop has none, so nothing to review yet. */}
+      {displayPlace.placeId ? (
+        <PlaceReviewsSummary placeId={displayPlace.placeId} placeName={displayPlace.name} colors={colors} fromTrip={fromTrip} />
+      ) : null}
 
       {/* Required Google attribution — must appear whenever Google place data is shown */}
       <Text style={[styles.attribution, { color: colors.text.tertiary }]}>

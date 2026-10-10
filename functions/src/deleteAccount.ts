@@ -163,6 +163,10 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
   const addresses = await db.collection('inboundAddresses').where('uid', '==', uid).get();
   await Promise.all(addresses.docs.map((d) => d.ref.delete()));
 
+  // Their place reviews (the places' totals recompute through onPlaceReviewWritten); photos go with the Storage prefixes.
+  const reviews = await db.collection('placeReviews').where('authorUid', '==', uid).get();
+  await Promise.all(reviews.docs.map((d) => d.ref.delete()));
+
   // Last in Firestore: feed, notifications, and savedTrips go with it.
   await db.recursiveDelete(db.doc(`users/${uid}`));
 }
