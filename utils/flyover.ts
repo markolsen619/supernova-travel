@@ -31,10 +31,12 @@ export type FlyoverAction =
  * the same rest, which also gives the map time to load its tiles.
  */
 export const STOP_DWELL_MS = 2500;
+/** A day opens on its whole route from above, then comes down to its first stop (TripMapView). */
+export const DAY_INTRO_MS = 4000;
 
 export const initialFlyover: FlyoverState = { status: 'idle', dayIndex: 0, progress: 0, hold: 0, stopIndex: -1 };
 
-const startOfDay = (dayIndex: number): FlyoverState => ({ status: 'playing', dayIndex, progress: 0, hold: STOP_DWELL_MS, stopIndex: 0 });
+const startOfDay = (dayIndex: number): FlyoverState => ({ status: 'playing', dayIndex, progress: 0, hold: DAY_INTRO_MS, stopIndex: 0 });
 
 function nextDay(state: FlyoverState, durations: number[]): FlyoverState {
   if (state.dayIndex >= durations.length - 1) return { ...state, status: 'done', progress: 1, hold: 0 };

@@ -1,5 +1,5 @@
 import {
-  flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, STOP_DWELL_MS, stopEyebrow,
+  flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, STOP_DWELL_MS, DAY_INTRO_MS, stopEyebrow,
   type FlyoverState, type FlyoverAction,
 } from '@/utils/flyover';
 
@@ -16,7 +16,7 @@ describe('dayDurationMs', () => {
 
 describe('flyoverReducer', () => {
   it('plays from the first day, holding on it while the camera settles', () => {
-    expect(flyoverReducer(initialFlyover, { type: 'play' })).toEqual(playing(0, 0, STOP_DWELL_MS));
+    expect(flyoverReducer(initialFlyover, { type: 'play' })).toEqual(playing(0, 0, DAY_INTRO_MS));
   });
 
   it('spends the hold before moving the drawing head', () => {
@@ -36,7 +36,7 @@ describe('flyoverReducer', () => {
   });
 
   it('rolls into the next day with a fresh hold, and finishes after the last', () => {
-    expect(flyoverReducer(playing(0, 0.9), { type: 'tick', dt: 1000, durations, stopFractions: [] })).toEqual(playing(1, 0, STOP_DWELL_MS));
+    expect(flyoverReducer(playing(0, 0.9), { type: 'tick', dt: 1000, durations, stopFractions: [] })).toEqual(playing(1, 0, DAY_INTRO_MS));
     expect(flyoverReducer(playing(1, 0.95), { type: 'tick', dt: 1000, durations, stopFractions: [] }))
       .toEqual({ status: 'done', dayIndex: 1, progress: 1, hold: 0, stopIndex: 0 });
   });
@@ -48,11 +48,11 @@ describe('flyoverReducer', () => {
   });
 
   it('restarts from day one after finishing', () => {
-    expect(flyoverReducer({ status: 'done', dayIndex: 1, progress: 1, hold: 0, stopIndex: 0 }, { type: 'play' })).toEqual(playing(0, 0, STOP_DWELL_MS));
+    expect(flyoverReducer({ status: 'done', dayIndex: 1, progress: 1, hold: 0, stopIndex: 0 }, { type: 'play' })).toEqual(playing(0, 0, DAY_INTRO_MS));
   });
 
   it('jumps to a day at its start, and stops back to idle', () => {
-    expect(flyoverReducer(playing(0, 0.3), { type: 'jump', dayIndex: 1 })).toEqual(playing(1, 0, STOP_DWELL_MS));
+    expect(flyoverReducer(playing(0, 0.3), { type: 'jump', dayIndex: 1 })).toEqual(playing(1, 0, DAY_INTRO_MS));
     expect(flyoverReducer(playing(1, 0.3), { type: 'stop' })).toEqual(initialFlyover);
   });
 
@@ -79,11 +79,11 @@ describe('flyover stop pauses', () => {
 
   it('shows the first stop while the day starts', () => {
     const s = run(initialFlyover, { type: 'play' });
-    expect(s).toMatchObject({ status: 'playing', dayIndex: 0, stopIndex: 0, hold: STOP_DWELL_MS, progress: 0 });
+    expect(s).toMatchObject({ status: 'playing', dayIndex: 0, stopIndex: 0, hold: DAY_INTRO_MS, progress: 0 });
   });
 
   it('stops the drawing head at each stop and dwells there', () => {
-    let s = run(initialFlyover, { type: 'play' }, tick(STOP_DWELL_MS, D, F));
+    let s = run(initialFlyover, { type: 'play' }, tick(DAY_INTRO_MS, D, F));
     expect(s).toMatchObject({ hold: 0, stopIndex: 0 });
     s = run(s, tick(6_000, D, F)); // would reach 0.6 — clamps to the stop at 0.5
     expect(s).toMatchObject({ progress: 0.5, stopIndex: 1, hold: STOP_DWELL_MS });
@@ -97,7 +97,7 @@ describe('flyover stop pauses', () => {
 
   it('pauses separately at two stops in the same spot', () => {
     const F2 = [[0, 0.5, 0.5, 1]];
-    let s = run(initialFlyover, { type: 'play' }, tick(STOP_DWELL_MS, D, F2), tick(6_000, D, F2));
+    let s = run(initialFlyover, { type: 'play' }, tick(DAY_INTRO_MS, D, F2), tick(6_000, D, F2));
     expect(s).toMatchObject({ stopIndex: 1, hold: STOP_DWELL_MS });
     s = run(s, tick(STOP_DWELL_MS, D, F2), tick(33, D, F2));
     expect(s).toMatchObject({ stopIndex: 2, progress: 0.5, hold: STOP_DWELL_MS });
@@ -105,33 +105,33 @@ describe('flyover stop pauses', () => {
 
   it('rolls into the next day after the last stop, starting on its first stop', () => {
     const DD = [10_000, 10_000], FF = [[0, 1], [0, 1]];
-    const s = run(initialFlyover, { type: 'play' }, tick(STOP_DWELL_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF));
-    expect(s).toMatchObject({ dayIndex: 1, stopIndex: 0, progress: 0, hold: STOP_DWELL_MS });
+    const s = run(initialFlyover, { type: 'play' }, tick(DAY_INTRO_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF));
+    expect(s).toMatchObject({ dayIndex: 1, stopIndex: 0, progress: 0, hold: DAY_INTRO_MS });
   });
 
   it('skips a day with no stops without dwelling', () => {
     const DD = [10_000, 0, 10_000], FF = [[0, 1], [], [0, 1]];
-    const s = run(initialFlyover, { type: 'play' }, tick(STOP_DWELL_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF), tick(33, DD, FF));
-    expect(s).toMatchObject({ dayIndex: 2, stopIndex: 0, hold: STOP_DWELL_MS });
+    const s = run(initialFlyover, { type: 'play' }, tick(DAY_INTRO_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF), tick(33, DD, FF));
+    expect(s).toMatchObject({ dayIndex: 2, stopIndex: 0, hold: DAY_INTRO_MS });
   });
 
   it('keeps the dwell while paused, and a jump starts the day on its first stop', () => {
     let s = run(initialFlyover, { type: 'play' }, tick(1_000, D, F), { type: 'pause' }, tick(5_000, D, F));
-    expect(s).toMatchObject({ status: 'paused', hold: STOP_DWELL_MS - 1_000 });
+    expect(s).toMatchObject({ status: 'paused', hold: DAY_INTRO_MS - 1_000 });
     s = run(s, { type: 'jump', dayIndex: 0 });
-    expect(s).toMatchObject({ status: 'playing', stopIndex: 0, hold: STOP_DWELL_MS, progress: 0 });
+    expect(s).toMatchObject({ status: 'playing', stopIndex: 0, hold: DAY_INTRO_MS, progress: 0 });
   });
 });
 
 describe('one-stop days', () => {
   it('still rests on a day with a single stop (no route to draw), then moves on', () => {
     const DD = [10_000, 0, 10_000], FF = [[0, 1], [0], [0, 1]];
-    let s = run(initialFlyover, { type: 'play' }, tick(STOP_DWELL_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF));
-    expect(s).toMatchObject({ dayIndex: 1, stopIndex: 0, hold: STOP_DWELL_MS });
+    let s = run(initialFlyover, { type: 'play' }, tick(DAY_INTRO_MS, DD, FF), tick(10_000, DD, FF), tick(STOP_DWELL_MS, DD, FF), tick(33, DD, FF));
+    expect(s).toMatchObject({ dayIndex: 1, stopIndex: 0, hold: DAY_INTRO_MS });
     s = run(s, tick(1_000, DD, FF));
-    expect(s).toMatchObject({ dayIndex: 1, hold: STOP_DWELL_MS - 1_000 });
-    s = run(s, tick(1_500, DD, FF), tick(33, DD, FF));
-    expect(s).toMatchObject({ dayIndex: 2, stopIndex: 0, hold: STOP_DWELL_MS });
+    expect(s).toMatchObject({ dayIndex: 1, hold: DAY_INTRO_MS - 1_000 });
+    s = run(s, tick(DAY_INTRO_MS - 1_000, DD, FF), tick(33, DD, FF));
+    expect(s).toMatchObject({ dayIndex: 2, stopIndex: 0, hold: DAY_INTRO_MS });
   });
 });
 
@@ -139,5 +139,11 @@ describe('stopEyebrow', () => {
   it('reads day, date and stop', () => {
     expect(stopEyebrow(2, 'SAT, NOV 25', 2, 6)).toBe('DAY 2 · SAT, NOV 25 · STOP 3 OF 6');
     expect(stopEyebrow(1, null, 0, 1)).toBe('DAY 1 · STOP 1 OF 1');
+  });
+});
+
+describe('day intro', () => {
+  it('each day opens on its overview for longer than a stop rests', () => {
+    expect(DAY_INTRO_MS).toBeGreaterThan(STOP_DWELL_MS);
   });
 });

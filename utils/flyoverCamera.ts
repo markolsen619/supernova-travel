@@ -26,11 +26,21 @@ export function limitTurn(prev: number, next: number, maxDeg: number): number {
 
 /**
  * Zoom along a leg: at the leg's own zoom near both stops, higher in the middle —
- * more the longer the leg (a walk barely lifts, a long drive climbs ~2.5 levels).
+ * more the longer the leg (a walk barely lifts, a long drive climbs ~1.5 levels — 2.5 pulled back to a near-regional view).
  */
 export function legZoom(travel: Travel, meters: number, t: number): number {
   const base = zoomForLeg(travel, meters);
   const km = meters / 1000;
-  const lift = travel === 'walk' ? Math.min(0.4, km / 3) : Math.min(2.5, Math.max(0.5, Math.log2(km + 1) / 2));
+  const lift = travel === 'walk' ? Math.min(0.4, km / 3) : Math.min(1.5, Math.max(0.4, Math.log2(km + 1) / 3));
   return base - lift * Math.sin(Math.PI * Math.max(0, Math.min(1, t)));
+}
+
+/**
+ * The tilt for a leg camera at `zoom`: 58° at street level (14+), flattening to 45° by zoom 11.
+ * At 58° and a pulled-back zoom a portrait screen showed the horizon — half the frame was sky
+ * mid-drive. Flight tours flatten as they rise for the same reason.
+ */
+export function legPitch(zoom: number): number {
+  const t = Math.min(1, Math.max(0, (zoom - 11) / 3));
+  return 45 + 13 * t;
 }

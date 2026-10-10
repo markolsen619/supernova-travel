@@ -1,4 +1,4 @@
-import { aheadBearing, limitTurn, legZoom } from '@/utils/flyoverCamera';
+import { aheadBearing, legPitch, limitTurn, legZoom } from '@/utils/flyoverCamera';
 
 const line: [number, number][] = [[0, 0], [0, 1], [0.05, 1.05], [0, 1.1], [0, 2]]; // north, with a small kink
 
@@ -27,5 +27,16 @@ describe('legZoom', () => {
   });
   it('a short walk stays low', () => {
     expect(legZoom('walk', 600, 0.5)).toBeGreaterThan(14.5);
+  });
+});
+
+describe('legPitch', () => {
+  // At 58° and a pulled-back zoom a portrait screen showed half sky mid-drive.
+  it('tilts at street level and flattens as the camera rises', () => {
+    expect(legPitch(15)).toBe(58);
+    expect(legPitch(14)).toBe(58);
+    expect(legPitch(11)).toBe(45);
+    expect(legPitch(9)).toBe(45);
+    expect(legPitch(12.5)).toBeCloseTo(51.5);
   });
 });
