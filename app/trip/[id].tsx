@@ -537,7 +537,7 @@ export default function TripDetailScreen() {
 
   const handleDeleteActivity = useCallback(async () => {
     if (!id || !activeDay || !editingActivity) return;
-    await deleteActivity(id, activeDay.id, editingActivity.id);
+    await deleteActivity(id, activeDay.id, editingActivity.id, editingActivity.fromBooking);
   }, [id, activeDay, editingActivity, deleteActivity]);
 
   const handleMoveActivity = useCallback(

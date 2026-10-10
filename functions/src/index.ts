@@ -24,4 +24,5 @@ export { onFollowRequestCreated, respondToFollowRequest, onUserPrivacyChanged, o
 export { tripPreview } from './tripPreviewFunction';
 export { matchBooking, onTripWrittenRematch } from './bookingMatchFunctions';
 export { onBoardingPassWrittenShare, onReservationWrittenShare } from './sharedBookingFunctions';
+export { onTripDayCreatedBookingStops } from './bookingStopFunctions';
 export { inboundEmail, createImportAddress, rotateImportAddress } from './emailImportFunctions';
