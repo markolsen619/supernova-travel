@@ -300,9 +300,10 @@ export function flightAltitudeMeters(meters: number): number {
  * outrunning the tiles at street zoom is what made the first flyover blur.
  */
 export function zoomForLeg(travel: Travel, meters: number): number {
-  // Close enough on foot and across town for 3D buildings and landmarks (Mapbox draws them from ~15).
-  if (travel === 'walk') return 16;
+  // Wide enough that tiles load under a moving camera — at 15.5–16 the flyover outran them and only the
+  // route line drew (build 31). Close-ups happen where the camera pauses, at stops (utils/mapLook).
+  if (travel === 'walk') return 15;
   const km = Math.max(0.5, meters / 1000);
-  if (travel === 'drive') return Math.min(15.5, Math.max(10.5, 16.5 - Math.log2(km / 2)));
+  if (travel === 'drive') return Math.min(14, Math.max(10, 15 - Math.log2(km / 2)));
   return Math.min(9, Math.max(2.5, 11.5 - Math.log2(km / 10)));
 }

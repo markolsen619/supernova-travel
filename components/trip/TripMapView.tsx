@@ -9,6 +9,8 @@ import {
   LineLayer,
   MarkerView,
   RasterDemSource,
+  RasterSource,
+  RasterLayer,
   Terrain,
   Atmosphere,
   Images,
@@ -19,7 +21,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
-import { arrivalCamera, basemapConfig, basemapStyleUrl } from '@/utils/mapLook';
+import { arrivalCamera, basemapConfig, SATELLITE_TILES } from '@/utils/mapLook';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -354,6 +356,8 @@ export function TripMapView({
   flyoverRef.current = flyover;
   // Playing or paused only — a finished flyover hands the map back.
   const flying = isFlyoverActive(flyover.status);
+  // Sent only when it changes — a new object every flyover tick re-applied the whole config each second.
+  const basemapConfig_ = useMemo(() => basemapConfig(lightPresetForNow(), flying), [flying]);
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
@@ -872,7 +876,7 @@ export function TripMapView({
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        styleURL={basemapStyleUrl(basemap)}
+        styleURL="mapbox://styles/mapbox/standard"
         projection="mercator"
         onPress={handleMapPress}
         onCameraChanged={handleCameraChanged}
@@ -889,8 +893,14 @@ export function TripMapView({
           existing
           // Every 3D detail on the map basemap (landmarks, facades, trees); satellite gets the options it has.
           // Real time-of-day light while browsing; a flyover always plays in daylight (utils/mapLook).
-          config={basemapConfig(basemap, lightPresetForNow(), flying)}
+          config={basemapConfig_}
         />
+        {/* Satellite: imagery in Standard's bottom slot — under roads, labels and 3D buildings (utils/mapLook). */}
+        {basemap === 'satellite' && (
+          <RasterSource id="satellite" url={SATELLITE_TILES} tileSize={512}>
+            <RasterLayer id="satellite-imagery" slot="bottom" style={{ rasterOpacity: 1 }} />
+          </RasterSource>
+        )}
         {/* 3D terrain and sky — part of the map load already paid for, so the
             immersion costs nothing extra. */}
         <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14}>
