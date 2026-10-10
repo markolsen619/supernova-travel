@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
+import { toCalendarDate } from '@/utils/calendarDate';
 import { db, auth } from '@/services/firebase';
 import { TripDay, TripActivity, TripWithDays, CreateTripInput, UpdateTripInput } from '@/types';
 import { applyActivityOrder } from '@/utils/activityOrder';
@@ -31,6 +32,9 @@ export function useCreateTrip() {
       destination: data.destination,
       additionalDestinations: data.additionalDestinations,
       startDate: data.startDate ? Timestamp.fromDate(data.startDate) : null,
+      // The same day as a calendar date: the server can't know this phone's time zone, and a
+      // timestamp at local midnight reads as the day before in UTC east of Greenwich.
+      startDay: data.startDate ? toCalendarDate(data.startDate) : null,
       endDate: data.endDate ? Timestamp.fromDate(data.endDate) : null,
       visibility: data.visibility,
       tags: data.tags,
@@ -58,6 +62,7 @@ export function useCreateTrip() {
     await updateDoc(tripRef, {
       ...rest,
       ...(startDate !== undefined && { startDate: startDate ? Timestamp.fromDate(startDate) : null }),
+      ...(startDate !== undefined && { startDay: startDate ? toCalendarDate(startDate) : null }),
       ...(endDate !== undefined && { endDate: endDate ? Timestamp.fromDate(endDate) : null }),
       updatedAt: serverTimestamp(),
     });
@@ -223,10 +228,18 @@ export function useCreateTrip() {
   async function deleteActivity(
     tripId: string,
     dayId: string,
-    activityId: string
+    activityId: string,
+    fromBooking?: TripActivity['fromBooking'],
   ): Promise<void> {
     const activityRef = doc(db, 'trips', tripId, 'days', dayId, 'activities', activityId);
-    await deleteDoc(activityRef);
+    const batch = writeBatch(db);
+    batch.delete(activityRef);
+    // A stop a booking made: say so, or the server puts it back on the next booking update
+    // (functions/src/bookingStopFunctions.ts). Removing the booking from the trip clears this.
+    if (fromBooking?.auto) {
+      batch.set(doc(db, 'trips', tripId, 'dismissedBookingStops', `${fromBooking.kind}_${fromBooking.id}`), { at: Timestamp.now() });
+    }
+    await batch.commit();
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
   }
 
@@ -310,7 +323,13 @@ export function useCreateTrip() {
     const newActivityRef = doc(targetCollection);
 
     const batch = writeBatch(db);
-    batch.set(newActivityRef, { ...rest, order: Date.now() });
+    // A booking's stop moved by hand stays where you put it: it becomes a stop that carries the booking
+    // (auto: false), which the server leaves alone, instead of one it moves back to the booking's day.
+    batch.set(newActivityRef, {
+      ...rest,
+      ...(rest.fromBooking ? { fromBooking: { ...rest.fromBooking, auto: false } } : {}),
+      order: Date.now(),
+    });
     batch.delete(sourceRef);
     await batch.commit();
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });

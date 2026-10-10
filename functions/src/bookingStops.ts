@@ -55,11 +55,9 @@ export function stopFromBooking(kind: BookingKind, id: string, b: Record<string,
     type = reservationStopType(b);
     const name = String(b.title ?? 'Booking').trim();
     title = type === 'hotel' ? `Check in · ${name}` : name;
-    // Places are looked up so they land on the map: by their own address when the booking has one.
-    if (type !== 'transport') {
-      const where = (typeof b.address === 'string' && b.address.trim()) || city;
-      searchQuery = where ? `${name}, ${where}` : name;
-    }
+    // Places are looked up so they land on the map, by name and city. Never the booking's address:
+    // a stop is readable by everyone who can see the trip (bookingRef too — see below).
+    if (type !== 'transport') searchQuery = city ? `${name}, ${city}` : name;
   }
   return {
     type,
@@ -70,11 +68,13 @@ export function stopFromBooking(kind: BookingKind, id: string, b: Record<string,
     visited: false,
     visitedAt: null,
     placeId: null,
-    address: typeof b.address === 'string' && b.address.trim() ? b.address.trim() : null,
+    address: null,
     lat: null,
     lng: null,
     durationMinutes: null,
-    bookingRef: typeof b.confirmationCode === 'string' && b.confirmationCode ? b.confirmationCode : null,
+    // Never the confirmation code: a flight's is the airline record locator, which manages the booking, and
+    // a stop is readable by anyone who can see the trip. Members read it from trips/{id}/bookings.
+    bookingRef: null,
     cost: null,
     currency: null,
     mediaUrls: [],
@@ -117,4 +117,29 @@ export function existingStopFor(kind: BookingKind, b: Record<string, any>, stops
  */
 export function tripCalendarDay(millis: number): string {
   return new Date(millis + 12 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Which bookings become stops where (decided 2026-10-09): a stop is readable by
+ * everyone who can see the trip, so restaurants, tours and shows (places you'd
+ * add yourself) appear on every trip, but flights, trains and hotels — where
+ * you'll be, and when — only on private trips. Elsewhere those stay members-only
+ * (the trip's shared bookings).
+ */
+export function bookingStopAllowed(kind: BookingKind, b: Record<string, any>, visibility: unknown): boolean {
+  if (visibility === 'private') return true;
+  if (kind !== 'reservation') return false;
+  const type = reservationStopType(b);
+  return type === 'restaurant' || type === 'activity';
+}
+
+/** The trip's first day: the calendar day the app saves alongside the date (1.0.4+), else read from the timestamp. */
+export function tripStartDay(trip: { startDay?: unknown; startDate?: { toMillis?: () => number } | null }): string | null {
+  const fromStamp = trip.startDate?.toMillis ? tripCalendarDay(trip.startDate.toMillis()) : null;
+  // The saved day is exact, but only while it still agrees with the date (within the one-day time-zone
+  // slack): apps before 1.0.4 change startDate without touching startDay.
+  if (typeof trip.startDay === 'string' && DAY.test(trip.startDay) && (!fromStamp || Math.abs(daysBetween(fromStamp, trip.startDay)) <= 1)) {
+    return trip.startDay;
+  }
+  return fromStamp;
 }

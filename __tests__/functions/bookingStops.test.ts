@@ -1,4 +1,4 @@
-import { bookingStopId, bookingDayNumber, stopFromBooking, existingStopFor, tripCalendarDay } from '../../functions/src/bookingStops';
+import { bookingStopId, bookingDayNumber, stopFromBooking, existingStopFor, tripCalendarDay, bookingStopAllowed, tripStartDay } from '../../functions/src/bookingStops';
 
 const dinner = { ownerUid: 'mark', type: 'restaurant', title: 'Lokál Dlouhá', confirmationCode: 'L1', checkIn: '2026-11-19', time: '19:30', address: 'Dlouhá 33, Prague', tripId: 'ce' };
 const train = { ownerUid: 'mark', type: 'activity', transitMode: 'train', title: 'ICE 918 Munich → Cologne', confirmationCode: 'Q1', checkIn: '2026-12-01', departureLocalTime: '10:19', tripId: 'ce' };
@@ -24,9 +24,9 @@ describe('bookingDayNumber', () => {
 });
 
 describe('stopFromBooking', () => {
-  it('a restaurant becomes a stop found on the map by its address, never renamed', () => {
+  it('a restaurant becomes a stop found on the map by name and city, never renamed, with no code or address (stops are readable by anyone who can see the trip)', () => {
     const s = stopFromBooking('reservation', 'r1', dinner, 'Prague');
-    expect(s).toMatchObject({ type: 'restaurant', title: 'Lokál Dlouhá', searchQuery: 'Lokál Dlouhá, Dlouhá 33, Prague', bookingRef: 'L1',
+    expect(s).toMatchObject({ type: 'restaurant', title: 'Lokál Dlouhá', searchQuery: 'Lokál Dlouhá, Prague', bookingRef: null, address: null,
       titleSource: 'user', startTime: null, fromBooking: { kind: 'reservation', id: 'r1', ownerUid: 'mark', auto: true } });
   });
   it('a train is a transport stop, not looked up as a place', () => {
@@ -63,5 +63,33 @@ describe('tripCalendarDay', () => {
     expect(tripCalendarDay(Date.UTC(2026, 10, 17, 23, 0))).toBe('2026-11-18'); // Nov 18 00:00 in Prague (UTC+1)
     expect(tripCalendarDay(Date.UTC(2026, 10, 18, 8, 0))).toBe('2026-11-18');  // Nov 18 00:00 in San Diego (UTC−8)
     expect(tripCalendarDay(Date.UTC(2026, 10, 18, 0, 0))).toBe('2026-11-18');
+  });
+});
+
+describe('bookingStopAllowed', () => {
+  it('places are stops on every trip; travel only on private trips', () => {
+    expect(bookingStopAllowed('reservation', dinner, 'public')).toBe(true);
+    expect(bookingStopAllowed('reservation', { ...dinner, type: 'show' }, 'followers')).toBe(true);
+    expect(bookingStopAllowed('reservation', hotel, 'public')).toBe(false);
+    expect(bookingStopAllowed('reservation', train, 'followers')).toBe(false);
+    expect(bookingStopAllowed('boarding_pass', flight, 'public')).toBe(false);
+    for (const b of [hotel, train, dinner]) expect(bookingStopAllowed('reservation', b, 'private')).toBe(true);
+    expect(bookingStopAllowed('boarding_pass', flight, 'private')).toBe(true);
+  });
+});
+
+describe('tripStartDay', () => {
+  it('prefers the calendar day the app saved, so every time zone lands on the right day', () => {
+    expect(tripStartDay({ startDay: '2026-11-18', startDate: { toMillis: () => Date.UTC(2026, 10, 17, 11) } })).toBe('2026-11-18'); // NZ summer
+  });
+  it('falls back to the timestamp for trips saved before', () => {
+    expect(tripStartDay({ startDate: { toMillis: () => Date.UTC(2026, 10, 17, 23) } })).toBe('2026-11-18');
+    expect(tripStartDay({})).toBeNull();
+  });
+});
+
+describe('tripStartDay after an older app moved the dates', () => {
+  it('ignores a saved day the timestamp has left behind (1.0.3 edits the date, not the day)', () => {
+    expect(tripStartDay({ startDay: '2026-11-18', startDate: { toMillis: () => Date.UTC(2026, 11, 2, 8) } })).toBe('2026-12-02');
   });
 });

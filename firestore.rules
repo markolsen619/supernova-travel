@@ -324,6 +324,18 @@ service cloud.firestore {
         allow create, update, delete: if canWriteTrip();
       }
 
+      // A booking's stop that a member deleted (functions/src/bookingStopFunctions.ts): marks it so the
+      // server doesn't put it back. Members write; the server clears it when the booking leaves the trip.
+      match /dismissedBookingStops/{key} {
+        function parentTrip() {
+          return get(/databases/$(database)/documents/trips/$(tripId));
+        }
+        allow read, create, update: if isAuthed() && (
+          isOwner(parentTrip().data.authorUid)
+          || request.auth.uid in parentTrip().data.get('collaborators', [])
+        );
+      }
+
       // Members' wallet bookings shared with this trip: barcode-free copies
       // kept by functions/src/sharedBookingFunctions.ts. The wallet documents
       // themselves stay owner-only. Members read; nobody writes from the app.

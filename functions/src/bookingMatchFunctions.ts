@@ -6,7 +6,7 @@ import {
   type MatchableBooking, type MatchableTrip,
 } from './bookingMatch';
 import { syncTripShares } from './sharedBookingFunctions';
-import { syncBookingStop } from './bookingStopFunctions';
+import { resyncTripBookingStops } from './bookingStopFunctions';
 
 const db = admin.firestore();
 const COLLECTIONS = { boarding_pass: 'boarding_passes', reservation: 'reservations' } as const;
@@ -66,6 +66,11 @@ export const matchBooking = onCall({ region: 'us-central1' }, async (request) =>
 export const onTripWrittenRematch = onDocumentWritten('trips/{tripId}', async (event) => {
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
+  // Visibility decides which bookings may be stops (bookingStopAllowed) — nothing else here cares about it.
+  if (before && after && before.visibility !== after.visibility && !tripMatchInputsChanged(before, after)) {
+    await resyncTripBookingStops(event.params.tripId);
+    return;
+  }
   if (!tripMatchInputsChanged(before, after)) return;
   const tripId = event.params.tripId;
 
@@ -86,17 +91,8 @@ export const onTripWrittenRematch = onDocumentWritten('trips/{tripId}', async (e
     await syncTripShares(tripId, after);
   }
 
-  // Dates or cities changed (a route save lays out new days): put linked bookings' stops on the right days.
-  for (const [kind, col] of Object.entries(COLLECTIONS) as [Kind, string][]) {
-    const linked = await db.collection(col).where('tripId', '==', tripId).get();
-    for (const d of linked.docs) {
-      try {
-        await syncBookingStop(kind, d.id, d.data(), d.data());
-      } catch (err) {
-        console.error('[bookingStop] resync failed', kind, d.id, err);
-      }
-    }
-  }
+  // Dates or cities changed: put linked bookings' stops on the right days (bookingStopFunctions.ts).
+  await resyncTripBookingStops(tripId);
 
   const members = new Set<string>([after.authorUid, ...((after.collaborators ?? []) as string[])].filter(Boolean));
   for (const uid of members) {
