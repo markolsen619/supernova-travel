@@ -1,4 +1,4 @@
-import { buildMapboxForwardUrl, normalizeMapboxFeature } from '@/utils/mapboxQuery';
+import { buildMapboxForwardUrl, nameOnlyRetry, normalizeMapboxFeature, pickBestFeature } from '@/utils/mapboxQuery';
 
 describe('buildMapboxForwardUrl', () => {
   it('includes a hard bbox when given one', () => {
@@ -62,5 +62,37 @@ describe('normalizeMapboxFeature', () => {
 
   it('returns null for undefined', () => {
     expect(normalizeMapboxFeature(undefined)).toBeNull();
+  });
+});
+
+describe('pickBestFeature', () => {
+  const f = (name: string) => ({ properties: { name } });
+  it('takes the result named like the place, not one that only shares the city', () => {
+    const list = [f('San Diego International Airport'), f('Belmont Park')];
+    expect(pickBestFeature('Belmont Park, San Diego', list)?.properties?.name).toBe('Belmont Park');
+  });
+  it('keeps the first result when nothing names the place better', () => {
+    const list = [f('Hotel del Coronado'), f('Coronado Beach')];
+    expect(pickBestFeature('Hotel del Coronado, San Diego', list)?.properties?.name).toBe('Hotel del Coronado');
+    expect(pickBestFeature('somewhere', [f('A'), f('B')])?.properties?.name).toBe('A');
+    expect(pickBestFeature('x', [])).toBeUndefined();
+  });
+});
+
+describe('nameOnlyRetry', () => {
+  const f = (name: string) => ({ properties: { name } });
+  // Mapbox, boxed to San Diego with a city-centre proximity, answered "Belmont Park, San Diego"
+  // with the airport alone — the city words outranked the place's. The name alone finds it.
+  it('asks again by the name alone when the answer shares none of its words', () => {
+    expect(nameOnlyRetry('Belmont Park, San Diego', f('San Diego International Airport'))).toBe('Belmont Park');
+    expect(nameOnlyRetry('Belmont Park, San Diego', undefined)).toBe('Belmont Park');
+  });
+  it('keeps an answer named like the place', () => {
+    expect(nameOnlyRetry('Belmont Park, San Diego', f('Belmont Park'))).toBeNull();
+    expect(nameOnlyRetry('Giant Dipper, Belmont Park', f('Giant Dipper Roller Coaster'))).toBeNull();
+  });
+  it('has nothing to retry without a suffix', () => {
+    expect(nameOnlyRetry('Belmont Park', f('San Diego International Airport'))).toBeNull();
+    expect(nameOnlyRetry(', San Diego', undefined)).toBeNull();
   });
 });

@@ -74,3 +74,44 @@ export function normalizeMapboxFeature(f: MapboxFeatureLike | undefined | null):
     isVenue: f?.properties?.feature_type === 'poi',
   };
 }
+
+const placeWords = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+
+/**
+ * Of several in-box results, the one named most like the place part of the
+ * query (before its first comma). Mapbox ranked "San Diego International
+ * Airport" above "Belmont Park" for "Belmont Park, San Diego" — the city in the
+ * query matched the airport's name — and the first result was taken.
+ * Ties (and no overlap at all) keep Mapbox's own order.
+ */
+export function pickBestFeature<T extends { properties?: { name?: string } }>(query: string, features: T[]): T | undefined {
+  if (features.length === 0) return undefined;
+  const want = placeWords(query.split(',')[0] ?? query);
+  if (want.length === 0) return features[0];
+  let best = features[0];
+  let bestScore = -1;
+  for (const f of features) {
+    const have = new Set(placeWords(f.properties?.name ?? ''));
+    const score = want.filter((w) => have.has(w)).length / want.length;
+    if (score > bestScore) { best = f; bestScore = score; }
+  }
+  return best;
+}
+
+/**
+ * The query to ask again with when a boxed answer isn't the place: the name alone
+ * ("Belmont Park, San Diego" → "Belmont Park"), or null when the answer shares a word
+ * of the name or there is no suffix to drop. Boxed to San Diego with a city-centre
+ * proximity, Mapbox answered that query with the airport alone — the city words
+ * outranked the place's — while the name alone found the park. The box already
+ * holds the city, so dropping the suffix loses nothing there.
+ */
+export function nameOnlyRetry(query: string, picked: { properties?: { name?: string } } | undefined): string | null {
+  const comma = query.indexOf(',');
+  if (comma < 0) return null;
+  const name = query.slice(0, comma).trim();
+  const want = placeWords(name);
+  if (want.length === 0) return null;
+  const have = new Set(placeWords(picked?.properties?.name ?? ''));
+  return want.some((w) => have.has(w)) ? null : name;
+}

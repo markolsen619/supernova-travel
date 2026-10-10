@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
 import { arrivalCamera, basemapConfig, SATELLITE_TILES } from '@/utils/mapLook';
+import { aheadBearing, legPitch, legZoom, limitTurn } from '@/utils/flyoverCamera';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -30,7 +31,6 @@ import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { useLayout } from '@/hooks/useLayout';
 import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { tapBbox, findStopMatchingPlace } from '@/utils/mapInteraction';
-import { lightPresetForNow } from '@/services/mapLighting';
 import { placeToTripActivity } from '@/services/places/googlePlaces';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import { ACTIVITY_ICONS } from '@/constants/icons';
@@ -39,9 +39,9 @@ import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
-import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, zoomForLeg, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
+import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { routeFeatures } from '@/utils/routeFeatures';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS, DAY_INTRO_MS } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -356,8 +356,10 @@ export function TripMapView({
   flyoverRef.current = flyover;
   // Playing or paused only — a finished flyover hands the map back.
   const flying = isFlyoverActive(flyover.status);
+  const headingRef = useRef(0);
   // Sent only when it changes — a new object every flyover tick re-applied the whole config each second.
-  const basemapConfig_ = useMemo(() => basemapConfig(lightPresetForNow(), flying), [flying]);
+  // Daylight always on the trip map: switching to day only for a flyover flashed night→day→night.
+  const basemapConfig_ = useMemo(() => basemapConfig('day', flying), [flying]);
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
@@ -381,7 +383,9 @@ export function TripMapView({
     const loop = () => {
       const now = Date.now();
       if (now - last >= 33) {
-        dispatch({ type: 'tick', dt: now - last, durations, stopFractions });
+        // Capped: a busy frame (3D tiles loading) handed the reducer a second at once and it skipped past
+        // stops and whole days. Falling behind now slows the flyover a little instead.
+        dispatch({ type: 'tick', dt: Math.min(100, now - last), durations, stopFractions });
         last = now;
       }
       frame = requestAnimationFrame(loop);
@@ -407,22 +411,31 @@ export function TripMapView({
       if (!leg) return;
       const legCoords = day.path.coordinates.slice(leg.from, leg.to + 1);
       const span = leg.endFraction - leg.startFraction || 1;
-      const t = Math.min(1, Math.max(0, (progress - leg.startFraction) / span));
-      const { point, bearing } = pointAlongPath(legCoords, t);
+      // Aim where the drawing head will be when this glide ends, so the camera leads the line, not trails it.
+      const dayMs = durations[flyover.dayIndex] || 1;
+      const ahead = Math.min(leg.endFraction, progress + durationMs / dayMs);
+      const t = Math.min(1, Math.max(0, (ahead - leg.startFraction) / span));
+      const { point } = pointAlongPath(legCoords, t);
       const airborne = leg.travel === 'flight';
+      // Face where the route is going (not the bend underfoot), turning at most 25° a second.
+      const heading = airborne ? 0 : limitTurn(headingRef.current, aheadBearing(legCoords, t, 0.15), 25);
+      headingRef.current = heading;
+      // Lifts between stops and comes down into the next, flattening as it rises (utils/flyoverCamera).
+      const zoomLevel = legZoom(leg.travel, leg.meters, t);
       cameraRef.current?.setCamera({
         centerCoordinate: point,
-        zoomLevel: zoomForLeg(leg.travel, leg.meters),
-        pitch: airborne ? 40 : 58,
+        zoomLevel,
+        pitch: airborne ? 40 : legPitch(zoomLevel),
         // A long flight is framed north-up; spinning the globe with its heading is dizzying.
-        heading: airborne ? 0 : bearing,
+        heading,
         animationDuration: durationMs,
-        animationMode: 'easeTo',
+        // Constant speed: one easeTo a second accelerated and braked every second — a visible pulse.
+        animationMode: 'linearTo',
       });
     };
     const id = setInterval(() => move(1000), 1000);
     return () => clearInterval(id);
-  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef]);
+  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, durations]);
 
   // The leg being drawn, and how far along it the head is.
   const flyPath = flightPaths[flyover.dayIndex]?.path;
@@ -530,7 +543,7 @@ export function TripMapView({
     if (!playingNow || !flyStop || flyoverRef.current.hold <= 0) return;
     // In low over the stop, then a slow circle around it while the card shows it (utils/mapLook).
     const cam = arrivalCamera(flyover.stopIndex);
-    cameraRef.current?.setCamera({
+    const arrive = () => cameraRef.current?.setCamera({
       centerCoordinate: [flyStop.lng, flyStop.lat],
       zoomLevel: cam.zoom,
       pitch: cam.pitch,
@@ -538,15 +551,32 @@ export function TripMapView({
       animationDuration: 1200,
       animationMode: 'flyTo',
     });
-    const orbit = setTimeout(() => {
+    const circle = () => cameraRef.current?.setCamera({
+      centerCoordinate: [flyStop.lng, flyStop.lat],
+      heading: cam.orbitTo,
+      animationDuration: Math.max(600, STOP_DWELL_MS - 1300),
+      animationMode: 'easeTo',
+    });
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    // A day opens like a chapter: its whole route from above first, then down to its first stop.
+    const coords = flightPaths[flyover.dayIndex]?.path.coordinates ?? [];
+    if (flyover.stopIndex === 0 && coords.length > 1) {
+      const lngs = coords.map((c) => c[0]);
+      const lats = coords.map((c) => c[1]);
       cameraRef.current?.setCamera({
-        centerCoordinate: [flyStop.lng, flyStop.lat],
-        heading: cam.orbitTo,
-        animationDuration: Math.max(600, STOP_DWELL_MS - 1300),
-        animationMode: 'easeTo',
+        bounds: { ne: [Math.max(...lngs), Math.max(...lats)], sw: [Math.min(...lngs), Math.min(...lats)] },
+        padding: { paddingTop: 140, paddingBottom: 260, paddingLeft: 40, paddingRight: 40 },
+        pitch: 40,
+        heading: 0,
+        animationDuration: 1100,
+        animationMode: 'flyTo',
       });
-    }, 1250);
-    return () => clearTimeout(orbit);
+      timers.push(setTimeout(arrive, DAY_INTRO_MS - STOP_DWELL_MS), setTimeout(circle, DAY_INTRO_MS - STOP_DWELL_MS + 1250));
+    } else {
+      arrive();
+      timers.push(setTimeout(circle, 1250));
+    }
+    return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per stop reached, not per tick
   }, [playingNow, flyover.dayIndex, flyover.stopIndex]);
 
@@ -895,12 +925,6 @@ export function TripMapView({
           // Real time-of-day light while browsing; a flyover always plays in daylight (utils/mapLook).
           config={basemapConfig_}
         />
-        {/* Satellite: imagery in Standard's bottom slot — under roads, labels and 3D buildings (utils/mapLook). */}
-        {basemap === 'satellite' && (
-          <RasterSource id="satellite" url={SATELLITE_TILES} tileSize={512}>
-            <RasterLayer id="satellite-imagery" slot="bottom" style={{ rasterOpacity: 1 }} />
-          </RasterSource>
-        )}
         {/* 3D terrain and sky — part of the map load already paid for, so the
             immersion costs nothing extra. */}
         <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14}>
@@ -971,6 +995,18 @@ export function TripMapView({
               }}
             />
           </ShapeSource>
+        )}
+        {/* Satellite: imagery placed just below our route lines — so after them in this tree: on a fresh map a
+            layer placed against one that doesn't exist yet reloaded the style in a loop (blank map). With no
+            routes there's nothing to sit under, so it goes in plainly. */}
+        {basemap === 'satellite' && (
+          <RasterSource id="satellite" url={SATELLITE_TILES} tileSize={512}>
+            <RasterLayer
+              id="satellite-imagery"
+              {...(routesCollection.features.length > 0 ? { belowLayerID: 'trip-routes-casing' } : {})}
+              style={{ rasterOpacity: 1, rasterEmissiveStrength: 1 }}
+            />
+          </RasterSource>
         )}
 
         {/* Vehicle icons, rendered from the app's own Phosphor icons. */}

@@ -1,4 +1,4 @@
-import { buildMapboxForwardUrl, normalizeMapboxFeature, type GroundedPlace } from '@/utils/mapboxQuery';
+import { buildMapboxForwardUrl, nameOnlyRetry, normalizeMapboxFeature, pickBestFeature, type GroundedPlace } from '@/utils/mapboxQuery';
 import { regionFromMapboxFeature, type PlaceRegion } from '@/utils/tripRegion';
 import { boundsHoldPoint, boxAround, isBboxUsable, type Bbox } from '@/utils/geoBounds';
 import type { PlaceViewportBounds } from '@/services/places/googlePlaces';
@@ -22,15 +22,26 @@ export async function searchPlaceInBounds(
   if (!TOKEN || !query.trim()) return null;
   if (!isBboxUsable(bbox)) return null;
   try {
-    const res = await fetch(buildMapboxForwardUrl({
-      query, token: TOKEN, bbox, proximity: center ?? null, limit: 1,
-    }));
-    if (!res.ok) {
-      console.error('[searchPlaceInBounds] HTTP', res.status);
-      return null;
+    const ask = async (q: string) => {
+      const res = await fetch(buildMapboxForwardUrl({
+        query: q, token: TOKEN, bbox, proximity: center ?? null, limit: 5,
+      }));
+      if (!res.ok) {
+        console.error('[searchPlaceInBounds] HTTP', res.status);
+        return undefined;
+      }
+      const json = (await res.json()) as { features?: { properties?: { name?: string } }[] };
+      // The result named like the place, not merely the first (pickBestFeature).
+      return pickBestFeature(query, json.features ?? []);
+    };
+    let picked = await ask(query);
+    // An answer sharing no word of the name: ask by the name alone (nameOnlyRetry).
+    const retry = nameOnlyRetry(query, picked);
+    if (retry) {
+      const again = await ask(retry);
+      if (again && !nameOnlyRetry(query, again)) picked = again;
     }
-    const json = (await res.json()) as { features?: unknown[] };
-    return normalizeMapboxFeature(json.features?.[0] as never);
+    return normalizeMapboxFeature(picked as never);
   } catch (error) {
     console.error('[searchPlaceInBounds] failed', error);
     return null;
