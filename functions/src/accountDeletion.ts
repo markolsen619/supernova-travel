@@ -15,6 +15,7 @@ export function userStoragePrefixes(uid: string): string[] {
     `profile_photos/${uid}/`,
     `journal_photos/${uid}/`,
     `reservations/${uid}/`,
+    `place_photos/${uid}/`,
   ];
 }
 

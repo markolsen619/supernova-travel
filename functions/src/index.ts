@@ -26,3 +26,4 @@ export { matchBooking, onTripWrittenRematch } from './bookingMatchFunctions';
 export { onBoardingPassWrittenShare, onReservationWrittenShare } from './sharedBookingFunctions';
 export { onTripDayCreatedBookingStops } from './bookingStopFunctions';
 export { inboundEmail, createImportAddress, rotateImportAddress } from './emailImportFunctions';
+export { onPlaceReviewWritten } from './placeReviewFunctions';

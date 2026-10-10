@@ -87,6 +87,8 @@ function AppStack() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="(wallet)" />
         <Stack.Screen name="notification-intro" options={{ presentation: 'modal', gestureEnabled: false }} />
+        <Stack.Screen name="place/review" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="place/reviews" />
       </Stack>
       <NotificationArrivalBanner />
     </>

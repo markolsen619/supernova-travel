@@ -37,6 +37,7 @@ export const REPORT_NOUNS: Record<ReportTargetType, string> = {
   message: 'message',
   trip: 'trip',
   user: 'account',
+  review: 'review',
 };
 
 interface ReportSheetProps {

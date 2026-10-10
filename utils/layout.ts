@@ -135,7 +135,7 @@ export function contentColumnStyle(
  * - modal routes, which iOS already presents as a ~700pt sheet on iPad
  */
 const READING_COLUMN_ROUTES: Record<'root' | 'auth' | 'tabs', ReadonlySet<string>> = {
-  root: new Set(['notifications', 'messages/[threadId]', '(wallet)', 'destination/[slug]', 'connections/[uid]']),
+  root: new Set(['notifications', 'messages/[threadId]', '(wallet)', 'destination/[slug]', 'connections/[uid]', 'place/reviews']),
   auth: new Set(['sign-in', 'sign-up', 'forgot-password', 'complete-profile']),
   tabs: new Set(['create']),
 };

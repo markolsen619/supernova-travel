@@ -554,11 +554,39 @@ service cloud.firestore {
     // `${reporterUid}__${contentKey}`, see utils/moderation.ts), so repeats
     // can't stack toward onReportCreated's auto-hide threshold. Nobody reads
     // them from the client; moderators use the console (docs/moderation.md).
+    // Place photos & reviews (docs/superpowers/specs/2026-10-09-place-reviews-design.md). One per person per
+    // place: the id is {placeId}_{uid}. `visited` and `moderationHidden` are the server's (onPlaceReviewWritten,
+    // onReportCreated), never the author's.
+    match /placeReviews/{reviewId} {
+      function validReview(d) {
+        return d.authorUid == request.auth.uid
+          && reviewId == d.placeId + '_' + request.auth.uid
+          && d.placeId is string && d.placeId.size() > 0
+          && (d.rating == null || (d.rating is int && d.rating >= 1 && d.rating <= 5))
+          && d.text is string && d.text.size() <= 1000
+          && d.photoUrls is list && d.photoUrls.size() <= 6
+          && d.keys().hasOnly(['placeId', 'placeName', 'authorUid', 'authorName', 'authorAvatarUrl',
+                               'rating', 'text', 'photoUrls', 'createdAt', 'updatedAt', 'visited', 'moderationHidden']);
+      }
+      allow read: if isAuthed();
+      allow create: if isAuthed() && validReview(request.resource.data)
+        && !request.resource.data.keys().hasAny(['visited', 'moderationHidden']);
+      allow update: if isAuthed() && resource.data.authorUid == request.auth.uid && validReview(request.resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['visited', 'moderationHidden']);
+      allow delete: if isAuthed() && resource.data.authorUid == request.auth.uid;
+    }
+
+    // A place's review totals — server-maintained (onPlaceReviewWritten).
+    match /placeStats/{placeId} {
+      allow read: if isAuthed();
+      allow write: if false;
+    }
+
     match /reports/{reportId} {
       allow create: if isAuthed()
         && request.resource.data.reporterUid == request.auth.uid
         && request.resource.data.targetOwnerUid != request.auth.uid
-        && request.resource.data.targetType in ['post', 'comment', 'message', 'trip', 'user']
+        && request.resource.data.targetType in ['post', 'comment', 'message', 'trip', 'user', 'review']
         && request.resource.data.reason in ['spam', 'harassment', 'hate', 'sexual', 'violence', 'impersonation', 'other']
         && request.resource.data.status == 'open'
         && reportId == request.auth.uid + '__' + request.resource.data.targetKey
