@@ -4,6 +4,8 @@ import {
   MapView,
   Camera,
   StyleImport,
+  RasterDemSource,
+  Terrain,
   ShapeSource,
   CircleLayer,
   SymbolLayer,
@@ -16,6 +18,7 @@ import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import { destinationPinFeatures } from '@/utils/heatmap';
 import type { Destination } from '@/utils/destinations';
 import type { LightPreset } from '@/services/mapLighting';
+import { basemapConfig } from '@/utils/mapLook';
 import { DarkColors } from '@/constants/colors';
 import type * as GeoJSON from 'geojson';
 
@@ -120,13 +123,13 @@ export function GlobeMapView({
       <StyleImport
         id="basemap"
         existing
-        config={{
-          lightPreset,
-          showPointOfInterestLabels: true,
-          showLandmarkIcons: true,
-          show3dBuildings: true,
-        }}
+        // The same 3D city detail as the trip map (utils/mapLook): landmarks, facades, trees.
+        config={basemapConfig('map', lightPreset, false)}
       />
+      {/* Raised terrain: mountains read as mountains when you zoom into a region. */}
+      <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14}>
+        <Terrain style={{ exaggeration: 1.4 }} />
+      </RasterDemSource>
       <Camera
         ref={cameraRef}
         defaultSettings={{
