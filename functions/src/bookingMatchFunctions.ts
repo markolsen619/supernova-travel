@@ -6,6 +6,7 @@ import {
   type MatchableBooking, type MatchableTrip,
 } from './bookingMatch';
 import { syncTripShares } from './sharedBookingFunctions';
+import { syncBookingStop } from './bookingStopFunctions';
 
 const db = admin.firestore();
 const COLLECTIONS = { boarding_pass: 'boarding_passes', reservation: 'reservations' } as const;
@@ -83,6 +84,18 @@ export const onTripWrittenRematch = onDocumentWritten('trips/{tripId}', async (e
   // a failure in the rematch below can't leave a removed member's bookings up.
   if (JSON.stringify(before?.collaborators ?? []) !== JSON.stringify(after.collaborators ?? [])) {
     await syncTripShares(tripId, after);
+  }
+
+  // Dates or cities changed (a route save lays out new days): put linked bookings' stops on the right days.
+  for (const [kind, col] of Object.entries(COLLECTIONS) as [Kind, string][]) {
+    const linked = await db.collection(col).where('tripId', '==', tripId).get();
+    for (const d of linked.docs) {
+      try {
+        await syncBookingStop(kind, d.id, d.data(), d.data());
+      } catch (err) {
+        console.error('[bookingStop] resync failed', kind, d.id, err);
+      }
+    }
   }
 
   const members = new Set<string>([after.authorUid, ...((after.collaborators ?? []) as string[])].filter(Boolean));
