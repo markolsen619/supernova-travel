@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
@@ -15,7 +15,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { contentKey, filterVisible } from '@/utils/moderation';
 import { ratingLine, topReviews } from '@/utils/placeReviews';
 import { FontSize, FontWeight } from '@/constants/typography';
-import { Spacing } from '@/constants/spacing';
+import { Spacing, BorderRadius } from '@/constants/spacing';
 
 /** Every traveler's review of a place, visitors first (docs/superpowers/specs/2026-10-09-place-reviews-design.md). */
 export default function PlaceReviewsScreen() {
@@ -36,6 +36,11 @@ export default function PlaceReviewsScreen() {
     ),
     [reviews, moderation],
   );
+  // Photos from the reviews you can see (not the server's totals), so a blocked or reported author's never show.
+  const photos = useMemo(
+    () => [...list].sort((a, b) => b.updatedAtMs - a.updatedAtMs).flatMap((r) => r.photoUrls.map((url) => ({ url, id: r.id }))).slice(0, 24),
+    [list],
+  );
 
   const writeReview = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -46,7 +51,21 @@ export default function PlaceReviewsScreen() {
     if (review.authorUid === uid) {
       Alert.alert('Your review', undefined, [
         { text: 'Edit', onPress: writeReview },
-        { text: 'Delete', style: 'destructive', onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); remove(review); } },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => Alert.alert('Delete your review?', 'Its photos are deleted too.', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                remove(review).catch(() => Alert.alert("Your review wasn't deleted", 'Check your connection and try again.'));
+              },
+            },
+          ]),
+        },
         { text: 'Cancel', style: 'cancel' },
       ]);
       return;
@@ -88,6 +107,13 @@ export default function PlaceReviewsScreen() {
           keyExtractor={(r) => r.id}
           renderItem={({ item }) => <ReviewCard review={item} colors={colors} onMore={onMore} />}
           ItemSeparatorComponent={() => <View style={[styles.sep, { backgroundColor: colors.background.cardBorder }]} />}
+          ListHeaderComponent={photos.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photos}>
+              {photos.map((p) => (
+                <Image key={p.url} source={{ uri: p.url }} style={[styles.photo, { backgroundColor: colors.background.sunken }]} accessibilityIgnoresInvertColors />
+              ))}
+            </ScrollView>
+          ) : null}
           contentContainerStyle={{ paddingHorizontal: Spacing['5'], paddingBottom: insets.bottom + Spacing['6'] }}
         />
       )}
@@ -106,4 +132,6 @@ const styles = StyleSheet.create({
   write: { minHeight: 44, justifyContent: 'center' },
   writeText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   sep: { height: StyleSheet.hairlineWidth },
+  photos: { gap: Spacing['2'], paddingBottom: Spacing['3'] },
+  photo: { width: 132, height: 132, borderRadius: BorderRadius.md },
 });
