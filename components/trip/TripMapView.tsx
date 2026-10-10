@@ -18,7 +18,8 @@ import {
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat } from 'phosphor-react-native';
+import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
+import { arrivalCamera, basemapConfig, basemapStyleUrl } from '@/utils/mapLook';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -38,7 +39,7 @@ import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
 import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, zoomForLeg, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { routeFeatures } from '@/utils/routeFeatures';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -46,7 +47,6 @@ import { useMapStyleStore } from '@/stores/useMapStyleStore';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
-const STANDARD_STYLE = 'mapbox://styles/mapbox/standard';
 const INITIAL_ZOOM = 1.5;
 const INITIAL_COORDS: [number, number] = [0, 20];
 
@@ -214,6 +214,12 @@ export function TripMapView({
 
   const paletteId = useMapStyleStore((st) => st.paletteId);
   const setPaletteId = useMapStyleStore((st) => st.setPaletteId);
+  const basemap = useMapStyleStore((st) => st.basemap);
+  const setBasemap = useMapStyleStore((st) => st.setBasemap);
+  const toggleBasemap = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBasemap(basemap === 'map' ? 'satellite' : 'map');
+  }, [basemap, setBasemap]);
   const palette = routePalette(paletteId);
   const { grounded, ungrounded } = useMemo(() => collectStops(days, palette), [days, palette]);
 
@@ -518,13 +524,25 @@ export function TripMapView({
   useEffect(() => {
     // Only while resting on it — resuming mid-leg mustn't pull the camera back.
     if (!playingNow || !flyStop || flyoverRef.current.hold <= 0) return;
+    // In low over the stop, then a slow circle around it while the card shows it (utils/mapLook).
+    const cam = arrivalCamera(flyover.stopIndex);
     cameraRef.current?.setCamera({
       centerCoordinate: [flyStop.lng, flyStop.lat],
-      zoomLevel: 16,
-      pitch: 60,
+      zoomLevel: cam.zoom,
+      pitch: cam.pitch,
+      heading: cam.heading,
       animationDuration: 1200,
       animationMode: 'flyTo',
     });
+    const orbit = setTimeout(() => {
+      cameraRef.current?.setCamera({
+        centerCoordinate: [flyStop.lng, flyStop.lat],
+        heading: cam.orbitTo,
+        animationDuration: Math.max(600, STOP_DWELL_MS - 1300),
+        animationMode: 'easeTo',
+      });
+    }, 1250);
+    return () => clearTimeout(orbit);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per stop reached, not per tick
   }, [playingNow, flyover.dayIndex, flyover.stopIndex]);
 
@@ -854,7 +872,7 @@ export function TripMapView({
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        styleURL={STANDARD_STYLE}
+        styleURL={basemapStyleUrl(basemap)}
         projection="mercator"
         onPress={handleMapPress}
         onCameraChanged={handleCameraChanged}
@@ -869,19 +887,14 @@ export function TripMapView({
         <StyleImport
           id="basemap"
           existing
-          config={{
-            // Real time-of-day lighting — computed at mount; a trip map view
-            // is short-lived enough that it doesn't need live updates.
-            lightPreset: lightPresetForNow(),
-            showPointOfInterestLabels: true,
-            showLandmarkIcons: true,
-            show3dBuildings: true,
-          }}
+          // Every 3D detail on the map basemap (landmarks, facades, trees); satellite gets the options it has.
+          // Real time-of-day light while browsing; a flyover always plays in daylight (utils/mapLook).
+          config={basemapConfig(basemap, lightPresetForNow(), flying)}
         />
         {/* 3D terrain and sky — part of the map load already paid for, so the
             immersion costs nothing extra. */}
         <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14}>
-          <Terrain style={{ exaggeration: 1.3 }} />
+          <Terrain style={{ exaggeration: 1.4 }} />
         </RasterDemSource>
         <Atmosphere style={{ range: [0.8, 8], horizonBlend: 0.12, starIntensity: 0.12 }} />
         <Camera
@@ -1063,6 +1076,18 @@ export function TripMapView({
                 : <Play size={16} color="#ffffff" weight="fill" />}
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            onPress={toggleBasemap}
+            style={styles.headerBtnCircle}
+            hitSlop={8}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: basemap === 'satellite' }}
+            accessibilityLabel={basemap === 'satellite' ? 'Satellite view on. Switch to the 3D map' : 'Switch to satellite view'}
+          >
+            {basemap === 'satellite'
+              ? <MapTrifold size={18} color="#ffffff" weight="bold" />
+              : <GlobeHemisphereWest size={18} color="#ffffff" weight="bold" />}
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={togglePicker}
             style={styles.headerBtnCircle}

@@ -286,7 +286,9 @@ describe('flightAltitudeMeters', () => {
 
 describe('zoomForLeg', () => {
   it('stays close for walks and pulls back as legs get longer', () => {
-    expect(zoomForLeg('walk', 800)).toBe(15);
+    // Close enough for 3D buildings and landmarks, which Mapbox only draws from about zoom 15.
+    expect(zoomForLeg('walk', 800)).toBe(16);
+    expect(zoomForLeg('drive', 3_000)).toBeGreaterThanOrEqual(15);
     expect(zoomForLeg('drive', 5_000)).toBeGreaterThan(zoomForLeg('drive', 60_000));
     expect(zoomForLeg('flight', 5_400_000)).toBeLessThan(zoomForLeg('flight', 600_000));
     expect(zoomForLeg('flight', 5_400_000)).toBeGreaterThanOrEqual(2.5);
