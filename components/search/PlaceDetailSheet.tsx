@@ -40,6 +40,8 @@ interface Props {
    * keep the default Search-tab behavior (open the trip picker).
    */
   onAddToTrip?: (place: EnrichedPlace) => void;
+  /** False inside a full-screen RN Modal (AddStopSheet): the review screens would open behind it. */
+  showReviews?: boolean;
   /** Overrides the "Add to Trip" button label — e.g. "Add to This Day". */
   addToTripLabel?: string;
   /**
@@ -100,6 +102,7 @@ export function PlaceDetailSheet({
   addToTripLabel,
   booking,
   colors: colorsOverride,
+  showReviews,
 }: Props) {
   const { colors: themeColors } = useTheme();
   const colors = colorsOverride ?? themeColors;
@@ -377,7 +380,7 @@ export function PlaceDetailSheet({
 
       {/* Travelers' photos and reviews (docs/superpowers/specs/2026-10-09-place-reviews-design.md). Only a
           Google place id is shared by everyone; a Mapbox-only stop has none, so nothing to review yet. */}
-      {displayPlace.placeId ? (
+      {displayPlace.placeId && showReviews !== false ? (
         <PlaceReviewsSummary placeId={displayPlace.placeId} placeName={displayPlace.name} colors={colors} fromTrip={fromTrip} />
       ) : null}
 

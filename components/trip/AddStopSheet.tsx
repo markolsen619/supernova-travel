@@ -209,6 +209,7 @@ export function AddStopSheet({ visible, tripId, dayId, dayNumber, onClose }: Add
         {/* Place preview + confirm — reused PlaceDetailSheet, scoped to this day */}
         {previewPlace ? (
           <PlaceDetailSheet
+            showReviews={false}
             place={previewPlace}
             slideAnim={slideAnim}
             bottomInset={Platform.OS === 'ios' ? 24 : 12}

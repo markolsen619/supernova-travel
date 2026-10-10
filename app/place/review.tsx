@@ -45,21 +45,26 @@ export default function PlaceReviewScreen() {
 
   const pickPhotos = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const room = MAX_REVIEW_PHOTOS - photos.length;
+    // Before seeding has landed (Add photos on an existing review), count the review's own photos.
+    const have = photos.length || (mine?.photoUrls.length ?? 0);
+    const room = MAX_REVIEW_PHOTOS - have;
     if (room <= 0) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: room, quality: 0.85,
     });
     if (!result.canceled) setPhotos((cur) => [...cur, ...result.assets.map((a) => a.uri)].slice(0, MAX_REVIEW_PHOTOS));
-  }, [photos.length]);
+  }, [photos.length, mine]);
 
-  // "Add photos" from the place sheet: straight to the picker.
+  // "Add photos" from the place sheet: straight to the picker — once, after your review has loaded and the
+  // screen has slid in (iOS won't present the picker over a modal still animating). Through a ref, so the
+  // photos landing from seeding don't restart (and cancel) the wait.
+  const pickRef = useRef(pickPhotos);
+  pickRef.current = pickPhotos;
   useEffect(() => {
-    if (focus === 'photos' && seeded.current && !askedPhotos.current) {
-      askedPhotos.current = true;
-      pickPhotos();
-    }
-  }, [focus, isLoading, pickPhotos]);
+    if (focus !== 'photos' || isLoading || askedPhotos.current) return;
+    const t = setTimeout(() => { askedPhotos.current = true; pickRef.current(); }, 450);
+    return () => clearTimeout(t);
+  }, [focus, isLoading]);
 
   const close = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -92,7 +97,18 @@ export default function PlaceReviewScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('Delete your review?', 'Its photos are deleted too.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await remove(mine); router.back(); } },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await remove(mine);
+            router.back();
+          } catch {
+            setError("Your review wasn't deleted. Check your connection and try again.");
+          }
+        },
+      },
     ]);
   }, [mine, remove]);
 

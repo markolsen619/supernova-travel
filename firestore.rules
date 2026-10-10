@@ -558,21 +558,33 @@ service cloud.firestore {
     // place: the id is {placeId}_{uid}. `visited` and `moderationHidden` are the server's (onPlaceReviewWritten,
     // onReportCreated), never the author's.
     match /placeReviews/{reviewId} {
+      // A photo must be one of the author's own uploads (storage.rules place_photos/{uid}/), not any URL.
+      function ownPhoto(u) {
+        return u is string && u.matches('^https://firebasestorage[.]googleapis[.]com/v0/b/supernova-a2125[.]firebasestorage[.]app/o/place_photos%2F' + request.auth.uid + '%2F.*');
+      }
+      function ownPhotos(list) {
+        return (list.size() < 1 || ownPhoto(list[0])) && (list.size() < 2 || ownPhoto(list[1]))
+          && (list.size() < 3 || ownPhoto(list[2])) && (list.size() < 4 || ownPhoto(list[3]))
+          && (list.size() < 5 || ownPhoto(list[4])) && (list.size() < 6 || ownPhoto(list[5]));
+      }
       function validReview(d) {
         return d.authorUid == request.auth.uid
           && reviewId == d.placeId + '_' + request.auth.uid
           && d.placeId is string && d.placeId.size() > 0
           && (d.rating == null || (d.rating is int && d.rating >= 1 && d.rating <= 5))
           && d.text is string && d.text.size() <= 1000
-          && d.photoUrls is list && d.photoUrls.size() <= 6
-          && d.keys().hasOnly(['placeId', 'placeName', 'authorUid', 'authorName', 'authorAvatarUrl',
-                               'rating', 'text', 'photoUrls', 'createdAt', 'updatedAt', 'visited', 'moderationHidden']);
+          && d.photoUrls is list && d.photoUrls.size() <= 6 && ownPhotos(d.photoUrls)
+          // The server's clock, so a review can't pin itself to the top by claiming a later time.
+          && d.updatedAt == request.time
+          && d.keys().hasOnly(['placeId', 'placeName', 'authorUid', 'authorName', 'authorAvatarUrl', 'rating', 'text',
+                               'photoUrls', 'createdAt', 'updatedAt', 'visited', 'moderationHidden', 'moderationHiddenAt']);
       }
       allow read: if isAuthed();
       allow create: if isAuthed() && validReview(request.resource.data)
-        && !request.resource.data.keys().hasAny(['visited', 'moderationHidden']);
+        && request.resource.data.createdAt == request.time
+        && !request.resource.data.keys().hasAny(['visited', 'moderationHidden', 'moderationHiddenAt']);
       allow update: if isAuthed() && resource.data.authorUid == request.auth.uid && validReview(request.resource.data)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['visited', 'moderationHidden']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['visited', 'moderationHidden', 'moderationHiddenAt', 'createdAt']);
       allow delete: if isAuthed() && resource.data.authorUid == request.auth.uid;
     }
 
