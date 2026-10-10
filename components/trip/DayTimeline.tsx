@@ -95,9 +95,11 @@ export function DayTimeline({
     const timeByStop: Record<string, string | null> = {};
     const rows: DayBooking[] = [];
     for (const entry of dayBookings ?? []) {
+      // The stop made from (or attached to) this booking first; else one planned for the same place.
       const stop = entry.role === 'staying'
         ? undefined
-        : sorted.find((a) => !byStop[a.id] && bookingMatchesStop(entry.booking, a));
+        : sorted.find((a) => !byStop[a.id] && a.fromBooking?.id === entry.booking.item.id && a.fromBooking.kind === entry.booking.kind)
+          ?? sorted.find((a) => !byStop[a.id] && bookingMatchesStop(entry.booking, a));
       if (stop) {
         byStop[stop.id] = bookingLines(entry).detail || 'Booked';
         timeByStop[stop.id] = entry.time;

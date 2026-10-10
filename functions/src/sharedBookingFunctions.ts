@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { syncBookingStop } from './bookingStopFunctions';
 import { mirrorId, mirrorPlan, shareTarget, sharedCopy, sharedTripId, tripMembers, type BookingKind } from './sharedBookings';
 
 const db = admin.firestore();
@@ -30,11 +31,21 @@ async function syncBooking(kind: BookingKind, id: string, before: Record<string,
   await ref.set(sharedCopy(kind, id, after, await ownerName(after.ownerUid)));
 }
 
+/** Both jobs a booking write needs: its shared copy, and its stop on the trip's itinerary (bookingStopFunctions.ts). */
+async function onBookingWrite(kind: BookingKind, id: string, before: Record<string, any> | undefined, after: Record<string, any> | undefined) {
+  try {
+    await syncBookingStop(kind, id, before, after);
+  } catch (err) {
+    console.error('[bookingStop] sync failed', kind, id, err);
+  }
+  await syncBooking(kind, id, before, after);
+}
+
 export const onBoardingPassWrittenShare = onDocumentWritten('boarding_passes/{id}', (event) =>
-  syncBooking('boarding_pass', event.params.id, event.data?.before?.data(), event.data?.after?.data()));
+  onBookingWrite('boarding_pass', event.params.id, event.data?.before?.data(), event.data?.after?.data()));
 
 export const onReservationWrittenShare = onDocumentWritten('reservations/{id}', (event) =>
-  syncBooking('reservation', event.params.id, event.data?.before?.data(), event.data?.after?.data()));
+  onBookingWrite('reservation', event.params.id, event.data?.before?.data(), event.data?.after?.data()));
 
 /**
  * Rebuild a trip's shared copies from its linked bookings — when its members
