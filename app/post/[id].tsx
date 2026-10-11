@@ -34,7 +34,11 @@ import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
 import { Comment } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash, Heart, X, WifiSlash } from 'phosphor-react-native';
+import { MapTrifold, ArrowLeft, MapPin, ArrowRight, PencilSimple, TrashSimple, DotsThree, EyeSlash, Heart, X, WifiSlash, SpeakerHigh, SpeakerSlash } from 'phosphor-react-native';
+import { useIsFocused } from '@react-navigation/native';
+import { VideoPlayer } from '@/components/feed/VideoPlayer';
+import { useFeedSoundStore } from '@/stores/useFeedSoundStore';
+import { videoDisplay } from '@/utils/videoPost';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useCommentLike } from '@/hooks/usePostLike';
 import { threadComments, replyFieldsFor, commentMenu } from '@/utils/commentThreads';
@@ -275,6 +279,13 @@ export default function PostDetailScreen() {
   const containerRef = useRef<View>(null);
   const keyboardInset = useKeyboardInset(containerRef);
   const { colors } = useTheme();
+  const isFocused = useIsFocused();
+  const muted = useFeedSoundStore((st) => st.muted);
+  const toggleMuted = useFeedSoundStore((st) => st.toggleMuted);
+  const handleToggleSound = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleMuted();
+  }, [toggleMuted]);
   const uid = useAuthStore((s) => s.user?.uid ?? '');
 
   const { data: post, isLoading: postLoading, isError: postError, refetch: refetchPost } = usePost(id ?? null);
@@ -530,7 +541,26 @@ export default function PostDetailScreen() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
-        {post && postImageUrls(post).length > 0 ? <PostPhotos urls={postImageUrls(post)} /> : null}
+        {post && post.mediaType === 'video' && post.mediaUrl ? (
+          <View style={styles.media}>
+            <VideoPlayer
+              uri={post.mediaUrl}
+              shouldPlay={isFocused}
+              muted={muted}
+              coverUrl={videoDisplay(post).coverUrl}
+              landscape={videoDisplay(post).landscape}
+            />
+            <TouchableOpacity
+              onPress={handleToggleSound}
+              style={styles.soundButton}
+              accessibilityRole="button"
+              accessibilityLabel={muted ? 'Turn sound on' : 'Turn sound off'}
+              hitSlop={8}
+            >
+              {muted ? <SpeakerSlash size={18} color="#ffffff" weight="bold" /> : <SpeakerHigh size={18} color="#ffffff" weight="bold" />}
+            </TouchableOpacity>
+          </View>
+        ) : post && postImageUrls(post).length > 0 ? <PostPhotos urls={postImageUrls(post)} /> : null}
 
         {post && (
           <View style={[styles.postInfo, { borderBottomColor: colors.background.cardBorder }]}>
@@ -709,6 +739,17 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold },
   scroll: { flex: 1 },
   media: { width: '100%', aspectRatio: 9 / 16, backgroundColor: '#111' },
+  soundButton: {
+    position: 'absolute',
+    right: Spacing['4'],
+    bottom: Spacing['4'],
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   photoDots: { position: 'absolute', bottom: Spacing['3'], left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 5 },
   photoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.45)' },
   photoDotActive: { width: 16, backgroundColor: '#ffffff' },
