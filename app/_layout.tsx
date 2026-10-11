@@ -76,6 +76,7 @@ function AppStack() {
         <Stack.Screen name="trip/ai-generating" options={{ presentation: 'modal', gestureEnabled: false }} />
         <Stack.Screen name="post/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="post/create-photo" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="post/create-video" options={{ presentation: 'modal' }} />
         <Stack.Screen name="post/create-trip" options={{ presentation: 'modal' }} />
         <Stack.Screen name="post/edit/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="user/[uid]" />
