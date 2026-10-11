@@ -47,6 +47,9 @@ export interface Post {
   mediaUrl: string;
   mediaUrls: string[];
   thumbnailUrl: string | null;
+  /** Video posts only (utils/videoPost): seconds, and width / height of the upright frame. */
+  durationSec?: number;
+  aspect?: number;
   placeName: string | null;
   placeId: string | null;
   lat: number | null;
