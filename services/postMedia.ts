@@ -19,3 +19,19 @@ export async function uploadPostImage(uid: string, uri: string, index: number): 
   });
   return getDownloadURL(storageRef);
 }
+
+/** Uploads a local file to `path` with its content type, reporting 0–1 progress; resolves the download URL. */
+export async function uploadPostFile(path: string, uri: string, contentType: string, onProgress?: (fraction: number) => void): Promise<string> {
+  const blob = await fetch(uri).then((r) => r.blob());
+  const storageRef = ref(storage, path);
+  const task = uploadBytesResumable(storageRef, blob, { contentType });
+  await new Promise<void>((resolve, reject) => {
+    task.on(
+      'state_changed',
+      (s) => onProgress?.(s.totalBytes ? s.bytesTransferred / s.totalBytes : 0),
+      (err) => reject(new Error(`Storage upload failed: ${err.message}`)),
+      resolve,
+    );
+  });
+  return getDownloadURL(storageRef);
+}

@@ -4,7 +4,10 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
-import { uploadPostImage } from '@/services/postMedia';
+import { uploadPostFile, uploadPostImage } from '@/services/postMedia';
+import { Video, getVideoMetaData } from 'react-native-compressor';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import { clipDurationSec, postingProgress, videoAspect, videoPostFields, videoProblem, videoStoragePaths } from '@/utils/videoPost';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { Trip } from '@/types';
@@ -13,6 +16,17 @@ import { tripPlaceLabel } from '@/utils/tripRegion';
 
 interface CreatePhotoPostInput {
   localUris: string[];
+  caption: string;
+  placeName: string | null;
+}
+
+/** A clip that can't be posted as it is — its message is for the person posting. */
+class VideoPostProblem extends Error {}
+
+interface CreateVideoPostInput {
+  localUri: string;
+  /** expo-image-picker's `asset.duration` (ms), when it has one. */
+  pickerDurationMs: number | null;
   caption: string;
   placeName: string | null;
 }
@@ -94,6 +108,56 @@ export function useCreatePost() {
     }
   }
 
+  async function createVideoPost(input: CreateVideoPostInput): Promise<string> {
+    if (!user) throw new Error('Not authenticated');
+    if (containsObjectionableText(input.caption) || containsObjectionableText(input.placeName)) {
+      throw new Error(OBJECTIONABLE_TEXT_MESSAGE);
+    }
+    setIsUploading(true);
+    setUploadProgress(0);
+    try {
+      const compressedUri = await Video.compress(
+        input.localUri,
+        { compressionMethod: 'manual', maxSize: 1280, bitrate: 2_500_000 },
+        (p) => setUploadProgress(postingProgress('compress', p)),
+      );
+      const meta = await getVideoMetaData(compressedUri);
+      const durationSec = clipDurationSec(input.pickerDurationMs, Number(meta.duration) || null);
+      const problem = videoProblem({ durationSec, bytes: Number(meta.size) || null });
+      if (problem) throw new VideoPostProblem(problem);
+      const cover = await VideoThumbnails.getThumbnailAsync(compressedUri, { time: 500, quality: 0.8 });
+      const paths = videoStoragePaths(user.uid, Date.now());
+      const coverUrl = await uploadPostFile(paths.cover, cover.uri, 'image/jpeg');
+      const videoUrl = await uploadPostFile(paths.video, compressedUri, 'video/mp4', (f) => setUploadProgress(postingProgress('upload', f)));
+      // Written last: a failed upload never leaves a post pointing at a missing file.
+      const docRef = await addDoc(collection(db, 'posts'), {
+        authorUid: user.uid,
+        authorDisplayName: profile?.fullName ?? user.displayName ?? 'Traveler',
+        authorUsername: profile?.username ?? '',
+        authorAvatarUrl: profile?.avatarUrl ?? null,
+        caption: input.caption.trim(),
+        ...videoPostFields({ videoUrl, coverUrl, durationSec: durationSec!, aspect: videoAspect(cover.width, cover.height) }),
+        placeName: input.placeName,
+        placeId: null, lat: null, lng: null,
+        tripId: null, tripTitle: null, tripDestination: null, tripDateRange: null,
+        likesCount: 0, commentsCount: 0,
+        ...newPostVisibility(isPrivateAccount(profile)),
+        tags: [],
+        createdAt: serverTimestamp(),
+      });
+      invalidateFeed();
+      return docRef.id;
+    } catch (e) {
+      // Our own checks already speak in sentences; anything native (compressor, upload) gets one.
+      if (e instanceof VideoPostProblem) throw e;
+      console.warn('[createVideoPost] failed', e);
+      throw new Error("Your video didn't upload. Check your connection and try again.");
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  }
+
   async function createTripPost(input: CreateTripPostInput): Promise<string> {
     if (!user) throw new Error('Not authenticated');
     if (containsObjectionableText(input.caption)) throw new Error(OBJECTIONABLE_TEXT_MESSAGE);
@@ -136,5 +200,5 @@ export function useCreatePost() {
     }
   }
 
-  return { createPhotoPost, createTripPost, isUploading, uploadProgress };
+  return { createPhotoPost, createVideoPost, createTripPost, isUploading, uploadProgress };
 }
