@@ -17,12 +17,15 @@ import {
   Image as MapImage,
   SymbolLayer,
   type LineLayerStyle,
+  setAccessToken,
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
+import { ArrowLeft, ArrowClockwise, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
 import { arrivalCamera, basemapConfig, SATELLITE_TILES } from '@/utils/mapLook';
 import { aheadBearing, legPitch, legZoom, limitTurn } from '@/utils/flyoverCamera';
+import { MAP_STALL_MS, parseMapLoadError, shouldReportMapError, shouldShowMapRetry } from '@/utils/mapLoadHealth';
+import { reportMapError } from '@/services/mapDiagnostics';
 import type * as GeoJSON from 'geojson';
 import { DarkColors } from '@/constants/colors';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -48,6 +51,9 @@ import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type Ro
 import { useMapStyleStore } from '@/stores/useMapStyleStore';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+
+// The trip map sets the token itself rather than relying on the globe's module having loaded first.
+setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '');
 
 const INITIAL_ZOOM = 1.5;
 const INITIAL_COORDS: [number, number] = [0, 20];
@@ -598,6 +604,40 @@ export function TripMapView({
     flyToBounds([Math.max(...lngs), Math.max(...lats)], [Math.min(...lngs), Math.min(...lats)]);
   }, [grounded, flyTo, flyToBounds]);
 
+  // ── Load health (utils/mapLoadHealth) ────────────────────────────────────
+  // A map whose downloads fail sits on coarse tiles until Mapbox's retry back-off
+  // runs out (minutes on build 32). Record why, and offer a Retry that rebuilds it.
+  const [mapKey, setMapKey] = useState(0);
+  const [showRetry, setShowRetry] = useState(false);
+  const health = useRef({ openedAtMs: Date.now(), loadedAtMs: null as number | null, errorCount: 0, sent: new Set<string>() });
+  useEffect(() => {
+    health.current = { openedAtMs: Date.now(), loadedAtMs: null, errorCount: 0, sent: new Set() };
+    setShowRetry(false);
+    const t = setTimeout(() => setShowRetry(shouldShowMapRetry({ ...health.current, nowMs: Date.now() })), MAP_STALL_MS);
+    return () => clearTimeout(t);
+  }, [mapKey]);
+  const handleMapLoaded = useCallback(() => {
+    if (health.current.loadedAtMs == null) health.current.loadedAtMs = Date.now();
+    setShowRetry(shouldShowMapRetry({ ...health.current, nowMs: Date.now() }));
+  }, []);
+  const handleMapLoadingError = useCallback((event: unknown) => {
+    const e = parseMapLoadError(event);
+    if (!e) return;
+    const h = health.current;
+    h.errorCount += 1;
+    if (shouldReportMapError(h.sent, e)) {
+      reportMapError(e, { tripId, basemap, flying: flyoverRef.current.status === 'playing', msSinceOpen: Date.now() - h.openedAtMs });
+    }
+    setShowRetry(shouldShowMapRetry({ ...h, nowMs: Date.now() }));
+  }, [tripId, basemap]);
+  const handleRetryMap = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    dispatch({ type: 'stop' });
+    setMapKey((k) => k + 1);
+    // The rebuilt map starts at the default camera; frame the trip again once it's there.
+    setTimeout(fitAllStops, 400);
+  }, [fitAllStops]);
+
   const handlePlay = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Reduce Motion: routes are already fully drawn — just frame the trip.
@@ -904,12 +944,16 @@ export function TripMapView({
   return (
     <View style={styles.container}>
       <MapView
+        key={mapKey}
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         styleURL="mapbox://styles/mapbox/standard"
         projection="mercator"
         onPress={handleMapPress}
         onCameraChanged={handleCameraChanged}
+        onDidFinishLoadingMap={handleMapLoaded}
+        onMapIdle={handleMapLoaded}
+        onMapLoadingError={handleMapLoadingError as never}
         // Mapbox ToS requires the wordmark + attribution on-map
         logoEnabled
         logoPosition={{ bottom: 24, left: 8 }}
@@ -1145,6 +1189,16 @@ export function TripMapView({
           </TouchableOpacity>
         </View>
       </View>
+
+      {showRetry ? (
+        <View style={[styles.retryBanner, { top: insets.top + (showModeSwitch ? 108 : 56) }]} accessibilityLiveRegion="polite">
+          <Text style={styles.retryText}>{"The map didn't fully load"}</Text>
+          <TouchableOpacity onPress={handleRetryMap} style={styles.retryButton} accessibilityRole="button" accessibilityLabel="Reload the map">
+            <ArrowClockwise size={14} color={DarkColors.text.primary} weight="bold" />
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {showModeSwitch ? (
         <View style={[styles.modeSwitch, { top: insets.top + 56, backgroundColor: colors.background.elevated }]}>
@@ -1502,6 +1556,22 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['2'],
   },
   headerRight: { flexDirection: 'row', gap: Spacing['2'] },
+  retryBanner: {
+    position: 'absolute',
+    left: Spacing['5'],
+    right: Spacing['5'],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: Spacing['4'],
+    paddingRight: Spacing['1'],
+    minHeight: 48,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(23,20,34,0.94)',
+  },
+  retryText: { color: '#F5F3F9', fontSize: 14, fontWeight: FontWeight.medium, flex: 1 },
+  retryButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: Spacing['3'] },
+  retryButtonText: { color: '#F5F3F9', fontSize: 14, fontWeight: FontWeight.semiBold },
   vehicle: {
     width: 34,
     height: 34,

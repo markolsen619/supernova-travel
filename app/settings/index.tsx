@@ -22,6 +22,8 @@ import { useThemeStore, ThemeMode } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Button } from '@/components/ui/Button';
 import { SettingsRow } from '@/components/settings/SettingsRow';
+import * as Application from 'expo-application';
+import { appVersionLabel } from '@/utils/appVersion';
 import { pushPermission, requestPushNow } from '@/services/push';
 import { notificationSettingAction, type PushPermission } from '@/utils/pushIntro';
 import { auth } from '@/services/firebase';
@@ -243,7 +245,8 @@ export default function SettingsScreen() {
         <View style={sectionStyle}>
           <SettingsRow label="Privacy policy" onPress={handleOpenPrivacyPolicy} showDivider />
           <SettingsRow label="Terms of use" onPress={handleOpenTerms} showDivider />
-          <SettingsRow label="Version" value={Constants.expoConfig?.version ?? ''} />
+          {/* Version and build ("1.0.4 (33)"): which TestFlight build someone has, at a glance. */}
+          <SettingsRow label="Version" value={appVersionLabel(Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? null, Application.nativeBuildVersion ?? null)} />
         </View>
 
         {/* Sign out */}

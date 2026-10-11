@@ -594,6 +594,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Trip-map download failures (utils/mapLoadHealth, services/mapDiagnostics): written by the
+    // app, read only with the Admin SDK. At most 5 per map open, client-side.
+    match /mapDiagnostics/{diagId} {
+      allow create: if isAuthed()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.error is string && request.resource.data.error.size() <= 300
+        && request.resource.data.tripId is string && request.resource.data.tripId.size() <= 64
+        && request.resource.data.basemap in ['map', 'satellite']
+        && request.resource.data.keys().hasOnly([
+          'uid', 'tripId', 'basemap', 'flying', 'error', 'sourceId', 'tileId',
+          'appVersion', 'buildNumber', 'osVersion', 'deviceModel', 'msSinceOpen', 'createdAt'
+        ]);
+    }
+
     match /reports/{reportId} {
       allow create: if isAuthed()
         && request.resource.data.reporterUid == request.auth.uid
