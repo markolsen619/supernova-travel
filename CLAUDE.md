@@ -271,7 +271,8 @@ UI primitives in `components/ui/`:
 Feed components in `components/feed/`:
 - `FeedCard` — travel post card (photo/video + author metadata, like/comment counts)
 - `FeedActions` — like, comment, and save buttons row
-- `VideoPlayer` — video playback; uses `expo-av`
+- `VideoPlayer` — feed clips on `expo-video` (`expo-av` is gone): the cover (`thumbnailUrl`) shows until the first frame, plays only while its card is active, muted by `stores/useFeedSoundStore` (muted until the speaker is tapped, held while scrolling, not persisted), landscape (`aspect > 1.05`) shown whole over a blurred cover. Also used by the post screen
+- **Video posts** (spec `docs/superpowers/specs/2026-10-10-video-posts-design.md`; rules in `utils/videoPost.ts`): Add to feed → `app/post/create-video.tsx` (iOS picker trims to 30 s) → `useCreatePost.createVideoPost`: `react-native-compressor` 1.19.x (720p, ~2.5 Mbps; 2.x needs Nitro) → cover via `expo-video-thumbnails` → both uploaded to `posts/{uid}/videos/` → **the post doc last**, so a failed upload never leaves a broken post. Doc: `mediaType 'video'`, `mediaUrl` = mp4 (older apps' feeds play it), `mediaUrls: [cover]` (older post screens show it), `thumbnailUrl`, `durationSec`, `aspect` — **the aspect comes from the cover frame, not the asset**, since iPhone portrait clips are often stored sideways with a rotation flag. Grids use `gridImageUrl` (an `Image` can't draw an mp4; 1.0.4 and older show a blank tile). Rules: Storage video ≤ 40 MB, posts `durationSec ≤ 31`
 
 Trip components in `components/trip/`:
 - `TripCard` — trip preview card for grids and lists. `author?: {name, avatarUrl}` and `fallbackCoverUrl?` are both resolved by the caller and passed in — the card itself never fetches on render (a profile fetch or Places call inside a list-cell render would be a cost/perf footgun). Omit `author` to show no author row at all rather than a fake "Traveler" placeholder
