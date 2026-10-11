@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { gridImageUrl } from '@/utils/postImages';
 import {
   View,
   Text,
@@ -20,6 +21,7 @@ import {
   BookmarkSimple,
   SquaresFour,
   Compass,
+  Play,
 } from 'phosphor-react-native';
 import { excludeTripShares } from '@/utils/posts';
 import { useTheme } from '@/hooks/useTheme';
@@ -64,6 +66,7 @@ const EMPTY_COPY: Record<TripFilter, { title: string; description: string }> = {
 interface PostDoc {
   id: string;
   mediaUrl?: string;
+  thumbnailUrl?: string | null;
   mediaType?: string;
   caption?: string;
 }
@@ -453,8 +456,15 @@ function ProfileScreenContent() {
               onPress={() => handlePostPress(item.id)}
               activeOpacity={0.85}
             >
-              {item.mediaUrl ? (
-                <Image source={{ uri: item.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              {gridImageUrl(item) ? (
+                <>
+                  <Image source={{ uri: gridImageUrl(item)! }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  {item.mediaType === 'video' ? (
+                    <View style={styles.videoBadge} pointerEvents="none">
+                      <Play size={14} color="#ffffff" weight="fill" />
+                    </View>
+                  ) : null}
+                </>
               ) : (
                 <View style={[StyleSheet.absoluteFill, styles.postCellFallback]}>
                   <SquaresFour size={20} color={colors.text.disabled} weight="duotone" />
@@ -647,6 +657,14 @@ const styles = StyleSheet.create({
 
   postCell: {
     overflow: 'hidden',
+  },
+  videoBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    padding: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   postCellFallback: {
     alignItems: 'center',

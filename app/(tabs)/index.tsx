@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
 import { useNavigation, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,6 +36,8 @@ export default function FeedScreen() {
   const { colors } = useTheme();
   const { height, feedWidth, isLarge } = useLayout();
   const [activeIndex, setActiveIndex] = useState(0);
+  // Off-screen (the post screen on top, another tab) no clip plays: the feed kept playing under them.
+  const screenFocused = useIsFocused();
   const listRef = useRef<FlashListRef<Post>>(null);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
@@ -222,7 +225,7 @@ export default function FeedScreen() {
           renderItem={({ item, index }) => (
             <FeedCard
               post={item}
-              isActive={index === activeIndex}
+              isActive={screenFocused && index === activeIndex}
               author={authorProfiles[item.authorUid]}
               onMorePress={handleMorePress}
             />

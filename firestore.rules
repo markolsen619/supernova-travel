@@ -149,7 +149,10 @@ service cloud.firestore {
       // visibility, when given, must be one we know.
       allow create: if isAuthed() && request.auth.uid == request.resource.data.authorUid
         && !request.resource.data.keys().hasAny(['moderationHidden'])
-        && (!request.resource.data.keys().hasAny(['visibility']) || request.resource.data.visibility in ['public', 'followers']);
+        && (!request.resource.data.keys().hasAny(['visibility']) || request.resource.data.visibility in ['public', 'followers'])
+        // A video clip is at most 30 s (utils/videoPost; a second of slack for rounding).
+        && (request.resource.data.get('mediaType', '') != 'video'
+            || (request.resource.data.get('durationSec', null) is number && request.resource.data.durationSec <= 31));
       // Authors may update anything except the moderation flag; anyone signed in may bump ONLY the
       // denormalized like counter, and only by exactly +1/-1 per write (the
       // like transaction maintains it) — hasOnly() alone would let any

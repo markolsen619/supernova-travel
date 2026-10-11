@@ -14,7 +14,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MapTrifold, Heart, HeartBreak } from 'phosphor-react-native';
+import { MapTrifold, Heart, HeartBreak, SpeakerHigh, SpeakerSlash } from 'phosphor-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFeedSoundStore } from '@/stores/useFeedSoundStore';
+import { videoDisplay } from '@/utils/videoPost';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { VideoPlayer } from './VideoPlayer';
@@ -102,6 +105,14 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
   // feedWidth is the window width on phones; a centred 9:16 column on large screens.
   const { feedWidth: width, height } = useLayout();
   const [photoIndex, setPhotoIndex] = useState(0);
+  const insets = useSafeAreaInsets();
+  const muted = useFeedSoundStore((s) => s.muted);
+  const toggleMuted = useFeedSoundStore((s) => s.toggleMuted);
+  const handleToggleSound = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleMuted();
+  }, [toggleMuted]);
+  const video = videoDisplay(post);
 
   const handleCommentPress = useCallback(() => {
     router.push(`/post/${post.id}`);
@@ -136,7 +147,13 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
       <GestureDetector gesture={doubleTap}>
       <View style={StyleSheet.absoluteFill} collapsable={false}>
       {post.mediaType === 'video' ? (
-        <VideoPlayer uri={post.mediaUrl} shouldPlay={isActive} isMuted={false} />
+        <VideoPlayer
+          uri={post.mediaUrl}
+          shouldPlay={isActive}
+          muted={muted}
+          coverUrl={video.coverUrl}
+          landscape={video.landscape}
+        />
       ) : isMultiPhoto ? (
         <ScrollView
           horizontal
@@ -205,6 +222,19 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
         />
       )}
 
+      {/* Sound — feed clips start muted; the choice holds while scrolling (useFeedSoundStore). */}
+      {post.mediaType === 'video' ? (
+        <TouchableOpacity
+          onPress={handleToggleSound}
+          style={[styles.soundButton, { top: insets.top + 56 }]}
+          accessibilityRole="button"
+          accessibilityLabel={muted ? 'Turn sound on' : 'Turn sound off'}
+          hitSlop={8}
+        >
+          {muted ? <SpeakerSlash size={18} color="#ffffff" weight="bold" /> : <SpeakerHigh size={18} color="#ffffff" weight="bold" />}
+        </TouchableOpacity>
+      ) : null}
+
       {/* Overlaid controls */}
       <FeedActions post={post} author={author} onCommentPress={handleCommentPress} onMorePress={onMorePress} liked={liked} onLikePress={handleLikePress} />
     </View>
@@ -216,6 +246,16 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  soundButton: {
+    position: 'absolute',
+    right: Spacing['4'],
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   gradient: {
     position: 'absolute',

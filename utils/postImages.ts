@@ -8,3 +8,9 @@ export function postImageUrls(post: { mediaUrls?: string[] | null; mediaUrl?: st
   if (urls.length) return urls;
   return post.mediaUrl ? [post.mediaUrl] : [];
 }
+
+/** A post's grid tile: a video is shown by its cover, never by its mp4 (an Image can't draw one). */
+export function gridImageUrl(post: { mediaType?: string; mediaUrl?: string | null; thumbnailUrl?: string | null }): string | null {
+  if (post.mediaType === 'video') return post.thumbnailUrl ?? null;
+  return post.mediaUrl ?? null;
+}

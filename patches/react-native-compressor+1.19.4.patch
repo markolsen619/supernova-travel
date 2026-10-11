@@ -1,0 +1,37 @@
+diff --git a/node_modules/react-native-compressor/android/src/main/java/com/reactnativecompressor/Video/VideoCompressor/compressor/Compressor.kt b/node_modules/react-native-compressor/android/src/main/java/com/reactnativecompressor/Video/VideoCompressor/compressor/Compressor.kt
+index f2e346f..3d2fc33 100644
+--- a/node_modules/react-native-compressor/android/src/main/java/com/reactnativecompressor/Video/VideoCompressor/compressor/Compressor.kt
++++ b/node_modules/react-native-compressor/android/src/main/java/com/reactnativecompressor/Video/VideoCompressor/compressor/Compressor.kt
+@@ -110,11 +110,8 @@ object Compressor {
+     // scans the whole file for every known location encoding.
+     val retrievedLocation =
+       mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION)
+-    val locationData = if (!retrievedLocation.isNullOrEmpty()) {
+-      retrievedLocation
+-    } else {
+-      LocationExtractor.extract(context, srcUri)
+-    }
++    // Supernova: never copy where a clip was filmed into the output — posts are public.
++    val locationData: String? = null
+     // Never log the resolved ISO 6709 string — it is the user's exact GPS
+     // coordinates. Log only presence and which mechanism resolved it.
+     val locationSource = when {
+diff --git a/node_modules/react-native-compressor/ios/Video/VideoMain.swift b/node_modules/react-native-compressor/ios/Video/VideoMain.swift
+index 3e29497..ec40c2e 100644
+--- a/node_modules/react-native-compressor/ios/Video/VideoMain.swift
++++ b/node_modules/react-native-compressor/ios/Video/VideoMain.swift
+@@ -350,7 +350,13 @@ class VideoCompressor {
+         for format in asset.availableMetadataFormats {
+             preservedMetadata.append(contentsOf: asset.metadata(forFormat: format))
+         }
+-        exporter.metadata = preservedMetadata
++        // Supernova: never copy where a clip was filmed — posts are public, and the place is
++        // what the person chooses to tag. Drops QuickTime/common/user-data location items.
++        exporter.metadata = preservedMetadata.filter { item in
++            let id = (item.identifier?.rawValue ?? "").lowercased()
++            let key = ((item.key as? String) ?? "").lowercased()
++            return !(id.contains("location") || id.contains("xyz") || key.contains("location") || key.contains("xyz"))
++        }
+ 
+         compressorExports[uuid] = exporter
+         exporter.export(progressHandler: { (progress) in

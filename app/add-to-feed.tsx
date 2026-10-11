@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { X, Camera, MapTrifold } from 'phosphor-react-native';
+import { X, Camera, MapTrifold, VideoCamera } from 'phosphor-react-native';
 import type { PhosphorIcon } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
@@ -32,6 +32,13 @@ export default function AddToFeedScreen() {
       title: 'Post a photo',
       description: 'Share a travel moment with your followers',
       onPress: () => router.push('/post/create-photo'),
+    },
+    {
+      Icon: VideoCamera,
+      iconColor: colors.brand.purple,
+      title: 'Post a video',
+      description: 'Share a clip from your trip',
+      onPress: () => router.push('/post/create-video'),
     },
     {
       Icon: MapTrifold,

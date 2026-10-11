@@ -6,7 +6,7 @@
  * profile ScrollView, so this is a flex-wrap grid rather than a FlashList.
  */
 
-import { postImageUrls } from '@/utils/postImages';
+import { gridImageUrl, postImageUrls } from '@/utils/postImages';
 import { canSeePost } from '@/utils/privacy';
 import React, { useMemo } from 'react';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
-import { SquaresFour, Copy } from 'phosphor-react-native';
+import { SquaresFour, Copy, Play } from 'phosphor-react-native';
 
 import { db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
@@ -31,6 +31,7 @@ interface PostDoc {
   id: string;
   mediaUrl?: string;
   mediaUrls?: string[];
+  thumbnailUrl?: string | null;
   mediaType?: string;
   moderationHidden?: boolean;
   visibility?: string;
@@ -119,9 +120,14 @@ export function PostsGrid({ uid, viewerFollows = false }: PostsGridProps) {
           activeOpacity={0.85}
           accessibilityLabel="Open post"
         >
-          {post.mediaUrl ? (
+          {gridImageUrl(post) ? (
             <>
-              <Image source={{ uri: post.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              <Image source={{ uri: gridImageUrl(post)! }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              {post.mediaType === 'video' ? (
+                <View style={styles.multiBadge} pointerEvents="none">
+                  <Play size={14} color="#ffffff" weight="fill" />
+                </View>
+              ) : null}
               {/* More than one photo: open it to swipe through them all. */}
               {postImageUrls(post).length > 1 ? (
                 <View style={styles.multiBadge} pointerEvents="none">
