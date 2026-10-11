@@ -1,5 +1,6 @@
 # App Store text for 1.0.4
 
+> **SUBMITTED 2026-10-11 with build 33 — Waiting for Review, manual release.** App Privacy published with Other Diagnostic Data (linked, App Functionality, no tracking); 9 data types now. Promotional text re-entered (the new version came up empty).
 > Drafted 2026-10-11 for build 33. Changes from 1.0.3: What's New; description bullets (multi-city, 3D/satellite, reviews, booking stops, rewards statements); review notes swap NEW IN 1.0.3 for NEW IN 1.0.4 and list place reviews as user-generated content. **App Privacy:** add Diagnostics → Other Diagnostic Data (linked, App Functionality, no tracking) — build 33's map diagnostics (`mapDiagnostics`). Privacy policy updated and deployed (effective October 11, 2026): place reviews, map diagnostics.
 
 ## What's New (716 characters)
@@ -29,7 +30,7 @@ YOUR TRAVEL WALLET
 • Boarding passes with a scannable code, so you're not digging through email at the gate
 • Hotel, rental car, restaurant, train, bus and ferry reservations in one list
 • Loyalty programs with their balances, all in one place
-• Bookings show up as stops on the right days of your trip, and everyone on the trip sees them
+• Bookings show up on the right days of your trip, and everyone on the trip sees them
 • Forwarded rewards statements keep your loyalty balances up to date (Pro)
 • Forward confirmation emails to your own Supernova address and they land in your wallet, matched to your trip (Pro)
 
