@@ -1,9 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Image, StyleSheet, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useAppActive } from '@/hooks/useAppActive';
+import { CLIP_AUDIO_MIXING, shouldPlayClip } from '@/utils/videoPlayback';
 
 interface VideoPlayerProps {
   uri: string;
+  /** The card is the one on screen and its screen is focused; the app being in the foreground is checked here. */
   shouldPlay: boolean;
   muted: boolean;
   coverUrl: string | null;
@@ -16,17 +19,25 @@ export function VideoPlayer({ uri, shouldPlay, muted, coverUrl, landscape }: Vid
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = muted;
+    p.audioMixingMode = CLIP_AUDIO_MIXING;
   });
   const coverOpacity = useRef(new Animated.Value(1)).current;
+  const appActive = useAppActive();
+  const playing = shouldPlayClip({ cardActive: shouldPlay, screenFocused: true, appActive });
+
+  // A recycled feed cell gets a new clip: show its cover again until that clip's first frame.
+  useEffect(() => {
+    coverOpacity.setValue(1);
+  }, [uri, coverOpacity]);
 
   useEffect(() => {
-    if (shouldPlay) {
+    if (playing) {
       player.play();
     } else {
       player.pause();
       player.currentTime = 0;
     }
-  }, [shouldPlay, player]);
+  }, [playing, player]);
 
   useEffect(() => {
     player.muted = muted;

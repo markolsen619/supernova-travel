@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/Button';
 import { useCreatePost } from '@/hooks/useCreatePost';
 import { MAX_VIDEO_SECONDS } from '@/utils/videoPost';
+import { CLIP_AUDIO_MIXING } from '@/utils/videoPlayback';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
@@ -23,6 +24,7 @@ function ClipPreview({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = true;
+    p.audioMixingMode = CLIP_AUDIO_MIXING;
     p.play();
   });
   return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />;
