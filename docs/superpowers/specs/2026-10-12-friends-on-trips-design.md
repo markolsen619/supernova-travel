@@ -57,7 +57,9 @@ store no time zone, and at city level a few hours either side is fine.
 ## App
 
 - `hooks/useFriendsTraveling()` — one `getDocs` of `users/{me}/friendsTraveling` (staleTime 10 min,
-  `refetchInterval` 10 min while open, like the heat), moderation-filtered (`filterVisible`).
+  `refetchInterval` 10 min while open, like the heat), moderation-filtered (`filterVisible`), and
+  **only entries whose `day` is today (UTC)** (`isCurrentEntry`) — so a trip that has ended never lingers
+  on the globe even if the hourly cleanup is late.
 - `components/search/FriendTravelMarker` — the circle; `MarkerView`s on `GlobeMapView`, above the heat
   and destination pins, below sheets. Coordinates from `spreadCluster`.
 - Settings → Privacy: switch "Show me on friends' globes while I travel", on by default; footnote:
@@ -74,7 +76,8 @@ at that day's city on the globe. You can turn this off in Settings → Privacy."
 
 `isTripUnderwayToday` (dates, UTC bounds, visibility, hidden), `todaysCity` (destinationIndex, null,
 missing coords, no day today), `pickTodayTrip`, `shouldSeeTraveler` (follow, switch, blocks),
-`spreadCluster` (single point unchanged, n points distinct and deterministic), `staleEntries`.
+`spreadCluster` (single point unchanged, n points distinct and deterministic), `staleEntries`,
+`isCurrentEntry` (today kept; yesterday and missing day dropped).
 
 ## Out of scope
 
