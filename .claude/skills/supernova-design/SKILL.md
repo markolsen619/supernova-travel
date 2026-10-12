@@ -7,6 +7,8 @@ description: Use this skill whenever building, editing, or reviewing ANY user-fa
 
 ## The one-sentence brief
 
+> **Default theme (2026-10-11):** dark is the app's default from 1.0.5, by the owner's decision; light remains a full alternative in Settings. Build and check every screen in **both** themes. The light-editorial principles below still define the design; in dark they apply on the dark tokens.
+
 Supernova is a **light, warm, editorial travel app where photography is the hero** — with dark reserved exclusively for immersive moments (the Mapbox globe, splash, AI generation). Think a printed travel magazine, not a dashboard.
 
 ## Why light
