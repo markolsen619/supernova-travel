@@ -104,7 +104,7 @@ Path alias `@/` maps to the project root (see `tsconfig.json`).
 Three Zustand stores in `stores/`:
 - `useAuthStore` — Firebase `User | null`, `tier: 'free' | 'pro' | 'business'`, initialization flag
 - `useUserStore` — cached `UserProfile` (displayName, avatarUrl, bio, location, follower counts)
-- `useThemeStore` — `mode: 'dark' | 'light' | 'system'`, persisted via AsyncStorage; `useTheme()` hook resolves `'system'` via `useColorScheme`
+- `useThemeStore` — `mode: 'dark' | 'light' | 'system'` (default `'dark'`, versioned with a one-time migration — `utils/themeDefault.ts`) and `chosen`, persisted via AsyncStorage; `useTheme()` hook resolves `'system'` via `useColorScheme`
 
 TanStack React Query (staleTime 2 min, 2 retries) wraps all Firestore reads. **No `onSnapshot` listeners in hooks** — use `getDocs`/`getDoc` only. Exception: post comments screen uses `onSnapshot` directly in a `useEffect`.
 
@@ -334,6 +334,8 @@ pre-ship checklist.** That skill is the authority; this section is the summary. 
 running the checklist is not done.
 
 ### The direction: light editorial
+
+**Dark is the default since 1.0.5** (the owner's call, 2026-10-11; `utils/themeDefault.ts`): new installs start dark, settings saved before 1.0.5 were switched to dark once, and a theme picked in Settings (`useThemeStore.chosen`) is never overridden. Light stays a full alternative — every screen must look right in both. The palettes, type and rules below are unchanged; what follows describes the light theme's intent, and the dark theme is the same design on dark tokens.
 
 Supernova is a **light, warm, editorial travel app where photography is the hero.** Think a printed
 travel magazine — generous whitespace, confident type, photos that breathe. Dark is reserved
