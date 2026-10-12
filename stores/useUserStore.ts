@@ -11,7 +11,7 @@ interface UserProfile {
   followingCount: number;
   createdAt: string;
   /** settings.privacy — 'private' makes this a private account. */
-  settings?: { privacy?: 'public' | 'private' };
+  settings?: { privacy?: 'public' | 'private'; showOnGlobe?: boolean };
 }
 
 interface UserState {

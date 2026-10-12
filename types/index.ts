@@ -24,7 +24,7 @@ export interface UserProfile {
   tier: Tier;
   createdAt: string;
   /** settings.privacy 'private' = a private account (utils/privacy). Absent on profiles built before it. */
-  settings?: { privacy?: 'public' | 'private' };
+  settings?: { privacy?: 'public' | 'private'; showOnGlobe?: boolean };
   /** Set (client-writable, like every UserProfile field except `tier`) when
    * the Messages tab in app/notifications.tsx gains focus — the coarse
    * signal behind the heart icon's badge dot for new DMs. Per-thread read

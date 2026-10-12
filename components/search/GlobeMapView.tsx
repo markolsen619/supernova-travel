@@ -10,6 +10,7 @@ import {
   CircleLayer,
   SymbolLayer,
   HeatmapLayer,
+  MarkerView,
   setAccessToken,
   type MapState,
 } from '@rnmapbox/maps';
@@ -20,6 +21,9 @@ import type { Destination } from '@/utils/destinations';
 import type { LightPreset } from '@/services/mapLighting';
 import { basemapConfig } from '@/utils/mapLook';
 import { DarkColors } from '@/constants/colors';
+import { FriendTravelMarker } from '@/components/search/FriendTravelMarker';
+import type { FriendTraveling } from '@/hooks/useFriendsTraveling';
+import { spreadCluster } from '@/utils/friendsTraveling';
 import type * as GeoJSON from 'geojson';
 
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
@@ -54,6 +58,11 @@ interface GlobeMapViewProps {
   /** aggregates/heatmap as points (useHeatmap); null draws no heat layer. */
   heat?: GeoJSON.FeatureCollection | null;
   selectedPlace?: EnrichedPlace | null;
+  /** People you follow on a trip today, at that day's city (useFriendsTraveling). */
+  friends?: FriendTraveling[];
+  /** Whole-number zoom, for spreading friends who share a city. */
+  zoomBucket?: number;
+  onFriendPress?: (friend: FriendTraveling) => void;
 }
 
 export function GlobeMapView({
@@ -65,7 +74,13 @@ export function GlobeMapView({
   destinations,
   heat,
   selectedPlace,
+  friends,
+  zoomBucket = 2,
+  onFriendPress,
 }: GlobeMapViewProps) {
+  const friendMarkers = useMemo(() => spreadCluster(friends ?? [], zoomBucket), [friends, zoomBucket]);
+  const handleFriendPress = React.useCallback((f: FriendTraveling) => onFriendPress?.(f), [onFriendPress]);
+
   const handleMapLoadingError = React.useCallback(() => {
     console.error('[SearchMap] Mapbox Standard style failed to load — check EXPO_PUBLIC_MAPBOX_TOKEN and network.');
   }, []);
@@ -224,6 +239,12 @@ export function GlobeMapView({
           />
         </ShapeSource>
       )}
+      {/* Friends on a trip — above the heat and the catalog pins; spread apart when they share a city. */}
+      {friendMarkers.map((f) => (
+        <MarkerView key={`friend-${f.uid}`} coordinate={[f.lng, f.lat]} anchor={{ x: 0.5, y: 0.3 }} allowOverlap>
+          <FriendTravelMarker friend={f} onPress={handleFriendPress} />
+        </MarkerView>
+      ))}
     </MapView>
   );
 }

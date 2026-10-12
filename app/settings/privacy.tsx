@@ -88,6 +88,24 @@ export default function PrivacySettingsScreen() {
       setSavingPrivacy(false);
     }
   }, [uid]);
+  // Friends on a trip (docs/superpowers/specs/2026-10-12-friends-on-trips-design.md): on unless turned off.
+  const [onGlobe, setOnGlobe] = useState(profile?.settings?.showOnGlobe !== false);
+  const [savingGlobe, setSavingGlobe] = useState(false);
+  const handleGlobeToggle = useCallback(async (next: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setOnGlobe(next); // optimistic
+    setSavingGlobe(true);
+    try {
+      await updateDoc(doc(db, 'users', uid), { 'settings.showOnGlobe': next });
+      const current = useUserStore.getState().profile;
+      if (current) useUserStore.getState().setProfile({ ...current, settings: { ...current.settings, showOnGlobe: next } });
+    } catch {
+      setOnGlobe(!next);
+      Alert.alert("We couldn't change that", 'Check your connection and try again.');
+    } finally {
+      setSavingGlobe(false);
+    }
+  }, [uid]);
   const handlePrivateToggle = useCallback((next: boolean) => {
     Alert.alert(
       next ? 'Make your account private?' : 'Make your account public?',
@@ -164,6 +182,20 @@ export default function PrivacySettingsScreen() {
             showDivider
           />
           <SettingsRow
+            label="Show me on friends' globes"
+            icon={GlobeHemisphereWest}
+            accessory={
+              <Switch
+                value={onGlobe}
+                onValueChange={handleGlobeToggle}
+                disabled={savingGlobe}
+                trackColor={{ true: colors.brand.purple, false: colors.background.sunken }}
+                accessibilityLabel="Show me on friends' globes while I travel"
+              />
+            }
+            showDivider
+          />
+          <SettingsRow
             label="Blocked accounts"
             icon={Prohibit}
             value={blockedCount > 0 ? String(blockedCount) : undefined}
@@ -179,7 +211,7 @@ export default function PrivacySettingsScreen() {
         </View>
 
         <Text style={[styles.footnote, { color: colors.text.tertiary }]}>
-          {"A private account shows people who don't follow you only your photo, name and bio, and they ask to follow you."} Change who can see a trip from its edit screen. To report something, tap the three dots on it. AI data sharing sends what you enter in AI features to Google Gemini.
+          {"A private account shows people who don't follow you only your photo, name and bio, and they ask to follow you."} Change who can see a trip from its edit screen. {"While you travel, people who follow you see your profile photo in the city you're in that day, only during trips you share with followers or everyone."} To report something, tap the three dots on it. AI data sharing sends what you enter in AI features to Google Gemini.
         </Text>
       </ScrollView>
       {consentSheet}
