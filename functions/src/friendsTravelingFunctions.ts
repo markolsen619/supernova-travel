@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import { onDocumentWritten, onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
-  calendarDay, isTripUnderwayToday, pickTodayTrip, shouldSeeTraveler, todayKey, todaysCity, travelInputsChanged,
+  calendarDay, dayDateMs, isTripUnderwayToday, pickTodayTrip, shouldSeeTraveler, todayKey, todaysCity, travelInputsChanged,
   type DayLike, type TripLike,
 } from './friendsTraveling';
 
@@ -57,11 +57,11 @@ export async function syncTraveler(uid: string, now: Date = new Date()): Promise
     const trip = tripLike(d.data())!;
     if (!isTripUnderwayToday(trip, today)) continue;
     const days = await d.ref.collection('days').get();
-    const dayLikes: DayLike[] = days.docs.map((x) => ({ dateMs: ms(x.get('date')), destinationIndex: x.get('destinationIndex') ?? null }));
+    const dayLikes: DayLike[] = days.docs.map((x) => ({ dateMs: ms(x.get('date')), destinationIndex: x.get('destinationIndex') ?? null, dayNumber: x.get('dayNumber') ?? null }));
     const city = todaysCity(trip, dayLikes, today);
     if (!city) continue;
-    const todayDay = dayLikes.find((x) => x.dateMs != null && calendarDay(x.dateMs) === today);
-    candidates.push({ id, title: String(d.get('title') ?? ''), trip, ...city, dayStartMs: todayDay?.dateMs ?? 0 });
+    const todayMs = dayLikes.map((x) => dayDateMs(trip, x)).find((m) => m != null && calendarDay(m) === today) ?? 0;
+    candidates.push({ id, title: String(d.get('title') ?? ''), trip, ...city, dayStartMs: todayMs });
   }
   const chosen = pickTodayTrip(candidates);
   if (!chosen) { await deleteEntriesFor(uid); return 0; }
@@ -120,7 +120,9 @@ export const onTripWrittenFriends = onDocumentWritten('trips/{tripId}', async (e
 
 export const onTripDayWrittenFriends = onDocumentWritten('trips/{tripId}/days/{dayId}', async (event) => {
   const b = event.data?.before?.data(), a = event.data?.after?.data();
-  if (ms(b?.date) === ms(a?.date) && (b?.destinationIndex ?? null) === (a?.destinationIndex ?? null)) return;
+  // The route editor rewrites dayNumber and destinationIndex; a stored date is rare.
+  if (ms(b?.date) === ms(a?.date) && (b?.destinationIndex ?? null) === (a?.destinationIndex ?? null)
+    && (b?.dayNumber ?? null) === (a?.dayNumber ?? null)) return;
   const trip = tripLike((await db().doc(`trips/${event.params.tripId}`).get()).data());
   if (!trip || !isTripUnderwayToday(trip, todayKey(new Date()))) return;
   await syncAll(members(trip));

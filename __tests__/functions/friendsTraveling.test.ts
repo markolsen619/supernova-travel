@@ -83,3 +83,18 @@ describe('travelInputsChanged', () => {
     expect(travelInputsChanged(trip, null)).toBe(true);
   });
 });
+
+describe('todaysCity on real days', () => {
+  // Days don't store a date: it's the trip's start plus (dayNumber − 1). The first run found no
+  // traveller at all on the Central Europe trip because only a stored date was looked at.
+  const realTrip = { ...trip, startDateMs: D('2026-11-18T08:00:00Z') }; // Los Angeles midnight
+  const days = [
+    { dateMs: null, dayNumber: 1, destinationIndex: 0 },
+    { dateMs: null, dayNumber: 4, destinationIndex: 1 },
+  ];
+  it('works out each day from the trip start and its number', () => {
+    expect(todaysCity(realTrip, days, '2026-11-18')).toEqual({ city: 'Prague', lat: 50.08, lng: 14.43 });
+    expect(todaysCity(realTrip, days, '2026-11-21')).toEqual({ city: 'Budapest', lat: 47.5, lng: 19.04 });
+    expect(todaysCity(realTrip, days, '2026-11-19')).toBeNull();
+  });
+});

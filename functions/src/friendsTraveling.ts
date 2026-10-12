@@ -4,7 +4,7 @@ export type TripLike = {
   visibility?: string; moderationHidden?: boolean; startDateMs?: number | null; endDateMs?: number | null;
   destination?: Place | null; additionalDestinations?: Place[] | null; collaborators?: string[]; authorUid?: string;
 };
-export type DayLike = { dateMs: number | null; destinationIndex: number | null };
+export type DayLike = { dateMs: number | null; destinationIndex: number | null; dayNumber?: number | null };
 
 const HALF_DAY = 12 * 3_600_000;
 /** Dates are stored at the creator's local midnight; reading at noon gives that calendar day anywhere. */
@@ -22,8 +22,15 @@ export function isTripUnderwayToday(trip: TripLike, today: string): boolean {
   return calendarDay(trip.startDateMs) <= today && today <= calendarDay(trip.endDateMs);
 }
 
+/** A day's date: stored, or — as days usually are — the trip's start plus (dayNumber − 1) days. */
+export function dayDateMs(trip: TripLike, d: DayLike): number | null {
+  if (d.dateMs != null) return d.dateMs;
+  if (trip.startDateMs == null || d.dayNumber == null) return null;
+  return trip.startDateMs + (d.dayNumber - 1) * 86_400_000;
+}
+
 export function todaysCity(trip: TripLike, days: DayLike[], today: string): { city: string; lat: number; lng: number } | null {
-  const day = days.find((d) => d.dateMs != null && calendarDay(d.dateMs) === today);
+  const day = days.find((d) => { const ms = dayDateMs(trip, d); return ms != null && calendarDay(ms) === today; });
   if (!day) return null;
   const places = [trip.destination ?? null, ...(trip.additionalDestinations ?? [])];
   const p = places[day.destinationIndex ?? 0] ?? places[0];
