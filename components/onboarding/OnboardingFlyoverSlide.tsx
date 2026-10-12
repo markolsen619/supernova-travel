@@ -63,8 +63,9 @@ const styles = StyleSheet.create({
   slide: { flex: 1 },
   region: { height: '60%', width: '100%', overflow: 'hidden' },
   frameWrap: { flex: 1, alignItems: 'center', paddingTop: Spacing['6'] },
-  // A phone-shaped window onto the map: the clip is a portrait screen recording.
-  frame: { height: '100%', aspectRatio: 9 / 19.5, borderRadius: BorderRadius['2xl'], borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  // A phone-shaped window onto the map, the clip's own shape: a 600x1208 iPhone screen recording
+  // (Lisbon editorial trip, status bar cropped, 19.5 s, HEVC ~1.3 Mbps, 3.3 MB).
+  frame: { height: '100%', aspectRatio: 600 / 1208, borderRadius: BorderRadius['2xl'], borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   fadeBottom: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80 },
   textRegion: { flex: 1, paddingTop: Spacing['5'] },
 });
