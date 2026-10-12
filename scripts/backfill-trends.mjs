@@ -2,7 +2,8 @@
 /**
  * One-off: fill trendCounts with the last 14 days of trips (by createdAt), so the globe's trending
  * layer isn't flat on the day it ships, then rebuild the heat. Counts each non-editorial trip once
- * per catalog city on its creation day. SETS those days (never increments), so it's safe to re-run.
+ * per catalog city on its creation day, and records it in trendSeen so the live trigger never counts
+ * it again. SETS those days: run it once — a re-run would overwrite live counts for the same days.
  *
  *   node scripts/backfill-trends.mjs --dry-run
  *   node scripts/backfill-trends.mjs
@@ -40,6 +41,7 @@ const snap = await db.collection('trips').where('createdAt', '>=', admin.firesto
 
 /** slug -> day -> count */
 const counts = new Map();
+const seen = [];
 let counted = 0;
 for (const d of snap.docs) {
   const trip = d.data();
@@ -48,6 +50,7 @@ for (const d of snap.docs) {
   if (slugs.length === 0) continue;
   const day = trendDayKey(trip.createdAt.toDate());
   counted += 1;
+  seen.push([d.id, slugs]);
   for (const slug of slugs) {
     const days = counts.get(slug) ?? {};
     days[day] = (days[day] ?? 0) + 1;
@@ -64,6 +67,7 @@ if (dryRun) process.exit(0);
 
 const batch = db.batch();
 for (const [slug, days] of counts) batch.set(db.doc(`trendCounts/${slug}`), { days }, { merge: true });
+for (const [tripId, slugs] of seen) batch.set(db.doc(`trendSeen/${tripId}`), { counted: slugs });
 await batch.commit();
 console.log('trendCounts written; rebuilding the heat…');
 console.log(await runTrendRefresh());

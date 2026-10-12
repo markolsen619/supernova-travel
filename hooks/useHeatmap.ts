@@ -18,7 +18,9 @@ export function useHeatmap(): GeoJSON.FeatureCollection<GeoJSON.Point, { w: numb
       return heatFeatures(d?.points, d?.stride);
     },
     staleTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    // The Search tab stays mounted, so staleness alone never refetched (review): poll while open.
+    refetchInterval: 10 * 60 * 1000,
+    refetchIntervalInBackground: false,
     retry: 1,
   });
   return data && data.features.length > 0 ? data : null;

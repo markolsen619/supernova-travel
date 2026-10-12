@@ -6,7 +6,7 @@ import {
   isEditorialTrip, stopDestinationKeys, r4,
   type TaggableDestination, type StopForRanking, type GeoBox,
 } from './discovery';
-import { composeHeat } from './trending';
+import { capCommunity, composeHeat } from './trending';
 import { currentTrendPoints } from './trendingFunctions';
 
 const db = () => admin.firestore();
@@ -137,7 +137,8 @@ export async function runAggregation(): Promise<{ trips: number; points: number;
   }
   // Public stops weighted as before (1 + 2·saves + likes); saved server-side so refreshTrending can
   // rebuild the heat every 15 minutes without re-reading every trip.
-  const communityTriples = community.map((c) => [r4(c.lng), r4(c.lat), 1 + 2 * c.saves + c.likes] as [number, number, number]);
+  // Capped to what the heat can draw: uncapped, past ~40k stops the doc (and this whole batch) would fail.
+  const communityTriples = capCommunity(community.map((c) => [r4(c.lng), r4(c.lat), 1 + 2 * c.saves + c.likes] as [number, number, number]));
   batch.set(db().doc('serverState/heatCommunity'), { points: communityTriples.flat(), stride: 3, updatedAt: now });
   const points = composeHeat(catalog.flatMap((d) => baselinePoints(d)), await currentTrendPoints(catalog), communityTriples);
   // Firestore can't store nested arrays: [lng, lat, weight] triples are flattened.

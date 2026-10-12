@@ -27,8 +27,9 @@ export function sameDestinationPoints(
   return JSON.stringify(destinationPoints(a)) === JSON.stringify(destinationPoints(b));
 }
 
-export function trendNewSlugs(before: string[], after: string[]): string[] {
-  const had = new Set(before);
+/** Cities in `after` this trip hasn't been counted for — `counted` is every city it ever was (trendSeen). */
+export function trendNewSlugs(counted: string[], after: string[]): string[] {
+  const had = new Set(counted);
   return after.filter((s) => !had.has(s));
 }
 
@@ -41,8 +42,21 @@ export function trendTotal(days: Record<string, number>, now: Date): number {
   return Object.entries(days).reduce((n, [k, v]) => (k >= from && k <= to ? n + (Number(v) || 0) : n), 0);
 }
 
+/**
+ * Four broad bands, not a weight per count: a per-count weight let anyone watching the heat read a
+ * city's exact number and see one private trip arrive (review, 2026-10-11).
+ */
 export function trendWeight(n: number): number {
-  return n < TREND_MIN ? 0 : Math.round(12 * Math.log2(1 + n));
+  if (n < TREND_MIN) return 0;
+  if (n <= 5) return 24;
+  if (n <= 15) return 48;
+  if (n <= 50) return 72;
+  return 96;
+}
+
+/** The heaviest `cap` community points — all the heat can draw; keeps the saved doc small. */
+export function capCommunity(points: Triple[], cap = 4000): Triple[] {
+  return [...points].sort((a, b) => b[2] - a[2]).slice(0, cap);
 }
 
 export function trendPoints(dest: { slug: string; bbox: GeoBox }, weight: number): Triple[] {

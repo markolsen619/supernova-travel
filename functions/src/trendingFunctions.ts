@@ -18,17 +18,21 @@ export const onTripWrittenTrend = onDocumentWritten('trips/{tripId}', async (eve
   if (sameDestinationPoints(before, after)) return; // trips are written constantly
   if (isEditorialTrip(after, editorialUid())) return;
   const catalog = await loadCatalog();
-  const added = trendNewSlugs(
-    before ? destinationKeysFor(destinationPoints(before), catalog) : [],
-    destinationKeysFor(destinationPoints(after), catalog),
-  );
-  if (added.length === 0) return;
+  const now = destinationKeysFor(destinationPoints(after), catalog);
+  if (now.length === 0) return;
   const day = trendDayKey(new Date());
-  const batch = db().batch();
-  for (const slug of added) {
-    batch.set(db().doc(`trendCounts/${slug}`), { days: { [day]: admin.firestore.FieldValue.increment(1) } }, { merge: true });
-  }
-  await batch.commit();
+  // trendSeen/{tripId} (server-only): every city this trip was ever counted for — so removing and
+  // re-adding a city, or a repeated trigger delivery, never counts it twice.
+  const seenRef = db().doc(`trendSeen/${event.params.tripId}`);
+  await db().runTransaction(async (tx) => {
+    const seen = ((await tx.get(seenRef)).get('counted') ?? []) as string[];
+    const added = trendNewSlugs(seen, now);
+    if (added.length === 0) return;
+    for (const slug of added) {
+      tx.set(db().doc(`trendCounts/${slug}`), { days: { [day]: admin.firestore.FieldValue.increment(1) } }, { merge: true });
+    }
+    tx.set(seenRef, { counted: [...seen, ...added] });
+  });
 });
 
 /** The trending layer for the catalog right now. */

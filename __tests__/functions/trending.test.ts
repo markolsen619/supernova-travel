@@ -1,5 +1,5 @@
 import {
-  TREND_MIN, composeHeat, destinationPoints, heatWrite, pruneTrendDays, sameDestinationPoints,
+  TREND_MIN, capCommunity, composeHeat, destinationPoints, heatWrite, pruneTrendDays, sameDestinationPoints,
   trendDayKey, trendNewSlugs, trendPoints, trendTotal, trendWeight,
 } from '../../functions/src/trending';
 
@@ -10,13 +10,19 @@ describe('trendDayKey', () => {
 });
 
 describe('trendNewSlugs', () => {
-  it('counts every city of a new trip, and only a city a later write adds', () => {
+  it('counts every city of a new trip, and a city a later write adds', () => {
     expect(trendNewSlugs([], ['lisbon', 'porto'])).toEqual(['lisbon', 'porto']);
     expect(trendNewSlugs(['lisbon'], ['lisbon', 'porto'])).toEqual(['porto']);
   });
   it('counts nothing for an unchanged trip or a removed city', () => {
     expect(trendNewSlugs(['lisbon'], ['lisbon'])).toEqual([]);
     expect(trendNewSlugs(['lisbon', 'porto'], ['lisbon'])).toEqual([]);
+  });
+  // Review: comparing only neighbouring writes let one trip remove and re-add a city to be counted
+  // again and again. The first argument is now every city this trip was ever counted for.
+  it('never counts a trip twice for the same city, even after removing and re-adding it', () => {
+    expect(trendNewSlugs(['lisbon', 'porto'], ['porto'])).toEqual([]);
+    expect(trendNewSlugs(['lisbon', 'porto'], ['porto', 'lisbon', 'madrid'])).toEqual(['madrid']);
   });
 });
 
@@ -51,10 +57,13 @@ describe('trendWeight', () => {
     expect(trendWeight(TREND_MIN - 1)).toBe(0);
     expect(trendWeight(0)).toBe(0);
   });
-  it('grows with planning, more slowly as it grows', () => {
-    expect(trendWeight(3)).toBe(24);
-    expect(trendWeight(15)).toBe(48);
-    expect(trendWeight(255)).toBe(96);
+  // Review: a weight that differed for every count let anyone watching the heat read a city's exact
+  // count and see a single private trip arrive. Four broad bands: one trip almost never changes it.
+  it('shows only broad bands, so one more trip rarely changes what anyone sees', () => {
+    expect([3, 4, 5].map(trendWeight)).toEqual([24, 24, 24]);
+    expect([6, 10, 15].map(trendWeight)).toEqual([48, 48, 48]);
+    expect([16, 50].map(trendWeight)).toEqual([72, 72]);
+    expect([51, 500].map(trendWeight)).toEqual([96, 96]);
   });
 });
 
@@ -95,5 +104,13 @@ describe('heatWrite', () => {
     expect(heatWrite({ hasCommunity: true, current: [1, 2, 3], next: [1, 2, 3] })).toBe('skip');
     expect(heatWrite({ hasCommunity: true, current: [1, 2, 3], next: [1, 2, 4] })).toBe('write');
     expect(heatWrite({ hasCommunity: true, current: undefined, next: [1, 2, 3] })).toBe('write');
+  });
+});
+
+describe('capCommunity', () => {
+  // Review: every public stop was saved, uncapped, in one document; past ~40k stops Firestore would
+  // refuse it and take the whole daily batch down. Only the heaviest 4000 are ever drawn.
+  it('keeps only the heaviest points the heat can draw', () => {
+    expect(capCommunity([[1, 1, 1], [2, 2, 9], [3, 3, 5]], 2)).toEqual([[2, 2, 9], [3, 3, 5]]);
   });
 });

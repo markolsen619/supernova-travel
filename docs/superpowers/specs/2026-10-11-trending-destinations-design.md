@@ -20,7 +20,8 @@ the heat once per 12 h (`useHeatmap`).
 - New trigger `onTripWrittenTrend` (`trips/{tripId}`, onDocumentWritten). For before and after it takes
   the trip's catalog cities from its destination points (`destination` + `additionalDestinations`) with
   `destinationKeysFor` — **regardless of visibility** — and increments today's count for each city the
-  write **added** (`trendNewSlugs(before, after)`). A new trip adds all its cities; a later added city
+  write **added**, against every city that trip was ever counted for (`trendSeen/{tripId}`, server-only,
+  in a transaction — a trip is never counted twice for a city, and a repeated trigger is harmless). A new trip adds all its cities; a later added city
   counts then; removals and deletions subtract nothing ("people started planning here").
 - Editorial trips (`isEditorialTrip`) never count. Trips written by the seed script are editorial.
 - Storage: `trendCounts/{slug}` = `{ days: { 'YYYY-MM-DD': n } }` (UTC day), `FieldValue.increment(1)`.
@@ -33,11 +34,12 @@ the heat once per 12 h (`useHeatmap`).
 
 - New scheduled `refreshTrending` (every 15 min): reads `trendCounts/*` (≤ catalog size), sums each
   city's last **14** days (`trendTotal`), and drops cities under **3** (`TREND_MIN`).
-- Weight: `trendWeight(n) = round(12 · log2(1 + n))` for n ≥ 3, else 0 — grows with planning, but one
-  booming city doesn't flatten the rest.
+- Weight: four broad bands — 3–5 → 24, 6–15 → 48, 16–50 → 72, > 50 → 96 (review: a weight per count
+  let anyone watching the heat read exact counts and see one private trip arrive).
 - Points: the weight spread over five points in the middle of the city's box (`trendPoints`, same shape
   as `baselinePoints`, its own seed so they don't sit on the baseline's).
-- The daily job also writes its community stop points to `aggregates/heatCommunity` (server-only), so
+- The daily job also writes its community stop points (capped at the 4000 heaviest) to
+  `serverState/heatCommunity` (server-only; `aggregates` is client-readable), so
   the refresh can rebuild `aggregates/heatmap` = baseline + trending + community without re-reading
   trips. It writes only when the points changed.
 - Backfill: a one-off script (`scripts/backfill-trends.mjs`, `--dry-run`) counts the last 14 days of
