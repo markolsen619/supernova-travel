@@ -4,7 +4,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { baselinePoints, destinationKeysFor, isEditorialTrip, type GeoBox } from './discovery';
 import { editorialUid, loadCatalog } from './discoveryFunctions';
 import {
-  composeHeat, destinationPoints, pruneTrendDays, sameDestinationPoints, trendDayKey,
+  composeHeat, destinationPoints, heatWrite, pruneTrendDays, sameDestinationPoints, trendDayKey,
   trendNewSlugs, trendPoints, trendTotal, trendWeight, type Triple,
 } from './trending';
 
@@ -58,7 +58,7 @@ export async function runTrendRefresh(): Promise<{ cities: number; points: numbe
   const points = composeHeat(catalog.flatMap((d) => baselinePoints(d)), trending, community).flat();
   const ref = db().doc('aggregates/heatmap');
   const current = (await ref.get()).get('points') as number[] | undefined;
-  const wrote = JSON.stringify(current ?? []) !== JSON.stringify(points);
+  const wrote = heatWrite({ hasCommunity: communitySnap.exists, current, next: points }) === 'write';
   if (wrote) await ref.set({ points, stride: 3, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
   // Keep trendCounts small: drop days outside the window.
   const now = new Date();

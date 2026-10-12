@@ -1,5 +1,5 @@
 import {
-  TREND_MIN, composeHeat, destinationPoints, pruneTrendDays, sameDestinationPoints,
+  TREND_MIN, composeHeat, destinationPoints, heatWrite, pruneTrendDays, sameDestinationPoints,
   trendDayKey, trendNewSlugs, trendPoints, trendTotal, trendWeight,
 } from '../../functions/src/trending';
 
@@ -81,5 +81,19 @@ describe('composeHeat', () => {
   });
   it('adds trending points and caps the total', () => {
     expect(composeHeat([[1, 1, 5]], [[3, 3, 24]], [[2, 2, 9]], 2)).toEqual([[3, 3, 24], [2, 2, 9]]);
+  });
+});
+
+describe('heatWrite', () => {
+  // Shipping day: refreshTrending ran before the daily job had saved its community points, read them
+  // as empty, and replaced 1,259 heat points with the 150 baseline ones. Without the saved points it
+  // must leave the heat alone.
+  it('leaves the heat alone until the daily job has saved its community points', () => {
+    expect(heatWrite({ hasCommunity: false, current: [1, 2, 3], next: [1, 1, 1] })).toBe('skip');
+  });
+  it('writes only when the points changed', () => {
+    expect(heatWrite({ hasCommunity: true, current: [1, 2, 3], next: [1, 2, 3] })).toBe('skip');
+    expect(heatWrite({ hasCommunity: true, current: [1, 2, 3], next: [1, 2, 4] })).toBe('write');
+    expect(heatWrite({ hasCommunity: true, current: undefined, next: [1, 2, 3] })).toBe('write');
   });
 });

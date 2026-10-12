@@ -64,3 +64,12 @@ export function pruneTrendDays(days: Record<string, number>, now: Date): Record<
 export function composeHeat(baseline: Triple[], trending: Triple[], community: Triple[], cap = 4000): Triple[] {
   return [...baseline, ...trending, ...community].sort((a, b) => b[2] - a[2]).slice(0, cap);
 }
+
+/**
+ * Whether refreshTrending may rewrite aggregates/heatmap. Never without the daily job's saved
+ * community points: on shipping day it read them as empty and replaced the heat with the baseline.
+ */
+export function heatWrite(s: { hasCommunity: boolean; current: number[] | undefined; next: number[] }): 'write' | 'skip' {
+  if (!s.hasCommunity) return 'skip';
+  return JSON.stringify(s.current ?? []) === JSON.stringify(s.next) ? 'skip' : 'write';
+}
