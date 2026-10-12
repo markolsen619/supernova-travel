@@ -70,13 +70,13 @@ export function rankTopPlaces(stops: StopForRanking[], limit = 12): TopPlace[] {
 }
 
 /** Deterministic 0–1 value from a string — the same destination always gets the same spread. */
-function seeded(slug: string, i: number): number {
+export function seeded(slug: string, i: number): number {
   let h = 2166136261;
   for (const c of `${slug}#${i}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return ((h >>> 0) % 10_000) / 10_000;
 }
 
-const r4 = (n: number) => Math.round(n * 10_000) / 10_000;
+export const r4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
 /** The world baseline: a destination's popularity spread over five points inside its box. */
 export function baselinePoints(dest: { slug: string; popularity: number; bbox: GeoBox }): [number, number, number][] {
