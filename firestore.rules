@@ -428,6 +428,14 @@ service cloud.firestore {
       allow read: if isAuthed();
       allow write: if false;
     }
+    // Trending (functions/src/trendingFunctions.ts): anonymous per-city counts and the daily
+    // job's saved points. Server only — clients see only the combined aggregates/heatmap.
+    match /trendCounts/{slug} {
+      allow read, write: if false;
+    }
+    match /serverState/{docId} {
+      allow read, write: if false;
+    }
     match /aggregates/{docId} {
       allow read: if isAuthed();
       allow write: if false;
