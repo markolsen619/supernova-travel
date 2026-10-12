@@ -17,6 +17,7 @@ export { reconcileTier } from './reconcileTier';
 export { deleteAccount } from './deleteAccount';
 export { onReportCreated, onBlockCreated } from './moderationEvents';
 export { tagTripDestinations, aggregateDiscovery } from './discoveryFunctions';
+export { onTripWrittenTrend, refreshTrending } from './trendingFunctions';
 export { onPostDeleted, onTripDeletedRemovePosts } from './postCleanupFunctions';
 export { onCommentLikeCreated, onCommentDeleted } from './commentEvents';
 export { moveTripBudgetPrivate } from './budgetPrivacyFunctions';
