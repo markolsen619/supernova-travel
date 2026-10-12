@@ -63,7 +63,7 @@ app/
 │   ├── sign-up.tsx
 │   ├── forgot-password.tsx
 │   ├── complete-profile.tsx       # Gate: authenticated but no users/{uid} doc
-│   └── onboarding.tsx             # 5 slides after sign-up; sets users/{uid}.hasSeenOnboarding
+│   └── onboarding.tsx             # 6-slide showcase after sign-up (useOnboardingShowcase); sets users/{uid}.hasSeenOnboarding
 ├── (tabs)/
 │   ├── _layout.tsx                # Tab bar: Feed, Explore, Create, Search, Profile
 │   ├── index.tsx                  # Feed
@@ -98,6 +98,8 @@ app/
 `_layout.tsx` also mounts `useNotificationRouting()`, which sends a tapped notification to its screen. That listener must wait for the auth listener above: the `router.replace('/(tabs)')` on sign-in discards any navigation made before it, so a cold-start tap is **held** until the root navigator is mounted and auth has settled.
 
 Path alias `@/` maps to the project root (see `tsconfig.json`).
+
+**Onboarding showcase** (2026-10-11; `hooks/useOnboardingShowcase.ts`, rules in `utils/onboardingShowcase.ts`): Discover (Supernova's **editorial** trips — never real users' trips, which showed dates, "Upcoming" and someone's actual plans), AI itinerary (Day 1 of an editorial trip, stops written in one by one), trip flyover (`assets/onboarding/flyover.mp4`: an iPhone screen recording of the Lisbon editorial trip, status bar cropped, 600×1208 HEVC ~1.3 Mbps, 3.3 MB — re-record from a real phone, the simulator can't draw it smoothly), wallet, community (`pickCommunityFaces`: a random 6 from the most-followed + newest 30 each, photo required; never private, editorial, moderation-hidden, the App Review demo account or yourself), Pro.
 
 ### State Management
 

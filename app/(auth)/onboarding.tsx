@@ -17,8 +17,9 @@ import * as Haptics from 'expo-haptics';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/services/firebase';
 import { useTheme } from '@/hooks/useTheme';
-import { useOnboardingContent } from '@/hooks/useOnboardingContent';
-import { OnboardingPhotoSlide } from '@/components/onboarding/OnboardingPhotoSlide';
+import { useOnboardingShowcase } from '@/hooks/useOnboardingShowcase';
+import { OnboardingItinerarySlide } from '@/components/onboarding/OnboardingItinerarySlide';
+import { OnboardingFlyoverSlide } from '@/components/onboarding/OnboardingFlyoverSlide';
 import { OnboardingTripsSlide } from '@/components/onboarding/OnboardingTripsSlide';
 import { OnboardingWalletSlide } from '@/components/onboarding/OnboardingWalletSlide';
 import { OnboardingCommunitySlide } from '@/components/onboarding/OnboardingCommunitySlide';
@@ -28,8 +29,9 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 
-const SLIDE_COUNT = 5;
-const SLIDE_INDEXES = [0, 1, 2, 3, 4];
+// Discover, AI itinerary, flyover, wallet, community, Pro (2026-10-11 showcase).
+const SLIDE_COUNT = 6;
+const SLIDE_INDEXES = [0, 1, 2, 3, 4, 5];
 
 function markOnboardingComplete() {
   const uid = auth.currentUser?.uid;
@@ -69,7 +71,7 @@ export default function OnboardingScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<FlatList<number>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
-  const content = useOnboardingContent();
+  const showcase = useOnboardingShowcase();
 
   const handleFinish = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -117,32 +119,22 @@ export default function OnboardingScreen() {
     ({ item: index }: ListRenderItemInfo<number>) => {
       const active = index === activeIndex;
       // Named slideContent, not content — `content` is already the
-      // useOnboardingContent() result in this scope.
+      // useOnboardingShowcase() result in this scope.
       const slideContent = ((): React.ReactElement => {
       switch (index) {
         case 0:
-          // Real trips, actually scrolling — see OnboardingTripsSlide for why
-          // this is rendered rather than photographed. Falls back to the
-          // static hero on its own when there is nothing to show.
-          return <OnboardingTripsSlide active={active} />;
+          // Supernova's editorial trips, actually scrolling (no dates, nobody's real plans).
+          return <OnboardingTripsSlide active={active} trips={showcase.trips} />;
         case 1:
-          return (
-            <OnboardingPhotoSlide
-              heroSource={require('@/assets/onboarding/ai-plan.png')}
-              eyebrow="AI Itineraries"
-              title="Skip the planning spreadsheet"
-              body="Name a destination and get a day-by-day itinerary, built and ready to edit."
-              active={active}
-              scrollX={scrollX}
-              index={index}
-            />
-          );
+          return <OnboardingItinerarySlide active={active} itinerary={showcase.itinerary} />;
         case 2:
-          return <OnboardingWalletSlide active={active} />;
+          return <OnboardingFlyoverSlide active={active} />;
         case 3:
+          return <OnboardingWalletSlide active={active} />;
+        case 4:
           return (
             <OnboardingCommunitySlide
-              avatars={content.communityAvatars}
+              avatars={showcase.faces}
               active={active}
               scrollX={scrollX}
               index={index}
@@ -154,7 +146,7 @@ export default function OnboardingScreen() {
       })();
       return <View style={{ flex: 1, paddingTop: insets.top }}>{slideContent}</View>;
     },
-    [activeIndex, content.communityAvatars, scrollX, insets.top]
+    [activeIndex, showcase, scrollX, insets.top]
   );
 
   const isLast = activeIndex === SLIDE_COUNT - 1;
