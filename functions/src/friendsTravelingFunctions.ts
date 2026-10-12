@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import { onDocumentWritten, onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
-  calendarDay, dayDateMs, isTripUnderwayToday, pickTodayTrip, shouldSeeTraveler, todayKey, todaysCity, travelInputsChanged,
+  dayKey, isTripUnderwayToday, pickTodayTrip, shouldSeeTraveler, todayKey, todaysCity, travelInputsChanged,
   type DayLike, type TripLike,
 } from './friendsTraveling';
 
@@ -24,6 +24,7 @@ function tripLike(d: admin.firestore.DocumentData | undefined | null): TripLike 
     startDateMs: ms(d.startDate), endDateMs: ms(d.endDate),
     destination: d.destination ?? null, additionalDestinations: d.additionalDestinations ?? null,
     collaborators: Array.isArray(d.collaborators) ? d.collaborators : [], authorUid: d.authorUid,
+    startDay: typeof d.startDay === 'string' ? d.startDay : null,
   };
 }
 
@@ -47,7 +48,7 @@ export async function syncTraveler(uid: string, now: Date = new Date()): Promise
   const since = admin.firestore.Timestamp.fromMillis(now.getTime() - TWO_DAYS);
   const [own, joined] = await Promise.all([
     db().collection('trips').where('authorUid', '==', uid).where('endDate', '>=', since).get(),
-    db().collection('trips').where('collaborators', 'array-contains', uid).get(),
+    db().collection('trips').where('collaborators', 'array-contains', uid).where('endDate', '>=', since).get(),
   ]);
   const trips = new Map<string, admin.firestore.QueryDocumentSnapshot>();
   for (const d of [...own.docs, ...joined.docs]) trips.set(d.id, d);
@@ -60,8 +61,9 @@ export async function syncTraveler(uid: string, now: Date = new Date()): Promise
     const dayLikes: DayLike[] = days.docs.map((x) => ({ dateMs: ms(x.get('date')), destinationIndex: x.get('destinationIndex') ?? null, dayNumber: x.get('dayNumber') ?? null }));
     const city = todaysCity(trip, dayLikes, today);
     if (!city) continue;
-    const todayMs = dayLikes.map((x) => dayDateMs(trip, x)).find((m) => m != null && calendarDay(m) === today) ?? 0;
-    candidates.push({ id, title: String(d.get('title') ?? ''), trip, ...city, dayStartMs: todayMs });
+    // Which trip's current day began latest: day 1 of a trip that started today beats day 5 of another.
+    const todayIndex = dayLikes.find((x) => dayKey(trip, x) === today)?.dayNumber ?? 1;
+    candidates.push({ id, title: String(d.get('title') ?? ''), trip, ...city, dayStartMs: -todayIndex });
   }
   const chosen = pickTodayTrip(candidates);
   if (!chosen) { await deleteEntriesFor(uid); return 0; }
@@ -90,23 +92,36 @@ export async function syncTraveler(uid: string, now: Date = new Date()): Promise
   });
 
   const entry = {
-    uid, name: String(user.fullName || user.username || ''), avatarUrl: user.avatarUrl ?? null,
-    tripId: chosen.id, tripTitle: chosen.title, city: chosen.city, lat: chosen.lat, lng: chosen.lng,
-    day: today, updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    uid, name: String(user.fullName || user.username || user.displayName || ''), avatarUrl: user.avatarUrl ?? null,
+    tripId: chosen.id, tripTitle: chosen.title, city: chosen.city, lat: chosen.lat, lng: chosen.lng, day: today,
   };
-  const viewers = [...keep];
+  // Write only what changed: an hourly pass rewriting every follower's entry cost a write per pair per hour.
+  const existing = await db().collectionGroup('friendsTraveling').where('uid', '==', uid).get();
+  const current = new Map(existing.docs.map((d) => [d.ref.parent.parent?.id ?? '', d.data()]));
+  const same = (d: admin.firestore.DocumentData | undefined) =>
+    !!d && (Object.keys(entry) as (keyof typeof entry)[]).every((k) => d[k] === entry[k]);
+  const viewers = [...keep].filter((v) => !same(current.get(v)));
   for (let i = 0; i < viewers.length; i += 450) {
     const batch = db().batch();
-    viewers.slice(i, i + 450).forEach((v) => batch.set(db().doc(`users/${v}/friendsTraveling/${uid}`), entry));
+    viewers.slice(i, i + 450).forEach((v) => batch.set(db().doc(`users/${v}/friendsTraveling/${uid}`), { ...entry, updatedAt: admin.firestore.FieldValue.serverTimestamp() }));
     await batch.commit();
   }
-  await deleteEntriesFor(uid, keep);
+  const stale = existing.docs.filter((d) => !keep.has(d.ref.parent.parent?.id ?? ''));
+  for (let i = 0; i < stale.length; i += 450) {
+    const batch = db().batch();
+    stale.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
   return viewers.length;
 }
 
 async function syncAll(uids: Iterable<string>): Promise<void> {
   const list = [...new Set([...uids].filter(Boolean))];
-  for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map((u) => syncTraveler(u)));
+  for (let i = 0; i < list.length; i += 8) {
+    // One traveller's failure must not stop everyone after them (review).
+    const results = await Promise.allSettled(list.slice(i, i + 8).map((u) => syncTraveler(u)));
+    results.forEach((r, j) => { if (r.status === 'rejected') console.error('[friendsTraveling] sync failed', list[i + j], r.reason); });
+  }
 }
 
 const members = (t: TripLike | null) => (t ? [t.authorUid ?? '', ...(t.collaborators ?? [])] : []);
@@ -145,11 +160,18 @@ export const onBlockCreatedFriends = onDocumentCreated('users/{uid}/blocked/{blo
   await syncAll([event.params.uid, event.params.blockedUid]);
 });
 
-export const refreshFriendsTraveling = onSchedule({ schedule: 'every 60 minutes', timeoutSeconds: 540, memory: '512MiB' }, async () => {
+// Minute 1 of every hour, UTC: entries turn into yesterday at 00:00 UTC (the app then hides them), so the
+// first run after midnight must come at once, not up to an hour later (review).
+export const refreshFriendsTraveling = onSchedule({ schedule: '1 * * * *', timeZone: 'UTC', timeoutSeconds: 540, memory: '512MiB' }, async () => {
   const now = new Date();
   const today = todayKey(now);
   const since = admin.firestore.Timestamp.fromMillis(now.getTime() - TWO_DAYS);
-  const trips = await db().collection('trips').where('endDate', '>=', since).get();
+  // Only trips that could be under way: shared, ending no earlier than two days ago, starting within two days.
+  const trips = await db().collection('trips')
+    .where('visibility', 'in', ['public', 'followers'])
+    .where('endDate', '>=', since)
+    .where('startDate', '<=', admin.firestore.Timestamp.fromMillis(now.getTime() + TWO_DAYS))
+    .get();
   const travelers = new Set<string>();
   for (const d of trips.docs) {
     const t = tripLike(d.data());

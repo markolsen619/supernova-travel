@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useModeration } from '@/hooks/useModeration';
-import { filterVisible } from '@/utils/moderation';
+import { contentKey, filterVisible } from '@/utils/moderation';
 import { isCurrentEntry } from '@/utils/friendsTraveling';
 
 export interface FriendTraveling {
@@ -43,6 +43,6 @@ export function useFriendsTraveling(): FriendTraveling[] {
   });
   return useMemo(() => {
     const now = new Date();
-    return filterVisible(data, moderation, (e) => ({ authorUid: e.uid })).filter((e) => isCurrentEntry(e, now));
+    return filterVisible(data, moderation, (e) => ({ authorUid: e.uid, key: contentKey({ type: 'trip', id: e.tripId }) })).filter((e) => isCurrentEntry(e, now));
   }, [data, moderation]);
 }

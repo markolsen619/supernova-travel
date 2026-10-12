@@ -98,3 +98,29 @@ describe('todaysCity on real days', () => {
     expect(todaysCity(realTrip, days, '2026-11-19')).toBeNull();
   });
 });
+
+describe('UTC+13 (review)', () => {
+  // A trip made in New Zealand summer time: local midnight 18 Nov = 11:00Z on the 17th, which the
+  // noon rule reads as the 17th. The app saves the exact day (startDay, 1.0.4+): trust it.
+  const nz = {
+    visibility: 'followers', authorUid: 'mark', startDay: '2026-11-18',
+    startDateMs: D('2026-11-17T11:00:00Z'), endDateMs: D('2026-11-21T11:00:00Z'),
+    destination: { name: 'Auckland', lat: -36.85, lng: 174.76 },
+    additionalDestinations: [{ name: 'Queenstown', lat: -45.03, lng: 168.66 }],
+  };
+  const days = [{ dateMs: null, dayNumber: 1, destinationIndex: 0 }, { dateMs: null, dayNumber: 3, destinationIndex: 1 }];
+  it('starts and ends on the right days', () => {
+    expect(isTripUnderwayToday(nz, '2026-11-17')).toBe(false);
+    expect(isTripUnderwayToday(nz, '2026-11-18')).toBe(true);
+    expect(isTripUnderwayToday(nz, '2026-11-22')).toBe(true);
+    expect(isTripUnderwayToday(nz, '2026-11-23')).toBe(false);
+  });
+  it("puts each day in that day's city", () => {
+    expect(todaysCity(nz, days, '2026-11-18')?.city).toBe('Auckland');
+    expect(todaysCity(nz, days, '2026-11-20')?.city).toBe('Queenstown');
+    expect(todaysCity(nz, days, '2026-11-19')).toBeNull();
+  });
+  it('ignores a saved day that no longer agrees with the date (moved by an older app)', () => {
+    expect(isTripUnderwayToday({ ...nz, startDay: '2026-10-01' }, '2026-11-17')).toBe(true);
+  });
+});
