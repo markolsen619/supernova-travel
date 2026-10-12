@@ -41,9 +41,9 @@ export function OnboardingWalletSlide({ active }: OnboardingWalletSlideProps) {
       </View>
       <View style={styles.textRegion}>
         <SlideTextBlock
-          eyebrow="Travel Wallet"
-          title="Every pass, one place"
-          body="Boarding passes, hotel reservations, and loyalty cards — no more digging through email."
+          eyebrow="Travel wallet"
+          title="Your bookings, on the right day"
+          body="Boarding passes, hotels and tickets in one place. Forward a confirmation email and it lands on your trip."
           active={active}
         />
       </View>

@@ -5,7 +5,7 @@ import { SlideTextBlock } from '@/components/onboarding/SlideTextBlock';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useSwipeParallax } from '@/hooks/useSwipeParallax';
 import { useTheme } from '@/hooks/useTheme';
-import { OnboardingAvatar } from '@/hooks/useOnboardingContent';
+import type { FaceCandidate } from '@/utils/onboardingShowcase';
 import { Spacing } from '@/constants/spacing';
 
 // Bundled stand-ins for an empty suggestions query. A brand-new install has
@@ -24,7 +24,8 @@ const AVATAR_PX = 96;
 const DRIFT_STAGGER_MS = 120;
 
 interface OnboardingCommunitySlideProps {
-  avatars: OnboardingAvatar[];
+  /** A fresh random handful each time (utils/onboardingShowcase pickCommunityFaces). */
+  avatars: FaceCandidate[];
   active: boolean;
   scrollX: Animated.Value;
   index: number;
@@ -118,8 +119,8 @@ export function OnboardingCommunitySlide({
       <View style={styles.textRegion}>
         <SlideTextBlock
           eyebrow="Community"
-          title="Travel together"
-          body="Follow other explorers, share your trips, and get inspired by the community."
+          title="Travelers you'll want to follow"
+          body="See where people are going, share your photos and clips, and review the places you loved."
           active={active}
         />
       </View>
