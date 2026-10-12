@@ -86,7 +86,11 @@ export async function hydrateSession(
     followersCount: data.followersCount ?? 0,
     followingCount: data.followingCount ?? 0,
     createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-    settings: { privacy: data.settings?.privacy === 'private' ? 'private' : 'public' },
+    settings: {
+      privacy: data.settings?.privacy === 'private' ? 'private' : 'public',
+      // Friends' globes: on unless turned off (Settings → Privacy).
+      ...(data.settings?.showOnGlobe === false ? { showOnGlobe: false } : {}),
+    },
   });
   // Non-prompting on purpose: the permission ask now happens at a moment
   // that explains itself (services/push.ts), not cold during onboarding.

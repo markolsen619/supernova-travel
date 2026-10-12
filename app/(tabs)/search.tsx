@@ -16,7 +16,7 @@ import { MapView } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MagnifyingGlass, X, Compass, WarningCircle, MapPin, Globe } from 'phosphor-react-native';
 import {
@@ -31,6 +31,7 @@ import { useKeyboardVisible } from '@/hooks/useKeyboardVisible';
 import { useSearch } from '@/hooks/useSearch';
 import { useDestinations } from '@/hooks/useDestinations';
 import { useHeatmap } from '@/hooks/useHeatmap';
+import { useFriendsTraveling, type FriendTraveling } from '@/hooks/useFriendsTraveling';
 import { matchDestinations } from '@/utils/destinations';
 import { findDestinationAt, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
 import { DestinationResult } from '@/components/search/DestinationResult';
@@ -210,6 +211,12 @@ export default function SearchScreen() {
   // Both read once and cached 12 h — panning and zooming the globe costs nothing.
   const { destinations } = useDestinations();
   const heat = useHeatmap();
+  const friendsTraveling = useFriendsTraveling();
+  // Whole-number zoom only (spreading friends who share a city) — raw zoom stays in zoomRef.
+  const [zoomBucket, setZoomBucket] = useState(2);
+  const handleFriendPress = useCallback((f: FriendTraveling) => {
+    router.push(`/trip/${f.tripId}` as Href);
+  }, []);
 
   const handleDestinationResult = useCallback((slug: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -374,6 +381,8 @@ export default function SearchScreen() {
   // entirely when the boolean hasn't changed.
   const handleCameraChanged = useCallback((zoom: number) => {
     zoomRef.current = zoom;
+    const bucket = Math.round(zoom);
+    setZoomBucket((prev) => (prev === bucket ? prev : bucket));
     const next = zoom > 6;
     setIsZoomedIn((prev) => (prev === next ? prev : next));
   }, []);
@@ -826,6 +835,9 @@ export default function SearchScreen() {
           destinations={destinations}
           heat={heat}
           selectedPlace={selectedPlace}
+          friends={friendsTraveling}
+          zoomBucket={zoomBucket}
+          onFriendPress={handleFriendPress}
         />
       </Animated.View>
 

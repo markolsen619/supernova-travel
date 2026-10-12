@@ -28,3 +28,7 @@ export { onBoardingPassWrittenShare, onReservationWrittenShare } from './sharedB
 export { onTripDayCreatedBookingStops } from './bookingStopFunctions';
 export { inboundEmail, createImportAddress, rotateImportAddress } from './emailImportFunctions';
 export { onPlaceReviewWritten } from './placeReviewFunctions';
+export {
+  onTripWrittenFriends, onTripDayWrittenFriends, onFollowWrittenFriends, onUserWrittenFriends,
+  onBlockCreatedFriends, refreshFriendsTraveling,
+} from './friendsTravelingFunctions';

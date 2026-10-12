@@ -130,6 +130,12 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Friends on a trip (functions/src/friendsTravelingFunctions.ts): your own list, server-written.
+      match /friendsTraveling/{travelerUid} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
       match /blocked/{blockedUid} {
         allow read, delete: if isOwner(uid);
         allow create: if isOwner(uid) && blockedUid != uid;
