@@ -283,7 +283,7 @@ Trip components in `components/trip/`:
 - `DayTimeline` — day-by-day itinerary timeline visualization
 - `ActivityItem` — individual activity row (uses `ACTIVITY_ICONS` for type icon + color)
 - `AiPromptForm` — AI generation form: destination, dates, travel style (`TravelStyle`), must-see, free-text preferences
-- `AiGeneratingAnimation` — loading animation during AI generation (always-dark, does not use `useTheme`)
+- `AiGeneratingAnimation` — loading animation during AI generation (always-dark, does not use `useTheme`): the brand star inside a progress ring (`react-native-svg`) that eases towards ~90% (`progressAt`) and fills + bursts when the trip is ready. `app/trip/ai-generating.tsx` tells the wait as a story (`utils/generatingStory.ts`: ten steps over ~90 s naming the city and styles — the old screen ran out after 9 s and sat on "Finalising" for minutes), rotates "while you wait" cards every 6 s (catalog top places, then app tips), drifts the catalog cover behind (no Places cost), and on success fills the ring, Success haptic, 900 ms, then the trip
 
 Wallet components in `components/wallet/`:
 - `BoardingPassCard` — always-dark physical boarding pass card (`#1a1035 → #0f0a2a` gradient)

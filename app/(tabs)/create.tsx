@@ -11,6 +11,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
+import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 
 interface SecondaryOption {
   Icon: PhosphorIcon;
@@ -54,9 +55,13 @@ export default function CreateScreen() {
   return (
     <ScreenEntrance>
     <View style={[styles.container, { backgroundColor: colors.background.primary, paddingTop: insets.top }]}>
+      {/* Same header as Explore, Profile and Wallet: the brand star beside the title. */}
       <View style={styles.header}>
-        <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>NEW TRIP</Text>
-        <Text style={[styles.title, { color: colors.text.primary }]}>Create a trip</Text>
+        <View style={styles.titleRow}>
+          <ScreenHeaderStar />
+          <Text style={[styles.title, { color: colors.text.primary }]}>Create a trip</Text>
+        </View>
+        <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Plan it with AI or build it yourself</Text>
       </View>
 
       <View style={styles.cardsWrapper}>
@@ -116,10 +121,13 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['2'],
     gap: Spacing['1'],
   },
-  eyebrow: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.medium,
-    letterSpacing: 0.08 * FontSize.xs,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['2'],
+  },
+  subtitle: {
+    fontSize: FontSize.sm,
   },
   title: {
     fontSize: FontSize['2xl'],
