@@ -1,6 +1,6 @@
 # App Store text for 1.0.5
 
-> Drafted 2026-10-12 for build 35 (submit after the owner tests it). Changes from 1.0.4: What's New; two description bullets (video clips; globe trends and friends); review notes swap NEW IN 1.0.4 for NEW IN 1.0.5.
+> **SUBMITTED 2026-10-12 with build 35 — Waiting for Review, manual release.** Drafted 2026-10-12 for build 35. Changes from 1.0.4: What's New; two description bullets (video clips; globe trends and friends); review notes swap NEW IN 1.0.4 for NEW IN 1.0.5.
 > **App Privacy: no change.** Videos are already declared (Photos or Videos); friends on the globe uses itinerary cities people already share with followers — not device location (Apple's Location types are device location); trending counts are anonymous aggregates of trip destinations (Other User Content, already declared). Map diagnostics were added in 1.0.4. Privacy policy already covers friends on the globe and trending (deployed 2026-10-11/12); videos have their filming location stripped before upload.
 
 ## What's New (439 characters)
