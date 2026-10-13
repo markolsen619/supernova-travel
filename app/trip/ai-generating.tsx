@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -19,19 +19,11 @@ import { DarkColors, LightColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
+import { useDestinations } from '@/hooks/useDestinations';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { KenBurnsImage } from '@/components/onboarding/KenBurnsImage';
+import { catalogFor, generatingMessages, messageIndexAt, progressAt, waitCardAt, waitCards } from '@/utils/generatingStory';
 import { parseTravelStyles, parseTripVisibility } from '@/utils/aiRouteParams';
-
-// ─── Status messages ──────────────────────────────────────────────────────────
-
-const STATUS_MESSAGES = [
-  'Researching destinations...',
-  'Planning your itinerary...',
-  'Adding local recommendations...',
-  'Finalising your trip...',
-];
-
-// Status index thresholds in seconds
-const STATUS_THRESHOLDS = [0, 3, 6, 9];
 
 // ─── Destination display ──────────────────────────────────────────────────────
 
@@ -77,10 +69,30 @@ export default function AiGeneratingScreen() {
   const { generateTrip, isPending, error } = useAiGenerateTrip();
   const destinationDisplay = formatDestinationDisplay(params.destination, params.additionalDestinations);
 
-  const [statusIndex, setStatusIndex] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [finishing, setFinishing] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
-  const elapsedRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reduceMotion = useReduceMotion();
+
+  // The wait as a story (utils/generatingStory): their city and styles, ~90 s of steps, cards that teach the app.
+  const { destinations } = useDestinations();
+  const catalog = useMemo(
+    () => catalogFor(destinations, params.destination ?? '', params.lat ? Number(params.lat) : null, params.lng ? Number(params.lng) : null),
+    [destinations, params.destination, params.lat, params.lng],
+  );
+  const messages = useMemo(
+    () => generatingMessages(params.destination || 'your destination', parseTravelStyles(params.travelStyles, params.travelStyle)),
+    [params.destination, params.travelStyles, params.travelStyle],
+  );
+  const cards = useMemo(() => waitCards((catalog?.topPlaces ?? []).map((p) => p.name)), [catalog]);
+  const status = finishing ? 'Your trip is ready' : messages[messageIndexAt(elapsed, messages.length)];
+  const card = waitCardAt(cards, elapsed);
+  const cardAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    cardAnim.setValue(0);
+    Animated.spring(cardAnim, { toValue: 1, ...SPRING }).start();
+  }, [card, cardAnim]);
 
   // ── Light → dark transition (signature moment) ───────────────────────────
   // The intake form is light chrome; this screen is the one deliberately-dark
@@ -103,22 +115,9 @@ export default function AiGeneratingScreen() {
     ]).start();
   }, []);
 
-  // Advance status messages on a ticker while generating
+  // One tick a second drives the story, the progress ring and the cards.
   const startStatusTicker = () => {
-    elapsedRef.current = 0;
-    timerRef.current = setInterval(() => {
-      elapsedRef.current += 1;
-      const elapsed = elapsedRef.current;
-      // Find the highest threshold we've passed
-      let idx = 0;
-      for (let i = STATUS_THRESHOLDS.length - 1; i >= 0; i--) {
-        if (elapsed >= STATUS_THRESHOLDS[i]) {
-          idx = i;
-          break;
-        }
-      }
-      setStatusIndex(idx);
-    }, 1000);
+    timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
   };
 
   const stopStatusTicker = () => {
@@ -169,7 +168,10 @@ export default function AiGeneratingScreen() {
     generateTrip(request)
       .then(({ tripId }) => {
         stopStatusTicker();
-        router.replace(`/trip/${tripId}`);
+        // A finish worth the wait: the ring fills, the star bursts, then the trip.
+        setFinishing(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => router.replace(`/trip/${tripId}`), 900);
       })
       .catch(() => {
         // Errors are handled by the mutation's onError (resource-exhausted → hosted paywall)
@@ -246,6 +248,14 @@ export default function AiGeneratingScreen() {
     <View style={styles.screen}>
       <LinearGradient colors={DarkColors.gradient.dark} style={StyleSheet.absoluteFill} />
 
+      {/* Where they're going, slowly drifting under a dark veil — catalog cover only (no Places cost). */}
+      {catalog?.coverImageUrl ? (
+        <>
+          <KenBurnsImage source={{ uri: catalog.coverImageUrl }} active style={StyleSheet.absoluteFillObject} />
+          <View style={[StyleSheet.absoluteFill, styles.coverVeil]} pointerEvents="none" />
+        </>
+      ) : null}
+
       {/* Aurora accent */}
       <LinearGradient
         colors={['rgba(167,139,250,0.2)', 'rgba(244,114,182,0.12)', 'transparent']}
@@ -265,7 +275,21 @@ export default function AiGeneratingScreen() {
           {destinationDisplay}
         </Text>
 
-        <AiGeneratingAnimation status={STATUS_MESSAGES[statusIndex]} />
+        <AiGeneratingAnimation status={status} progress={finishing ? 1 : progressAt(elapsed)} finishing={finishing} />
+
+        {/* While you wait: what travelers love here, then how to get the most from the trip. */}
+        <Animated.View
+          style={[
+            styles.waitCard,
+            {
+              opacity: cardAnim,
+              transform: reduceMotion ? [] : [{ translateY: cardAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+            },
+          ]}
+        >
+          <Text style={styles.waitCardTitle}>{card.title}</Text>
+          <Text style={styles.waitCardBody}>{card.body}</Text>
+        </Animated.View>
 
         <Text style={styles.footnote}>
           This can take a minute or two. Hang tight.
@@ -288,6 +312,21 @@ export default function AiGeneratingScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  coverVeil: { backgroundColor: 'rgba(11,10,18,0.72)' },
+  waitCard: {
+    alignSelf: 'stretch',
+    marginHorizontal: Spacing['5'],
+    marginBottom: Spacing['5'],
+    paddingVertical: Spacing['4'],
+    paddingHorizontal: Spacing['5'],
+    borderRadius: BorderRadius.xl,
+    backgroundColor: 'rgba(23,20,34,0.85)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DarkColors.background.cardBorder,
+    gap: 4,
+  },
+  waitCardTitle: { color: DarkColors.text.primary, fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
+  waitCardBody: { color: DarkColors.text.secondary, fontSize: FontSize.sm, lineHeight: 20 },
   screen: {
     flex: 1,
     backgroundColor: DarkColors.background.primary,
