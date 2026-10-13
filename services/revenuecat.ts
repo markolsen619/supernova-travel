@@ -168,6 +168,11 @@ async function configureInternal(uid: string): Promise<void> {
   // A test key in a shipped build is unusable; refuse rather than configure
   // the SDK into a state where every purchase fails silently.
   if (!assertStoreKeyIsSane()) return;
+  // A platform with no key yet (Android before its Play products exist): no purchases, no crash.
+  if (!API_KEY) {
+    console.warn('[revenuecat] no API key for this platform — purchases unavailable');
+    return;
+  }
 
   const mod = await loadPurchases();
   if (!mod) return;

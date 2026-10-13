@@ -11,9 +11,8 @@ web-build/
 *.key
 *.mobileprovision
 *.orig.*
-# Firebase native config — same project config as .env.local, kept out of the
-# public repo for the same reason. Supply to EAS as a file secret.
-google-services.json
+# google-services.json is gitignored (kept out of the repo) but uploaded to EAS from this machine,
+# exactly like GoogleService-Info.plist — Android push and Google Sign-In need it in the build.
 # Brainstorm session files
 .superpowers/
 .DS_Store
