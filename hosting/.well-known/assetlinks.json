@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.supernovatravel.app",
+      "sha256_cert_fingerprints": [
+        "7E:1C:2A:ED:FC:F4:96:92:E8:32:D3:1E:B2:D1:FB:15:3C:84:F8:41:72:23:85:4E:BC:66:E4:CA:32:45:44:59",
+        "C6:20:A3:4C:B7:2B:2C:A3:B5:17:F4:78:59:58:57:90:84:85:27:96:30:54:26:7E:45:CD:3E:9B:43:2F:33:0D"
+      ]
+    }
+  }
+]
