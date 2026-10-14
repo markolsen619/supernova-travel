@@ -178,3 +178,40 @@ export const MAX_AI_TRIP_DAYS = 21;
 export function aiTripLengthAllowed(days: number): boolean {
   return Number.isInteger(days) && days >= 1 && days <= MAX_AI_TRIP_DAYS;
 }
+
+// ── Agent ("Ask Nova") policy ─────────────────────────────────────────
+// docs/superpowers/specs/2026-10-14-trip-agent-design.md. One allowance shared
+// by every agent surface. A message costs about a third of a cent on
+// gemini-2.5-flash with thinking off, so 300/month is < $1 of worst case for a
+// subscriber and the free 10 are a taste that sells Pro.
+
+export const AGENT_FREE_MONTHLY = 10;
+export const AGENT_PAID_MONTHLY = 300;
+/** Anti-abuse: a script or a stuck button, never a person. */
+export const AGENT_HOURLY_LIMIT = 20;
+/** A request older than this no longer blocks the next one (a crashed call can't lock someone out). */
+export const AGENT_INFLIGHT_MS = 90_000;
+
+export function agentQuotaPolicy(tier: string | null | undefined, now: Date = new Date()): AiTripQuotaPolicy {
+  const paid = typeof tier === 'string' && PAID_TIERS.has(tier);
+  return {
+    limit: paid ? AGENT_PAID_MONTHLY : AGENT_FREE_MONTHLY,
+    window: 'month',
+    quotaKey: getMonthlyQuotaKey(paid ? 'agent_pro' : 'agent', now),
+    resetsAt: getNextMonthStart(now),
+    fairUse: paid,
+  };
+}
+
+export function agentHourKey(now: Date = new Date()): string {
+  return `agent_hour_${now.toISOString().slice(0, 13)}`;
+}
+
+export type AgentGate = 'ok' | 'monthly' | 'hourly' | 'busy';
+
+export function agentGate(q: { used: number; limit: number; hourCount: number; inflightUntil: number | null; now: number }): AgentGate {
+  if (q.used >= q.limit) return 'monthly';
+  if (q.hourCount >= AGENT_HOURLY_LIMIT) return 'hourly';
+  if (q.inflightUntil != null && q.inflightUntil > q.now) return 'busy';
+  return 'ok';
+}
