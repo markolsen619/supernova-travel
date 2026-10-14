@@ -15,8 +15,10 @@
  * Bump when what's shared or who it's shared with changes materially. Every
  * user is then asked again, because what they agreed to is no longer what
  * happens.
+ *
+ * 2 (2026-10-14): Ask Nova sends the trip, your messages and booking names/dates.
  */
-export const AI_CONSENT_VERSION = 1;
+export const AI_CONSENT_VERSION = 2;
 
 export function hasAiConsent(userData: { aiConsentVersion?: unknown } | null | undefined): boolean {
   const version = userData?.aiConsentVersion;

@@ -24,4 +24,9 @@ describe('AI consent', () => {
     expect(clientHas(SERVER_VERSION - 1)).toBe(false);
     expect(serverHas({ aiConsentVersion: SERVER_VERSION - 1 })).toBe(false);
   });
+
+  it('is version 2: the agent sends the trip, messages and booking names', () => {
+    expect(SERVER_VERSION).toBe(2);
+    expect(clientHas(1)).toBe(false);
+  });
 });
