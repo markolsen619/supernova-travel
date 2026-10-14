@@ -1,0 +1,107 @@
+/**
+ * The trip as the agent sees it (docs/superpowers/specs/2026-10-14-trip-agent-design.md):
+ * compact text with short labels (d1, s4, c2) in place of Firestore ids — fewer
+ * tokens, and the model can't invent an id. Pure: no firebase-admin.
+ */
+export interface CtxStop { id: string; title: string; type: string; startTime: string | null; placed: boolean; order: number }
+export interface CtxDay { id: string; dayNumber: number; city: number; stops: CtxStop[] }
+export interface CtxCity { name: string; nights: number | null }
+export interface CtxBooking { kind: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transit' | 'car'; name: string; date: string | null; time: string | null; shared: boolean }
+export interface CtxTopPlace { city: number; name: string; type: string }
+export interface TripCtxInput { title: string; startDay: string | null; today: string; cities: CtxCity[]; days: CtxDay[]; bookings: CtxBooking[]; topPlaces: CtxTopPlace[] }
+export interface LabelMap {
+  days: Record<string, string>;
+  stops: Record<string, { dayId: string; stopId: string }>;
+  dayStops: Record<string, string[]>;
+  cityCount: number;
+}
+
+export const CONTEXT_BUDGET_CHARS = 12_000;
+const TITLE_MAX = 60;
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+function addDays(day: string, n: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_BUDGET_CHARS): { text: string; labels: LabelMap } {
+  const labels: LabelMap = { days: {}, stops: {}, dayStops: {}, cityCount: input.cities.length };
+  const days = [...input.days].sort((a, b) => a.dayNumber - b.dayNumber);
+  const start = input.startDay && DAY_RE.test(input.startDay) ? input.startDay : null;
+
+  // Labels for everything first, so trimmed lines still map back.
+  let n = 0;
+  const dayLines: { full: string; short: string }[] = [];
+  for (const d of days) {
+    const dl = `d${d.dayNumber}`;
+    labels.days[dl] = d.id;
+    const stops = [...d.stops].sort((a, b) => a.order - b.order);
+    labels.dayStops[d.id] = stops.map((s) => s.id);
+    const city = input.cities[d.city]?.name ?? input.cities[0]?.name ?? '';
+    const head = start ? `${dl} ${addDays(start, d.dayNumber - 1)} ${city}` : `${dl} ${city}`;
+    const parts = stops.map((s) => {
+      n += 1;
+      labels.stops[`s${n}`] = { dayId: d.id, stopId: s.id };
+      return `s${n} ${clip(s.title, TITLE_MAX)} [${fixMeta(s.type, s.startTime, s.placed)}]`;
+    });
+    const first = n - stops.length + 1;
+    dayLines.push({
+      full: `${head}: ${parts.length ? parts.join(' · ') : '(no stops)'}`,
+      short: `${head}: ${stops.length} stops (s${first}–s${n})`,
+    });
+  }
+
+  const header = [
+    `TODAY ${input.today}`,
+    `TRIP "${clip(input.title, 80)}" ${start ? `starts ${start}` : 'dates not set'}`,
+    `CITIES: ${input.cities.map((c, i) => `c${i + 1} ${c.name}${c.nights != null ? ` ${c.nights}n` : ''}`).join(' | ')}`,
+  ].join('\n');
+  const bookings = input.bookings.length
+    ? `BOOKINGS: ${input.bookings.map((b) => [b.kind, b.name, b.date, b.time].filter(Boolean).join(' ') + (b.shared ? ' (shared)' : '')).join(' | ')}`
+    : 'BOOKINGS: none';
+  const favourites = input.topPlaces.length
+    ? `COMMUNITY FAVOURITES: ${groupTop(input.topPlaces)}`
+    : '';
+
+  // Trim: far days (from the end) drop to one-line summaries until it fits.
+  const lines = dayLines.map((d) => d.full);
+  const assemble = () => [header, ...lines, bookings, favourites].filter(Boolean).join('\n');
+  for (let i = lines.length - 1; i >= 0 && assemble().length > budget; i--) lines[i] = dayLines[i].short;
+  let text = assemble();
+  if (text.length > budget) text = text.slice(0, budget);
+  return { text, labels };
+}
+
+function fixMeta(type: string, time: string | null, placed: boolean): string {
+  const head = time ? `${type} ${time}` : type;
+  return placed ? head : `${head}, unplaced`;
+}
+
+function groupTop(places: CtxTopPlace[]): string {
+  const by = new Map<number, string[]>();
+  for (const p of places) by.set(p.city, [...(by.get(p.city) ?? []), `${p.name} (${p.type})`]);
+  return [...by.entries()].map(([c, list]) => `c${c + 1}: ${list.join(', ')}`).join(' | ');
+}
+
+/** A wallet booking reduced to what the model may see: type, name, date, time. Never codes, addresses, barcodes. */
+export function bookingForContext(kind: 'boarding_pass' | 'reservation', d: Record<string, unknown>, shared: boolean): CtxBooking | null {
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  if (kind === 'boarding_pass') {
+    const name = [str(d.airline), str(d.flightNumber)].filter(Boolean).join(' ');
+    if (!name) return null;
+    const route = str(d.origin) && str(d.destination) ? ` ${str(d.origin)}→${str(d.destination)}` : '';
+    const dep = str(d.departureTime);
+    return { kind: 'flight', name: `${name}${route}`, date: str(d.localDate) ?? (dep ? dep.slice(0, 10) : null), time: dep && dep.length >= 16 ? dep.slice(11, 16) : null, shared };
+  }
+  const title = str(d.title);
+  if (!title) return null;
+  const type = str(d.type);
+  const k: CtxBooking['kind'] =
+    type === 'hotel' || type === 'airbnb' ? 'hotel'
+      : type === 'rental_car' ? 'car'
+        : type === 'restaurant' ? 'restaurant'
+          : str(d.transitMode) ? 'transit' : 'activity';
+  const checkIn = str(d.checkIn);
+  return { kind: k, name: clip(title, TITLE_MAX), date: checkIn ? checkIn.slice(0, 10) : null, time: str(d.time), shared };
+}
