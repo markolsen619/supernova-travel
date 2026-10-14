@@ -11,6 +11,8 @@ web-build/
 *.key
 *.mobileprovision
 *.orig.*
+# Service-account keys (eas submit's Play key) are read on this machine only, never built into the app.
+*service-account*.json
 # google-services.json is gitignored (kept out of the repo) but uploaded to EAS from this machine,
 # exactly like GoogleService-Info.plist — Android push and Google Sign-In need it in the build.
 # Brainstorm session files
