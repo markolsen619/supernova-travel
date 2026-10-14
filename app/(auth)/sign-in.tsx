@@ -117,6 +117,9 @@ export default function SignInScreen() {
             onBlur={() => setEmailFocused(false)}
             placeholder="you@example.com"
             placeholderTextColor={colors.text.tertiary}
+            // Android exposes testID as the view's resource id: Test Lab and Play's pre-launch
+            // report sign in by these names.
+            testID="sign_in_email"
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -141,6 +144,7 @@ export default function SignInScreen() {
               onBlur={() => setPasswordFocused(false)}
               placeholder="••••••••"
               placeholderTextColor={colors.text.tertiary}
+              testID="sign_in_password"
               secureTextEntry={!showPassword}
               returnKeyType="done"
               onSubmitEditing={handleSignIn}
