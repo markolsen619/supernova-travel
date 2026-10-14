@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket, Sparkle } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -35,6 +35,9 @@ import { JournalSheet } from '@/components/trip/JournalSheet';
 import { TripRecapSheet } from '@/components/trip/TripRecapSheet';
 import { InviteFriendsSheet } from '@/components/trip/InviteFriendsSheet';
 import { ShareTripSheet } from '@/components/trip/ShareTripSheet';
+import { AgentSheet } from '@/components/agent/AgentSheet';
+import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
+import { Button } from '@/components/ui/Button';
 import { TripBookingsSheet } from '@/components/trip/TripBookingsSheet';
 import { useTripBookings } from '@/hooks/useTripBookings';
 import { bookingsByDay, type TripBooking } from '@/utils/bookingDays';
@@ -307,6 +310,8 @@ export default function TripDetailScreen() {
   // Invite friends (request/accept) — owner or existing collaborator only
   const [inviteVisible, setInviteVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const { requireConsent: requireAiConsent, consentSheet: aiConsentSheet } = useAiConsentGate();
   const [bookingsVisible, setBookingsVisible] = useState(false);
   // Multi-city trips: tapping a city's pill shows only its days (utils/dayDestination daysInDestination).
   const [cityFilter, setCityFilter] = useState<number | null>(null);
@@ -1500,6 +1505,20 @@ export default function TripDetailScreen() {
           )}
         </ScrollView>
 
+        {/* Ask Nova (docs/superpowers/specs/2026-10-14-trip-agent-design.md) — members who can edit.
+            The screen's one gradient action. */}
+        {canEditItinerary && (
+          <View style={styles.askNova}>
+            <Button
+              label="Ask Nova"
+              variant="hero"
+              icon={Sparkle}
+              haptic="light"
+              onPress={() => requireAiConsent('agent', () => setAgentOpen(true))}
+            />
+          </View>
+        )}
+
         {/* ── 4. Description ── */}
         {hasDescription && (
           <View style={styles.descriptionContainer}>
@@ -1699,6 +1718,8 @@ export default function TripDetailScreen() {
 
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
+      {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
+      {aiConsentSheet}
       {multiCity && canEditItinerary && (
         <RouteEditorSheet visible={routeEditorVisible} trip={trip} onClose={() => setRouteEditorVisible(false)} onSaved={() => setCityFilter(null)} />
       )}
@@ -1863,6 +1884,10 @@ const styles = StyleSheet.create({
   },
 
   // ── Description ──
+  askNova: {
+    paddingHorizontal: Spacing['5'],
+    paddingTop: Spacing['4'],
+  },
   descriptionContainer: {
     paddingHorizontal: Spacing['5'],
     paddingTop: Spacing['5'],
