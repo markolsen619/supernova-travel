@@ -1,4 +1,4 @@
-# Ask Supernova — the agent, phase 1: trips (design)
+# Ask Nova — the agent, phase 1: trips (design)
 
 Approved in chat 2026-10-14. Phase 1 of **one app-wide agent**: its first surface is a chat on a trip that
 **proposes** changes the person accepts. The agent is built from day one to grow into other surfaces (see
@@ -25,12 +25,12 @@ fractions of a cent per message. **Owner's standing constraint: the best perform
 
 ## What people see
 
-- **Entry:** on a trip page, one **"Ask Supernova"** button with the brand star — the screen's single
+- **Entry:** on a trip page, one **"Ask Nova"** button with the brand star — the screen's single
   gradient AI action. Shown only to members who can edit (owner + accepted collaborators, `isTripMember`).
-- **Sheet** (tall; follows the theme). Empty state: star · "Plan with Supernova" · "Ask for changes —
+- **Sheet** (tall; follows the theme). Empty state: star · "Plan with Nova" · "Ask for changes —
   nothing happens until you accept." · three suggestion chips built from the trip (e.g. "Make day 2 less
   rushed", "Find dinner near our hotel on Friday", "Add a night in Porto").
-- Messages: yours right, Supernova's left, short plain text. A reply with operations shows a **proposal
+- Messages: yours right, Nova's left, short plain text. A reply with operations shows a **proposal
   card** under it: one line per change with its type icon (`ACTIVITY_ICONS`), each line untickable, and one
   **Apply changes** button. Route lines that delete stops say so ("Lisbon 3 → 2 nights · removes 2 stops").
 - After applying: "Changed 3 things · Undo" bar (~10 s); the trip behind updates; the card shows
@@ -79,7 +79,7 @@ else is refused with `invalid-argument`.
    paused once it has responded, which would lose messages and break the retry rule. Latency is the
    Gemini call; target ~2–4 s per answer.
 8. **Logging:** tokens in/out, latency, operation count — never the message text.
-9. **Errors:** "Supernova couldn't answer right now. Try again." — no quota used.
+9. **Errors:** "Nova couldn't answer right now. Try again." — no quota used.
 
 ### Operations (phase 1, capability `trip.v1`)
 

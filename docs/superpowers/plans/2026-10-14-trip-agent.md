@@ -1,8 +1,8 @@
-# Ask Supernova (agent phase 1: trips) Implementation Plan
+# Ask Nova (agent phase 1: trips) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A chat on a trip ("Ask Supernova") that proposes changes — stops, route, dates — which the person accepts, built as the first surface of one app-wide agent.
+**Goal:** A chat on a trip ("Ask Nova") that proposes changes — stops, route, dates — which the person accepts, built as the first surface of one app-wide agent.
 
 **Architecture:** One callable Cloud Function `agent` builds a compact trip context (pure), calls Gemini once with a JSON response schema and thinking off, validates the proposed operations (pure), filters them to what the calling app declares it can apply, saves the thread and quota in one batch, and returns. The app never trusts the server to edit: it turns accepted operations into the existing trip mutations (pure planner + a hook), so Firestore rules decide exactly as for manual edits.
 
@@ -29,7 +29,7 @@
 1. A proposal applied after a collaborator changed the trip (stop deleted, day removed) → that change is skipped and reported, the rest apply. (Task 8 test `skips operations whose stop no longer exists`.)
 2. The model names the same stop in two operations (move it, then remove it) → only the first survives. (Task 3 test `drops a second operation on the same stop`.)
 3. A free user at 10 of 10 → refused before any Gemini call, no quota change, the app opens the paywall. (Task 1 test `refuses at the monthly limit`.)
-4. The model returns broken or partial JSON → "Supernova couldn't answer right now. Try again.", no quota used. (Task 4 test `parseModelText rejects non-JSON and missing fields`.)
+4. The model returns broken or partial JSON → "Nova couldn't answer right now. Try again.", no quota used. (Task 4 test `parseModelText rejects non-JSON and missing fields`.)
 5. A 21-day trip with ~120 stops → the context stays inside its budget and labels for trimmed days still map back. (Task 2 test `keeps a long trip inside the budget`.)
 
 ---
@@ -112,7 +112,7 @@ Expected: FAIL — `agentQuotaPolicy is not a function` (or TS export errors).
 Append to `functions/src/quotaUtils.ts`:
 
 ```ts
-// ── Agent ("Ask Supernova") policy ─────────────────────────────────────────
+// ── Agent ("Ask Nova") policy ─────────────────────────────────────────
 // docs/superpowers/specs/2026-10-14-trip-agent-design.md. One allowance shared
 // by every agent surface. A message costs about a third of a cent on
 // gemini-2.5-flash with thinking off, so 300/month is < $1 of worst case for a
@@ -834,7 +834,7 @@ Expected: FAIL — cannot find module `agentModel`.
 /** What the agent is told, and the JSON shape it must answer in. Pure. */
 import { ACTIVITY_TYPES } from './agentTypes';
 
-export const TRIP_SYSTEM_PROMPT = `You are Supernova, a travel planner inside the Supernova app. You help one person change the trip shown below.
+export const TRIP_SYSTEM_PROMPT = `You are Nova, the travel planner inside the Supernova app. You help one person change the trip shown below.
 
 You never change anything yourself. You answer in JSON: "reply" (at most 3 short sentences, plain text, the person's language, no emoji, no exclamation marks) and "operations" (proposed changes the person can accept). For a question, answer in "reply" with no operations.
 
@@ -997,7 +997,7 @@ This task's logic is in Tasks 1–4's tested pure functions; this file is wiring
 ```ts
 // functions/src/agentFunctions.ts
 /**
- * "Ask Supernova" (docs/superpowers/specs/2026-10-14-trip-agent-design.md).
+ * "Ask Nova" (docs/superpowers/specs/2026-10-14-trip-agent-design.md).
  * One Gemini call per message; proposes operations, never edits the trip.
  * Pure rules: agentTripContext, agentTripOps, agentSurfaces, agentModel, quotaUtils.
  */
@@ -1019,7 +1019,7 @@ import type { AgentOp, AgentQuotaView, AgentResponse } from './agentTypes';
 const db = () => admin.firestore();
 const MESSAGE_MAX = 500;
 const HISTORY = 10;
-const FAIL = "Supernova couldn't answer right now. Try again.";
+const FAIL = "Nova couldn't answer right now. Try again.";
 
 const ms = (v: unknown) => (v && typeof (v as admin.firestore.Timestamp).toMillis === 'function' ? (v as admin.firestore.Timestamp).toMillis() : null);
 
@@ -1073,7 +1073,7 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     // `details.reason` tells the app which limit: only the monthly one on a free account opens the paywall.
     if (gate === 'monthly') throw new HttpsError('resource-exhausted', policy.fairUse ? 'That\'s a lot of planning this month. It resets on the 1st.' : 'Free accounts get 10 messages a month. Pro gives you plenty more.', { reason: 'monthly', fairUse: policy.fairUse });
     if (gate === 'hourly') throw new HttpsError('resource-exhausted', 'Give it a few minutes and try again.', { reason: 'hourly' });
-    if (gate === 'busy') throw new HttpsError('aborted', 'Supernova is still answering your last message.');
+    if (gate === 'busy') throw new HttpsError('aborted', 'Nova is still answering your last message.');
     tx.set(quotaRef, { [hourKey]: admin.firestore.FieldValue.increment(1), agentInflightUntil: Date.now() + AGENT_INFLIGHT_MS }, { merge: true });
   });
 
@@ -1198,7 +1198,7 @@ export { agent, getAgentQuota, onTripDeletedAgentThreads } from './agentFunction
 In `firestore.rules`, inside the `match /users/{uid} { … }` block, after `match /hidden/{contentKey} { … }`:
 
 ```
-      // "Ask Supernova" threads (docs/superpowers/specs/2026-10-14-trip-agent-design.md).
+      // "Ask Nova" threads (docs/superpowers/specs/2026-10-14-trip-agent-design.md).
       // Only the server writes messages; the owner may mark a proposal applied/dismissed.
       match /agentThreads/{threadId}/messages/{messageId} {
         allow read, delete: if isOwner(uid);
@@ -1259,7 +1259,7 @@ git commit -m "feat(agent): agent and getAgentQuota callables, thread clean-up, 
 
 - [ ] **Step 3: Implement**
 
-`functions/src/aiConsent.ts` and `utils/aiConsent.ts`: `export const AI_CONSENT_VERSION = 2;` (add to the server comment: "2 (2026-10-14): Ask Supernova sends the trip, your messages and booking names/dates.").
+`functions/src/aiConsent.ts` and `utils/aiConsent.ts`: `export const AI_CONSENT_VERSION = 2;` (add to the server comment: "2 (2026-10-14): Ask Nova sends the trip, your messages and booking names/dates.").
 
 `utils/aiConsent.ts`: `export type AiPurpose = 'trip' | 'import' | 'agent';`
 
@@ -1267,7 +1267,7 @@ git commit -m "feat(agent): agent and getAgentQuota callables, thread clean-up, 
 
 ```ts
   agent: {
-    title: 'Ask Supernova',
+    title: 'Ask Nova',
     sends: "Your trip's cities, days and stops, what you ask, and the name, date and time of its bookings.",
   },
 ```
@@ -1293,7 +1293,7 @@ and the "Who receives it" body: `"Google, through its Gemini API, which writes t
 
 ```bash
 git add functions/src/aiConsent.ts utils/aiConsent.ts components/ai/AiConsentSheet.tsx __tests__/utils/aiConsent.test.ts
-git commit -m "feat(agent): AI consent v2 covers Ask Supernova"
+git commit -m "feat(agent): AI consent v2 covers Ask Nova"
 ```
 
 ---
@@ -1902,7 +1902,7 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
     } catch (e: unknown) {
       const details = (e as { details?: { reason?: string; fairUse?: boolean } }).details;
       if (details?.reason === 'monthly' && !details.fairUse) { setError((e as Error).message); return 'limit'; }
-      setError((e as Error).message || "Supernova couldn't answer right now. Try again.");
+      setError((e as Error).message || "Nova couldn't answer right now. Try again.");
       return 'error';
     } finally {
       setPending(null); setSending(false);
@@ -2163,7 +2163,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
         <View style={styles.header}>
           <View>
             <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{trip.title.toUpperCase()}</Text>
-            <Text style={[styles.title, { color: colors.text.primary }]}>Ask Supernova</Text>
+            <Text style={[styles.title, { color: colors.text.primary }]}>Ask Nova</Text>
           </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity onPress={menu} style={styles.iconButton} accessibilityLabel="Conversation options"><DotsThree size={24} color={colors.text.secondary} weight="bold" /></TouchableOpacity>
@@ -2176,7 +2176,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           {empty && (
             <View style={styles.empty}>
               <SupernovaStar size={40} />
-              <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>Plan with Supernova</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>Plan with Nova</Text>
               <Text style={[styles.emptyBody, { color: colors.text.secondary }]}>Ask for changes — nothing happens until you accept.</Text>
               {agentSuggestions(trip).map((s) => (
                 <TouchableOpacity key={s} onPress={() => send(s)} style={[styles.chip, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]} accessibilityRole="button">
@@ -2195,7 +2195,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
               )}
             </View>
           ))}
-          {agent.sending && <Text style={[styles.typing, { color: colors.text.tertiary }]}>Supernova is thinking…</Text>}
+          {agent.sending && <Text style={[styles.typing, { color: colors.text.tertiary }]}>Nova is thinking…</Text>}
           {agent.error && <Text style={[styles.typing, { color: colors.status?.error ?? colors.text.secondary }]}>{agent.error}</Text>}
         </ScrollView>
 
@@ -2259,7 +2259,7 @@ In `app/trip/[id].tsx`:
 - import `AgentSheet` and `useAiConsentGate`;
 - `const [agentOpen, setAgentOpen] = useState(false);` and `const { requireConsent, consentSheet } = useAiConsentGate();` (if the screen already uses the gate, reuse it);
 - `const openAgent = useCallback(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); requireConsent('agent', () => setAgentOpen(true)); }, [requireConsent]);`
-- next to the existing trip actions (where `ShareTripSheet` is opened), when `canEditItinerary`, render one button: the brand-gradient pill with the star icon and the label "Ask Supernova", `accessibilityLabel="Ask Supernova"`, min height 44 — the screen's single gradient action (if another gradient CTA exists on this screen, make that one secondary);
+- next to the existing trip actions (where `ShareTripSheet` is opened), when `canEditItinerary`, render one button: the brand-gradient pill with the star icon and the label "Ask Nova", `accessibilityLabel="Ask Nova"`, min height 44 — the screen's single gradient action (if another gradient CTA exists on this screen, make that one secondary);
 - render `{trip && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}` and `{consentSheet}` once.
 
 - [ ] **Step 4: Verify**
@@ -2272,7 +2272,7 @@ Run the design pre-ship checklist (`.claude/skills/supernova-design/SKILL.md`) a
 
 ```bash
 git add components/agent app/trip/\[id\].tsx
-git commit -m "feat(agent): Ask Supernova sheet, proposal card and the trip page entry"
+git commit -m "feat(agent): Ask Nova sheet, proposal card and the trip page entry"
 ```
 
 ---
@@ -2386,19 +2386,19 @@ git commit -m "feat(agent): evaluation script; model chosen on measured quality 
 ### Task 12: Docs, privacy text, full verification
 
 **Files:**
-- Modify: `CLAUDE.md` (Cloud Functions list: an **Ask Supernova** bullet; Hooks table: `useAgent`; Firestore collections: `users/{uid}/agentThreads`)
+- Modify: `CLAUDE.md` (Cloud Functions list: an **Ask Nova** bullet; Hooks table: `useAgent`; Firestore collections: `users/{uid}/agentThreads`)
 - Modify: `hosting/privacy.html` (AI section: the agent and what it sends)
 - Modify: `docs/superpowers/specs/2026-10-14-trip-agent-design.md` (two lines under "App: applying a proposal": (1) Undo covers stop and date changes; route changes are confirmed and not undoable — a route save deletes days and their stops; (2) "removes N stops" is shown in the confirmation at Apply, not on the card line — computing it needs the new route, which can need a city lookup)
 
 - [ ] **Step 1: CLAUDE.md** — add under Cloud Functions:
 
 ```markdown
-- **Ask Supernova** (spec `docs/superpowers/specs/2026-10-14-trip-agent-design.md`; pure `agentTripContext.ts`, `agentTripOps.ts`, `agentSurfaces.ts`, `agentModel.ts`, `agentPrompt.ts`; wiring `agentFunctions.ts`) — callable `agent` `{ surface, subjectId, message, requestId, capabilities }`: one Gemini call (thinking off, JSON schema) per message proposes namespaced operations (`trip.*`), validated and filtered to the app's declared `capabilities` (`AGENT_CAPABILITIES` in `services/agent.ts` — **an app only receives operations it declared, so shipped apps survive new ones**). It never edits the trip: the app applies accepted operations through `useCreateTrip` / `useTripRoute` (`utils/agentApply.ts`, `hooks/useAgent.ts`). One monthly allowance for every surface (10 free / 300 Pro, `agentQuotaPolicy`), ≤ 20/hour, one at a time; threads `users/{uid}/agentThreads/{surface}_{id}/messages` (owner read; server writes; owner may set `status`). `onTripDeletedAgentThreads` removes a deleted trip's threads (collection-group `messages.agentThread`). Measure model changes with `node scripts/agent-eval.mjs`. **A new surface** adds a context builder + validator on the server, an `OP_CAPABILITY` entry, and an adapter in the app.
+- **Ask Nova** (spec `docs/superpowers/specs/2026-10-14-trip-agent-design.md`; pure `agentTripContext.ts`, `agentTripOps.ts`, `agentSurfaces.ts`, `agentModel.ts`, `agentPrompt.ts`; wiring `agentFunctions.ts`) — callable `agent` `{ surface, subjectId, message, requestId, capabilities }`: one Gemini call (thinking off, JSON schema) per message proposes namespaced operations (`trip.*`), validated and filtered to the app's declared `capabilities` (`AGENT_CAPABILITIES` in `services/agent.ts` — **an app only receives operations it declared, so shipped apps survive new ones**). It never edits the trip: the app applies accepted operations through `useCreateTrip` / `useTripRoute` (`utils/agentApply.ts`, `hooks/useAgent.ts`). One monthly allowance for every surface (10 free / 300 Pro, `agentQuotaPolicy`), ≤ 20/hour, one at a time; threads `users/{uid}/agentThreads/{surface}_{id}/messages` (owner read; server writes; owner may set `status`). `onTripDeletedAgentThreads` removes a deleted trip's threads (collection-group `messages.agentThread`). Measure model changes with `node scripts/agent-eval.mjs`. **A new surface** adds a context builder + validator on the server, an `OP_CAPABILITY` entry, and an adapter in the app.
 ```
 
-and a `useAgent` row in the Hooks table: `useAgent({ surface, trip, enabled })` | `{ messages, sending, quota, send, apply, dismiss, clear }` — Ask Supernova on a trip.
+and a `useAgent` row in the Hooks table: `useAgent({ surface, trip, enabled })` | `{ messages, sending, quota, send, apply, dismiss, clear }` — Ask Nova on a trip.
 
-- [ ] **Step 2: Privacy policy** — in `hosting/privacy.html`'s AI section add: "Ask Supernova: when you ask for changes to a trip, we send that trip's cities, days and stops, your message and recent messages in that conversation, and the name, date and time of the trip's bookings to Google's Gemini API. We never send confirmation codes, addresses or boarding-pass barcodes. Your conversation is stored privately in your account and deleted with the trip or your account." (Deploy hosting with the release, not now.)
+- [ ] **Step 2: Privacy policy** — in `hosting/privacy.html`'s AI section add: "Ask Nova: when you ask for changes to a trip, we send that trip's cities, days and stops, your message and recent messages in that conversation, and the name, date and time of the trip's bookings to Google's Gemini API. We never send confirmation codes, addresses or boarding-pass barcodes. Your conversation is stored privately in your account and deleted with the trip or your account." (Deploy hosting with the release, not now.)
 
 - [ ] **Step 3: Full verification**
 
@@ -2408,7 +2408,7 @@ Run: `npx jest` → all suites pass. `npx tsc --noEmit -p .` → no new errors v
 
 ```bash
 git add CLAUDE.md hosting/privacy.html docs/superpowers/specs/2026-10-14-trip-agent-design.md
-git commit -m "docs: Ask Supernova in CLAUDE.md, privacy policy text, undo ruling in the spec"
+git commit -m "docs: Ask Nova in CLAUDE.md, privacy policy text, undo ruling in the spec"
 ```
 
 **Release (after the final review, with the owner's go-ahead — not part of execution):** deploy `firebase deploy --only functions:agent,functions:getAgentQuota,functions:onTripDeletedAgentThreads,firestore:rules,firestore:indexes`, then hosting for the privacy page, then an app build (the consent bump and the sheet ship together; older apps keep working because the server never sends them operations).
