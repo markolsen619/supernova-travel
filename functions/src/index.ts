@@ -32,3 +32,4 @@ export {
   onTripWrittenFriends, onTripDayWrittenFriends, onFollowWrittenFriends, onUserWrittenFriends,
   onBlockCreatedFriends, refreshFriendsTraveling,
 } from './friendsTravelingFunctions';
+export { agent, getAgentQuota, onTripDeletedAgentThreads } from './agentFunctions';
