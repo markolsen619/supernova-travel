@@ -1,0 +1,22 @@
+/**
+ * Ask Nova — mirror of functions/src/agentTypes.ts (separate TS projects; keep in step).
+ * Spec: docs/superpowers/specs/2026-10-14-trip-agent-design.md.
+ */
+import type { ActivityType } from '@/types';
+
+export type AgentOp =
+  | { kind: 'trip.addStop'; dayId: string; title: string; type: ActivityType; afterStopId: string | null; time: string | null }
+  | { kind: 'trip.removeStop'; dayId: string; stopId: string }
+  | { kind: 'trip.moveStop'; dayId: string; stopId: string; toDayId: string; afterStopId: string | null }
+  | { kind: 'trip.reorderDay'; dayId: string; stopIds: string[] }
+  | { kind: 'trip.updateStop'; dayId: string; stopId: string; time?: string | null; notes?: string }
+  | { kind: 'trip.setNights'; city: number; nights: number }
+  | { kind: 'trip.addCity'; name: string; nights: number; afterCity: number | null }
+  | { kind: 'trip.removeCity'; city: number; mode: 'delete' | 'move' }
+  | { kind: 'trip.moveCity'; city: number; by: -1 | 1 }
+  | { kind: 'trip.shiftDates'; newStart: string };
+
+export type AgentStatus = 'proposed' | 'applied' | 'partial' | 'dismissed';
+export interface AgentQuotaView { used: number; limit: number; fairUse: boolean; resetsAt: string }
+export interface AgentResponse { messageId: string; reply: string; operations: AgentOp[]; dropped: number; quota: AgentQuotaView }
+export interface AgentMessage { id: string; role: 'user' | 'assistant'; text: string; operations: AgentOp[]; status: AgentStatus | null; createdAt: number }
