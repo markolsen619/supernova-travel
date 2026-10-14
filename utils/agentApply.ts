@@ -81,7 +81,8 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
             startTime: op.time, endTime: null, durationMinutes: null, notes: '', bookingRef: null,
             cost: null, currency: null, mediaUrls: [],
             searchQuery: manualSearchQuery(op.type, op.title, cityName(d.id)),
-          } as Omit<TripActivity, 'id' | 'order' | 'createdAt'>,
+            visited: false, visitedAt: null, groundingFailedAt: null,
+          },
         });
         break;
       }
