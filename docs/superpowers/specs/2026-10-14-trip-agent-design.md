@@ -112,7 +112,11 @@ for one.
 - Route: `RouteRow` helpers (`setRowNights`, `moveRow`, `removeRow`, `addRow`) → `rowsToEntries` →
   `planRoute` → `saveRoute`. `addCity` resolves the city with the existing place search when applied.
   Deleting days with stops shows the route editor's confirmation (`dropsWithStops`).
-- **Undo:** before applying, snapshot the touched stops and route; one tap restores (this session only).
+- **Undo:** before applying, snapshot the touched stops; one tap restores (this session only). Decided in
+  planning: Undo covers stop and date changes; a proposal with route changes is confirmed instead and has no
+  Undo, because a route save deletes days and their stops can't be brought back by a later save.
+- Decided in planning: "removes N stops" appears in the confirmation at Apply, not on the card line —
+  computing it needs the new route, which can need a city lookup.
 - Then update the saved message's `status` (`applied` / `partial` / `dismissed`) so the next turn knows.
 - `useAgent({ surface, subjectId })`: thread (one `getDocs`, newest 30), send, apply, undo, clear, quota.
   The sheet is a general `components/agent/AgentSheet`; the trip surface supplies its suggestions, card
