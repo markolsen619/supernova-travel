@@ -58,7 +58,7 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     return { messageId: existing.id, reply: existing.get('text'), operations: filterByCapabilities(existing.get('operations') ?? [], capabilities), dropped: existing.get('dropped') ?? 0, quota: quotaView(tier, q) };
   }
 
-  if (!hasAiConsent(userSnap.data())) throw new HttpsError('failed-precondition', AI_CONSENT_REQUIRED_MESSAGE);
+  if (!hasAiConsent(userSnap.data(), 'agent')) throw new HttpsError('failed-precondition', AI_CONSENT_REQUIRED_MESSAGE);
 
   const tripRef = db().doc(`trips/${subjectId}`);
   const tripSnap = await tripRef.get();
