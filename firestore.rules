@@ -145,6 +145,14 @@ service cloud.firestore {
       match /hidden/{contentKey} {
         allow read, create, delete: if isOwner(uid);
       }
+      // Ask Nova threads (docs/superpowers/specs/2026-10-14-trip-agent-design.md).
+      // Only the server writes messages; the owner may mark a proposal applied/dismissed.
+      match /agentThreads/{threadId}/messages/{messageId} {
+        allow read, delete: if isOwner(uid);
+        allow update: if isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status in ['applied', 'partial', 'dismissed'];
+      }
     }
 
     // Posts

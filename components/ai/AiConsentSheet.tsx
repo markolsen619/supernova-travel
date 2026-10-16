@@ -28,6 +28,10 @@ const LEAD: Record<AiPurpose, { title: string; sends: string }> = {
     sends:
       'The confirmation text or screenshot you add. It can include your name, confirmation numbers, flight details, and hotel addresses.',
   },
+  agent: {
+    title: 'Ask Nova',
+    sends: "Your trip's cities, days and stops, what you ask, and the name, date and time of its bookings.",
+  },
 };
 
 /**
@@ -43,7 +47,7 @@ export function AiConsentSheet({ purpose, onAllow, onClose }: AiConsentSheetProp
   const [error, setError] = useState<string | null>(null);
 
   const lead = LEAD[purpose ?? 'trip'];
-  const other = purpose === 'import' ? LEAD.trip : LEAD.import;
+  const others = (Object.keys(LEAD) as AiPurpose[]).filter((p) => p !== (purpose ?? 'trip')).map((p) => LEAD[p]);
 
   const handleAllow = useCallback(async () => {
     setSaving(true);
@@ -63,9 +67,9 @@ export function AiConsentSheet({ purpose, onAllow, onClose }: AiConsentSheetProp
 
   const rows: { Icon: PhosphorIcon; title: string; body: string }[] = [
     { Icon: TextAlignLeft, title: 'What gets sent', body: lead.sends },
-    { Icon: Buildings, title: 'Who receives it', body: "Google, through its Gemini API, which writes the itinerary or reads the booking and sends the result back to Supernova." },
+    { Icon: Buildings, title: 'Who receives it', body: "Google, through its Gemini API, which writes the itinerary, reads the booking or answers your request and sends the result back to Supernova." },
     { Icon: ShieldCheck, title: 'What it isn’t used for', body: 'Supernova never uses it for ads or sells it. Nothing is sent until you tap a button that uses AI.' },
-    { Icon: Sparkle, title: 'Also covers', body: `${other.title}: ${other.sends.charAt(0).toLowerCase()}${other.sends.slice(1)}` },
+    { Icon: Sparkle, title: 'Also covers', body: others.map((o) => `${o.title}: ${o.sends.charAt(0).toLowerCase()}${o.sends.slice(1)}`).join(' ') },
   ];
 
   return (

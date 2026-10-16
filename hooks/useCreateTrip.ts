@@ -314,9 +314,11 @@ export function useCreateTrip() {
     tripId: string,
     fromDayId: string,
     toDayId: string,
-    activity: TripActivity
-  ): Promise<void> {
-    if (fromDayId === toDayId) return;
+    activity: TripActivity,
+    /** Where to place it on the new day (Ask Nova's "after this stop"); default: the end. */
+    order?: number,
+  ): Promise<string | undefined> {
+    if (fromDayId === toDayId) return undefined;
     const { id, ...rest } = activity; // rest.order is overridden below
     const targetCollection = collection(db, 'trips', tripId, 'days', toDayId, 'activities');
     const sourceRef = doc(db, 'trips', tripId, 'days', fromDayId, 'activities', id);
@@ -328,11 +330,12 @@ export function useCreateTrip() {
     batch.set(newActivityRef, {
       ...rest,
       ...(rest.fromBooking ? { fromBooking: { ...rest.fromBooking, auto: false } } : {}),
-      order: Date.now(),
+      order: order ?? Date.now(),
     });
     batch.delete(sourceRef);
     await batch.commit();
     await queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+    return newActivityRef.id;
   }
 
   /**

@@ -15,12 +15,24 @@
  * Bump when what's shared or who it's shared with changes materially. Every
  * user is then asked again, because what they agreed to is no longer what
  * happens.
+ *
+ * 2 (2026-10-14): Ask Nova sends the trip, your messages and booking names/dates.
  */
-export const AI_CONSENT_VERSION = 1;
+export const AI_CONSENT_VERSION = 2;
 
-export function hasAiConsent(userData: { aiConsentVersion?: unknown } | null | undefined): boolean {
+export type AiPurpose = 'trip' | 'import' | 'agent';
+
+/**
+ * The oldest consent each feature accepts. Never raise one for a feature older apps
+ * already use: they write the version they shipped with and can't ask again, so a
+ * global bump refused AI trips, import and forwarded emails for every 1.0.5 user
+ * (caught in review, 2026-10-15). A feature that shares more starts at the new version.
+ */
+export const AI_CONSENT_MIN: Record<AiPurpose, number> = { trip: 1, import: 1, agent: 2 };
+
+export function hasAiConsent(userData: { aiConsentVersion?: unknown } | null | undefined, purpose: AiPurpose = 'trip'): boolean {
   const version = userData?.aiConsentVersion;
-  return typeof version === 'number' && version >= AI_CONSENT_VERSION;
+  return typeof version === 'number' && version >= AI_CONSENT_MIN[purpose];
 }
 
 export const AI_CONSENT_REQUIRED_MESSAGE = 'Allow AI data sharing to use this feature';

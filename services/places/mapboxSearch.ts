@@ -2,6 +2,7 @@ import { buildMapboxForwardUrl, nameOnlyRetry, normalizeMapboxFeature, pickBestF
 import { regionFromMapboxFeature, type PlaceRegion } from '@/utils/tripRegion';
 import { boundsHoldPoint, boxAround, isBboxUsable, type Bbox } from '@/utils/geoBounds';
 import type { PlaceViewportBounds } from '@/services/places/googlePlaces';
+import type { Destination } from '@/types';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 
@@ -127,6 +128,21 @@ export async function resolveDestinationRegion(
     return regionFromMapboxFeature(json.features?.[0] as never);
   } catch (error) {
     console.error('[resolveDestinationRegion] failed', error);
+    return null;
+  }
+}
+
+/** A city by name, for an agent proposal ("Add a night in Sintra"). Free on the Search Box tier. */
+export async function resolveCityByName(name: string, near?: { lat: number; lng: number } | null): Promise<Destination | null> {
+  if (!TOKEN || !name.trim()) return null;
+  try {
+    const res = await fetch(buildMapboxForwardUrl({ query: name, token: TOKEN, country: null, types: 'place,locality', limit: 1, proximity: near ?? null }));
+    if (!res.ok) return null;
+    const f = ((await res.json()) as { features?: { geometry?: { coordinates?: [number, number] }; properties?: { name?: string; context?: { country?: { country_code?: string } } } }[] }).features?.[0];
+    const c = f?.geometry?.coordinates;
+    if (!c) return null;
+    return { name: f?.properties?.name ?? name, placeId: null, lat: c[1], lng: c[0], countryCode: f?.properties?.context?.country?.country_code?.toUpperCase() ?? null, bounds: null };
+  } catch {
     return null;
   }
 }

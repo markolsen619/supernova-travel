@@ -19,7 +19,7 @@ export function useAiConsentGate() {
   const pending = useRef<(() => void) | null>(null);
 
   const requireConsent = useCallback((forPurpose: AiPurpose, action: () => void) => {
-    if (hasAiConsent(useAiConsentStore.getState().version)) {
+    if (hasAiConsent(useAiConsentStore.getState().version, forPurpose)) {
       action();
       return;
     }
