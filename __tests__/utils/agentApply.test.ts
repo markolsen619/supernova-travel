@@ -101,3 +101,51 @@ describe('undoSteps', () => {
     expect((u[1] as any).order).toBe(2000);
   });
 });
+
+// Review 2026-10-15: positions were computed from the trip as it was, so two new stops shared one
+// order (dinner could render before lunch) and an addition after a reorder used stale numbers.
+describe('planApply positions, in the order the steps run', () => {
+  const orders = (p: ReturnType<typeof planApply>) => p.steps.map((s: any) => [s.do, s.activity?.title, s.order ?? null]);
+  it('gives two new stops at the end increasing positions', () => {
+    const p = planApply(trip, [
+      { kind: 'trip.addStop', dayId: 'D2', title: 'Lunch', type: 'restaurant', afterStopId: null, time: null },
+      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner', type: 'restaurant', afterStopId: null, time: null },
+    ]);
+    expect(orders(p)).toEqual([['add', 'Lunch', 2000], ['add', 'Dinner', 3000]]);
+  });
+  it('keeps several stops proposed after the same stop in their proposed order', () => {
+    const p = planApply(trip, [
+      { kind: 'trip.addStop', dayId: 'D1', title: 'Coffee', type: 'restaurant', afterStopId: 'A', time: null },
+      { kind: 'trip.addStop', dayId: 'D1', title: 'Gelato', type: 'restaurant', afterStopId: 'A', time: null },
+    ]);
+    expect(orders(p)).toEqual([['add', 'Coffee', 1500], ['add', 'Gelato', 1750]]);
+  });
+  it('places an addition with the numbering a reorder in the same proposal writes', () => {
+    const p = planApply(trip, [
+      { kind: 'trip.reorderDay', dayId: 'D1', stopIds: ['B', 'A'] },
+      { kind: 'trip.addStop', dayId: 'D1', title: 'Coffee', type: 'restaurant', afterStopId: 'B', time: null },
+    ]);
+    // reorderActivities writes idx * 1000: B=0, A=1000.
+    expect(orders(p).find((x) => x[0] === 'add')).toEqual(['add', 'Coffee', 500]);
+  });
+  it('gives a moved stop a position on its new day, after earlier moves there', () => {
+    const p = planApply(trip, [
+      { kind: 'trip.moveStop', dayId: 'D1', stopId: 'A', toDayId: 'D2', afterStopId: null },
+      { kind: 'trip.moveStop', dayId: 'D1', stopId: 'B', toDayId: 'D2', afterStopId: null },
+    ]);
+    expect(p.steps.map((s: any) => s.order)).toEqual([2000, 3000]);
+  });
+});
+
+// Review 2026-10-15: shifting the start left the end where it was when nights weren't saved.
+describe('planApply dates', () => {
+  it('moves the end by the same number of days as the start', () => {
+    const t = { ...trip, startDay: '2026-11-02', endDate: { toDate: () => new Date(2026, 10, 5) } } as any;
+    const p = planApply(t, [{ kind: 'trip.shiftDates', newStart: '2026-11-04' }]);
+    expect(p.steps[0]).toMatchObject({ do: 'dates', newStart: '2026-11-04', newEnd: '2026-11-07', previousStart: '2026-11-02', previousEnd: '2026-11-05' });
+  });
+  it('sets only the start when the trip has no end date', () => {
+    const p = planApply({ ...trip, startDay: null, startDate: null, endDate: null } as any, [{ kind: 'trip.shiftDates', newStart: '2026-11-04' }]);
+    expect(p.steps[0]).toMatchObject({ do: 'dates', newStart: '2026-11-04', newEnd: null });
+  });
+});

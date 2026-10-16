@@ -11,7 +11,7 @@ import { db } from '@/services/firebase';
 import { TripWithDays, TripDay, TripActivity } from '@/types';
 import { normalizeDestination } from '@/hooks/useTripList';
 
-async function fetchTripWithDays(tripId: string): Promise<TripWithDays | null> {
+export async function fetchTripWithDays(tripId: string): Promise<TripWithDays | null> {
   // Step 1: fetch the trip document
   const tripRef = doc(db, 'trips', tripId);
   const tripSnap = await getDoc(tripRef);

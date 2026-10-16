@@ -1,5 +1,5 @@
 // __tests__/utils/agentCard.test.ts
-import { opLine, agentSuggestions, quotaLine } from '@/utils/agentCard';
+import { opLine, agentSuggestions, quotaLine, cardLines, requestIdFor } from '@/utils/agentCard';
 import type { TripWithDays } from '@/types';
 
 const stop = (id: string, title: string, type = 'activity', order = 1) =>
@@ -44,5 +44,38 @@ describe('quotaLine', () => {
     expect(quotaLine({ used: 6, limit: 10, fairUse: false, resetsAt: '' })).toBe('4 of 10 left this month');
     expect(quotaLine({ used: 10, limit: 300, fairUse: true, resetsAt: '' })).toBeNull();
     expect(quotaLine({ used: 280, limit: 300, fairUse: true, resetsAt: '' })).toBe('20 left this month');
+  });
+});
+
+// Review 2026-10-15: after Apply, a removed stop is gone and a moved stop has a new id, so their lines
+// came back null and an APPLIED card said its own changes "no longer fit the trip".
+describe('cardLines', () => {
+  const gone = { kind: 'trip.removeStop', dayId: 'D1', stopId: 'ZZ' } as const;
+  const ok = { kind: 'trip.setNights', city: 0, nights: 4 } as const;
+  it('marks a change that no longer fits while the proposal is open', () => {
+    expect(cardLines([gone, ok], trip, false).map((l) => l.line?.text ?? 'STALE')).toEqual(['STALE', 'Lisbon 3 → 4 nights']);
+  });
+  it('leaves out changes that can no longer be described once applied', () => {
+    expect(cardLines([gone, ok], trip, true).map((l) => l.line?.text)).toEqual(['Lisbon 3 → 4 nights']);
+  });
+  it('keeps the index of each change so unticking still maps to the right operation', () => {
+    expect(cardLines([gone, ok], trip, true)[0].index).toBe(1);
+  });
+});
+
+// Review 2026-10-15: a dropped connection after the server saved and charged showed an error, and the
+// retry minted a new id — charged again. Retrying the same message reuses its id; the server returns
+// the saved answer for free (or runs it, if nothing was saved).
+describe('requestIdFor', () => {
+  const mint = () => 'NEW';
+  it('reuses the id of the failed attempt when the same message is sent again', () => {
+    expect(requestIdFor('Add a rooftop bar', { text: 'Add a rooftop bar', requestId: 'OLD' }, mint)).toBe('OLD');
+  });
+  it('mints a new id for a different message, or when nothing failed', () => {
+    expect(requestIdFor('Something else', { text: 'Add a rooftop bar', requestId: 'OLD' }, mint)).toBe('NEW');
+    expect(requestIdFor('Add a rooftop bar', null, mint)).toBe('NEW');
+  });
+  it('ignores spaces around the message', () => {
+    expect(requestIdFor('  Add a rooftop bar ', { text: 'Add a rooftop bar', requestId: 'OLD' }, mint)).toBe('OLD');
   });
 });

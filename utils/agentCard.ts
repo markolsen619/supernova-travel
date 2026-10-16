@@ -75,3 +75,18 @@ export function quotaLine(q: AgentQuotaView): string | null {
   if (!q.fairUse) return `${left} of ${q.limit} left this month`;
   return left <= 30 ? `${left} left this month` : null;
 }
+
+/**
+ * The lines a proposal card shows. While open, a change that no longer fits stays (as a note);
+ * once applied, a removed stop or a moved one (new id) can't be described from the trip any more,
+ * so it's left out instead of being called stale (review 2026-10-15).
+ */
+export function cardLines(ops: AgentOp[], trip: TripWithDays, done: boolean): { index: number; op: AgentOp; line: OpLine | null }[] {
+  const all = ops.map((op, index) => ({ index, op, line: opLine(op, trip) }));
+  return done ? all.filter((l) => l.line) : all;
+}
+
+/** The id for a send: the failed attempt's id when the same message is retried, so the server can answer it once. */
+export function requestIdFor(text: string, lastFailed: { text: string; requestId: string } | null, mint: () => string): string {
+  return lastFailed && lastFailed.text.trim() === text.trim() ? lastFailed.requestId : mint();
+}

@@ -5,7 +5,7 @@ import { ArrowsDownUp, ArrowRight, CalendarBlank, CheckSquare, MapTrifold, Minus
 import { useTheme } from '@/hooks/useTheme';
 import { ACTIVITY_ICONS } from '@/constants/icons';
 import { Button } from '@/components/ui/Button';
-import { opLine } from '@/utils/agentCard';
+import { cardLines } from '@/utils/agentCard';
 import type { TripWithDays } from '@/types';
 import type { AgentMessage, AgentOp } from '@/types/agent';
 
@@ -16,10 +16,10 @@ export function ProposalCard({ message, trip, busy, onApply, onDismiss }: {
   onApply: (ops: AgentOp[]) => void; onDismiss: () => void;
 }) {
   const { colors } = useTheme();
-  const lines = useMemo(() => message.operations.map((op) => ({ op, line: opLine(op, trip) })), [message.operations, trip]);
+  const done = !!message.status && message.status !== 'proposed';
+  const lines = useMemo(() => cardLines(message.operations, trip, done), [message.operations, trip, done]);
   const [off, setOff] = useState<Set<number>>(new Set());
-  const done = message.status && message.status !== 'proposed';
-  const chosen = lines.filter((l, i) => l.line && !off.has(i)).map((l) => l.op);
+  const chosen = lines.filter((l) => l.line && !off.has(l.index)).map((l) => l.op);
 
   const toggle = useCallback((i: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -33,8 +33,8 @@ export function ProposalCard({ message, trip, busy, onApply, onDismiss }: {
 
   return (
     <View style={[styles.card, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}>
-      <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{done ? (message.status === 'dismissed' ? 'NOT APPLIED' : 'APPLIED') : 'PROPOSED CHANGES'}</Text>
-      {lines.map(({ line }, i) => {
+      <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{done ? (message.status === 'dismissed' ? 'NOT APPLIED' : message.status === 'partial' ? 'PARTLY APPLIED' : 'APPLIED') : 'PROPOSED CHANGES'}</Text>
+      {lines.map(({ line, index: i }) => {
         if (!line) return <Text key={i} style={[styles.stale, { color: colors.text.tertiary }]}>This change no longer fits the trip</Text>;
         const TypeIcon = line.type ? ACTIVITY_ICONS[line.type] : null;
         const Glyph = ICON[line.icon];

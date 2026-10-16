@@ -19,6 +19,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
   const openPaywall = useLimitPaywall();
   const [text, setText] = useState('');
   const [applying, setApplying] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ label: string; run: (() => Promise<void>) | null } | null>(null);
   const scroll = useRef<ScrollView>(null);
 
@@ -32,6 +33,8 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     setText('');
     const r = await agent.send(msg);
     if (r === 'limit') openPaywall();
+    // Put it back so a retry is one tap — and reuses the same request (no second charge).
+    if (r === 'error') setText(msg);
   }, [text, agent, openPaywall]);
 
   const confirmDrops = useCallback((warning: string) => new Promise<boolean>((resolve) => {
@@ -43,12 +46,15 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
 
   const apply = useCallback(async (messageId: string, ops: AgentOp[]) => {
     setApplying(messageId); // the Apply button fires its own Medium haptic
+    setApplyError(null);
     try {
       const r = await agent.apply(messageId, ops, confirmDrops);
       if (r.applied) {
         const label = r.skipped ? `Changed ${r.applied} · ${r.skipped} no longer fit` : `Changed ${r.applied} thing${r.applied === 1 ? '' : 's'}`;
         setUndo({ label, run: r.undo });
       }
+    } catch {
+      setApplyError("Some changes couldn't be saved. Check the trip and try again.");
     } finally {
       setApplying(null);
     }
@@ -103,7 +109,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
             </View>
           ))}
           {agent.sending && <Text style={[styles.typing, { color: colors.text.tertiary }]}>Nova is thinking…</Text>}
-          {agent.error && <Text style={[styles.typing, { color: colors.semantic.error }]}>{agent.error}</Text>}
+          {(applyError ?? agent.error) && <Text style={[styles.typing, { color: colors.semantic.error }]}>{applyError ?? agent.error}</Text>}
         </ScrollView>
 
         {undo && (

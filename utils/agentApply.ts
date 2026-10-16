@@ -7,21 +7,22 @@ import type { TripActivity, TripWithDays } from '@/types';
 import type { AgentOp } from '@/types/agent';
 import { addRow, moveRow, removeRow, setRowNights, type RouteRow } from '@/utils/tripRoute';
 import { manualSearchQuery } from '@/utils/groundingQueue';
+import { toCalendarDate } from '@/utils/calendarDate';
 
 export type ApplyStep =
   | { do: 'delete'; dayId: string; activity: TripActivity }
-  | { do: 'move'; fromDayId: string; toDayId: string; activity: TripActivity; afterStopId: string | null }
+  | { do: 'move'; fromDayId: string; toDayId: string; activity: TripActivity; afterStopId: string | null; order: number }
   | { do: 'reorder'; dayId: string; before: TripActivity[]; after: TripActivity[] }
   | { do: 'update'; dayId: string; activityId: string; patch: Partial<TripActivity>; before: Partial<TripActivity> }
   | { do: 'add'; dayId: string; activity: Omit<TripActivity, 'id' | 'order' | 'createdAt'>; order: number }
-  | { do: 'dates'; newStart: string; previousStart: string | null };
+  | { do: 'dates'; newStart: string; newEnd: string | null; previousStart: string | null; previousEnd: string | null };
 
 export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: AgentOp[] }
 
 const STEP = 1000;
 const RANK: Record<string, number> = { delete: 0, move: 1, reorder: 1, update: 2, dates: 3, add: 4 };
 
-export function orderAfter(stops: TripActivity[], afterStopId: string | null): number {
+export function orderAfter(stops: { id: string; order: number }[], afterStopId: string | null): number {
   const sorted = [...stops].sort((a, b) => a.order - b.order);
   if (!sorted.length) return STEP;
   const i = afterStopId ? sorted.findIndex((s) => s.id === afterStopId) : -1;
@@ -31,6 +32,7 @@ export function orderAfter(stops: TripActivity[], afterStopId: string | null): n
 
 export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
   const steps: ApplyStep[] = [];
+  const addAfter = new Map<number, string | null>();
   const routeOps: AgentOp[] = [];
   const skipped: AgentOp[] = [];
   const day = (id: string) => trip.days.find((d) => d.id === id) ?? null;
@@ -49,7 +51,7 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
       }
       case 'trip.moveStop': {
         const a = day(op.dayId)?.activities.find((x) => x.id === op.stopId);
-        if (a && day(op.toDayId)) steps.push({ do: 'move', fromDayId: op.dayId, toDayId: op.toDayId, activity: a, afterStopId: op.afterStopId });
+        if (a && day(op.toDayId)) steps.push({ do: 'move', fromDayId: op.dayId, toDayId: op.toDayId, activity: a, afterStopId: op.afterStopId, order: 0 });
         else skipped.push(op);
         break;
       }
@@ -74,8 +76,9 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
       case 'trip.addStop': {
         const d = day(op.dayId);
         if (!d) { skipped.push(op); break; }
+        addAfter.set(steps.length, op.afterStopId);
         steps.push({
-          do: 'add', dayId: d.id, order: orderAfter(d.activities, op.afterStopId),
+          do: 'add', dayId: d.id, order: 0,
           activity: {
             type: op.type, title: op.title, placeId: null, address: null, lat: null, lng: null,
             startTime: op.time, endTime: null, durationMinutes: null, notes: '', bookingRef: null,
@@ -86,15 +89,70 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
         });
         break;
       }
-      case 'trip.shiftDates':
-        steps.push({ do: 'dates', newStart: op.newStart, previousStart: (trip as { startDay?: string | null }).startDay ?? null });
+      case 'trip.shiftDates': {
+        const previousStart = tripStart(trip);
+        const previousEnd = trip.endDate ? toCalendarDate(trip.endDate.toDate()) : null;
+        const newEnd = previousStart && previousEnd ? addDays(previousEnd, daysBetween(previousStart, op.newStart)) : null;
+        steps.push({ do: 'dates', newStart: op.newStart, newEnd, previousStart, previousEnd });
         break;
+      }
       default:
         routeOps.push(op);
     }
   }
-  steps.sort((a, b) => RANK[a.do] - RANK[b.do]);
-  return { steps, routeOps, skipped };
+  const ranked = steps.map((step, i) => ({ step, after: addAfter.get(i) ?? null })).sort((a, b) => RANK[a.step.do] - RANK[b.step.do]);
+  placeInOrder(trip, ranked);
+  return { steps: ranked.map((r) => r.step), routeOps, skipped };
+}
+
+/**
+ * Positions for new and moved stops, worked out in the order the steps run (review 2026-10-15): each
+ * day keeps a running list, a reorder renumbers it the way reorderActivities writes (idx * 1000), and
+ * stops proposed after the same stop follow one another instead of sharing a position.
+ */
+function placeInOrder(trip: TripWithDays, ranked: { step: ApplyStep; after: string | null }[]): void {
+  const lists = new Map<string, { id: string; order: number }[]>();
+  const list = (dayId: string) => {
+    if (!lists.has(dayId)) {
+      const d = trip.days.find((x) => x.id === dayId);
+      lists.set(dayId, [...(d?.activities ?? [])].map((a) => ({ id: a.id, order: a.order })).sort((a, b) => a.order - b.order));
+    }
+    return lists.get(dayId)!;
+  };
+  const chain = new Map<string, string>(); // `${dayId}|${after}` -> the stop most recently placed there
+  const place = (dayId: string, after: string | null, id: string): number => {
+    const key = `${dayId}|${after ?? 'END'}`;
+    const effective = chain.get(key) ?? after;
+    const l = list(dayId);
+    const order = orderAfter(l, effective);
+    l.push({ id, order });
+    l.sort((a, b) => a.order - b.order);
+    chain.set(key, id);
+    return order;
+  };
+  ranked.forEach(({ step, after }, i) => {
+    switch (step.do) {
+      case 'delete': lists.set(step.dayId, list(step.dayId).filter((x) => x.id !== step.activity.id)); break;
+      case 'reorder': lists.set(step.dayId, step.after.map((a, idx) => ({ id: a.id, order: idx * 1000 }))); break;
+      case 'move': {
+        lists.set(step.fromDayId, list(step.fromDayId).filter((x) => x.id !== step.activity.id));
+        step.order = place(step.toDayId, step.afterStopId, step.activity.id);
+        break;
+      }
+      case 'add': step.order = place(step.dayId, after, `new-${i}`); break;
+      default: break;
+    }
+  });
+}
+
+const DAY_MS = 86_400_000;
+const utc = (day: string) => Date.parse(`${day}T00:00:00Z`);
+function addDays(day: string, n: number): string { return new Date(utc(day) + n * DAY_MS).toISOString().slice(0, 10); }
+function daysBetween(a: string, b: string): number { return Math.round((utc(b) - utc(a)) / DAY_MS); }
+function tripStart(trip: TripWithDays): string | null {
+  const saved = (trip as { startDay?: string | null }).startDay;
+  if (typeof saved === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved)) return saved;
+  return trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null;
 }
 
 /** Route operations refer to cities by their index when proposed; rows keep it in `from`. */
@@ -143,12 +201,12 @@ export function undoSteps(steps: ApplyStep[], addedIds: Record<number, string>):
       }
       case 'move': {
         const id = addedIds[i];
-        if (id) out.unshift({ do: 'move', fromDayId: s.toDayId, toDayId: s.fromDayId, activity: { ...s.activity, id }, afterStopId: null });
+        if (id) out.unshift({ do: 'move', fromDayId: s.toDayId, toDayId: s.fromDayId, activity: { ...s.activity, id }, afterStopId: null, order: s.activity.order });
         break;
       }
       case 'reorder': out.unshift({ do: 'reorder', dayId: s.dayId, before: s.after, after: s.before }); break;
       case 'update': out.unshift({ do: 'update', dayId: s.dayId, activityId: s.activityId, patch: s.before, before: s.patch }); break;
-      case 'dates': if (s.previousStart) out.unshift({ do: 'dates', newStart: s.previousStart, previousStart: s.newStart }); break;
+      case 'dates': if (s.previousStart) out.unshift({ do: 'dates', newStart: s.previousStart, newEnd: s.previousEnd, previousStart: s.newStart, previousEnd: s.newEnd }); break;
     }
   });
   return out;
