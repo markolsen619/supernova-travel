@@ -44,5 +44,15 @@ describe('TRIP_SYSTEM_PROMPT', () => {
     expect(TRIP_SYSTEM_PROMPT).toMatch(/only labels that appear/i);
     expect(TRIP_SYSTEM_PROMPT).toMatch(/never set a time unless/i);
     expect(TRIP_SYSTEM_PROMPT).toMatch(/at most 12/i);
+    // Eval 2026-10-15: without this, Flash answered change requests with "What would you like?" and no operations.
+    expect(TRIP_SYSTEM_PROMPT).toMatch(/decide the specifics yourself/i);
+    expect(TRIP_SYSTEM_PROMPT).toMatch(/do not ask/i);
+    // Eval 2026-10-15: replies said "d2" and "s7" — labels are for operations only.
+    expect(TRIP_SYSTEM_PROMPT).toMatch(/never write a label in "reply"/i);
+    // Eval 2026-10-15: "Add a day trip to the coast" asked which town; "What should we not miss?" asked about interests.
+    expect(TRIP_SYSTEM_PROMPT).toMatch(/pick a good one yourself/i);
+    expect(TRIP_SYSTEM_PROMPT).toMatch(/answer it directly/i);
+    // Eval 2026-10-15: new or moved stops were "placed" with a reorderDay listing invented labels (s15), which the validator drops.
+    expect(TRIP_SYSTEM_PROMPT).toMatch(/place a new or moved stop with "after"/i);
   });
 });
