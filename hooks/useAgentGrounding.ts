@@ -13,14 +13,14 @@ export function useAgentGrounding(message: AgentMessage, trip: TripWithDays) {
   useEffect(() => {
     if (message.status && message.status !== 'proposed') return;
     if (cache.has(message.id)) { setGrounded(cache.get(message.id)!); return; }
-    const jobs = message.operations.map((op, i) => ({ op, i })).filter(({ op }) => op.kind === 'trip.addStop' && op.query);
+    const jobs = message.operations.map((op, i) => ({ op, i })).filter(({ op }) => (op.kind === 'trip.addStop' || op.kind === 'trip.editStop') && op.query);
     if (!jobs.length) return;
     let alive = true;
     setPending(true);
     (async () => {
       const out: Record<number, NovaGround> = {};
       for (const { op, i } of jobs) {
-        if (op.kind !== 'trip.addStop' || !op.query) continue;
+        if ((op.kind !== 'trip.addStop' && op.kind !== 'trip.editStop') || !op.query) continue;
         const day = trip.days.find((d) => d.id === op.dayId);
         out[i] = await groundNovaPlace(op.query, destinationAt(trip, day?.destinationIndex ?? 0)).catch(() => ({ status: 'notFound' as const }));
       }

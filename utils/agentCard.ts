@@ -4,7 +4,7 @@ import { parseCalendarDate } from '@/utils/calendarDate';
 import type { NovaGround } from '@/utils/agentGround';
 
 /** `detail`: where a new place is (or why it can't be added); `unavailable`: greyed out and can't be ticked. */
-export interface OpLine { icon: 'add' | 'remove' | 'move' | 'reorder' | 'edit' | 'route' | 'dates'; type: ActivityType | null; text: string; detail?: string; unavailable?: boolean }
+export interface OpLine { icon: 'add' | 'remove' | 'move' | 'reorder' | 'edit' | 'route' | 'dates' | 'pack' | 'trip'; type: ActivityType | null; text: string; detail?: string; unavailable?: boolean }
 
 const cities = (t: TripWithDays) => [t.destination, ...t.additionalDestinations];
 const dayOf = (t: TripWithDays, id: string) => t.days.find((d) => d.id === id) ?? null;
@@ -63,6 +63,36 @@ export function opLine(op: AgentOp, trip: TripWithDays, ground?: NovaGround | 'p
       const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       return { icon: 'dates', type: null, text: `Start the trip on ${label}` };
     }
+    case 'trip.editStop': {
+      const d = dayOf(trip, op.dayId); const st = stopOf(trip, op.dayId, op.stopId);
+      if (!d || !st) return null;
+      const what = op.title ? `${st.title} → ${op.title}`
+        : op.query ? `Move ${st.title} to ${op.query.split(',')[0]}`
+          : op.time !== undefined ? (op.time ? `${st.title} at ${op.time}` : `${st.title}, no time`)
+            : op.durationMinutes ? `${st.title}, ${op.durationMinutes} min` : `Edit ${st.title}`;
+      const line: OpLine = { icon: 'edit', type: op.type ?? st.type, text: `Day ${d.dayNumber} · ${what}` };
+      const city = cities(trip)[d.destinationIndex ?? 0]?.name ?? cities(trip)[0]?.name ?? 'the trip';
+      if (ground === 'pending') return { ...line, detail: 'Finding it on the map…' };
+      if (ground?.status === 'found') return { ...line, detail: `${ground.place.name}${ground.place.address ? ` · ${ground.place.address}` : ''}` };
+      if (ground?.status === 'notFound') return { ...line, detail: `Couldn't find this near ${city}`, unavailable: true };
+      return line;
+    }
+    case 'trip.optimizeDay': {
+      const d = dayOf(trip, op.dayId);
+      return d ? { icon: 'reorder', type: null, text: `Day ${d.dayNumber} · Shortest route` } : null;
+    }
+    case 'trip.swapDays': {
+      const a = dayOf(trip, op.dayId); const b = dayOf(trip, op.withDayId);
+      return a && b ? { icon: 'move', type: null, text: `Swap day ${a.dayNumber} and day ${b.dayNumber}` } : null;
+    }
+    case 'trip.updateTrip': {
+      const VIS = { public: 'Public', followers: 'Followers only', private: 'Private' } as const;
+      const text = op.visibility ? `Make this trip ${VIS[op.visibility]}` : op.title ? `Rename to “${op.title}”` : 'Update the trip description';
+      return { icon: 'trip', type: null, text };
+    }
+    case 'trip.addPacking': return { icon: 'pack', type: null, text: `Pack ${op.label.charAt(0).toLowerCase()}${op.label.slice(1)}` };
+    case 'trip.checkPacking': return { icon: 'pack', type: null, text: op.checked ? 'Mark an item packed' : 'Mark an item not packed' };
+    case 'trip.removePacking': return { icon: 'pack', type: null, text: 'Remove an item from packing' };
     default:
       return null;
   }
@@ -95,7 +125,7 @@ export function cardLines(
   ops: AgentOp[], trip: TripWithDays, done: boolean, grounded: Record<number, NovaGround> = {}, pending = false,
 ): { index: number; op: AgentOp; line: OpLine | null }[] {
   const groundOf = (op: AgentOp, index: number): NovaGround | 'pending' | undefined =>
-    grounded[index] ?? (pending && op.kind === 'trip.addStop' && op.query ? 'pending' : undefined);
+    grounded[index] ?? (pending && (op.kind === 'trip.addStop' || op.kind === 'trip.editStop') && op.query ? 'pending' : undefined);
   const all = ops.map((op, index) => ({ index, op, line: opLine(op, trip, done ? undefined : groundOf(op, index)) }));
   return done ? all.filter((l) => l.line) : all;
 }

@@ -2,6 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 import { collection, doc, getDocs, limit, orderBy, query, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { auth, db } from '@/services/firebase';
+import { addPackingItem, deletePackingItem, setPackingChecked } from '@/services/packing';
+import { useUserStore } from '@/stores/useUserStore';
 import { askAgent, fetchAgentQuota } from '@/services/agent';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { draftFromRows, previewRoute, routeRowsFromTrip, useTripRoute } from '@/hooks/useTripRoute';
@@ -12,7 +14,7 @@ import type { NovaGround } from '@/utils/agentGround';
 import { fetchTripWithDays } from '@/hooks/useTrip';
 import { dropsWarning } from '@/utils/tripRoute';
 import { parseCalendarDate } from '@/utils/calendarDate';
-import type { Destination, TripWithDays } from '@/types';
+import type { Destination, PackingItem, TripWithDays } from '@/types';
 import type { AgentMessage, AgentOp, AgentQuotaView } from '@/types/agent';
 
 const threadPath = (uid: string, tripId: string) => `users/${uid}/agentThreads/trip_${tripId}/messages`;
@@ -81,14 +83,19 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
         case 'reorder': await trips.reorderActivities(id, s.dayId, s.after); break;
         case 'update': await trips.updateActivity(id, s.dayId, s.activityId, s.patch); break;
         case 'add': added[i] = await trips.addActivity(id, s.dayId, { ...s.activity, createdAt: Timestamp.now() }, s.order); break;
+        case 'trip': await trips.updateTrip(id, s.patch); break;
+        case 'packAdd': added[i] = await addPackingItem(id, { label: s.label, category: s.category, addedByUid: uid! }); break;
+        case 'packCheck': await setPackingChecked(id, s.itemId, s.checked); break;
+        case 'packRemove': await deletePackingItem(id, s.itemId); break;
         case 'dates':
           // The end moves by as many days as the start (utils/agentApply planApply), so the trip keeps its length.
           await trips.updateTrip(id, { startDate: parseCalendarDate(s.newStart), ...(s.newEnd ? { endDate: parseCalendarDate(s.newEnd) } : {}) });
           break;
       }
     }
+    if (steps.some((s) => s.do.startsWith('pack'))) await qc.invalidateQueries({ queryKey: ['packingItems', id] });
     return added;
-  }, [trips]);
+  }, [trips, uid, qc]);
 
   /** The trip as it is now — never the cached copy (a collaborator may have changed it). */
   const freshTrip = useCallback(
@@ -102,7 +109,11 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
     let current = await freshTrip();
     if (!current) return { applied: 0, skipped: ops.length, undo: null };
 
-    const first = planApply(current, ops, grounded);
+    // What planning needs beyond the trip: its packing list, and whether this account may make a trip Public.
+    const packing = await getDocs(collection(db, 'trips', current.id, 'packingItems'))
+      .then((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PackingItem)).catch(() => [] as PackingItem[]);
+    const ctx = { packing, accountPrivate: useUserStore.getState().profile?.settings?.privacy === 'private' };
+    const first = planApply(current, ops, grounded, ctx);
     let routeSkipped = 0;
     try {
       // Route first, confirmed (it may delete days with stops); then the stop changes are planned
@@ -127,7 +138,7 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
       const rest: AgentOp[] = [];
       const restGround: Record<number, NovaGround> = {};
       ops.forEach((o, i) => { if (!first.routeOps.includes(o)) { if (grounded[i]) restGround[rest.length] = grounded[i]; rest.push(o); } });
-      const plan = first.routeOps.length ? planApply(current, rest, restGround) : first;
+      const plan = first.routeOps.length ? planApply(current, rest, restGround, ctx) : first;
       const skipped = routeSkipped + plan.skipped.length;
       const added = await runSteps(current.id, plan.steps);
       await setStatus(skipped ? 'partial' : 'applied');

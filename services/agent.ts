@@ -3,7 +3,7 @@ import { functions } from '@/services/firebase';
 import type { AgentQuotaView, AgentResponse } from '@/types/agent';
 
 /** What this build can apply (spec "Built to grow"): the server never sends an operation outside it. */
-export const AGENT_CAPABILITIES = ['trip.v1'];
+export const AGENT_CAPABILITIES = ['trip.v1', 'trip.v2'];
 
 export async function askAgent(a: { surface: 'trip'; subjectId: string; message: string; requestId: string }): Promise<AgentResponse> {
   const call = httpsCallable<object, AgentResponse>(functions, 'agent', { timeout: 60_000 });

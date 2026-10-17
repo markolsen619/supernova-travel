@@ -195,3 +195,50 @@ describe('planApply — grounded placement (phase 2)', () => {
     expect((plan.steps[0] as { order: number }).order).toBe(5000);
   });
 });
+
+describe('planApply — trip.v2', () => {
+  const a = (id: string, title: string, order: number, lat: number | null = null, lng: number | null = null) =>
+    ({ id, title, order, lat, lng, type: 'activity', startTime: null, notes: '', placeId: null, address: null }) as never;
+  const trip = {
+    id: 'T', title: 'MB', description: '', visibility: 'private', destination: { name: 'Mission Beach', lat: 32.77, lng: -117.25 }, additionalDestinations: [],
+    startDate: null, endDate: null,
+    days: [
+      { id: 'D1', dayNumber: 1, destinationIndex: 0, activities: [a('A', 'Torrey', 1000, 32.921, -117.251), a('B', 'Museum', 2000, 32.732, -117.150), a('C', 'Taco', 3000, 32.839, -117.277)] },
+      { id: 'D2', dayNumber: 2, destinationIndex: 0, activities: [a('E', 'Beach', 1000)] },
+    ],
+  } as never;
+
+  it('editStop renames and re-places a stop', () => {
+    const g = { 0: { status: 'found', place: { name: 'Pennant', lat: 32.77, lng: -117.25, address: 'Mission Blvd', placeId: null, isVenue: true } } } as never;
+    const plan = planApply(trip, [{ kind: 'trip.editStop', dayId: 'D1', stopId: 'B', title: 'Drinks at Pennant', query: 'Pennant, Mission Beach' }] as never, g);
+    expect(plan.steps[0]).toMatchObject({ do: 'update', patch: { title: 'Drinks at Pennant', titleSource: 'user', lat: 32.77, placeName: 'Pennant' } });
+  });
+  it('editStop with a place not found is skipped', () => {
+    const plan = planApply(trip, [{ kind: 'trip.editStop', dayId: 'D1', stopId: 'B', query: 'Nowhere' }] as never, { 0: { status: 'notFound' } } as never);
+    expect(plan.skipped).toHaveLength(1);
+  });
+  it('optimizeDay reorders for less travel', () => {
+    const plan = planApply(trip, [{ kind: 'trip.optimizeDay', dayId: 'D1' }] as never);
+    expect((plan.steps[0] as { after: { id: string }[] }).after.map((x) => x.id)).toEqual(['A', 'C', 'B']);
+  });
+  it('swapDays moves every stop both ways', () => {
+    const plan = planApply(trip, [{ kind: 'trip.swapDays', dayId: 'D1', withDayId: 'D2' }] as never);
+    expect(plan.steps.filter((s) => s.do === 'move')).toHaveLength(4);
+  });
+  it('private account: making the trip Public is skipped', () => {
+    const plan = planApply(trip, [{ kind: 'trip.updateTrip', visibility: 'public' }] as never, {}, { accountPrivate: true });
+    expect(plan.skipped).toHaveLength(1);
+  });
+  it('stale: a packing item someone already removed is skipped', () => {
+    const plan = planApply(trip, [{ kind: 'trip.removePacking', itemId: 'gone' }] as never, {}, { packing: [] });
+    expect(plan.skipped).toHaveLength(1);
+  });
+  it('stale: editing a stop a collaborator deleted is skipped', () => {
+    const plan = planApply(trip, [{ kind: 'trip.editStop', dayId: 'D1', stopId: 'ZZ', title: 'X' }] as never);
+    expect(plan.skipped).toHaveLength(1);
+  });
+  it('undo restores the trip title', () => {
+    const plan = planApply(trip, [{ kind: 'trip.updateTrip', title: 'New' }] as never);
+    expect(undoSteps(plan.steps, {})[0]).toEqual({ do: 'trip', patch: { title: 'MB' }, before: { title: 'New' } });
+  });
+});

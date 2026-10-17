@@ -3,21 +3,29 @@
  * (docs/superpowers/specs/2026-10-14-trip-agent-design.md, "App: applying a proposal").
  * Pure: re-checks every operation against the trip as it is now.
  */
-import type { TripActivity, TripWithDays } from '@/types';
+import type { PackingItem, TripActivity, TripVisibility, TripWithDays } from '@/types';
 import type { AgentOp } from '@/types/agent';
 import { addRow, moveRow, removeRow, setRowNights, type RouteRow } from '@/utils/tripRoute';
 import { manualSearchQuery } from '@/utils/groundingQueue';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { bestInsertion, insertionCostKm, type PlaceStop } from '@/utils/routePlacement';
+import { bestInsertion, insertionCostKm, optimizeDay, type PlaceStop } from '@/utils/routePlacement';
 import type { NovaGround } from '@/utils/agentGround';
 
 export type ApplyStep =
   | { do: 'delete'; dayId: string; activity: TripActivity }
-  | { do: 'move'; fromDayId: string; toDayId: string; activity: TripActivity; afterStopId: string | null; order: number }
+  | { do: 'move'; fromDayId: string; toDayId: string; activity: TripActivity; afterStopId: string | null; order: number; keepOrder?: boolean }
   | { do: 'reorder'; dayId: string; before: TripActivity[]; after: TripActivity[] }
   | { do: 'update'; dayId: string; activityId: string; patch: Partial<TripActivity>; before: Partial<TripActivity> }
   | { do: 'add'; dayId: string; activity: Omit<TripActivity, 'id' | 'order' | 'createdAt'>; order: number }
-  | { do: 'dates'; newStart: string; newEnd: string | null; previousStart: string | null; previousEnd: string | null };
+  | { do: 'dates'; newStart: string; newEnd: string | null; previousStart: string | null; previousEnd: string | null }
+  | { do: 'trip'; patch: TripPatch; before: TripPatch }
+  | { do: 'packAdd'; label: string; category: string }
+  | { do: 'packCheck'; itemId: string; checked: boolean }
+  | { do: 'packRemove'; itemId: string; label: string; category: string };
+
+type TripPatch = { title?: string; description?: string; visibility?: TripVisibility };
+/** What applying needs beyond the trip: its packing list, and whether the account is private (no Public trips). */
+export interface ApplyCtx { packing?: PackingItem[]; accountPrivate?: boolean }
 
 /** `placedNote[opIndex]` = where a new stop went when code chose its spot ("after The Taco Stand"). */
 export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: AgentOp[]; placedNote: Record<number, string> }
@@ -26,7 +34,7 @@ export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: A
 const NAMED_SLACK_KM = 2;
 
 const STEP = 1000;
-const RANK: Record<string, number> = { delete: 0, move: 1, reorder: 1, update: 2, dates: 3, add: 4 };
+const RANK: Record<string, number> = { delete: 0, move: 1, reorder: 1, update: 2, dates: 3, trip: 3, add: 4, packAdd: 5, packCheck: 5, packRemove: 5 };
 
 export function orderAfter(stops: { id: string; order: number }[], afterStopId: string | null): number {
   const sorted = [...stops].sort((a, b) => a.order - b.order);
@@ -36,7 +44,7 @@ export function orderAfter(stops: { id: string; order: number }[], afterStopId: 
   return (sorted[i].order + sorted[i + 1].order) / 2;
 }
 
-export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<number, NovaGround> = {}): ApplyPlan {
+export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<number, NovaGround> = {}, ctx: ApplyCtx = {}): ApplyPlan {
   const steps: ApplyStep[] = [];
   const addAfter = new Map<number, string | null>();
   const addOp = new Map<number, number>();
@@ -109,6 +117,73 @@ export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<n
         steps.push({ do: 'dates', newStart: op.newStart, newEnd, previousStart, previousEnd });
         break;
       }
+      case 'trip.editStop': {
+        const a = day(op.dayId)?.activities.find((x) => x.id === op.stopId);
+        if (!a) { skipped.push(op); break; }
+        const g = grounded[opIndex];
+        if (op.query && g?.status === 'notFound') { skipped.push(op); break; }
+        const place = op.query && g?.status === 'found' ? g.place : null;
+        const patch: Partial<TripActivity> = {};
+        const before: Partial<TripActivity> = {};
+        const set = <K extends keyof TripActivity>(k: K, v: TripActivity[K]) => { patch[k] = v; before[k] = a[k]; };
+        if (op.title !== undefined) { set('title', op.title); set('titleSource', 'user' as TripActivity['titleSource']); }
+        if (op.type !== undefined) set('type', op.type);
+        if (op.time !== undefined) set('startTime', op.time);
+        if (op.endTime !== undefined) set('endTime', op.endTime);
+        if (op.durationMinutes !== undefined) set('durationMinutes', op.durationMinutes);
+        if (op.notes !== undefined) set('notes', op.notes);
+        if (place) {
+          set('placeId', place.placeId ?? ''); set('address', place.address); set('lat', place.lat); set('lng', place.lng);
+          if (place.isVenue) set('placeName' as keyof TripActivity, place.name as never);
+          set('searchQuery' as keyof TripActivity, op.query as never);
+          set('groundingFailedAt', null as TripActivity['groundingFailedAt']);
+        }
+        if (!Object.keys(patch).length) { skipped.push(op); break; }
+        steps.push({ do: 'update', dayId: op.dayId, activityId: a.id, patch, before });
+        break;
+      }
+      case 'trip.optimizeDay': {
+        const d = day(op.dayId);
+        if (!d) { skipped.push(op); break; }
+        const current = [...d.activities].sort((x, y) => x.order - y.order);
+        const asStop = (x: TripActivity): PlaceStop => ({ id: x.id, lat: x.lat ?? null, lng: x.lng ?? null, type: x.type, title: x.title, startTime: x.startTime ?? null, fixed: !!(x as { fromBooking?: unknown }).fromBooking });
+        const order = optimizeDay(current.map(asStop)).map((p) => current.find((x) => x.id === p.id)!);
+        // Already the shortest: nothing to change.
+        if (order.every((x, i) => x.id === current[i].id)) { skipped.push(op); break; }
+        steps.push({ do: 'reorder', dayId: d.id, before: current, after: order });
+        break;
+      }
+      case 'trip.swapDays': {
+        const a = day(op.dayId);
+        const b = day(op.withDayId);
+        if (!a || !b) { skipped.push(op); break; }
+        for (const x of a.activities) steps.push({ do: 'move', fromDayId: a.id, toDayId: b.id, activity: x, afterStopId: null, order: x.order, keepOrder: true });
+        for (const x of b.activities) steps.push({ do: 'move', fromDayId: b.id, toDayId: a.id, activity: x, afterStopId: null, order: x.order, keepOrder: true });
+        break;
+      }
+      case 'trip.updateTrip': {
+        if (op.visibility === 'public' && ctx.accountPrivate) { skipped.push(op); break; }
+        const patch: TripPatch = {};
+        const before: TripPatch = {};
+        const t = trip as TripWithDays & { description?: string };
+        if (op.title !== undefined) { patch.title = op.title; before.title = t.title; }
+        if (op.description !== undefined) { patch.description = op.description; before.description = t.description ?? ''; }
+        if (op.visibility !== undefined) { patch.visibility = op.visibility; before.visibility = t.visibility; }
+        steps.push({ do: 'trip', patch, before });
+        break;
+      }
+      case 'trip.addPacking': steps.push({ do: 'packAdd', label: op.label, category: op.category }); break;
+      case 'trip.checkPacking': {
+        if (ctx.packing && !ctx.packing.some((p) => p.id === op.itemId)) { skipped.push(op); break; }
+        steps.push({ do: 'packCheck', itemId: op.itemId, checked: op.checked });
+        break;
+      }
+      case 'trip.removePacking': {
+        const item = ctx.packing?.find((p) => p.id === op.itemId);
+        if (ctx.packing && !item) { skipped.push(op); break; }
+        steps.push({ do: 'packRemove', itemId: op.itemId, label: item?.label ?? '', category: item?.category ?? 'Essentials' });
+        break;
+      }
       default:
         routeOps.push(op);
     }
@@ -163,6 +238,8 @@ function placeInOrder(trip: TripWithDays, ranked: { step: ApplyStep; after: stri
       case 'reorder': lists.set(step.dayId, step.after.map((a, idx) => ({ ...asPlaced(a), order: idx * 1000 }))); break;
       case 'move': {
         lists.set(step.fromDayId, list(step.fromDayId).filter((x) => x.id !== step.activity.id));
+        // A swapped day keeps its own order; other moves are placed on the target day.
+        if (step.keepOrder) { list(step.toDayId).push(asPlaced(step.activity)); break; }
         step.order = place(step.toDayId, step.afterStopId, asPlaced(step.activity));
         break;
       }
@@ -247,6 +324,10 @@ export function undoSteps(steps: ApplyStep[], addedIds: Record<number, string>):
       case 'reorder': out.unshift({ do: 'reorder', dayId: s.dayId, before: s.after, after: s.before }); break;
       case 'update': out.unshift({ do: 'update', dayId: s.dayId, activityId: s.activityId, patch: s.before, before: s.patch }); break;
       case 'dates': if (s.previousStart) out.unshift({ do: 'dates', newStart: s.previousStart, newEnd: s.previousEnd, previousStart: s.newStart, previousEnd: s.newEnd }); break;
+      case 'trip': out.unshift({ do: 'trip', patch: s.before, before: s.patch }); break;
+      case 'packAdd': { const id = addedIds[i]; if (id) out.unshift({ do: 'packRemove', itemId: id, label: s.label, category: s.category }); break; }
+      case 'packCheck': out.unshift({ do: 'packCheck', itemId: s.itemId, checked: !s.checked }); break;
+      case 'packRemove': out.unshift({ do: 'packAdd', label: s.label, category: s.category }); break;
     }
   });
   return out;

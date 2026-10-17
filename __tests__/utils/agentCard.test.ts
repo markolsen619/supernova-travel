@@ -97,3 +97,18 @@ describe('opLine with grounding (phase 2)', () => {
     expect(opLine(op, trip, 'pending')?.detail).toBe('Finding it on the map…');
   });
 });
+
+describe('opLine for trip.v2', () => {
+  const trip = { destination: { name: 'Mission Beach' }, additionalDestinations: [], days: [{ id: 'D1', dayNumber: 1, destinationIndex: 0, activities: [{ id: 'B', title: 'Museum', type: 'activity' }] }, { id: 'D2', dayNumber: 2, destinationIndex: 0, activities: [] }] } as never;
+  it('names visibility changes plainly', () => {
+    expect(opLine({ kind: 'trip.updateTrip', visibility: 'public' }, trip)?.text).toBe('Make this trip Public');
+    expect(opLine({ kind: 'trip.updateTrip', visibility: 'followers' }, trip)?.text).toBe('Make this trip Followers only');
+  });
+  it('optimizeDay, swapDays, rename, packing, edit', () => {
+    expect(opLine({ kind: 'trip.optimizeDay', dayId: 'D1' }, trip)?.text).toBe('Day 1 · Shortest route');
+    expect(opLine({ kind: 'trip.swapDays', dayId: 'D1', withDayId: 'D2' }, trip)?.text).toBe('Swap day 1 and day 2');
+    expect(opLine({ kind: 'trip.updateTrip', title: 'MB weekend' }, trip)?.text).toBe('Rename to “MB weekend”');
+    expect(opLine({ kind: 'trip.addPacking', label: 'Sunscreen', category: 'Essentials' }, trip)?.text).toBe('Pack sunscreen');
+    expect(opLine({ kind: 'trip.editStop', dayId: 'D1', stopId: 'B', title: 'Drinks at Pennant' }, trip)?.text).toBe('Day 1 · Museum → Drinks at Pennant');
+  });
+});
