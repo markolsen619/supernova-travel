@@ -31,7 +31,8 @@ function time(v: unknown): string | null | undefined {
   return TIME_RE.test(t) ? t : undefined;
 }
 
-export function validateTripOps(raw: unknown, labels: LabelMap): { ops: AgentOp[]; dropped: number } {
+/** `cityOfDay` names a day's city, so a place the model gave no search for is searched as "{title}, {city}". */
+export function validateTripOps(raw: unknown, labels: LabelMap, cityOfDay: (dayId: string) => string | null = () => null): { ops: AgentOp[]; dropped: number } {
   if (!Array.isArray(raw)) return { ops: [], dropped: 0 };
   const ops: AgentOp[] = [];
   const touched = new Set<string>();
@@ -62,7 +63,11 @@ export function validateTripOps(raw: unknown, labels: LabelMap): { ops: AgentOp[
         if (r.time !== undefined && r.time !== null && r.time !== '' && t === undefined) return null;
         const after = stopRef(r.after);
         const type = (ACTIVITY_TYPES as readonly string[]).includes(str(r.type)) ? (str(r.type) as ActivityType) : 'activity';
-        return { kind: 'trip.addStop', dayId, title, type, afterStopId: after && after.dayId === dayId ? after.stopId : null, time: t ?? null };
+        const groundable = !['free', 'transport', 'flight'].includes(type);
+        const given = str(r.query).slice(0, 120);
+        const city = cityOfDay(dayId);
+        const query = !groundable ? null : given.length >= 2 ? given : city ? `${title}, ${city}` : title;
+        return { kind: 'trip.addStop', dayId, title, type, afterStopId: after && after.dayId === dayId ? after.stopId : null, time: t ?? null, query };
       }
       case 'removeStop': {
         const s = stopRef(r.stop);

@@ -27,7 +27,7 @@ describe('orderAfter', () => {
 describe('planApply', () => {
   it('orders removals, moves, updates, then additions; route kept apart', () => {
     const p = planApply(trip, [
-      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: null, time: null },
+      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: null, time: null, query: null },
       { kind: 'trip.setNights', city: 0, nights: 3 },
       { kind: 'trip.updateStop', dayId: 'D2', stopId: 'C', time: '10:00' },
       { kind: 'trip.moveStop', dayId: 'D1', stopId: 'A', toDayId: 'D2', afterStopId: null },
@@ -38,7 +38,7 @@ describe('planApply', () => {
     expect(p.skipped).toEqual([]);
   });
   it('builds a new stop the way the background grounding expects', () => {
-    const p = planApply(trip, [{ kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: 'C', time: null }]);
+    const p = planApply(trip, [{ kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: 'C', time: null, query: null }]);
     const add = p.steps[0] as any;
     expect(add.activity).toMatchObject({ type: 'restaurant', title: 'Dinner at Ramiro', lat: null, lng: null, placeId: null, startTime: null, searchQuery: 'Dinner at Ramiro, Lisbon' });
     expect(add.activity.titleSource).toBeUndefined();
@@ -47,7 +47,7 @@ describe('planApply', () => {
   it('skips operations whose stop no longer exists', () => {
     const p = planApply(trip, [
       { kind: 'trip.removeStop', dayId: 'D1', stopId: 'GONE' },
-      { kind: 'trip.addStop', dayId: 'D9', title: 'Somewhere', type: 'activity', afterStopId: null, time: null },
+      { kind: 'trip.addStop', dayId: 'D9', title: 'Somewhere', type: 'activity', afterStopId: null, time: null, query: null },
       { kind: 'trip.removeStop', dayId: 'D1', stopId: 'B' },
     ]);
     expect(p.steps).toHaveLength(1);
@@ -92,7 +92,7 @@ describe('undoSteps', () => {
   it('reverses each step in reverse order', () => {
     const p = planApply(trip, [
       { kind: 'trip.removeStop', dayId: 'D1', stopId: 'B' },
-      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: null, time: null },
+      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: null, time: null, query: null },
     ]);
     const u = undoSteps(p.steps, { 1: 'NEW1' });
     expect(u.map((s) => s.do)).toEqual(['delete', 'add']);
@@ -108,22 +108,22 @@ describe('planApply positions, in the order the steps run', () => {
   const orders = (p: ReturnType<typeof planApply>) => p.steps.map((s: any) => [s.do, s.activity?.title, s.order ?? null]);
   it('gives two new stops at the end increasing positions', () => {
     const p = planApply(trip, [
-      { kind: 'trip.addStop', dayId: 'D2', title: 'Lunch', type: 'restaurant', afterStopId: null, time: null },
-      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner', type: 'restaurant', afterStopId: null, time: null },
+      { kind: 'trip.addStop', dayId: 'D2', title: 'Lunch', type: 'restaurant', afterStopId: null, time: null, query: null },
+      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner', type: 'restaurant', afterStopId: null, time: null, query: null },
     ]);
     expect(orders(p)).toEqual([['add', 'Lunch', 2000], ['add', 'Dinner', 3000]]);
   });
   it('keeps several stops proposed after the same stop in their proposed order', () => {
     const p = planApply(trip, [
-      { kind: 'trip.addStop', dayId: 'D1', title: 'Coffee', type: 'restaurant', afterStopId: 'A', time: null },
-      { kind: 'trip.addStop', dayId: 'D1', title: 'Gelato', type: 'restaurant', afterStopId: 'A', time: null },
+      { kind: 'trip.addStop', dayId: 'D1', title: 'Coffee', type: 'restaurant', afterStopId: 'A', time: null, query: null },
+      { kind: 'trip.addStop', dayId: 'D1', title: 'Gelato', type: 'restaurant', afterStopId: 'A', time: null, query: null },
     ]);
     expect(orders(p)).toEqual([['add', 'Coffee', 1500], ['add', 'Gelato', 1750]]);
   });
   it('places an addition with the numbering a reorder in the same proposal writes', () => {
     const p = planApply(trip, [
       { kind: 'trip.reorderDay', dayId: 'D1', stopIds: ['B', 'A'] },
-      { kind: 'trip.addStop', dayId: 'D1', title: 'Coffee', type: 'restaurant', afterStopId: 'B', time: null },
+      { kind: 'trip.addStop', dayId: 'D1', title: 'Coffee', type: 'restaurant', afterStopId: 'B', time: null, query: null },
     ]);
     // reorderActivities writes idx * 1000: B=0, A=1000.
     expect(orders(p).find((x) => x[0] === 'add')).toEqual(['add', 'Coffee', 500]);

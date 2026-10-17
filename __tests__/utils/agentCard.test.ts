@@ -15,7 +15,7 @@ const trip = {
 
 describe('opLine', () => {
   it('writes each change as one short line', () => {
-    expect(opLine({ kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: null, time: null }, trip))
+    expect(opLine({ kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: null, time: null, query: null }, trip))
       .toEqual({ icon: 'add', type: 'restaurant', text: 'Day 2 · Dinner at Ramiro' });
     expect(opLine({ kind: 'trip.removeStop', dayId: 'D1', stopId: 'B' }, trip)?.text).toBe('Day 1 · Remove Oceanário');
     expect(opLine({ kind: 'trip.moveStop', dayId: 'D1', stopId: 'A', toDayId: 'D2', afterStopId: null }, trip)?.text).toBe('Move Belém Tower to day 2');

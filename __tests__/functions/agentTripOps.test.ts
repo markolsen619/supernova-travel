@@ -24,7 +24,7 @@ describe('validateTripOps', () => {
     ], labels);
     expect(dropped).toBe(0);
     expect(ops).toEqual([
-      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: 'C', time: '20:00' },
+      { kind: 'trip.addStop', dayId: 'D2', title: 'Dinner at Ramiro', type: 'restaurant', afterStopId: 'C', time: '20:00', query: 'Dinner at Ramiro' },
       { kind: 'trip.removeStop', dayId: 'D1', stopId: 'B' },
       { kind: 'trip.moveStop', dayId: 'D1', stopId: 'A', toDayId: 'D2', afterStopId: null },
       { kind: 'trip.updateStop', dayId: 'D2', stopId: 'C', time: null, notes: 'Go early' },
@@ -103,5 +103,21 @@ describe('surfaces', () => {
   });
   it('names a thread by surface and subject', () => {
     expect(threadId('trip', 'abc123')).toBe('trip_abc123');
+  });
+});
+
+describe('addStop query (phase 2)', () => {
+  const labels = { days: { d1: 'D1' }, stops: {}, dayStops: { D1: [] }, cityCount: 1 };
+  it('keeps the model\'s query, trimmed to 120', () => {
+    const { ops } = validateTripOps([{ op: 'addStop', day: 'd1', title: 'Drinks at Pennant', type: 'restaurant', query: ' Pennant, Mission Beach ' }], labels as never);
+    expect(ops[0]).toMatchObject({ kind: 'trip.addStop', query: 'Pennant, Mission Beach' });
+  });
+  it('defaults the query to title + the day city', () => {
+    const { ops } = validateTripOps([{ op: 'addStop', day: 'd1', title: 'Pennant', type: 'restaurant' }], labels as never, () => 'Mission Beach');
+    expect((ops[0] as { query: string }).query).toBe('Pennant, Mission Beach');
+  });
+  it('no query for free time', () => {
+    const { ops } = validateTripOps([{ op: 'addStop', day: 'd1', title: 'Rest at the hotel', type: 'free' }], labels as never, () => 'Mission Beach');
+    expect((ops[0] as { query: string | null }).query).toBeNull();
   });
 });

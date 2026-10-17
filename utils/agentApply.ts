@@ -83,7 +83,7 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
             type: op.type, title: op.title, placeId: null, address: null, lat: null, lng: null,
             startTime: op.time, endTime: null, durationMinutes: null, notes: '', bookingRef: null,
             cost: null, currency: null, mediaUrls: [],
-            searchQuery: manualSearchQuery(op.type, op.title, cityName(d.id)),
+            searchQuery: op.query ?? manualSearchQuery(op.type, op.title, cityName(d.id)),
             visited: false, visitedAt: null, groundingFailedAt: null,
           },
         });

@@ -117,7 +117,11 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY missing');
     const result = await generate({ system: TRIP_SYSTEM_PROMPT, turns, schema: AGENT_RESPONSE_SCHEMA, apiKey });
-    const { ops, dropped } = validateTripOps(result.json.operations, labels);
+    const cityOfDay = (dayId: string) => {
+      const d = days.find((x) => x.id === dayId);
+      return d ? (cities[d.city]?.name ?? cities[0]?.name ?? null) : null;
+    };
+    const { ops, dropped } = validateTripOps(result.json.operations, labels, cityOfDay);
     const allowed: AgentOp[] = filterByCapabilities(ops, capabilities);
     const totalDropped = dropped + (ops.length - allowed.length);
     const reply = totalDropped > 0

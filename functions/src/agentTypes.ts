@@ -8,7 +8,7 @@ export const ACTIVITY_TYPES = ['flight', 'hotel', 'restaurant', 'activity', 'tra
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 export type AgentOp =
-  | { kind: 'trip.addStop'; dayId: string; title: string; type: ActivityType; afterStopId: string | null; time: string | null }
+  | { kind: 'trip.addStop'; dayId: string; title: string; type: ActivityType; afterStopId: string | null; time: string | null; query: string | null }
   | { kind: 'trip.removeStop'; dayId: string; stopId: string }
   | { kind: 'trip.moveStop'; dayId: string; stopId: string; toDayId: string; afterStopId: string | null }
   | { kind: 'trip.reorderDay'; dayId: string; stopIds: string[] }
