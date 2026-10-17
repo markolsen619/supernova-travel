@@ -107,3 +107,13 @@ describe('packing in context (phase 2)', () => {
     expect(text).toContain('TRIP DETAILS: visibility private');
   });
 });
+
+describe('own bookings in context (wallet.v1)', () => {
+  it('labels own bookings, says if they are on the trip, never prints a code', () => {
+    const { text, labels } = build2({ title: 'MB', startDay: '2026-11-01', today: '2026-10-17', cities: [{ name: 'MB', nights: 2 }], days: [], topPlaces: [],
+      bookings: [{ kind: 'restaurant', name: 'Pennant', date: '2026-11-01', time: '19:00', shared: false, label: 'b1', linked: true, hasStop: false, hasCode: true, ref: { kind: 'reservation', id: 'R1' } }] } as never);
+    expect(text).toContain('b1 restaurant Pennant 2026-11-01 19:00 (linked, not on the trip yet, has code)');
+    expect(labels.bookings.b1).toEqual({ kind: 'reservation', id: 'R1', linked: true });
+    expect(text).not.toMatch(/ABC/);
+  });
+});

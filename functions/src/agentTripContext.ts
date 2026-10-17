@@ -6,7 +6,11 @@
 export interface CtxStop { id: string; title: string; type: string; startTime: string | null; placed: boolean; order: number; lat?: number | null; lng?: number | null }
 export interface CtxDay { id: string; dayNumber: number; city: number; stops: CtxStop[] }
 export interface CtxCity { name: string; nights: number | null }
-export interface CtxBooking { kind: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transit' | 'car'; name: string; date: string | null; time: string | null; shared: boolean }
+export interface CtxBooking {
+  kind: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transit' | 'car'; name: string; date: string | null; time: string | null; shared: boolean;
+  /** Own wallet bookings only (wallet.v1): label b1…, and what the model may know about them — never the code itself. */
+  label?: string; linked?: boolean; hasStop?: boolean; hasCode?: boolean; ref?: { kind: 'boarding_pass' | 'reservation'; id: string };
+}
 export interface CtxTopPlace { city: number; name: string; type: string }
 export interface CtxPacking { id: string; label: string; checked: boolean }
 export interface TripCtxInput { title: string; startDay: string | null; today: string; cities: CtxCity[]; days: CtxDay[]; bookings: CtxBooking[]; topPlaces: CtxTopPlace[]; packing?: CtxPacking[]; visibility?: string }
@@ -17,6 +21,8 @@ export interface LabelMap {
   cityCount: number;
   /** k1… → packing item id. */
   packing: Record<string, string>;
+  /** b1… → the caller's own wallet booking. */
+  bookings: Record<string, { kind: 'boarding_pass' | 'reservation'; id: string; linked: boolean }>;
 }
 
 export const CONTEXT_BUDGET_CHARS = 12_000;
@@ -37,7 +43,7 @@ function kmBetween(a: { lat: number; lng: number }, b: { lat: number; lng: numbe
 const fmtKm = (k: number) => (k < 10 ? k.toFixed(1) : String(Math.round(k)));
 
 export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_BUDGET_CHARS): { text: string; labels: LabelMap } {
-  const labels: LabelMap = { days: {}, stops: {}, dayStops: {}, cityCount: input.cities.length, packing: {} };
+  const labels: LabelMap = { days: {}, stops: {}, dayStops: {}, cityCount: input.cities.length, packing: {}, bookings: {} };
   const days = [...input.days].sort((a, b) => a.dayNumber - b.dayNumber);
   const start = input.startDay && DAY_RE.test(input.startDay) ? input.startDay : null;
 
@@ -86,9 +92,15 @@ export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_B
     `TRIP "${clip(input.title, 80)}" ${start ? `starts ${start}` : 'dates not set'}`,
     `CITIES: ${input.cities.map((c, i) => `c${i + 1} ${c.name}${c.nights != null ? ` ${c.nights}n` : ''}`).join(' | ')}`,
   ].join('\n');
-  const bookings = input.bookings.length
-    ? `BOOKINGS: ${input.bookings.map((b) => [b.kind, b.name, b.date, b.time].filter(Boolean).join(' ') + (b.shared ? ' (shared)' : '')).join(' | ')}`
-    : 'BOOKINGS: none';
+  const bookingText = (b: CtxBooking) => {
+    const base = [b.label, b.kind, b.name, b.date, b.time].filter(Boolean).join(' ');
+    if (b.shared) return `${base} (shared)`;
+    if (!b.label) return base;
+    const notes = [b.linked ? 'linked' : 'not linked', b.hasStop ? 'on the trip' : 'not on the trip yet', ...(b.hasCode ? ['has code'] : [])];
+    return `${base} (${notes.join(', ')})`;
+  };
+  input.bookings.forEach((b) => { if (b.label && b.ref) labels.bookings[b.label] = { ...b.ref, linked: !!b.linked }; });
+  const bookings = input.bookings.length ? `BOOKINGS: ${input.bookings.map(bookingText).join(' | ')}` : 'BOOKINGS: none';
   const packingItems = (input.packing ?? []).slice(0, 40);
   packingItems.forEach((p, i) => { labels.packing[`k${i + 1}`] = p.id; });
   const packing = packingItems.length

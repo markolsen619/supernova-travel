@@ -1,5 +1,4 @@
 /** What the agent is told, and the JSON shape it must answer in. Pure. */
-import { ACTIVITY_TYPES } from './agentTypes';
 
 export const TRIP_SYSTEM_PROMPT = `You are Nova, the travel planner inside the Supernova app: a warm local friend who knows the place well. You help one person shape the trip shown below.
 
@@ -31,6 +30,8 @@ Operations (at most 12):
 - updateTrip: title and/or description and/or visibility ("public", "followers", "private"; only when asked)
 - addPacking: label, category; checkPacking: item (k1…), checked; removePacking: item
 
+Wallet: BOOKINGS labelled b1… are the person's own. addReservation: type ("hotel", "restaurant", "activity", "rental_car", "transit" with transitMode), title, date ("YYYY-MM-DD"), time, endDate (hotels), confirmationCode (only if the person typed it); linkBooking: booking (puts it on this trip); unlinkBooking: booking; updateBooking: booking with title/date/time/confirmationCode (not flights). When the person says they booked something, add it to the wallet; the app then puts it on the right day. Plan around bookings: nothing during a booked flight or train.
+
 Budget, expenses, deleting the trip and inviting people are done by the person in the app; if asked, say so warmly.
 
 If the request has nothing to do with this trip, say briefly and warmly what you can help with.`;
@@ -44,7 +45,7 @@ export const AGENT_RESPONSE_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          op: { type: 'STRING', enum: ['addStop', 'removeStop', 'moveStop', 'reorderDay', 'updateStop', 'setNights', 'addCity', 'removeCity', 'moveCity', 'shiftDates', 'optimizeDay', 'swapDays', 'updateTrip', 'addPacking', 'checkPacking', 'removePacking'] },
+          op: { type: 'STRING', enum: ['addStop', 'removeStop', 'moveStop', 'reorderDay', 'updateStop', 'setNights', 'addCity', 'removeCity', 'moveCity', 'shiftDates', 'optimizeDay', 'swapDays', 'updateTrip', 'addPacking', 'checkPacking', 'removePacking', 'addReservation', 'linkBooking', 'unlinkBooking', 'updateBooking'] },
           day: { type: 'STRING' },
           stop: { type: 'STRING' },
           toDay: { type: 'STRING' },
@@ -53,7 +54,8 @@ export const AGENT_RESPONSE_SCHEMA = {
           title: { type: 'STRING' },
           // Gemini skips optional fields unless the schema says when they're needed (eval 2026-10-17: 0/21 without this).
           query: { type: 'STRING', description: 'Required for addStop and for updateStop that changes the place: the real venue name and its area to search, e.g. "Pennant, Mission Beach".' },
-          type: { type: 'STRING', enum: [...ACTIVITY_TYPES] },
+          // A stop type or a wallet type: each validator checks its own (unknown stop types become 'activity').
+          type: { type: 'STRING' },
           time: { type: 'STRING', nullable: true },
           note: { type: 'STRING' },
           city: { type: 'STRING' },
@@ -71,6 +73,11 @@ export const AGENT_RESPONSE_SCHEMA = {
           category: { type: 'STRING' },
           item: { type: 'STRING' },
           checked: { type: 'BOOLEAN' },
+          booking: { type: 'STRING' },
+          date: { type: 'STRING' },
+          endDate: { type: 'STRING', nullable: true },
+          confirmationCode: { type: 'STRING', nullable: true },
+          transitMode: { type: 'STRING', enum: ['train', 'bus', 'ferry'] },
         },
         required: ['op', 'query'],
       },

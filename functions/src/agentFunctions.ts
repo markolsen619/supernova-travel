@@ -11,6 +11,7 @@ import { isValidRequestId } from './generationRequest';
 import { agentGate, agentHourKey, agentQuotaPolicy, AGENT_INFLIGHT_MS } from './quotaUtils';
 import { buildTripContext, bookingForContext, type CtxBooking, type CtxDay, type CtxTopPlace } from './agentTripContext';
 import { validateTripOps } from './agentTripOps';
+import { validateWalletOps, WALLET_OPS } from './agentWalletOps';
 import { filterByCapabilities, isAgentSurface, threadId } from './agentSurfaces';
 import { generate, type ModelTurn } from './agentModel';
 import { AGENT_RESPONSE_SCHEMA, TRIP_SYSTEM_PROMPT, polishReply } from './agentPrompt';
@@ -88,8 +89,10 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
       tripRef.collection('packingItems').limit(40).get(),
     ]);
     const packing = packingSnap.docs.map((p) => ({ id: p.id, label: String(p.get('label') ?? ''), checked: p.get('checked') === true })).filter((p) => p.label);
+    const bookedStops = new Set<string>();
     const days: CtxDay[] = await Promise.all(daysSnap.docs.map(async (d) => {
       const acts = await d.ref.collection('activities').get();
+      acts.docs.forEach((a) => { const fb = a.get('fromBooking') as { id?: string } | undefined; if (fb?.id) bookedStops.add(fb.id); });
       return {
         id: d.id, dayNumber: Number(d.get('dayNumber') ?? 0), city: Number(d.get('destinationIndex') ?? 0),
         stops: acts.docs.map((a) => ({
@@ -103,9 +106,12 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
       .filter(Boolean).map((c: { name?: string; nights?: number | null }) => ({ name: String(c.name ?? ''), nights: typeof c.nights === 'number' ? c.nights : null }));
     const startMs = ms(trip.startDate);
     const startDay = typeof trip.startDay === 'string' ? trip.startDay : startMs != null ? new Date(startMs + 12 * 3_600_000).toISOString().slice(0, 10) : null;
+    const endMs = ms(trip.endDate);
+    const endDay = endMs != null ? new Date(endMs + 12 * 3_600_000).toISOString().slice(0, 10) : startDay;
+    const wallet = await loadWallet(uid, subjectId, startDay, endDay, bookedStops);
     const { text: context, labels } = buildTripContext({
       title: String(trip.title ?? 'Trip'), startDay, today: new Date().toISOString().slice(0, 10),
-      cities, days, bookings, topPlaces, packing, visibility: String(trip.visibility ?? ''),
+      cities, days, bookings: [...wallet, ...bookings].slice(0, 25), topPlaces, packing, visibility: String(trip.visibility ?? ''),
     });
 
     const turns: ModelTurn[] = [];
@@ -123,7 +129,13 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
       const d = days.find((x) => x.id === dayId);
       return d ? (cities[d.city]?.name ?? cities[0]?.name ?? null) : null;
     };
-    const { ops, dropped } = validateTripOps(result.json.operations, labels, cityOfDay);
+    // Wallet operations and trip operations are checked by their own validators, then kept in the model's order.
+    const rawOps: unknown[] = Array.isArray(result.json.operations) ? result.json.operations : [];
+    const isWallet = (o: unknown) => !!o && typeof o === 'object' && WALLET_OPS.has(String((o as { op?: unknown }).op));
+    const tripPart = validateTripOps(rawOps.filter((o) => !isWallet(o)), labels, cityOfDay);
+    const walletPart = validateWalletOps(rawOps.filter(isWallet), labels, { startDay, endDay });
+    const ops = [...tripPart.ops, ...walletPart.ops];
+    const dropped = tripPart.dropped + walletPart.dropped;
     const allowed: AgentOp[] = filterByCapabilities(ops, capabilities);
     const totalDropped = dropped + (ops.length - allowed.length);
     const said = polishReply(String(result.json.reply ?? ''));
@@ -151,22 +163,45 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
   }
 });
 
+/** Other members' bookings shared with the trip (no labels: Nova can't change them). Own bookings come from loadWallet. */
 async function loadBookings(uid: string, tripId: string): Promise<CtxBooking[]> {
-  const [passes, reservations, shared] = await Promise.all([
-    db().collection('boarding_passes').where('ownerUid', '==', uid).where('tripId', '==', tripId).get(),
-    db().collection('reservations').where('ownerUid', '==', uid).where('tripId', '==', tripId).get(),
-    db().collection(`trips/${tripId}/bookings`).get(),
-  ]);
+  const shared = await db().collection(`trips/${tripId}/bookings`).get();
   const out: CtxBooking[] = [];
-  passes.docs.forEach((d) => { const b = bookingForContext('boarding_pass', d.data(), false); if (b) out.push(b); });
-  reservations.docs.forEach((d) => { const b = bookingForContext('reservation', d.data(), false); if (b) out.push(b); });
   shared.docs.forEach((d) => {
     if (d.get('ownerUid') === uid) return; // our own, already above
     const kind = d.id.startsWith('boarding_pass_') ? 'boarding_pass' : 'reservation';
     const b = bookingForContext(kind, d.data(), true);
     if (b) out.push(b);
   });
-  return out.slice(0, 20);
+  return out.slice(0, 10);
+}
+
+/**
+ * The caller's own bookings that belong to this trip: linked to it, or unlinked with a date inside it (±1 day).
+ * Labelled b1… for wallet.v1; the model sees kind, name, date, time and whether a code exists — never the code.
+ */
+async function loadWallet(uid: string, tripId: string, startDay: string | null, endDay: string | null, bookedStops: Set<string>): Promise<CtxBooking[]> {
+  const [passes, reservations] = await Promise.all([
+    db().collection('boarding_passes').where('ownerUid', '==', uid).limit(200).get(),
+    db().collection('reservations').where('ownerUid', '==', uid).limit(200).get(),
+  ]);
+  const shift = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const lo = startDay ? shift(startDay, -1) : null;
+  const hi = endDay ? shift(endDay, 1) : lo;
+  const out: CtxBooking[] = [];
+  const add = (kind: 'boarding_pass' | 'reservation', d: admin.firestore.QueryDocumentSnapshot) => {
+    const data = d.data();
+    const linked = data.tripId === tripId;
+    const b = bookingForContext(kind, data, false);
+    if (!b) return;
+    const inDates = !data.tripId && !!b.date && !!lo && !!hi && b.date >= lo && b.date <= hi;
+    if (!linked && !inDates) return;
+    const code = kind === 'reservation' ? data.confirmationCode : data.recordLocator ?? data.confirmationCode;
+    out.push({ ...b, label: `b${out.length + 1}`, linked, hasStop: bookedStops.has(d.id), hasCode: typeof code === 'string' && code.trim().length > 0, ref: { kind, id: d.id } });
+  };
+  passes.docs.forEach((d) => add('boarding_pass', d));
+  reservations.docs.forEach((d) => add('reservation', d));
+  return out.slice(0, 15);
 }
 
 async function loadTopPlaces(trip: admin.firestore.DocumentData): Promise<CtxTopPlace[]> {

@@ -4,6 +4,10 @@
  */
 import type { ActivityType } from '@/types';
 
+/** Reservation types Nova may add. `transit` is stored as `activity` + transitMode (never a new enum). */
+export const WALLET_RES_TYPES = ['hotel', 'restaurant', 'activity', 'rental_car', 'transit'] as const;
+export type WalletResType = (typeof WALLET_RES_TYPES)[number];
+
 export type AgentOp =
   | { kind: 'trip.addStop'; dayId: string; title: string; type: ActivityType; afterStopId: string | null; time: string | null; query: string | null }
   | { kind: 'trip.removeStop'; dayId: string; stopId: string }
@@ -21,7 +25,11 @@ export type AgentOp =
   | { kind: 'trip.updateTrip'; title?: string; description?: string; visibility?: 'public' | 'followers' | 'private' }
   | { kind: 'trip.addPacking'; label: string; category: string }
   | { kind: 'trip.checkPacking'; itemId: string; checked: boolean }
-  | { kind: 'trip.removePacking'; itemId: string };
+  | { kind: 'trip.removePacking'; itemId: string }
+  | { kind: 'wallet.addReservation'; type: WalletResType; transitMode?: 'train' | 'bus' | 'ferry'; title: string; date: string; time: string | null; endDate: string | null; confirmationCode: string | null }
+  | { kind: 'wallet.linkBooking'; bookingKind: 'boarding_pass' | 'reservation'; bookingId: string }
+  | { kind: 'wallet.unlinkBooking'; bookingKind: 'boarding_pass' | 'reservation'; bookingId: string }
+  | { kind: 'wallet.updateBooking'; bookingKind: 'reservation'; bookingId: string; title?: string; date?: string; time?: string | null; confirmationCode?: string };
 
 export type AgentStatus = 'proposed' | 'applied' | 'partial' | 'dismissed';
 export interface AgentQuotaView { used: number; limit: number; fairUse: boolean; resetsAt: string }
