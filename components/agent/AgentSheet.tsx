@@ -7,7 +7,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAgent } from '@/hooks/useAgent';
 import { useLimitPaywall } from '@/hooks/useLimitPaywall';
 import { ProposalCard } from '@/components/agent/ProposalCard';
-import { StarMark } from '@/components/ui/StarMark';
+import { NovaAvatar } from '@/components/agent/NovaAvatar';
 import { agentSuggestions, quotaLine } from '@/utils/agentCard';
 import type { TripWithDays } from '@/types';
 import type { AgentOp } from '@/types/agent';
@@ -77,9 +77,12 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <View>
-            <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{trip.title.toUpperCase()}</Text>
-            <Text style={[styles.title, { color: colors.text.primary }]}>Ask Nova</Text>
+          <View style={styles.headerTitle}>
+            <NovaAvatar size={36} thinking={agent.sending} />
+            <View>
+              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{trip.title.toUpperCase()}</Text>
+              <Text style={[styles.title, { color: colors.text.primary }]}>Ask Nova</Text>
+            </View>
           </View>
           <View style={styles.headerButtons}>
             <TouchableOpacity onPress={menu} style={styles.iconButton} accessibilityLabel="Conversation options"><DotsThree size={24} color={colors.text.secondary} weight="bold" /></TouchableOpacity>
@@ -91,7 +94,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           {agent.loading && <ActivityIndicator color={colors.text.tertiary} />}
           {empty && (
             <View style={styles.empty}>
-              <StarMark size={40} />
+              <NovaAvatar size={48} />
               <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>Plan with Nova</Text>
               <Text style={[styles.emptyBody, { color: colors.text.secondary }]}>Ask for changes — nothing happens until you accept.</Text>
               {agentSuggestions(trip).map((s) => (
@@ -103,15 +106,31 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           )}
           {agent.messages.map((m) => (
             <View key={m.id} style={m.role === 'user' ? styles.mine : styles.theirs}>
-              <View style={[styles.bubble, m.role === 'user' ? { backgroundColor: colors.text.primary } : { backgroundColor: colors.background.card }]}>
-                <Text style={{ color: m.role === 'user' ? colors.background.primary : colors.text.primary, fontSize: 15, lineHeight: 22 }}>{m.text}</Text>
-              </View>
+              {m.role === 'user' ? (
+                <View style={[styles.bubble, { backgroundColor: colors.text.primary }]}>
+                  <Text style={{ color: colors.background.primary, fontSize: 15, lineHeight: 22 }}>{m.text}</Text>
+                </View>
+              ) : (
+                <View style={styles.theirsRow}>
+                  <NovaAvatar size={28} />
+                  <View style={[styles.bubble, { backgroundColor: colors.background.card }]}>
+                    <Text style={{ color: colors.text.primary, fontSize: 15, lineHeight: 22 }}>{m.text}</Text>
+                  </View>
+                </View>
+              )}
               {m.role === 'assistant' && m.operations.length > 0 && (
+                <View style={styles.cardIndent}>
                 <ProposalCard message={m} trip={trip} busy={applying === m.id} onApply={(ops, g) => apply(m.id, ops, g)} onDismiss={() => agent.dismiss(m.id)} />
+                </View>
               )}
             </View>
           ))}
-          {agent.sending && <Text style={[styles.typing, { color: colors.text.tertiary }]}>Nova is thinking…</Text>}
+          {agent.sending && (
+            <View style={styles.theirsRow} accessible accessibilityLabel="Nova is thinking">
+              <NovaAvatar size={28} thinking />
+              <Text style={[styles.typing, { color: colors.text.tertiary }]}>…</Text>
+            </View>
+          )}
           {(applyError ?? agent.error) && <Text style={[styles.typing, { color: colors.semantic.error }]}>{applyError ?? agent.error}</Text>}
         </ScrollView>
 
@@ -148,6 +167,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
   headerButtons: { flexDirection: 'row' },
+  headerTitle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   eyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9 },
   title: { fontSize: 26, fontWeight: '600', letterSpacing: -0.5 },
@@ -158,7 +178,9 @@ const styles = StyleSheet.create({
   chip: { borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center', alignSelf: 'stretch', alignItems: 'center' },
   mine: { alignItems: 'flex-end' },
   theirs: { alignItems: 'stretch' },
-  bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '88%' },
+  theirsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  cardIndent: { marginLeft: 36 },
+  bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '88%', flexShrink: 1 },
   typing: { fontSize: 13 },
   undo: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8, borderRadius: 12, paddingLeft: 16 },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 10, gap: 6 },
