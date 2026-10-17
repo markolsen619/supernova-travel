@@ -58,8 +58,8 @@ import { useModeration } from '@/hooks/useModeration';
 import { useContentActions } from '@/components/moderation/useContentActions';
 import { contentKey, isContentVisible } from '@/utils/moderation';
 import { groundStop, type GroundingContext } from '@/services/places/groundStop';
+import { destinationAt, groundingContextFor } from '@/utils/groundingContext';
 import type { GroundedPlace } from '@/utils/mapboxQuery';
-import { boundsToBbox, bboxCenter } from '@/utils/geoBounds';
 import { resolveDayDestinationIndices } from '@/utils/dayDestination';
 import * as WebBrowser from 'expo-web-browser';
 import { CitySection } from '@/components/trip/CitySection';
@@ -97,37 +97,7 @@ const VISIBILITY_LABEL: Record<string, string> = {
   private: 'Private',
 };
 
-// ─── Grounding context (Fix 10) ───────────────────────────────────────────────
-// The primary destination lives at index 0; additionalDestinations[i - 1]
-// holds every index beyond that, mirroring resolveDayDestinationIndices'
-// output. Falls back to trip.destination when an index is out of range
-// (shouldn't happen given resolveDayDestinationIndices' own clamping, but a
-// missing box must never fall through to an unbiased search).
-function destinationAt(
-  trip: { destination: Destination; additionalDestinations: Destination[] },
-  index: number,
-): Destination {
-  return index === 0 ? trip.destination : (trip.additionalDestinations[index - 1] ?? trip.destination);
-}
-
-/**
- * Derives the Mapbox bbox + Google bias center for a destination. Crucially,
- * `center` falls back to the destination's own lat/lng when there's no
- * persisted bounds box yet — groundStop must never receive a null bbox AND a
- * null center together, since that sends Google an unbiased global search.
- * That exact gap is how a La Paz, Baja California Sur trip used to resolve
- * its stops in La Paz, Bolivia.
- */
-function groundingContextFor(dest: Destination): GroundingContext {
-  const bbox = boundsToBbox(dest.bounds);
-  const center =
-    bbox != null
-      ? bboxCenter(bbox)
-      : dest.lat != null && dest.lng != null
-        ? { lat: dest.lat, lng: dest.lng }
-        : null;
-  return { bbox, center };
-}
+// ─── Grounding context: destinationAt / groundingContextFor live in utils/groundingContext (shared with Nova).
 
 /**
  * Outcome of one grounding lookup — deliberately not a bare `GroundedPlace |
