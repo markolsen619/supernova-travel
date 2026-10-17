@@ -119,8 +119,8 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
         <View style={styles.header}>
           <View style={styles.headerTitle}>
             <NovaAvatar size={44} thinking={agent.sending} />
-            <View>
-              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{trip.title.toUpperCase()}</Text>
+            <View style={styles.headerText}>
+              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]} numberOfLines={1}>{trip.title.toUpperCase()}</Text>
               <Text style={[styles.title, { color: colors.text.primary }]}>Ask Nova</Text>
             </View>
           </View>
@@ -228,8 +228,10 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
-  headerButtons: { flexDirection: 'row' },
-  headerTitle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerButtons: { flexDirection: 'row', flexShrink: 0 },
+  // flex + shrink: a long trip name used to push Clear and Close off the screen (2026-10-17).
+  headerTitle: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 },
+  headerText: { flex: 1, minWidth: 0 },
   iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   textButton: { minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
   eyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9 },
