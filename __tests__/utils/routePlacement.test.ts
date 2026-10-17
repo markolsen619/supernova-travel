@@ -79,3 +79,10 @@ describe('optimizeDay', () => {
     expect(routeKm(out)).toBeLessThanOrEqual(routeKm(many));
   });
 });
+
+describe('review fix: ties go to the end', () => {
+  it('with one located stop, a new stop goes after it rather than first', () => {
+    const day = [s('a', null, null), s('b', 32.77, -117.25), s('c', null, null)];
+    expect(bestInsertion(day, s('n', 32.80, -117.25))).toBe(3);
+  });
+});

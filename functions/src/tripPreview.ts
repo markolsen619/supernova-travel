@@ -258,3 +258,15 @@ ${caption ? `<p class="lede">${caption}</p>` : ''}
 <a class="link" href="${APP_STORE_URL}">Get the app</a>`,
   );
 }
+
+/**
+ * Which image a post's page may show (review 2026-10-17): a trip post's media is the trip cover, a Places URL
+ * carrying our Maps key, so it goes through coverLookup like trip covers and is never published as is.
+ */
+export function postImageLookup(post: { mediaType?: unknown; mediaUrl?: unknown; mediaUrls?: unknown; thumbnailUrl?: unknown }): CoverLookup {
+  const urls = Array.isArray(post.mediaUrls) ? post.mediaUrls : [];
+  const candidate = post.mediaType === 'video'
+    ? (post.thumbnailUrl ?? urls[0] ?? null)
+    : (urls[0] ?? post.mediaUrl ?? post.thumbnailUrl ?? null);
+  return coverLookup(typeof candidate === 'string' ? candidate : null);
+}

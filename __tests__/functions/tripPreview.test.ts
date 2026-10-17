@@ -203,3 +203,24 @@ describe('canonicalRedirect for posts', () => {
     expect(canonicalRedirect('/post/p1')).toBeNull();
   });
 });
+
+import { postImageLookup } from '../../functions/src/tripPreview';
+
+describe('review fix: a post page never publishes a keyed Places URL', () => {
+  const places = 'https://places.googleapis.com/v1/places/abc/photos/xyz/media?maxWidthPx=800&key=SECRET';
+  it('a trip post (cover is a Places URL) is resolved, never used directly', () => {
+    const l = postImageLookup({ mediaType: 'trip', mediaUrl: places, mediaUrls: [places], thumbnailUrl: places });
+    // 'places' = resolved server-side to Google's key-less photoUri; only that address is ever published.
+    expect(l.kind).toBe('places');
+  });
+  it('a photo post uses its Storage URL', () => {
+    const url = 'https://firebasestorage.googleapis.com/v0/b/x/o/p.jpg?alt=media&token=t';
+    expect(postImageLookup({ mediaType: 'image', mediaUrls: [url] })).toEqual({ kind: 'direct', url });
+  });
+  it('a video post uses its cover frame', () => {
+    expect(postImageLookup({ mediaType: 'video', mediaUrl: 'https://x/v.mp4', thumbnailUrl: 'https://x/c.jpg' })).toEqual({ kind: 'direct', url: 'https://x/c.jpg' });
+  });
+  it('any other keyed URL is dropped', () => {
+    expect(postImageLookup({ mediaType: 'image', mediaUrls: ['https://maps.example.com/p?key=SECRET'] })).toEqual({ kind: 'none' });
+  });
+});

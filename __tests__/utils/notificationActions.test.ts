@@ -101,3 +101,13 @@ describe('canDeleteNotification with server answers', () => {
     expect(canDeleteNotification(notif({ id: 'i1', type: 'trip_invite' }), {}, { i1: 'accepted' })).toBe(true);
   });
 });
+
+import { readFailure } from '@/utils/notificationActions';
+
+describe('review fix: only a refused read means "gone"', () => {
+  it('permission-denied reads as missing; anything else is rethrown so the buttons stay', () => {
+    expect(readFailure({ code: 'permission-denied' })).toBe('missing');
+    expect(readFailure({ code: 'unavailable' })).toBe('rethrow');
+    expect(readFailure(new Error('network'))).toBe('rethrow');
+  });
+});

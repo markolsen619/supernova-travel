@@ -2,15 +2,16 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { followRequestAnswer, inviteAnswer, type ServerAnswers } from '@/utils/notificationActions';
+import { followRequestAnswer, inviteAnswer, readFailure, type ServerAnswers } from '@/utils/notificationActions';
 import type { AppNotification } from '@/types';
 
-/** A doc the rules hide once it's gone (followRequests) reads as permission-denied: treat as missing. */
+/** A doc the rules hide once it is gone (followRequests) reads as permission-denied: that alone means missing. */
 async function exists(path: string): Promise<boolean> {
   try {
     return (await getDoc(doc(db, path))).exists();
-  } catch {
-    return false;
+  } catch (e) {
+    if (readFailure(e) === 'missing') return false;
+    throw e;
   }
 }
 
@@ -20,8 +21,9 @@ async function answerFor(n: AppNotification, uid: string): Promise<[string, Serv
       const snap = await getDoc(doc(db, 'trips', n.tripId, 'invites', uid));
       const status = snap.exists() ? (snap.data().status as 'pending' | 'accepted' | 'declined') : 'missing';
       return [n.id, inviteAnswer(status)];
-    } catch {
-      return [n.id, inviteAnswer('missing')];
+    } catch (e) {
+      if (readFailure(e) === 'missing') return [n.id, inviteAnswer('missing')];
+      throw e;
     }
   }
   // follow_request: profileUid is the requester.

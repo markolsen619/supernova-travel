@@ -262,3 +262,31 @@ describe('planApply — wallet', () => {
     expect(planApply(trip, [link], {}, { ...ctx, paid: true }).steps[0]).toEqual({ do: 'walletLink', kind: 'reservation', id: 'R1', tripId: 'T' });
   });
 });
+
+describe('review fixes (planApply)', () => {
+  const a = (id: string, title: string, order: number, lat: number | null = null, lng: number | null = null) =>
+    ({ id, title, order, lat, lng, type: 'activity', startTime: null }) as never; // no titleSource / placeName, like AI stops
+  const trip = { id: 'T', title: 'MB', visibility: 'private', authorUid: 'OWNER', destination: { name: 'MB', lat: 32.77, lng: -117.25 }, additionalDestinations: [], startDate: null, endDate: null,
+    days: [{ id: 'D1', dayNumber: 1, destinationIndex: 0, activities: [a('A', 'Breakfast', 1000), a('B', 'Beach', 2000)] }] } as never;
+
+  it('undo values for fields a stop never had are null, never undefined (Firestore rejects undefined)', () => {
+    const plan = planApply(trip, [{ kind: 'trip.editStop', dayId: 'D1', stopId: 'B', title: 'Pennant' }] as never);
+    const before = (plan.steps[0] as { before: Record<string, unknown> }).before;
+    expect(Object.values(before).some((v) => v === undefined)).toBe(false);
+    expect(before.titleSource).toBeNull();
+  });
+  it('only the trip author may change title, description or visibility', () => {
+    const plan = planApply(trip, [{ kind: 'trip.updateTrip', visibility: 'public' }] as never, {}, { isAuthor: false });
+    expect(plan.steps).toHaveLength(0);
+    expect(plan.skipped).toHaveLength(1);
+  });
+  it('a wallet op on a booking that no longer exists is skipped', () => {
+    const plan = planApply(trip, [{ kind: 'wallet.unlinkBooking', bookingKind: 'reservation', bookingId: 'GONE' }] as never, {}, { uid: 'U', paid: true, walletIds: new Set(['R1']) });
+    expect(plan.skipped).toHaveLength(1);
+  });
+  it('a grounded stop on a day with no located stops goes last, not first', () => {
+    const g = { 0: { status: 'found', place: { name: 'Cove', lat: 32.85, lng: -117.27, address: null, placeId: null, isVenue: false } } } as never;
+    const plan = planApply(trip, [{ kind: 'trip.addStop', dayId: 'D1', title: 'La Jolla Cove', type: 'activity', afterStopId: null, time: null, query: 'Cove' }] as never, g);
+    expect((plan.steps[0] as { order: number }).order).toBeGreaterThan(2000);
+  });
+});

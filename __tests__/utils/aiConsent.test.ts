@@ -40,8 +40,10 @@ describe('AI consent', () => {
 describe('consent v3 (Ask Nova sees wallet bookings, 2026-10-17)', () => {
   it('Ask Nova needs v3; older features keep accepting what older apps wrote', () => {
     // The server reads the user doc; the app passes the stored version.
-    expect(serverHas({ aiConsentVersion: 2 }, 'agent')).toBe(false);
-    expect(serverHas({ aiConsentVersion: 3 }, 'agent')).toBe(true);
+    // Server: plain Ask Nova (1.0.6, trip.v1) keeps v2; wallet-capable apps need v3 (review 2026-10-17).
+    expect(serverHas({ aiConsentVersion: 2 }, 'agent')).toBe(true);
+    expect(serverHas({ aiConsentVersion: 2 }, 'agentWallet')).toBe(false);
+    expect(serverHas({ aiConsentVersion: 3 }, 'agentWallet')).toBe(true);
     expect(serverHas({ aiConsentVersion: 1 }, 'trip')).toBe(true);
     expect(serverHas({ aiConsentVersion: 1 }, 'import')).toBe(true);
     expect(clientHas(2, 'agent')).toBe(false);
@@ -49,5 +51,17 @@ describe('consent v3 (Ask Nova sees wallet bookings, 2026-10-17)', () => {
     expect(clientHas(1, 'trip')).toBe(true);
     expect(CLIENT_VERSION).toBe(3);
     expect(SERVER_VERSION).toBe(3);
+  });
+});
+
+import { agentConsentPurpose } from '../../functions/src/aiConsent';
+
+describe('review fix: 1.0.6 keeps Ask Nova on consent v2', () => {
+  it('only an app that declares wallet.v1 needs v3', () => {
+    expect(agentConsentPurpose(['trip.v1'])).toBe('agent');
+    expect(agentConsentPurpose(['trip.v1', 'trip.v2', 'wallet.v1'])).toBe('agentWallet');
+    expect(serverHas({ aiConsentVersion: 2 }, 'agent')).toBe(true);
+    expect(serverHas({ aiConsentVersion: 2 }, 'agentWallet')).toBe(false);
+    expect(serverHas({ aiConsentVersion: 3 }, 'agentWallet')).toBe(true);
   });
 });

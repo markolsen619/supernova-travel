@@ -6,7 +6,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
-import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
+import { AI_CONSENT_REQUIRED_MESSAGE, agentConsentPurpose, hasAiConsent } from './aiConsent';
 import { isValidRequestId } from './generationRequest';
 import { agentGate, agentHourKey, agentQuotaPolicy, AGENT_INFLIGHT_MS } from './quotaUtils';
 import { buildTripContext, bookingForContext, type CtxBooking, type CtxDay, type CtxTopPlace } from './agentTripContext';
@@ -59,7 +59,7 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     return { messageId: existing.id, reply: existing.get('text'), operations: filterByCapabilities(existing.get('operations') ?? [], capabilities), dropped: existing.get('dropped') ?? 0, quota: quotaView(tier, q) };
   }
 
-  if (!hasAiConsent(userSnap.data(), 'agent')) throw new HttpsError('failed-precondition', AI_CONSENT_REQUIRED_MESSAGE);
+  if (!hasAiConsent(userSnap.data(), agentConsentPurpose(capabilities))) throw new HttpsError('failed-precondition', AI_CONSENT_REQUIRED_MESSAGE);
 
   const tripRef = db().doc(`trips/${subjectId}`);
   const tripSnap = await tripRef.get();
@@ -108,7 +108,8 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     const startDay = typeof trip.startDay === 'string' ? trip.startDay : startMs != null ? new Date(startMs + 12 * 3_600_000).toISOString().slice(0, 10) : null;
     const endMs = ms(trip.endDate);
     const endDay = endMs != null ? new Date(endMs + 12 * 3_600_000).toISOString().slice(0, 10) : startDay;
-    const wallet = await loadWallet(uid, subjectId, startDay, endDay, bookedStops);
+    // Own wallet bookings only for apps that can act on them (and whose consent covers them).
+    const wallet = agentConsentPurpose(capabilities) === 'agentWallet' ? await loadWallet(uid, subjectId, startDay, endDay, bookedStops) : [];
     const { text: context, labels } = buildTripContext({
       title: String(trip.title ?? 'Trip'), startDay, today: new Date().toISOString().slice(0, 10),
       cities, days, bookings: [...wallet, ...bookings].slice(0, 25), topPlaces, packing, visibility: String(trip.visibility ?? ''),
@@ -134,8 +135,11 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     const isWallet = (o: unknown) => !!o && typeof o === 'object' && WALLET_OPS.has(String((o as { op?: unknown }).op));
     const tripPart = validateTripOps(rawOps.filter((o) => !isWallet(o)), labels, cityOfDay);
     const walletPart = validateWalletOps(rawOps.filter(isWallet), labels, { startDay, endDay });
-    const ops = [...tripPart.ops, ...walletPart.ops];
-    const dropped = tripPart.dropped + walletPart.dropped;
+    // Title, description and visibility are the author's (the app's Edit trip is owner-only): a collaborator's are dropped.
+    const isAuthor = trip.authorUid === uid;
+    const tripOps = isAuthor ? tripPart.ops : tripPart.ops.filter((o) => o.kind !== 'trip.updateTrip');
+    const ops = [...tripOps, ...walletPart.ops];
+    const dropped = tripPart.dropped + walletPart.dropped + (tripPart.ops.length - tripOps.length);
     const allowed: AgentOp[] = filterByCapabilities(ops, capabilities);
     const totalDropped = dropped + (ops.length - allowed.length);
     const said = polishReply(String(result.json.reply ?? ''));

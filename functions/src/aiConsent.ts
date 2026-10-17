@@ -20,7 +20,7 @@
  */
 export const AI_CONSENT_VERSION = 3;
 
-export type AiPurpose = 'trip' | 'import' | 'agent';
+export type AiPurpose = 'trip' | 'import' | 'agent' | 'agentWallet';
 
 /**
  * The oldest consent each feature accepts. Never raise one for a feature older apps
@@ -28,7 +28,15 @@ export type AiPurpose = 'trip' | 'import' | 'agent';
  * global bump refused AI trips, import and forwarded emails for every 1.0.5 user
  * (caught in review, 2026-10-15). A feature that shares more starts at the new version.
  */
-export const AI_CONSENT_MIN: Record<AiPurpose, number> = { trip: 1, import: 1, agent: 3 };
+export const AI_CONSENT_MIN: Record<AiPurpose, number> = { trip: 1, import: 1, agent: 2, agentWallet: 3 };
+
+/**
+ * Ask Nova's consent depends on what the calling app can do: only an app that declares wallet.v1 is
+ * sent wallet bookings, so only it needs v3. 1.0.6 (trip.v1) stays on v2 (review 2026-10-17).
+ */
+export function agentConsentPurpose(capabilities: unknown): AiPurpose {
+  return Array.isArray(capabilities) && capabilities.includes('wallet.v1') ? 'agentWallet' : 'agent';
+}
 
 export function hasAiConsent(userData: { aiConsentVersion?: unknown } | null | undefined, purpose: AiPurpose = 'trip'): boolean {
   const version = userData?.aiConsentVersion;

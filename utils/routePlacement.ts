@@ -65,11 +65,12 @@ function allowed(stops: PlaceStop[], add: PlaceStop): number[] {
 export function bestInsertion(stops: PlaceStop[], add: PlaceStop): number {
   const options = allowed(stops, add);
   if (!placed(add)) return options[options.length - 1];
+  // From the end, so a tie (equal detour, e.g. one located stop) keeps the later slot (review 2026-10-17).
   let best = options[options.length - 1];
   let bestCost = Infinity;
-  for (const i of options) {
-    const c = insertionCostKm(stops, add, i);
-    if (c < bestCost - 1e-9) { bestCost = c; best = i; }
+  for (let k = options.length - 1; k >= 0; k--) {
+    const c = insertionCostKm(stops, add, options[k]);
+    if (c < bestCost - 1e-9) { bestCost = c; best = options[k]; }
   }
   return best;
 }

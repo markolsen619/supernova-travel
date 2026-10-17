@@ -187,7 +187,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           <View style={[styles.undo, { backgroundColor: colors.text.primary }]}>
             <Text style={{ color: colors.background.primary, flex: 1 }}>{undo.label}</Text>
             {undo.run && (
-              <TouchableOpacity onPress={async () => { const run = undo.run; setUndo(null); await run?.(); }} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="Undo">
+              <TouchableOpacity onPress={async () => { const run = undo.run; setUndo(null); try { await run?.(); } catch { setApplyError("Undo didn't go through. Check the trip and try again."); } }} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="Undo">
                 <Text style={{ color: colors.background.primary, fontWeight: '600' }}>Undo</Text>
               </TouchableOpacity>
             )}

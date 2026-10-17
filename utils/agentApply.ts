@@ -30,7 +30,13 @@ export type ApplyStep =
 
 type TripPatch = { title?: string; description?: string; visibility?: TripVisibility };
 /** What applying needs beyond the trip: its packing list, and whether the account is private (no Public trips). */
-export interface ApplyCtx { packing?: PackingItem[]; accountPrivate?: boolean; paid?: boolean; uid?: string; nowIso?: string }
+export interface ApplyCtx {
+  packing?: PackingItem[]; accountPrivate?: boolean; paid?: boolean; uid?: string; nowIso?: string;
+  /** Only the trip author changes title, description or visibility (the app's Edit trip is owner-only). */
+  isAuthor?: boolean;
+  /** Ids of the caller's wallet bookings that still exist; a wallet op on any other id is skipped. */
+  walletIds?: Set<string>;
+}
 
 /** `placedNote[opIndex]` = where a new stop went when code chose its spot ("after The Taco Stand"). */
 export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: AgentOp[]; placedNote: Record<number, string>; needsPro?: boolean }
@@ -131,7 +137,8 @@ export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<n
         const place = op.query && g?.status === 'found' ? g.place : null;
         const patch: Partial<TripActivity> = {};
         const before: Partial<TripActivity> = {};
-        const set = <K extends keyof TripActivity>(k: K, v: TripActivity[K]) => { patch[k] = v; before[k] = a[k]; };
+        // A field the stop never had undoes to null: Firestore refuses undefined (review 2026-10-17).
+        const set = <K extends keyof TripActivity>(k: K, v: TripActivity[K]) => { patch[k] = v; before[k] = (a[k] ?? null) as TripActivity[K]; };
         if (op.title !== undefined) { set('title', op.title); set('titleSource', 'user' as TripActivity['titleSource']); }
         if (op.type !== undefined) set('type', op.type);
         if (op.time !== undefined) set('startTime', op.time);
@@ -168,7 +175,7 @@ export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<n
         break;
       }
       case 'trip.updateTrip': {
-        if (op.visibility === 'public' && ctx.accountPrivate) { skipped.push(op); break; }
+        if (ctx.isAuthor === false || (op.visibility === 'public' && ctx.accountPrivate)) { skipped.push(op); break; }
         const patch: TripPatch = {};
         const before: TripPatch = {};
         const t = trip as TripWithDays & { description?: string };
@@ -196,13 +203,19 @@ export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<n
         break;
       }
       case 'wallet.linkBooking': {
+        if (ctx.walletIds && !ctx.walletIds.has(op.bookingId)) { skipped.push(op); break; }
         // Linking is Pro (rules: walletLinkWriteAllowed): free accounts get the paywall instead of a refused write.
         if (!ctx.paid) { skipped.push(op); needsPro = true; break; }
         steps.push({ do: 'walletLink', kind: op.bookingKind, id: op.bookingId, tripId: trip.id });
         break;
       }
-      case 'wallet.unlinkBooking': steps.push({ do: 'walletUnlink', kind: op.bookingKind, id: op.bookingId }); break;
+      case 'wallet.unlinkBooking': {
+        if (ctx.walletIds && !ctx.walletIds.has(op.bookingId)) { skipped.push(op); break; }
+        steps.push({ do: 'walletUnlink', kind: op.bookingKind, id: op.bookingId });
+        break;
+      }
       case 'wallet.updateBooking': {
+        if (ctx.walletIds && !ctx.walletIds.has(op.bookingId)) { skipped.push(op); break; }
         const patch = bookingPatch(op);
         if (!Object.keys(patch).length) { skipped.push(op); break; }
         steps.push({ do: 'walletUpdate', id: op.bookingId, patch });
@@ -269,7 +282,8 @@ function placeInOrder(trip: TripWithDays, ranked: { step: ApplyStep; after: stri
       }
       case 'add': {
         const stop = asPlaced({ id: `new-${i}`, order: 0, lat: step.activity.lat, lng: step.activity.lng, type: step.activity.type, title: step.activity.title, startTime: step.activity.startTime });
-        if (stop.lat == null || stop.lng == null) { step.order = place(step.dayId, after, stop); break; }
+        // Distance can't decide on a day with no located stops: keep the named / end-of-day spot (review 2026-10-17).
+        if (stop.lat == null || stop.lng == null || !list(step.dayId).some((x) => x.lat != null && x.lng != null)) { step.order = place(step.dayId, after, stop); break; }
         // A grounded stop goes where it adds the least travel; a named spot wins unless it backtracks > 2 km.
         const l = list(step.dayId);
         const best = bestInsertion(l, stop);

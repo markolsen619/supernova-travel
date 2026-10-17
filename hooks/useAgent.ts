@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { addDoc, collection, doc, getDocs, limit, orderBy, query, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, limit, orderBy, query, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { auth, db } from '@/services/firebase';
 import { addPackingItem, deletePackingItem, setPackingChecked } from '@/services/packing';
@@ -122,9 +122,17 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
     // What planning needs beyond the trip: its packing list, and whether this account may make a trip Public.
     const packing = await getDocs(collection(db, 'trips', current.id, 'packingItems'))
       .then((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PackingItem)).catch(() => [] as PackingItem[]);
+    // Wallet ops name bookings by id: check they still exist so a deleted one is skipped, not a refused write.
+    const walletRefs = ops.flatMap((o) => (o.kind === 'wallet.linkBooking' || o.kind === 'wallet.unlinkBooking' || o.kind === 'wallet.updateBooking' ? [o] : []));
+    const walletIds = new Set<string>();
+    await Promise.all(walletRefs.map(async (o) => {
+      const snap = await getDoc(doc(db, o.bookingKind === 'boarding_pass' ? 'boarding_passes' : 'reservations', o.bookingId)).catch(() => null);
+      if (snap?.exists()) walletIds.add(o.bookingId);
+    }));
     const ctx = {
       packing, accountPrivate: useUserStore.getState().profile?.settings?.privacy === 'private',
       paid: useAuthStore.getState().tier !== 'free', uid, nowIso: new Date().toISOString(),
+      isAuthor: (current as { authorUid?: string }).authorUid === uid, walletIds,
     };
     const first = planApply(current, ops, grounded, ctx);
     let routeSkipped = 0;

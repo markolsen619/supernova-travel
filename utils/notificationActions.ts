@@ -72,3 +72,12 @@ export function removeNotification<T extends { id: string }>(
   if (!list) return [];
   return list.filter((n) => n.id !== id);
 }
+
+/**
+ * How a failed status read counts (review 2026-10-17): only a refused read means the doc is gone (rules hide a
+ * deleted followRequest that way). Anything else (offline, timeout) is rethrown so the query errors and the row
+ * keeps its Accept / Decline buttons instead of looking answered.
+ */
+export function readFailure(e: unknown): 'missing' | 'rethrow' {
+  return (e as { code?: unknown } | null)?.code === 'permission-denied' ? 'missing' : 'rethrow';
+}

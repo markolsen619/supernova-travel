@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onRequest } from 'firebase-functions/v2/https';
 import {
-  cachedCover, canonicalRedirect, coverLookup, postIdFromPath, postPreviewEligibility, previewEligibility,
+  cachedCover, canonicalRedirect, coverLookup, postIdFromPath, postImageLookup, postPreviewEligibility, previewEligibility,
   renderPostPreview, renderTripPreview, tripIdFromPath,
 } from './tripPreview';
 
@@ -61,10 +61,11 @@ export const tripPreview = onRequest({ region: 'us-central1', memory: '256MiB', 
         res.status(200).send(renderPostPreview(null, postId));
         return;
       }
-      // A video's mp4 can't be a preview image: use its cover frame.
-      const imageUrl = post.mediaType === 'video'
-        ? (post.thumbnailUrl ?? post.mediaUrls?.[0] ?? null)
-        : (post.mediaUrls?.[0] ?? post.mediaUrl ?? null);
+      // Never the stored URL as is: a trip post's media is a Places URL holding our key (postImageLookup).
+      const lookup = postImageLookup(post);
+      const imageUrl = lookup.kind === 'direct' ? lookup.url
+        : lookup.kind === 'places' ? (await publishableCover(`post_${postId}`, (post.mediaUrls?.[0] ?? post.mediaUrl) as string))?.url ?? null
+          : null;
       res.status(200).send(renderPostPreview({
         id: postId,
         authorName: String(author?.fullName ?? author?.displayName ?? post.authorDisplayName ?? 'A traveler'),
