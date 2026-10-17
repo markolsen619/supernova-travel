@@ -9,7 +9,10 @@ import { useLimitPaywall } from '@/hooks/useLimitPaywall';
 import { ProposalCard } from '@/components/agent/ProposalCard';
 import { NovaAvatar } from '@/components/agent/NovaAvatar';
 import { agentSuggestions, quotaLine } from '@/utils/agentCard';
-import { findingText, greeting, tripCheck } from '@/utils/tripCheck';
+import { checkBookings, findingText, greeting, tripCheck } from '@/utils/tripCheck';
+import { tripStart } from '@/utils/agentApply';
+import { useTripBookings } from '@/hooks/useTripBookings';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import type { TripWithDays } from '@/types';
 import type { AgentOp } from '@/types/agent';
@@ -52,6 +55,11 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     setApplyError(null);
     try {
       const r = await agent.apply(messageId, ops, confirmDrops, grounded);
+      // Linking a booking to a trip is Pro: say so and open the paywall instead of a refused write.
+      if ('needsPro' in r && r.needsPro) {
+        setApplyError('Putting bookings on a trip is part of Pro.');
+        openPaywall();
+      }
       if (r.applied) {
         const base = r.skipped ? `Changed ${r.applied} · ${r.skipped} no longer fit` : `Changed ${r.applied} thing${r.applied === 1 ? '' : 's'}`;
         // When code chose the spot, say where it went ("placed after The Taco Stand").
@@ -63,7 +71,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     } finally {
       setApplying(null);
     }
-  }, [agent, confirmDrops]);
+  }, [agent, confirmDrops, openPaywall]);
 
   const menu = useCallback(() => {
     Alert.alert('Conversation', undefined, [
@@ -73,7 +81,14 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
   }, [agent]);
 
   // The trip check runs on the phone when the sheet opens: free, no message used (spec §2).
-  const findings = useMemo(() => (visible ? tripCheck(trip) : []), [visible, trip]);
+  const { bookings } = useTripBookings(visible ? trip.id : null);
+  const findings = useMemo(() => (visible ? tripCheck(trip, checkBookings(bookings), tripStart(trip)) : []), [visible, trip, bookings]);
+  const paid = useAuthStore((st) => st.tier !== 'free');
+  // Booking titles for the card ("Put Catamaran Resort on this trip").
+  const cardExtra = useMemo(() => ({
+    paid,
+    bookingNames: Object.fromEntries(bookings.map((b) => [b.item.id, b.kind === 'boarding_pass' ? [b.item.airline, b.item.flightNumber].filter(Boolean).join(' ') : b.item.title])),
+  }), [paid, bookings]);
   const firstName = useUserStore((st) => st.profile?.fullName?.split(' ')[0] || null);
   const fixLocal = useCallback(async (ops: AgentOp[], label: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -154,7 +169,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
               )}
               {m.role === 'assistant' && m.operations.length > 0 && (
                 <View style={styles.cardIndent}>
-                <ProposalCard message={m} trip={trip} busy={applying === m.id} onApply={(ops, g) => apply(m.id, ops, g)} onDismiss={() => agent.dismiss(m.id)} />
+                <ProposalCard message={m} trip={trip} busy={applying === m.id} extra={cardExtra} onApply={(ops, g) => apply(m.id, ops, g)} onDismiss={() => agent.dismiss(m.id)} />
                 </View>
               )}
             </View>

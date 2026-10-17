@@ -3,7 +3,8 @@
  * (docs/superpowers/specs/2026-10-14-trip-agent-design.md, "App: applying a proposal").
  * Pure: re-checks every operation against the trip as it is now.
  */
-import type { PackingItem, TripActivity, TripVisibility, TripWithDays } from '@/types';
+import type { PackingItem, Reservation, TripActivity, TripVisibility, TripWithDays } from '@/types';
+import { bookingPatch, reservationFromOp } from '@/utils/agentWallet';
 import type { AgentOp } from '@/types/agent';
 import { addRow, moveRow, removeRow, setRowNights, type RouteRow } from '@/utils/tripRoute';
 import { manualSearchQuery } from '@/utils/groundingQueue';
@@ -21,20 +22,24 @@ export type ApplyStep =
   | { do: 'trip'; patch: TripPatch; before: TripPatch }
   | { do: 'packAdd'; label: string; category: string }
   | { do: 'packCheck'; itemId: string; checked: boolean }
-  | { do: 'packRemove'; itemId: string; label: string; category: string };
+  | { do: 'packRemove'; itemId: string; label: string; category: string }
+  | { do: 'walletAdd'; doc: Omit<Reservation, 'id'> }
+  | { do: 'walletLink'; kind: 'boarding_pass' | 'reservation'; id: string; tripId: string }
+  | { do: 'walletUnlink'; kind: 'boarding_pass' | 'reservation'; id: string }
+  | { do: 'walletUpdate'; id: string; patch: Record<string, unknown> };
 
 type TripPatch = { title?: string; description?: string; visibility?: TripVisibility };
 /** What applying needs beyond the trip: its packing list, and whether the account is private (no Public trips). */
-export interface ApplyCtx { packing?: PackingItem[]; accountPrivate?: boolean }
+export interface ApplyCtx { packing?: PackingItem[]; accountPrivate?: boolean; paid?: boolean; uid?: string; nowIso?: string }
 
 /** `placedNote[opIndex]` = where a new stop went when code chose its spot ("after The Taco Stand"). */
-export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: AgentOp[]; placedNote: Record<number, string> }
+export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: AgentOp[]; placedNote: Record<number, string>; needsPro?: boolean }
 
 /** How far a named spot may backtrack before code's best spot wins (phase 2 spec §3). */
 const NAMED_SLACK_KM = 2;
 
 const STEP = 1000;
-const RANK: Record<string, number> = { delete: 0, move: 1, reorder: 1, update: 2, dates: 3, trip: 3, add: 4, packAdd: 5, packCheck: 5, packRemove: 5 };
+const RANK: Record<string, number> = { delete: 0, move: 1, reorder: 1, update: 2, dates: 3, trip: 3, add: 4, packAdd: 5, packCheck: 5, packRemove: 5, walletAdd: 6, walletLink: 6, walletUnlink: 6, walletUpdate: 6 };
 
 export function orderAfter(stops: { id: string; order: number }[], afterStopId: string | null): number {
   const sorted = [...stops].sort((a, b) => a.order - b.order);
@@ -48,6 +53,7 @@ export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<n
   const steps: ApplyStep[] = [];
   const addAfter = new Map<number, string | null>();
   const addOp = new Map<number, number>();
+  let needsPro = false;
   const routeOps: AgentOp[] = [];
   const skipped: AgentOp[] = [];
   const day = (id: string) => trip.days.find((d) => d.id === id) ?? null;
@@ -184,6 +190,24 @@ export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<n
         steps.push({ do: 'packRemove', itemId: op.itemId, label: item?.label ?? '', category: item?.category ?? 'Essentials' });
         break;
       }
+      case 'wallet.addReservation': {
+        if (!ctx.uid) { skipped.push(op); break; }
+        steps.push({ do: 'walletAdd', doc: reservationFromOp(op, { uid: ctx.uid, tripId: trip.id, paid: !!ctx.paid, nowIso: ctx.nowIso ?? new Date().toISOString() }) });
+        break;
+      }
+      case 'wallet.linkBooking': {
+        // Linking is Pro (rules: walletLinkWriteAllowed): free accounts get the paywall instead of a refused write.
+        if (!ctx.paid) { skipped.push(op); needsPro = true; break; }
+        steps.push({ do: 'walletLink', kind: op.bookingKind, id: op.bookingId, tripId: trip.id });
+        break;
+      }
+      case 'wallet.unlinkBooking': steps.push({ do: 'walletUnlink', kind: op.bookingKind, id: op.bookingId }); break;
+      case 'wallet.updateBooking': {
+        const patch = bookingPatch(op);
+        if (!Object.keys(patch).length) { skipped.push(op); break; }
+        steps.push({ do: 'walletUpdate', id: op.bookingId, patch });
+        break;
+      }
       default:
         routeOps.push(op);
     }
@@ -191,7 +215,7 @@ export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<n
   const ranked = steps.map((step, i) => ({ step, after: addAfter.get(i) ?? null, opIndex: addOp.get(i) ?? null })).sort((a, b) => RANK[a.step.do] - RANK[b.step.do]);
   const placedNote: Record<number, string> = {};
   placeInOrder(trip, ranked, placedNote);
-  return { steps: ranked.map((r) => r.step), routeOps, skipped, placedNote };
+  return { steps: ranked.map((r) => r.step), routeOps, skipped, placedNote, ...(needsPro ? { needsPro } : {}) };
 }
 
 type Placed = PlaceStop & { order: number };
@@ -266,7 +290,8 @@ const DAY_MS = 86_400_000;
 const utc = (day: string) => Date.parse(`${day}T00:00:00Z`);
 function addDays(day: string, n: number): string { return new Date(utc(day) + n * DAY_MS).toISOString().slice(0, 10); }
 function daysBetween(a: string, b: string): number { return Math.round((utc(b) - utc(a)) / DAY_MS); }
-function tripStart(trip: TripWithDays): string | null {
+/** The trip's first calendar day (saved startDay first, else startDate). */
+export function tripStart(trip: TripWithDays): string | null {
   const saved = (trip as { startDay?: string | null }).startDay;
   if (typeof saved === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved)) return saved;
   return trip.startDate ? toCalendarDate(trip.startDate.toDate()) : null;

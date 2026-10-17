@@ -6,6 +6,7 @@ import { optimizeDay, routeKm, type PlaceStop } from '@/utils/routePlacement';
 import { destinationAt } from '@/utils/groundingContext';
 import { haversineMeters } from '@/utils/tripRoutes';
 import type { TripActivity, TripWithDays } from '@/types';
+import type { TripBooking } from '@/utils/bookingDays';
 import type { AgentOp } from '@/types/agent';
 
 export type Finding =
@@ -88,4 +89,29 @@ export function findingText(f: Finding): { text: string; action: string; local: 
 export function greeting(firstName: string | null, findings: Finding[]): string {
   const hi = firstName ? `Hi ${firstName}.` : 'Hi.';
   return findings.length ? `${hi} ${findingText(findings[0]).text}` : `${hi} Your trip looks good. Ask me for anything you'd like to change.`;
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** Device-local "HH:MM" and day of an ISO instant, as BoardingPassCard shows it. */
+function local(iso: string | undefined): { day: string; hhmm: string } | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return { day: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, hhmm: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
+}
+
+/** The trip's flights and trains as clash input; other bookings never block a stop. */
+export function checkBookings(list: TripBooking[]): CheckBooking[] {
+  const out: CheckBooking[] = [];
+  for (const b of list) {
+    if (b.kind === 'boarding_pass') {
+      const dep = local(b.item.departureTime);
+      const arr = local(b.item.arrivalTime);
+      if (!dep) continue;
+      out.push({ name: [b.item.airline, b.item.flightNumber].filter(Boolean).join(' '), date: b.item.localDate ?? dep.day, start: dep.hhmm, end: arr?.hhmm ?? null, kind: 'flight' });
+    } else if (b.item.transitMode) {
+      out.push({ name: b.item.title, date: b.item.checkIn ?? null, start: b.item.departureLocalTime ?? b.item.time ?? null, end: b.item.arrivalLocalTime ?? null, kind: 'transit' });
+    }
+  }
+  return out;
 }

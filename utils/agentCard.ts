@@ -4,14 +4,17 @@ import { parseCalendarDate } from '@/utils/calendarDate';
 import type { NovaGround } from '@/utils/agentGround';
 
 /** `detail`: where a new place is (or why it can't be added); `unavailable`: greyed out and can't be ticked. */
-export interface OpLine { icon: 'add' | 'remove' | 'move' | 'reorder' | 'edit' | 'route' | 'dates' | 'pack' | 'trip'; type: ActivityType | null; text: string; detail?: string; unavailable?: boolean }
+export interface OpLine { icon: 'add' | 'remove' | 'move' | 'reorder' | 'edit' | 'route' | 'dates' | 'pack' | 'trip' | 'wallet'; type: ActivityType | null; text: string; detail?: string; unavailable?: boolean }
 
 const cities = (t: TripWithDays) => [t.destination, ...t.additionalDestinations];
 const dayOf = (t: TripWithDays, id: string) => t.days.find((d) => d.id === id) ?? null;
 const stopOf = (t: TripWithDays, dayId: string, id: string) => dayOf(t, dayId)?.activities.find((a) => a.id === id) ?? null;
 const nightsWord = (n: number) => `${n} night${n === 1 ? '' : 's'}`;
 
-export function opLine(op: AgentOp, trip: TripWithDays, ground?: NovaGround | 'pending'): OpLine | null {
+/** What the card knows besides the trip: booking titles by id (from the wallet caches) and whether the account is paid. */
+export interface CardExtra { bookingNames?: Record<string, string>; paid?: boolean }
+
+export function opLine(op: AgentOp, trip: TripWithDays, ground?: NovaGround | 'pending', extra: CardExtra = {}): OpLine | null {
   switch (op.kind) {
     case 'trip.addStop': {
       const d = dayOf(trip, op.dayId);
@@ -93,6 +96,19 @@ export function opLine(op: AgentOp, trip: TripWithDays, ground?: NovaGround | 'p
     case 'trip.addPacking': return { icon: 'pack', type: null, text: `Pack ${op.label.charAt(0).toLowerCase()}${op.label.slice(1)}` };
     case 'trip.checkPacking': return { icon: 'pack', type: null, text: op.checked ? 'Mark an item packed' : 'Mark an item not packed' };
     case 'trip.removePacking': return { icon: 'pack', type: null, text: 'Remove an item from packing' };
+    case 'wallet.addReservation': {
+      const d = parseCalendarDate(op.date);
+      const when = d ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : op.date;
+      const line: OpLine = { icon: 'wallet', type: null, text: `Add ${op.title} to your wallet · ${when}${op.time ? ` at ${op.time}` : ''}` };
+      return extra.paid === false ? { ...line, detail: 'Saved to your wallet. Putting it on the trip is part of Pro.' } : line;
+    }
+    case 'wallet.linkBooking': return { icon: 'wallet', type: null, text: `Put ${extra.bookingNames?.[op.bookingId] ?? 'a booking'} on this trip` };
+    case 'wallet.unlinkBooking': return { icon: 'wallet', type: null, text: `Take ${extra.bookingNames?.[op.bookingId] ?? 'a booking'} off this trip` };
+    case 'wallet.updateBooking': {
+      const name = extra.bookingNames?.[op.bookingId] ?? 'A booking';
+      const parts = [op.title ? `rename to ${op.title}` : null, op.date ?? null, op.time !== undefined ? (op.time ?? 'no time') : null, op.confirmationCode ? 'new code' : null].filter(Boolean);
+      return { icon: 'wallet', type: null, text: `${name}: ${parts.join(', ')}` };
+    }
     default:
       return null;
   }
@@ -122,11 +138,11 @@ export function quotaLine(q: AgentQuotaView): string | null {
  * so it's left out instead of being called stale (review 2026-10-15).
  */
 export function cardLines(
-  ops: AgentOp[], trip: TripWithDays, done: boolean, grounded: Record<number, NovaGround> = {}, pending = false,
+  ops: AgentOp[], trip: TripWithDays, done: boolean, grounded: Record<number, NovaGround> = {}, pending = false, extra: CardExtra = {},
 ): { index: number; op: AgentOp; line: OpLine | null }[] {
   const groundOf = (op: AgentOp, index: number): NovaGround | 'pending' | undefined =>
     grounded[index] ?? (pending && (op.kind === 'trip.addStop' || op.kind === 'trip.editStop') && op.query ? 'pending' : undefined);
-  const all = ops.map((op, index) => ({ index, op, line: opLine(op, trip, done ? undefined : groundOf(op, index)) }));
+  const all = ops.map((op, index) => ({ index, op, line: opLine(op, trip, done ? undefined : groundOf(op, index), extra) }));
   return done ? all.filter((l) => l.line) : all;
 }
 

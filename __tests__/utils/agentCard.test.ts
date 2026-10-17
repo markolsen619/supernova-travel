@@ -112,3 +112,18 @@ describe('opLine for trip.v2', () => {
     expect(opLine({ kind: 'trip.editStop', dayId: 'D1', stopId: 'B', title: 'Drinks at Pennant' }, trip)?.text).toBe('Day 1 · Museum → Drinks at Pennant');
   });
 });
+
+describe('opLine for wallet.v1', () => {
+  const trip = { destination: { name: 'MB' }, additionalDestinations: [], days: [] } as never;
+  const add = { kind: 'wallet.addReservation', type: 'restaurant', title: 'Pennant', date: '2026-11-01', time: '19:00', endDate: null, confirmationCode: 'ABC123' } as never;
+  it('adding a reservation says when, and that linking is Pro for free accounts', () => {
+    expect(opLine(add, trip, undefined, { paid: true })?.text).toBe('Add Pennant to your wallet · Sun, Nov 1 at 19:00');
+    expect(opLine(add, trip, undefined, { paid: false })?.detail).toBe('Saved to your wallet. Putting it on the trip is part of Pro.');
+  });
+  it('link / unlink / update name the booking', () => {
+    const names = { R1: 'Catamaran Resort' };
+    expect(opLine({ kind: 'wallet.linkBooking', bookingKind: 'reservation', bookingId: 'R1' } as never, trip, undefined, { bookingNames: names })?.text).toBe('Put Catamaran Resort on this trip');
+    expect(opLine({ kind: 'wallet.unlinkBooking', bookingKind: 'reservation', bookingId: 'R1' } as never, trip, undefined, { bookingNames: names })?.text).toBe('Take Catamaran Resort off this trip');
+    expect(opLine({ kind: 'wallet.updateBooking', bookingKind: 'reservation', bookingId: 'R9', time: '20:00' } as never, trip)?.text).toBe('A booking: 20:00');
+  });
+});

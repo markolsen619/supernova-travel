@@ -242,3 +242,23 @@ describe('planApply — trip.v2', () => {
     expect(undoSteps(plan.steps, {})[0]).toEqual({ do: 'trip', patch: { title: 'MB' }, before: { title: 'New' } });
   });
 });
+
+describe('planApply — wallet', () => {
+  const trip = { id: 'T', destination: { name: 'MB' }, additionalDestinations: [], days: [], startDate: null, endDate: null } as never;
+  const link = { kind: 'wallet.linkBooking', bookingKind: 'reservation', bookingId: 'R1' } as never;
+  const ctx = { uid: 'U', nowIso: '2026-10-16T00:00:00.000Z' };
+  it('free user: linking is skipped and the plan asks for Pro', () => {
+    const plan = planApply(trip, [link], {}, { ...ctx, paid: false });
+    expect(plan.skipped).toHaveLength(1);
+    expect(plan.needsPro).toBe(true);
+  });
+  it('free user: adding a reservation still goes to the wallet, unlinked', () => {
+    const add = { kind: 'wallet.addReservation', type: 'restaurant', title: 'Pennant', date: '2026-11-01', time: '19:00', endDate: null, confirmationCode: null } as never;
+    const step = planApply(trip, [add], {}, { ...ctx, paid: false }).steps[0] as { do: string; doc: Record<string, unknown> };
+    expect(step.do).toBe('walletAdd');
+    expect(step.doc).not.toHaveProperty('tripId');
+  });
+  it('Pro: links to this trip', () => {
+    expect(planApply(trip, [link], {}, { ...ctx, paid: true }).steps[0]).toEqual({ do: 'walletLink', kind: 'reservation', id: 'R1', tripId: 'T' });
+  });
+});

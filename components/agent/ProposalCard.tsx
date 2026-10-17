@@ -1,27 +1,27 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { ArrowsDownUp, ArrowRight, CalendarBlank, CheckSquare, MapTrifold, Minus, NotePencil, PencilSimple, Plus, Square, Suitcase } from 'phosphor-react-native';
+import { ArrowsDownUp, ArrowRight, CalendarBlank, CheckSquare, MapTrifold, Minus, NotePencil, PencilSimple, Plus, Square, Suitcase, Wallet } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { ACTIVITY_ICONS } from '@/constants/icons';
 import { Button } from '@/components/ui/Button';
-import { cardLines } from '@/utils/agentCard';
+import { cardLines, type CardExtra } from '@/utils/agentCard';
 import { useAgentGrounding } from '@/hooks/useAgentGrounding';
 import type { NovaGround } from '@/utils/agentGround';
 import type { TripWithDays } from '@/types';
 import type { AgentMessage, AgentOp } from '@/types/agent';
 
-const ICON = { add: Plus, remove: Minus, move: ArrowRight, reorder: ArrowsDownUp, edit: PencilSimple, route: MapTrifold, dates: CalendarBlank, pack: Suitcase, trip: NotePencil } as const;
+const ICON = { add: Plus, remove: Minus, move: ArrowRight, reorder: ArrowsDownUp, edit: PencilSimple, route: MapTrifold, dates: CalendarBlank, pack: Suitcase, trip: NotePencil, wallet: Wallet } as const;
 
-export function ProposalCard({ message, trip, busy, onApply, onDismiss }: {
-  message: AgentMessage; trip: TripWithDays; busy: boolean;
+export function ProposalCard({ message, trip, busy, onApply, onDismiss, extra }: {
+  message: AgentMessage; trip: TripWithDays; busy: boolean; extra?: CardExtra;
   onApply: (ops: AgentOp[], grounded: Record<number, NovaGround>) => void; onDismiss: () => void;
 }) {
   const { colors } = useTheme();
   const done = !!message.status && message.status !== 'proposed';
   // New places are found on the map before Apply is enabled (spec §3): a line that isn't nearby can't be ticked.
   const { grounded, pending } = useAgentGrounding(message, trip);
-  const lines = useMemo(() => cardLines(message.operations, trip, done, grounded, pending), [message.operations, trip, done, grounded, pending]);
+  const lines = useMemo(() => cardLines(message.operations, trip, done, grounded, pending, extra), [message.operations, trip, done, grounded, pending, extra]);
   const [off, setOff] = useState<Set<number>>(new Set());
   const chosenLines = lines.filter((l) => l.line && !l.line.unavailable && !off.has(l.index));
   const chosen = chosenLines.map((l) => l.op);

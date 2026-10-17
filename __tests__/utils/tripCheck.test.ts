@@ -46,3 +46,28 @@ describe('findingText / greeting', () => {
     expect(greeting(null, [])).not.toMatch(/!/);
   });
 });
+
+import { checkBookings } from '@/utils/tripCheck';
+
+describe('checkBookings (wallet bookings → clash input)', () => {
+  it('a flight uses its printed local day and local times', () => {
+    const out = checkBookings([{ kind: 'boarding_pass', item: { id: 'P', airline: 'Alaska', flightNumber: 'AS 512', localDate: '2026-11-03', departureTime: '2026-11-03T14:05:00', arrivalTime: '2026-11-03T16:20:00' } } as never]);
+    expect(out[0]).toEqual({ name: 'Alaska AS 512', date: '2026-11-03', start: '14:05', end: '16:20', kind: 'flight' });
+  });
+  it('a train uses its printed times; other reservations are not clash candidates', () => {
+    const out = checkBookings([
+      { kind: 'reservation', item: { id: 'R', type: 'activity', transitMode: 'train', title: 'Pacific Surfliner', checkIn: '2026-11-02', departureLocalTime: '09:19', arrivalLocalTime: '11:05' } } as never,
+      { kind: 'reservation', item: { id: 'D', type: 'restaurant', title: 'Pennant', checkIn: '2026-11-01', time: '19:00' } } as never,
+    ]);
+    expect(out).toEqual([{ name: 'Pacific Surfliner', date: '2026-11-02', start: '09:19', end: '11:05', kind: 'transit' }]);
+  });
+});
+
+describe('tripCheck clash', () => {
+  it('flags a timed stop during a flight', () => {
+    const t = { id: 'T', destination: { name: 'MB', lat: null, lng: null }, additionalDestinations: [],
+      days: [{ id: 'D3', dayNumber: 3, destinationIndex: 0, activities: [{ id: 'k', title: 'Kayaking', order: 1, lat: null, lng: null, type: 'activity', startTime: '15:00' }] }] } as never;
+    const f = tripCheck(t, [{ name: 'Alaska AS 512', date: '2026-11-03', start: '14:05', end: '16:20', kind: 'flight' }], '2026-11-01');
+    expect(f[0]).toMatchObject({ kind: 'clash', stopTitle: 'Kayaking', booking: 'Alaska AS 512' });
+  });
+});

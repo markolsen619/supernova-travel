@@ -1,9 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
-import { collection, doc, getDocs, limit, orderBy, query, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, limit, orderBy, query, Timestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { auth, db } from '@/services/firebase';
 import { addPackingItem, deletePackingItem, setPackingChecked } from '@/services/packing';
 import { useUserStore } from '@/stores/useUserStore';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { linkPatch } from '@/utils/walletLink';
 import { askAgent, fetchAgentQuota } from '@/services/agent';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { draftFromRows, previewRoute, routeRowsFromTrip, useTripRoute } from '@/hooks/useTripRoute';
@@ -84,6 +86,10 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
         case 'update': await trips.updateActivity(id, s.dayId, s.activityId, s.patch); break;
         case 'add': added[i] = await trips.addActivity(id, s.dayId, { ...s.activity, createdAt: Timestamp.now() }, s.order); break;
         case 'trip': await trips.updateTrip(id, s.patch); break;
+        case 'walletAdd': await addDoc(collection(db, 'reservations'), s.doc); break;
+        case 'walletLink': await updateDoc(doc(db, s.kind === 'boarding_pass' ? 'boarding_passes' : 'reservations', s.id), linkPatch('link', s.tripId)); break;
+        case 'walletUnlink': await updateDoc(doc(db, s.kind === 'boarding_pass' ? 'boarding_passes' : 'reservations', s.id), linkPatch('unlink')); break;
+        case 'walletUpdate': await updateDoc(doc(db, 'reservations', s.id), s.patch); break;
         case 'packAdd': added[i] = await addPackingItem(id, { label: s.label, category: s.category, addedByUid: uid! }); break;
         case 'packCheck': await setPackingChecked(id, s.itemId, s.checked); break;
         case 'packRemove': await deletePackingItem(id, s.itemId); break;
@@ -94,6 +100,9 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
       }
     }
     if (steps.some((s) => s.do.startsWith('pack'))) await qc.invalidateQueries({ queryKey: ['packingItems', id] });
+    if (steps.some((s) => s.do.startsWith('wallet'))) {
+      await Promise.all([['reservations', uid], ['boardingPasses', uid], ['tripBookings']].map((k) => qc.invalidateQueries({ queryKey: k })));
+    }
     return added;
   }, [trips, uid, qc]);
 
@@ -113,7 +122,10 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
     // What planning needs beyond the trip: its packing list, and whether this account may make a trip Public.
     const packing = await getDocs(collection(db, 'trips', current.id, 'packingItems'))
       .then((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PackingItem)).catch(() => [] as PackingItem[]);
-    const ctx = { packing, accountPrivate: useUserStore.getState().profile?.settings?.privacy === 'private' };
+    const ctx = {
+      packing, accountPrivate: useUserStore.getState().profile?.settings?.privacy === 'private',
+      paid: useAuthStore.getState().tier !== 'free', uid, nowIso: new Date().toISOString(),
+    };
     const first = planApply(current, ops, grounded, ctx);
     let routeSkipped = 0;
     try {
@@ -146,12 +158,13 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
       await qc.invalidateQueries({ queryKey: key });
 
       const id = current.id;
-      const undo = first.routeOps.length ? null : async () => {
+      // Route and wallet changes are confirmed on the card instead of undone (spec §4–5).
+      const undo = first.routeOps.length || plan.steps.some((st) => st.do.startsWith('wallet')) ? null : async () => {
         await runSteps(id, undoSteps(plan.steps, added));
         await setStatus('dismissed');
         await qc.invalidateQueries({ queryKey: key });
       };
-      return { applied: ops.length - skipped, skipped, undo, placedNote: Object.values(plan.placedNote)[0] ?? null };
+      return { applied: ops.length - skipped, skipped, undo, placedNote: Object.values(plan.placedNote)[0] ?? null, needsPro: !!first.needsPro || !!plan.needsPro };
     } catch (e) {
       // Some writes may have gone through: say so on the card, show the trip as it is, and let the sheet tell the person.
       await setStatus('partial').catch(() => {});
