@@ -8,9 +8,10 @@ import { Bell, ArrowLeft, Compass, Check, X, ChatCircleDots, Plus, EnvelopeSimpl
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { canDeleteNotification } from '@/utils/notificationActions';
+import { canDeleteNotification, rowAnswer } from '@/utils/notificationActions';
 import { useDeleteNotification, useNotifications, useMarkNotificationsRead } from '@/hooks/useNotifications';
 import { useRespondToInvite } from '@/hooks/useTripInvites';
+import { useNotificationAnswers } from '@/hooks/useNotificationAnswers';
 import { useDmThreads } from '@/hooks/useDmThreads';
 import { useMarkMessagesSeen } from '@/hooks/useUnreadActivity';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
@@ -67,11 +68,15 @@ export default function NotificationsScreen() {
   // false rule doesn't allow), so this is purely a UI state flip pending the
   // next real fetch.
   const [handled, setHandled] = useState<Record<string, 'accepted' | 'declined'>>({});
+  // What the server says was already answered — survives leaving the screen, unlike `handled`.
+  const { data: serverAnswers = {} } = useNotificationAnswers(notifications);
 
   const [tab, setTab] = useState<'Activity' | 'Messages'>('Activity');
   // A tapped push the app couldn't open lands here at its notification (utils/notificationRoute notificationTapRoute).
   const { highlight } = useLocalSearchParams<{ highlight?: string }>();
   const [highlightId, setHighlightId] = useState<string | null>(highlight ?? null);
+  // Rows redraw when an answer or the highlight changes (FlashList only re-renders on data/extraData).
+  const listExtra = useMemo(() => ({ highlightId, handled, serverAnswers }), [highlightId, handled, serverAnswers]);
   const listRef = useRef<FlashListRef<AppNotification>>(null);
   useEffect(() => {
     if (!highlight) return;
@@ -188,7 +193,7 @@ export default function NotificationsScreen() {
       // A pending trip invite is the one row that must stay: the invitation
       // lives server-side, but this screen is the only place to accept it
       // from. See utils/notificationActions.ts.
-      if (!canDeleteNotification(item, handled)) return;
+      if (!canDeleteNotification(item, handled, serverAnswers)) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       Alert.alert('Remove notification', 'This only clears it from your list.', [
         { text: 'Cancel', style: 'cancel' },
@@ -199,7 +204,7 @@ export default function NotificationsScreen() {
         },
       ]);
     },
-    [handled, deleteNotification],
+    [handled, serverAnswers, deleteNotification],
   );
 
   // Shared by every Activity row — four branches rendered identical props.
@@ -217,7 +222,7 @@ export default function NotificationsScreen() {
   const renderItem = useCallback(
     ({ item }: { item: AppNotification }) => {
       if (item.type === 'trip_invite') {
-        const result = handled[item.id];
+        const result = rowAnswer(item.id, handled, serverAnswers);
         return (
           <Pressable
             style={[styles.row, { borderColor: colors.background.cardBorder }]}
@@ -234,7 +239,7 @@ export default function NotificationsScreen() {
               </Text>
               {result ? (
                 <Text style={[styles.resultText, { color: colors.text.tertiary }]}>
-                  {result === 'accepted' ? "You're on the trip" : 'Declined'}
+                  {result === 'accepted' ? "You're on the trip" : result === 'gone' ? 'No longer available' : 'Declined'}
                 </Text>
               ) : (
                 <View style={styles.actionRow}>
@@ -264,7 +269,7 @@ export default function NotificationsScreen() {
       }
 
       if (item.type === 'follow_request') {
-        const result = handled[item.id];
+        const result = rowAnswer(item.id, handled, serverAnswers);
         return (
           <Pressable
             style={[styles.row, { borderColor: colors.background.cardBorder }]}
@@ -474,7 +479,7 @@ export default function NotificationsScreen() {
     // would leave a just-answered invite un-deletable until an unrelated
     // render happened to refresh this callback.
     // openNotification is reached through rowProps now, which lists it itself.
-    [colors, handled, handleRespond, handleFollowRespond, openNotification, confirmDelete, rowProps],
+    [colors, handled, serverAnswers, handleRespond, handleFollowRespond, openNotification, confirmDelete, rowProps],
   );
 
   return (
@@ -538,7 +543,7 @@ export default function NotificationsScreen() {
             ref={listRef}
             data={notifications}
             keyExtractor={(n) => n.id}
-            extraData={highlightId}
+            extraData={listExtra}
             renderItem={(info) => (info.item.id === highlightId ? (
               <View style={[styles.highlighted, { backgroundColor: colors.background.sunken }]}>{renderItem(info)}</View>
             ) : renderItem(info))}

@@ -56,3 +56,48 @@ describe('removeNotification', () => {
     expect(list).toEqual(copy);
   });
 });
+
+import { inviteAnswer, followRequestAnswer, rowAnswer } from '@/utils/notificationActions';
+
+describe('inviteAnswer (the invite doc as the server holds it)', () => {
+  it('leaves the buttons for a pending invite', () => {
+    expect(inviteAnswer('pending')).toBeNull();
+  });
+  it('reads an accepted or declined invite as answered, even in a later session', () => {
+    expect(inviteAnswer('accepted')).toBe('accepted');
+    expect(inviteAnswer('declined')).toBe('declined');
+  });
+  it('treats a missing invite (trip deleted, invite withdrawn) as no longer available', () => {
+    expect(inviteAnswer('missing')).toBe('gone');
+  });
+});
+
+describe('followRequestAnswer', () => {
+  it('leaves the buttons while the request still exists', () => {
+    expect(followRequestAnswer({ requestExists: true, theyFollow: false })).toBeNull();
+  });
+  it('reads a vanished request as accepted when they now follow you', () => {
+    expect(followRequestAnswer({ requestExists: false, theyFollow: true })).toBe('accepted');
+  });
+  it('reads a vanished request with no follow as declined', () => {
+    expect(followRequestAnswer({ requestExists: false, theyFollow: false })).toBe('declined');
+  });
+});
+
+describe('rowAnswer', () => {
+  it('prefers what you just tapped this session', () => {
+    expect(rowAnswer('n1', { n1: 'declined' }, { n1: null })).toBe('declined');
+  });
+  it('falls back to the server answer', () => {
+    expect(rowAnswer('n1', {}, { n1: 'accepted' })).toBe('accepted');
+  });
+  it('shows buttons while the server answer is still loading', () => {
+    expect(rowAnswer('n1', {}, {})).toBeNull();
+  });
+});
+
+describe('canDeleteNotification with server answers', () => {
+  it('allows deleting an invite the server says was answered in an earlier session', () => {
+    expect(canDeleteNotification(notif({ id: 'i1', type: 'trip_invite' }), {}, { i1: 'accepted' })).toBe(true);
+  });
+});

@@ -69,6 +69,7 @@ export function useRespondToFollowRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notificationAnswers'] });
       queryClient.invalidateQueries({ queryKey: ['userProfile', me] });
       queryClient.invalidateQueries({ queryKey: ['connections', me, 'followers'] });
     },

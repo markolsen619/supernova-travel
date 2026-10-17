@@ -57,6 +57,7 @@ export function useRespondToInvite() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notificationAnswers'] });
       queryClient.invalidateQueries({ queryKey: ['trip', variables.tripId] });
       queryClient.invalidateQueries({ queryKey: ['trips'] });
       queryClient.invalidateQueries({ queryKey: ['tripInvites', variables.tripId] });
