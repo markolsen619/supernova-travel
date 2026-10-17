@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowUp, DotsThree, X } from 'phosphor-react-native';
+import { ArrowUp, X } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAgent } from '@/hooks/useAgent';
 import { useLimitPaywall } from '@/hooks/useLimitPaywall';
 import { ProposalCard } from '@/components/agent/ProposalCard';
 import { NovaAvatar } from '@/components/agent/NovaAvatar';
 import { agentSuggestions, quotaLine } from '@/utils/agentCard';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { checkBookings, findingText, greeting, tripCheck } from '@/utils/tripCheck';
 import { tripStart } from '@/utils/agentApply';
 import { useTripBookings } from '@/hooks/useTripBookings';
@@ -73,12 +74,20 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     }
   }, [agent, confirmDrops, openPaywall]);
 
-  const menu = useCallback(() => {
-    Alert.alert('Conversation', undefined, [
-      { text: 'Clear conversation', style: 'destructive', onPress: () => agent.clear() },
+  // Visible in the header (it used to hide behind ⋯) and confirmed first: clearing can't be undone.
+  const confirmClear = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Clear this conversation?', 'Nova starts fresh on this trip. Changes you already applied stay.', [
       { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => { agent.clear(); setUndo(null); setApplyError(null); } },
     ]);
   }, [agent]);
+
+  // The composer rises by exactly what the keyboard covers, measured on screen: KeyboardAvoidingView
+  // mis-measures in a page sheet, which left the text field under the keyboard (useKeyboardInset).
+  const root = useRef<View>(null);
+  const lift = useKeyboardInset(root);
+  useEffect(() => { if (lift > 0) setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 60); }, [lift]);
 
   // The trip check runs on the phone when the sheet opens: free, no message used (spec §2).
   const { bookings } = useTripBookings(visible ? trip.id : null);
@@ -106,17 +115,21 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background.primary }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View ref={root} style={[styles.flex, { backgroundColor: colors.background.primary }]}>
         <View style={styles.header}>
           <View style={styles.headerTitle}>
-            <NovaAvatar size={36} thinking={agent.sending} />
+            <NovaAvatar size={44} thinking={agent.sending} />
             <View>
               <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{trip.title.toUpperCase()}</Text>
               <Text style={[styles.title, { color: colors.text.primary }]}>Ask Nova</Text>
             </View>
           </View>
           <View style={styles.headerButtons}>
-            <TouchableOpacity onPress={menu} style={styles.iconButton} accessibilityLabel="Conversation options"><DotsThree size={24} color={colors.text.secondary} weight="bold" /></TouchableOpacity>
+            {agent.messages.length > 0 && (
+              <TouchableOpacity onPress={confirmClear} style={styles.textButton} accessibilityRole="button" accessibilityLabel="Clear conversation">
+                <Text style={{ color: colors.text.secondary, fontSize: 15 }}>Clear</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={onClose} style={styles.iconButton} accessibilityLabel="Close"><X size={22} color={colors.text.secondary} weight="bold" /></TouchableOpacity>
           </View>
         </View>
@@ -126,7 +139,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           {empty && (
             <View style={styles.empty}>
               <View style={styles.theirsRow}>
-                <NovaAvatar size={28} />
+                <NovaAvatar size={36} />
                 <View style={[styles.bubble, { backgroundColor: colors.background.card }]}>
                   <Text style={{ color: colors.text.primary, fontSize: 15, lineHeight: 22 }}>{greeting(firstName, findings)}</Text>
                 </View>
@@ -161,7 +174,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
                 </View>
               ) : (
                 <View style={styles.theirsRow}>
-                  <NovaAvatar size={28} />
+                  <NovaAvatar size={36} />
                   <View style={[styles.bubble, { backgroundColor: colors.background.card }]}>
                     <Text style={{ color: colors.text.primary, fontSize: 15, lineHeight: 22 }}>{m.text}</Text>
                   </View>
@@ -176,7 +189,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           ))}
           {agent.sending && (
             <View style={styles.theirsRow} accessible accessibilityLabel="Nova is thinking">
-              <NovaAvatar size={28} thinking />
+              <NovaAvatar size={36} thinking />
               <Text style={[styles.typing, { color: colors.text.tertiary }]}>…</Text>
             </View>
           )}
@@ -194,7 +207,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           </View>
         )}
 
-        <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12), borderTopColor: colors.background.cardBorder }]}>
+        <View style={[styles.composer, { paddingBottom: lift > 0 ? lift + 8 : Math.max(insets.bottom, 12), borderTopColor: colors.background.cardBorder }]}>
           {q && <Text style={[styles.quota, { color: colors.text.tertiary }]}>{q}</Text>}
           <View style={styles.inputRow}>
             <TextInput
@@ -207,7 +220,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -218,17 +231,18 @@ const styles = StyleSheet.create({
   headerButtons: { flexDirection: 'row' },
   headerTitle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  textButton: { minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
   eyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9 },
   title: { fontSize: 26, fontWeight: '600', letterSpacing: -0.5 },
   content: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
   empty: { alignItems: 'stretch', gap: 10, paddingTop: 24 },
-  fix: { borderRadius: 12, borderWidth: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, marginLeft: 36 },
+  fix: { borderRadius: 12, borderWidth: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, marginLeft: 44 },
   emptyBody: { fontSize: 15, textAlign: 'center', marginBottom: 8 },
   chip: { borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center', alignSelf: 'stretch', alignItems: 'center' },
   mine: { alignItems: 'flex-end' },
   theirs: { alignItems: 'stretch' },
   theirsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  cardIndent: { marginLeft: 36 },
+  cardIndent: { marginLeft: 44 },
   bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '88%', flexShrink: 1 },
   typing: { fontSize: 13 },
   undo: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8, borderRadius: 12, paddingLeft: 16 },

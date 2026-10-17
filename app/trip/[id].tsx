@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket, Sparkle } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -36,8 +36,8 @@ import { TripRecapSheet } from '@/components/trip/TripRecapSheet';
 import { InviteFriendsSheet } from '@/components/trip/InviteFriendsSheet';
 import { ShareTripSheet } from '@/components/trip/ShareTripSheet';
 import { AgentSheet } from '@/components/agent/AgentSheet';
+import { NovaCard } from '@/components/agent/NovaCard';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
-import { Button } from '@/components/ui/Button';
 import { TripBookingsSheet } from '@/components/trip/TripBookingsSheet';
 import { useTripBookings } from '@/hooks/useTripBookings';
 import { bookingsByDay, type TripBooking } from '@/utils/bookingDays';
@@ -282,6 +282,7 @@ export default function TripDetailScreen() {
   const [shareVisible, setShareVisible] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const { requireConsent: requireAiConsent, consentSheet: aiConsentSheet } = useAiConsentGate();
+  const openNova = useCallback(() => requireAiConsent('agent', () => setAgentOpen(true)), [requireAiConsent]);
   const [bookingsVisible, setBookingsVisible] = useState(false);
   // Multi-city trips: tapping a city's pill shows only its days (utils/dayDestination daysInDestination).
   const [cityFilter, setCityFilter] = useState<number | null>(null);
@@ -1476,16 +1477,10 @@ export default function TripDetailScreen() {
         </ScrollView>
 
         {/* Ask Nova (docs/superpowers/specs/2026-10-14-trip-agent-design.md) — members who can edit.
-            The screen's one gradient action. */}
+            A quiet card with Nova's face (it was a gradient sparkle button, which read as generic AI). */}
         {canEditItinerary && (
           <View style={styles.askNova}>
-            <Button
-              label="Ask Nova"
-              variant="hero"
-              icon={Sparkle}
-              haptic="light"
-              onPress={() => requireAiConsent('agent', () => setAgentOpen(true))}
-            />
+            <NovaCard onPress={openNova} />
           </View>
         )}
 
