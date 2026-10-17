@@ -27,6 +27,27 @@ export function tripShareUrl(tripId: string): string {
   return `https://supernova-a2125.web.app/trip/${tripId}`;
 }
 
+/** A post's page (or its trip's): the same path as the app route, so a universal link opens it. */
+export function postShareUrl(post: { id: string; tripId?: string | null }): string {
+  return post.tripId ? tripShareUrl(post.tripId) : `https://supernova-a2125.web.app/post/${post.id}`;
+}
+
+/**
+ * The feed's Share sheet. A web link, not plain text with a supernova:// link: iOS draws the
+ * page's icon only for a link it can preview, and anyone without the app can still open it.
+ * iOS takes the link as `url` (shown as the preview); Android's sheet ignores `url`, so it goes in the text.
+ */
+export function postShareContent(
+  post: { id: string; tripId?: string | null; authorDisplayName: string; placeName?: string | null; caption?: string | null },
+  os: 'ios' | 'android' | string,
+): { message: string; url?: string } {
+  const place = post.placeName ? ` from ${post.placeName}` : '';
+  const caption = post.caption ? ` — "${post.caption}"` : '';
+  const message = `${post.authorDisplayName}'s travel moment${place} on Supernova${caption}`;
+  const url = postShareUrl(post);
+  return os === 'ios' ? { message, url } : { message: `${message}\n${url}` };
+}
+
 /** The message rule caps a snapshot's title; trip titles themselves have no limit. */
 const MAX_TITLE = 200;
 

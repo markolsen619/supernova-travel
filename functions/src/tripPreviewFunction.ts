@@ -1,7 +1,8 @@
 import * as admin from 'firebase-admin';
 import { onRequest } from 'firebase-functions/v2/https';
 import {
-  cachedCover, canonicalRedirect, coverLookup, previewEligibility, renderTripPreview, tripIdFromPath,
+  cachedCover, canonicalRedirect, coverLookup, postIdFromPath, postPreviewEligibility, previewEligibility,
+  renderPostPreview, renderTripPreview, tripIdFromPath,
 } from './tripPreview';
 
 const db = admin.firestore();
@@ -35,7 +36,7 @@ async function publishableCover(tripId: string, stored: unknown): Promise<{ url:
 }
 
 /**
- * Hosting rewrites `/trip/**` here: the page a shared trip link opens when
+ * Hosting rewrites `/trip/**` and `/post/**` here: the page a shared trip link opens when
  * the app isn't installed (with it installed, the universal link opens the
  * app before this is ever asked). Any failure serves the generic page,
  * uncached so a passing error doesn't stick.
@@ -50,6 +51,34 @@ export const tripPreview = onRequest({ region: 'us-central1', memory: '256MiB', 
   res.set('Content-Type', 'text/html; charset=utf-8');
   // Browsers recheck after 5 minutes; the CDN keeps a copy for an hour.
   res.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
+
+  const postId = postIdFromPath(req.path);
+  if (postId) {
+    try {
+      const post = (await db.collection('posts').doc(postId).get()).data();
+      const author = post?.authorUid ? (await db.collection('users').doc(post.authorUid).get()).data() : undefined;
+      if (!post || !postPreviewEligibility(post, author)) {
+        res.status(200).send(renderPostPreview(null, postId));
+        return;
+      }
+      // A video's mp4 can't be a preview image: use its cover frame.
+      const imageUrl = post.mediaType === 'video'
+        ? (post.thumbnailUrl ?? post.mediaUrls?.[0] ?? null)
+        : (post.mediaUrls?.[0] ?? post.mediaUrl ?? null);
+      res.status(200).send(renderPostPreview({
+        id: postId,
+        authorName: String(author?.fullName ?? author?.displayName ?? post.authorDisplayName ?? 'A traveler'),
+        caption: String(post.caption ?? ''),
+        placeName: String(post.placeName ?? ''),
+        imageUrl: typeof imageUrl === 'string' ? imageUrl : null,
+      }));
+    } catch (err) {
+      console.error('postPreview failed', err);
+      res.set('Cache-Control', 'no-store');
+      res.status(200).send(renderPostPreview(null, postId));
+    }
+    return;
+  }
 
   const tripId = tripIdFromPath(req.path);
   try {

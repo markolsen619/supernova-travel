@@ -101,3 +101,26 @@ describe('tripNoteText', () => {
     expect(tripNoteText({ text: 'Look', trip: { tripId: 't1' } })).toBe('Look');
   });
 });
+
+import { postShareContent } from '@/utils/tripShare';
+
+describe('postShareContent', () => {
+  const post = { id: 'p1', tripId: null, authorDisplayName: 'Kelly', placeName: 'Mexico City', caption: 'Tacos' };
+  it('shares the post page, a real web link, so the share sheet shows the Supernova icon', () => {
+    // A plain-text share with a supernova:// link showed iOS's generic text glyph (2026-10-16).
+    const c = postShareContent(post, 'ios');
+    expect(c.url).toBe('https://supernova-a2125.web.app/post/p1');
+    expect(c.message).toBe("Kelly's travel moment from Mexico City on Supernova — \"Tacos\"");
+  });
+  it('links the trip page for a post that shares a trip', () => {
+    expect(postShareContent({ ...post, tripId: 't9' }, 'ios').url).toBe('https://supernova-a2125.web.app/trip/t9');
+  });
+  it('puts the link in the message on Android, whose share sheet ignores url', () => {
+    const c = postShareContent(post, 'android');
+    expect(c.url).toBeUndefined();
+    expect(c.message.endsWith('\nhttps://supernova-a2125.web.app/post/p1')).toBe(true);
+  });
+  it('leaves out an empty place and caption', () => {
+    expect(postShareContent({ ...post, placeName: null, caption: '' }, 'ios').message).toBe("Kelly's travel moment on Supernova");
+  });
+});

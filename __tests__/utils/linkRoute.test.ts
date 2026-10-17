@@ -15,3 +15,15 @@ describe('resolveLinkRoute', () => {
     expect(resolveLinkRoute('exp+supernova-travel://expo-development-client/?url=x')).toBeNull();
   });
 });
+
+describe('resolveLinkRoute — posts', () => {
+  it('opens a shared post from the universal link and the page button', () => {
+    expect(resolveLinkRoute('https://supernova-a2125.web.app/post/p1')).toBe('/post/p1');
+    expect(resolveLinkRoute('supernova://post/p1')).toBe('/post/p1');
+  });
+  it('ignores malformed post links', () => {
+    expect(resolveLinkRoute('https://supernova-a2125.web.app/post/')).toBeNull();
+    expect(resolveLinkRoute('https://supernova-a2125.web.app/post/p1/x')).toBeNull();
+    expect(resolveLinkRoute('https://supernova-a2125.web.app/post/a.b')).toBeNull();
+  });
+});

@@ -30,7 +30,7 @@ export function useLinkRouting() {
     if (!pendingRoute) return;
     if (!navigationState?.key || !isInitialized || !uid) return;
     setPendingRoute(null);
-    // resolveLinkRoute only ever returns /trip/{alphanumeric id}.
+    // resolveLinkRoute only ever returns /trip/{id} or /post/{id} (alphanumeric ids).
     router.push(pendingRoute as Href);
   }, [pendingRoute, navigationState?.key, isInitialized, uid]);
 }

@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Platform,
   Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -21,6 +22,7 @@ import { useSavePost } from '@/hooks/useSavePost';
 import { useOwnPostActions } from '@/hooks/useOwnPostActions';
 import { Avatar } from '@/components/ui/Avatar';
 import { resolvePostAuthor } from '@/utils/postAuthor';
+import { postShareContent } from '@/utils/tripShare';
 import type { AuthorInfo } from '@/hooks/useAuthorProfiles';
 import { Post } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -74,16 +76,12 @@ export function FeedActions({ post, author, onCommentPress, onMorePress, liked, 
 
   const handleShare = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const placePart = post.placeName ? ` from ${post.placeName}` : '';
-    const link = post.tripId ? `supernova://trip/${post.tripId}` : `supernova://post/${post.id}`;
     try {
-      await Share.share({
-        message: `${post.authorDisplayName}'s travel moment${placePart} on Supernova${post.caption ? ` — "${post.caption}"` : ''}\n${link}`,
-      });
+      await Share.share(postShareContent(post, Platform.OS));
     } catch {
       // User dismissed the sheet — nothing to handle
     }
-  }, [post.authorDisplayName, post.placeName, post.caption, post.tripId, post.id]);
+  }, [post]);
 
   const handleSave = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

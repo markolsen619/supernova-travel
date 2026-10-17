@@ -128,3 +128,78 @@ describe('cachedCover', () => {
     expect(cachedCover({ source: 'https://places/x' }, 'https://places/x', now)).toBeNull();
   });
 });
+
+import { postIdFromPath, postPreviewEligibility, renderPostPreview } from '../../functions/src/tripPreview';
+
+describe('preview pages carry the app icon', () => {
+  // iOS share sheets and link previews draw the site's icon; without these they fell back to a
+  // generic text glyph (2026-10-16).
+  it('every page links the touch icon and favicon', () => {
+    for (const html of [renderTripPreview(null, []), renderPostPreview(null)]) {
+      expect(html).toContain('<link rel="apple-touch-icon" href="/apple-touch-icon.png">');
+      expect(html).toContain('<link rel="icon" type="image/png" href="/favicon.png">');
+    }
+  });
+  it('a trip without a cover uses the star as its preview image', () => {
+    const html = renderTripPreview({ id: 't1', title: 'T', coverImageUrl: null, placeLabel: 'Lisbon', days: 2, authorName: 'A' }, []);
+    expect(html).toContain('<meta property="og:image" content="https://supernova-a2125.web.app/apple-touch-icon.png">');
+  });
+});
+
+describe('postIdFromPath', () => {
+  it('reads /post/{id}', () => {
+    expect(postIdFromPath('/post/abc123')).toBe('abc123');
+    expect(postIdFromPath('/post/abc123/')).toBe('abc123');
+  });
+  it('rejects anything else', () => {
+    expect(postIdFromPath('/post/')).toBeNull();
+    expect(postIdFromPath('/post/a/b')).toBeNull();
+    expect(postIdFromPath('/trip/abc')).toBeNull();
+    expect(postIdFromPath('/post/<x>')).toBeNull();
+  });
+});
+
+describe('postPreviewEligibility', () => {
+  const author = { settings: { privacy: 'public' } };
+  it('shows a public post by a public account', () => {
+    expect(postPreviewEligibility({ visibility: 'public' }, author)).toBe(true);
+  });
+  it('treats a post with no visibility (older apps) as public, like the feed backfill', () => {
+    expect(postPreviewEligibility({}, author)).toBe(true);
+  });
+  it('hides followers-only, hidden, private-account and missing posts', () => {
+    expect(postPreviewEligibility({ visibility: 'followers' }, author)).toBe(false);
+    expect(postPreviewEligibility({ visibility: 'public', moderationHidden: true }, author)).toBe(false);
+    expect(postPreviewEligibility({ visibility: 'public' }, { settings: { privacy: 'private' } })).toBe(false);
+    expect(postPreviewEligibility(null, author)).toBe(false);
+    expect(postPreviewEligibility({ visibility: 'public' }, null)).toBe(false);
+  });
+});
+
+describe('renderPostPreview', () => {
+  const post = { id: 'p1', authorName: 'Kelly <b>', caption: 'Tacos "al pastor"', placeName: 'Mexico City', imageUrl: 'https://firebasestorage.googleapis.com/x.jpg' };
+  it('shows the photo, author, place and caption, escaped', () => {
+    const html = renderPostPreview(post);
+    expect(html).toContain('<meta property="og:image" content="https://firebasestorage.googleapis.com/x.jpg">');
+    expect(html).toContain('Kelly &lt;b&gt;');
+    expect(html).toContain('Tacos &quot;al pastor&quot;');
+    expect(html).toContain('MEXICO CITY');
+    expect(html).toContain('href="supernova://post/p1"');
+    expect(html).not.toContain('<b>');
+  });
+  it('falls back to the star image when the post has no usable photo', () => {
+    expect(renderPostPreview({ ...post, imageUrl: null })).toContain('content="https://supernova-a2125.web.app/apple-touch-icon.png"');
+  });
+  it('the generic page shows nothing about the post', () => {
+    const html = renderPostPreview(null, 'p1');
+    expect(html).not.toContain('Tacos');
+    expect(html).toContain('href="supernova://post/p1"');
+  });
+});
+
+describe('canonicalRedirect for posts', () => {
+  it('redirects query strings on post links too', () => {
+    expect(canonicalRedirect('/post/p1?x=1')).toBe('/post/p1');
+    expect(canonicalRedirect('/post/p1')).toBeNull();
+  });
+});

@@ -34,6 +34,13 @@
           "functionId": "tripPreview",
           "region": "us-central1"
         }
+      },
+      {
+        "source": "/post/**",
+        "function": {
+          "functionId": "tripPreview",
+          "region": "us-central1"
+        }
       }
     ],
     "headers": [

@@ -1,7 +1,7 @@
 /**
  * The screen a link that launched the app is about, or null to leave the
- * launch alone. Only shared trips today: `https://supernova-a2125.web.app/trip/{id}`
- * (universal link) and `supernova://trip/{id}` (the web page's button).
+ * launch alone. Shared trips and posts: `https://supernova-a2125.web.app/trip/{id}`
+ * (universal link) and `supernova://trip/{id}` (the web page's button); `/post/{id}` the same way.
  */
 const TRIP_ID = /^[A-Za-z0-9]{1,64}$/;
 
@@ -21,6 +21,6 @@ export function resolveLinkRoute(url: string | null | undefined): string | null 
     path = u.pathname;
   }
   const [, first, id, ...rest] = path.split(/[?#]/)[0].split('/');
-  if (first !== 'trip' || !id || !TRIP_ID.test(id) || rest.some(Boolean)) return null;
-  return `/trip/${id}`;
+  if ((first !== 'trip' && first !== 'post') || !id || !TRIP_ID.test(id) || rest.some(Boolean)) return null;
+  return `/${first}/${id}`;
 }

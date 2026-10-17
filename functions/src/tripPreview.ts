@@ -9,6 +9,8 @@
  */
 
 const APP_STORE_URL = 'https://apps.apple.com/app/id6810490710';
+/** The star, served from Hosting. Link previews and share sheets draw it (they showed a blank text glyph without it). */
+const ICON_URL = 'https://supernova-a2125.web.app/apple-touch-icon.png';
 const MAX_STOPS = 5;
 
 export interface PreviewTrip {
@@ -103,6 +105,8 @@ function page(head: string, body: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/favicon.png">
 ${head}
 <style>${STYLES}</style>
 </head>
@@ -148,7 +152,7 @@ export function renderTripPreview(trip: PreviewTrip | null, stops: string[], gen
 <meta property="og:description" content="${description}">
 <meta property="og:site_name" content="Supernova">
 <meta property="og:type" content="website">
-${cover ? `<meta property="og:image" content="${cover}">\n<meta name="twitter:card" content="summary_large_image">` : '<meta name="twitter:card" content="summary">'}`,
+${cover ? `<meta property="og:image" content="${cover}">\n<meta name="twitter:card" content="summary_large_image">` : `<meta property="og:image" content="${ICON_URL}">\n<meta name="twitter:card" content="summary">`}`,
     `${cover ? `<img class="cover" src="${cover}" alt="">` : ''}
 ${cover && trip.coverCredit ? `<p class="credit">Photo: ${escapeHtml(trip.coverCredit)}</p>` : ''}
 <p class="eyebrow">${eyebrow}</p>
@@ -168,9 +172,10 @@ ${stopItems ? `<ol>\n${stopItems}\n</ol>` : ''}
  */
 export function canonicalRedirect(originalUrl: string): string | null {
   const [path, query] = originalUrl.split('?');
-  const id = tripIdFromPath(path);
-  if (!id) return null;
-  const canonical = `/trip/${id}`;
+  const tripId = tripIdFromPath(path);
+  const postId = tripId ? null : postIdFromPath(path);
+  if (!tripId && !postId) return null;
+  const canonical = tripId ? `/trip/${tripId}` : `/post/${postId}`;
   return path === canonical && query === undefined ? null : canonical;
 }
 
@@ -185,4 +190,71 @@ export function cachedCover(
   if (!entry || entry.source !== source || typeof entry.photoUri !== 'string') return null;
   if (typeof entry.resolvedAt !== 'number' || now - entry.resolvedAt > COVER_CACHE_MS) return null;
   return entry.photoUri;
+}
+
+// ── Posts (`/post/{id}`): the link the feed's Share button sends ──────────────────────────────
+
+export interface PreviewPost {
+  id: string;
+  authorName: string;
+  caption: string;
+  placeName: string;
+  /** The photo, or a video's cover frame. Post media are public Storage download URLs already. */
+  imageUrl: string | null;
+}
+
+/** `/post/{id}` → id; anything else is not a post. */
+export function postIdFromPath(path: string): string | null {
+  const m = /^\/post\/([A-Za-z0-9]+)\/?$/.exec(path);
+  return m ? m[1] : null;
+}
+
+/** Same rule as trips: only what a stranger could see in the app. Posts from apps before 1.0.2 carry no visibility and are public. */
+export function postPreviewEligibility(
+  post: { visibility?: unknown; moderationHidden?: unknown } | null | undefined,
+  author: { settings?: { privacy?: unknown } } | null | undefined,
+): boolean {
+  if (!post || !author) return false;
+  return (post.visibility === undefined || post.visibility === 'public')
+    && post.moderationHidden !== true
+    && author.settings?.privacy !== 'private';
+}
+
+/** A post's page, or with `post` null the generic page whose button still opens `genericPostId` in the app. */
+export function renderPostPreview(post: PreviewPost | null, genericPostId?: string | null): string {
+  if (!post) {
+    const openHref = genericPostId && /^[A-Za-z0-9]+$/.test(genericPostId) ? `supernova://post/${genericPostId}` : 'supernova://';
+    const title = 'Supernova — plan your next trip';
+    return page(
+      `<title>${title}</title>
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="Itineraries, maps and travel friends in one app.">
+<meta property="og:site_name" content="Supernova">
+<meta property="og:image" content="${ICON_URL}">`,
+      `<h1>Plan your next trip with Supernova</h1>
+<p class="lede">This post opens in the app.</p>
+<a class="cta" href="${openHref}">Open in Supernova</a>
+<a class="link" href="${APP_STORE_URL}">Get the app</a>`,
+    );
+  }
+  const image = post.imageUrl && post.imageUrl.startsWith('https://') ? escapeHtml(post.imageUrl) : null;
+  const author = escapeHtml(post.authorName);
+  const title = `${author} on Supernova`;
+  const caption = escapeHtml(post.caption);
+  const eyebrow = post.placeName ? escapeHtml(post.placeName.toUpperCase()) : '';
+  return page(
+    `<title>${title}</title>
+<meta property="og:title" content="${post.placeName ? `${author} in ${escapeHtml(post.placeName)}` : title}">
+<meta property="og:description" content="${caption || 'A travel moment on Supernova'}">
+<meta property="og:site_name" content="Supernova">
+<meta property="og:type" content="website">
+<meta property="og:image" content="${image ?? ICON_URL}">
+<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">`,
+    `${image ? `<img class="cover" src="${image}" alt="">` : ''}
+${eyebrow ? `<p class="eyebrow">${eyebrow}</p>` : ''}
+<h1>${author}</h1>
+${caption ? `<p class="lede">${caption}</p>` : ''}
+<a class="cta" href="supernova://post/${escapeHtml(post.id)}">Open in Supernova</a>
+<a class="link" href="${APP_STORE_URL}">Get the app</a>`,
+  );
 }

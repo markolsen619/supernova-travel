@@ -86,6 +86,11 @@
               "scheme": "https",
               "host": "supernova-a2125.web.app",
               "pathPrefix": "/trip/"
+            },
+            {
+              "scheme": "https",
+              "host": "supernova-a2125.web.app",
+              "pathPrefix": "/post/"
             }
           ],
           "category": [
