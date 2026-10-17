@@ -30,7 +30,7 @@ const LEAD: Record<AiPurpose, { title: string; sends: string }> = {
   },
   agent: {
     title: 'Ask Nova',
-    sends: "Your trip's cities, days and stops, what you ask, and the name, date and time of its bookings.",
+    sends: "Your trip's cities, days and stops, what you ask, and the bookings in your wallet that fall on this trip (name, date and time; never barcodes or booking codes).",
   },
 };
 

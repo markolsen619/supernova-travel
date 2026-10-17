@@ -30,9 +30,24 @@ describe('AI consent', () => {
     expect(clientHas(1, 'trip')).toBe(true);
   });
 
-  it('asks again before Ask Nova, which sends more (version 2)', () => {
-    expect(SERVER_VERSION).toBe(2);
+  it('asks again before Ask Nova, which sends more (version 2, now 3)', () => {
+    expect(SERVER_VERSION).toBe(3);
     expect(serverHas({ aiConsentVersion: 1 }, 'agent')).toBe(false);
     expect(clientHas(1, 'agent')).toBe(false);
+  });
+});
+
+describe('consent v3 (Ask Nova sees wallet bookings, 2026-10-17)', () => {
+  it('Ask Nova needs v3; older features keep accepting what older apps wrote', () => {
+    // The server reads the user doc; the app passes the stored version.
+    expect(serverHas({ aiConsentVersion: 2 }, 'agent')).toBe(false);
+    expect(serverHas({ aiConsentVersion: 3 }, 'agent')).toBe(true);
+    expect(serverHas({ aiConsentVersion: 1 }, 'trip')).toBe(true);
+    expect(serverHas({ aiConsentVersion: 1 }, 'import')).toBe(true);
+    expect(clientHas(2, 'agent')).toBe(false);
+    expect(clientHas(3, 'agent')).toBe(true);
+    expect(clientHas(1, 'trip')).toBe(true);
+    expect(CLIENT_VERSION).toBe(3);
+    expect(SERVER_VERSION).toBe(3);
   });
 });
