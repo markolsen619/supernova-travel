@@ -35,10 +35,22 @@ export function parseModelText(text: unknown): { reply: string; operations: unkn
   }
 }
 
-export async function generate(a: {
+type GenerateArgs = {
   system: string; turns: ModelTurn[]; schema: object; apiKey: string;
   model?: string; thinkingBudget?: number; timeoutMs?: number;
-}): Promise<ModelResult> {
+};
+
+/** One call, retried once when the answer can't be read (~1 in 33 in the 2026-10-17 eval); HTTP errors aren't retried. */
+export async function generate(a: GenerateArgs): Promise<ModelResult> {
+  try {
+    return await generateOnce(a);
+  } catch (e) {
+    if (!String(e).includes('unreadable')) throw e;
+    return generateOnce(a);
+  }
+}
+
+async function generateOnce(a: GenerateArgs): Promise<ModelResult> {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), a.timeoutMs ?? 30_000);

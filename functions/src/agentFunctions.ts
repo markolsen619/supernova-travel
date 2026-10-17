@@ -13,7 +13,7 @@ import { buildTripContext, bookingForContext, type CtxBooking, type CtxDay, type
 import { validateTripOps } from './agentTripOps';
 import { filterByCapabilities, isAgentSurface, threadId } from './agentSurfaces';
 import { generate, type ModelTurn } from './agentModel';
-import { AGENT_RESPONSE_SCHEMA, TRIP_SYSTEM_PROMPT } from './agentPrompt';
+import { AGENT_RESPONSE_SCHEMA, TRIP_SYSTEM_PROMPT, polishReply } from './agentPrompt';
 import { loadCatalog } from './discoveryFunctions';
 import { destinationKeysFor } from './discovery';
 import type { AgentOp, AgentQuotaView, AgentResponse } from './agentTypes';
@@ -126,9 +126,10 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     const { ops, dropped } = validateTripOps(result.json.operations, labels, cityOfDay);
     const allowed: AgentOp[] = filterByCapabilities(ops, capabilities);
     const totalDropped = dropped + (ops.length - allowed.length);
+    const said = polishReply(String(result.json.reply ?? ''));
     const reply = totalDropped > 0
-      ? `${result.json.reply}\n${totalDropped === 1 ? "1 suggestion didn't fit the trip." : `${totalDropped} suggestions didn't fit the trip.`}`
-      : result.json.reply;
+      ? `${said}\n${totalDropped === 1 ? "1 suggestion didn't fit the trip." : `${totalDropped} suggestions didn't fit the trip.`}`
+      : said;
 
     console.log('agent', { uid, surface, inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: result.latencyMs, operations: allowed.length, dropped: totalDropped });
 

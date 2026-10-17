@@ -192,7 +192,8 @@ export function validateTripOps(raw: unknown, labels: LabelMap, cityOfDay: (dayI
         return { kind: 'trip.moveCity', city, by };
       }
       case 'shiftDates': {
-        const newStart = str(r.newStart);
+        // The model sometimes puts the date in the (required) query field instead.
+        const newStart = str(r.newStart) || str(r.query);
         return validDate(newStart) ? { kind: 'trip.shiftDates', newStart } : null;
       }
       default:

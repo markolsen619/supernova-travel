@@ -10,8 +10,11 @@ const require = createRequire(import.meta.url);
 const admin = require('../functions/node_modules/firebase-admin');
 const { buildTripContext } = require('../functions/lib/agentTripContext.js');
 const { validateTripOps } = require('../functions/lib/agentTripOps.js');
+const { OP_CAPABILITY } = require('../functions/lib/agentTypes.js');
+const CAPS = new Set((arg2('--caps') ?? 'trip.v1,trip.v2').split(','));
+function arg2(n) { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : null; }
 const { generate } = require('../functions/lib/agentModel.js');
-const { TRIP_SYSTEM_PROMPT, AGENT_RESPONSE_SCHEMA } = require('../functions/lib/agentPrompt.js');
+const { TRIP_SYSTEM_PROMPT, AGENT_RESPONSE_SCHEMA, polishReply } = require('../functions/lib/agentPrompt.js');
 
 const PRICES = { // USD per 1M tokens (input, output) — check current Gemini pricing before trusting totals
   'gemini-2.5-flash': [0.30, 2.50],
@@ -29,7 +32,11 @@ const REQUESTS = [
   // Phase 2 (the owner's Mission Beach conversation, 2026-10-16)
   'My friend says I have to check out Pennant in Mission Beach, add it', 'Is there anything near the Taco Stand on day 2?',
   'What should I do differently about this trip?', 'Fix day 2 so we are not crossing town',
+  // trip.v2
+  'Rename the trip to Mission Beach weekend', 'Add sunscreen and a beach towel to the packing list',
+  'That bar is the wrong Pennant, use the one in Mission Beach', 'Swap day 2 and day 3',
 ];
+const V2 = new Set(['Rename the trip to Mission Beach weekend', 'Add sunscreen and a beach towel to the packing list', 'That bar is the wrong Pennant, use the one in Mission Beach', 'Swap day 2 and day 3']);
 
 // Questions expect an answer and no changes; every other request should come back with changes.
 const QUESTIONS = new Set(['Is day 3 too packed?', 'What should we not miss here?', 'Which day is best for the market?', 'Is there anything near the Taco Stand on day 2?']);
@@ -65,15 +72,20 @@ async function loadTrip() {
 const { text, labels, cityOfDay } = await loadTrip();
 console.log(`context: ${text.length} chars`);
 for (const model of models) {
-  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0, adds = 0, addsWithQuery = 0, apologies = 0;
+  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0, adds = 0, addsWithQuery = 0, apologies = 0, v2ok = 0;
   const changeRequests = REQUESTS.filter((r) => !QUESTIONS.has(r)).length;
   for (const r of REQUESTS) {
     try {
       const res = await generate({ system: TRIP_SYSTEM_PROMPT, turns: [{ role: 'user', text: `${text}\n\nREQUEST: ${r}` }], schema: AGENT_RESPONSE_SCHEMA, apiKey, model });
-      const v = validateTripOps(res.json.operations, labels, cityOfDay);
+      const v0 = validateTripOps(res.json.operations, labels, cityOfDay);
+      // Same capability filter as the function: an op the app didn't declare counts as dropped.
+      const kept = v0.ops.filter((o) => CAPS.has(OP_CAPABILITY[o.kind]));
+      const v = { ops: kept, dropped: v0.dropped + (v0.ops.length - kept.length) };
+      if (V2.has(r) && kept.some((o) => OP_CAPABILITY[o.kind] === 'trip.v2')) v2ok += 1;
       // Every new place must come with the model's own search name (not just the title+city default).
       for (const raw of res.json.operations ?? []) if (raw.op === 'addStop' && raw.type !== 'free' && raw.type !== 'transport') { adds += 1; if (typeof raw.query === 'string' && raw.query.trim().length >= 2) addsWithQuery += 1; }
-      if (/apolog/i.test(res.json.reply)) { apologies += 1; if (process.argv.includes('--verbose')) console.log('  apology:', r, '→', res.json.reply); }
+      res.json.reply = polishReply(String(res.json.reply ?? ''));
+      if (/apolog|sorry/i.test(res.json.reply)) { apologies += 1; if (process.argv.includes('--verbose')) console.log('  apology:', r, '→', res.json.reply); }
       if (v.dropped === 0) valid += 1;
       if (v.dropped > 0 && process.argv.includes('--verbose')) console.log('  DROPPED in', r, '→', JSON.stringify(res.json.operations));
       if (!QUESTIONS.has(r) && v.ops.length > 0) acted += 1;
@@ -86,6 +98,6 @@ for (const model of models) {
   const ok = REQUESTS.length - failed;
   const [pi, po] = PRICES[model] ?? [0, 0];
   const cost = ok ? ((inT / ok) * pi + (outT / ok) * po) / 1e6 : 0;
-  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, apologies ${apologies}, new places with a query ${addsWithQuery}/${adds}, ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
+  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, apologies ${apologies}, new places with a query ${addsWithQuery}/${adds}, trip.v2 used for ${v2ok}/${V2.size}, ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
 }
 process.exit(0);

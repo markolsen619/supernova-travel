@@ -25,7 +25,8 @@ Operations (at most 12):
 - moveCity: city, by (-1 earlier, 1 later)
 - shiftDates: newStart ("YYYY-MM-DD")
 - updateStop also takes: title, type, endTime, duration (minutes), query (moves the stop to a different real place, e.g. the right Pennant)
-- optimizeDay: day (the app orders that day for the least travel; use it for a messy or zig-zag day instead of reorderDay)
+- optimizeDay: day (the app orders that day for the least travel; always use it to cut travel or fix a zig-zag day, never reorderDay)
+  For "fix day N", "less travel", "we keep crossing town" or "order day N so we walk less", answer with just optimizeDay for that day; do not remove or add stops unless asked.
 - swapDays: day, with
 - updateTrip: title and/or description and/or visibility ("public", "followers", "private"; only when asked)
 - addPacking: label, category; checkPacking: item (k1…), checked; removePacking: item
@@ -77,3 +78,14 @@ export const AGENT_RESPONSE_SCHEMA = {
   },
   required: ['reply', 'operations'],
 } as const;
+
+/**
+ * Filler openers the model kept despite the prompt (eval 2026-10-17): "I can help with that.",
+ * "I'm sorry,", "No problem,", "My apologies.". Stripped server-side; never leaves an empty reply.
+ */
+const FILLER = /^(?:(?:i can help with that|no problem|of course|sure|certainly|my apologies|i apologi[sz]e|i'?m sorry|sorry)[,.!:]?\s+)+/i;
+export function polishReply(reply: string): string {
+  const out = reply.replace(FILLER, '').trim();
+  if (!out) return reply.trim();
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}

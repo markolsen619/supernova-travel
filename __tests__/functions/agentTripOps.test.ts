@@ -160,3 +160,10 @@ describe('trip.v2 operations', () => {
     expect(OP_CAPABILITY['trip.addPacking']).toBe('trip.v2');
   });
 });
+
+describe('shiftDates reads a date the model put in query (eval 2026-10-17)', () => {
+  const labels = { days: {}, stops: {}, dayStops: {}, cityCount: 1, packing: {} } as never;
+  it('falls back to query when newStart is missing', () => {
+    expect(validateTripOps([{ op: 'shiftDates', query: '2026-11-04' }], labels).ops[0]).toEqual({ kind: 'trip.shiftDates', newStart: '2026-11-04' });
+  });
+});

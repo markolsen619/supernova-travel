@@ -1,5 +1,5 @@
 // __tests__/functions/agentModel.test.ts
-import { geminiRequestBody, parseModelText, AGENT_MODEL, AGENT_THINKING_BUDGET } from '../../functions/src/agentModel';
+import { generate, geminiRequestBody, parseModelText, AGENT_MODEL, AGENT_THINKING_BUDGET } from '../../functions/src/agentModel';
 import { AGENT_RESPONSE_SCHEMA, TRIP_SYSTEM_PROMPT } from '../../functions/src/agentPrompt';
 
 describe('geminiRequestBody', () => {
@@ -54,5 +54,24 @@ describe('TRIP_SYSTEM_PROMPT', () => {
     expect(TRIP_SYSTEM_PROMPT).toMatch(/answer it directly/i);
     // Eval 2026-10-15: new or moved stops were "placed" with a reorderDay listing invented labels (s15), which the validator drops.
     expect(TRIP_SYSTEM_PROMPT).toMatch(/place a new or moved stop with "after"/i);
+  });
+});
+
+describe('generate retries an unreadable answer once (eval 2026-10-17: ~1 in 33)', () => {
+  const okBody = { candidates: [{ content: { parts: [{ text: '{"reply":"Done.","operations":[]}' }] } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } };
+  const badBody = { candidates: [{ content: { parts: [{ text: '{"reply": "Do' }] } }] };
+  const reply = (body: object) => ({ ok: true, json: async () => body, text: async () => '' });
+  const realFetch = global.fetch;
+  afterEach(() => { global.fetch = realFetch; });
+  it('returns the second answer when the first is unreadable', async () => {
+    const f = jest.fn().mockResolvedValueOnce(reply(badBody)).mockResolvedValueOnce(reply(okBody));
+    global.fetch = f as never;
+    const r = await generate({ system: 's', turns: [{ role: 'user', text: 'x' }], schema: {}, apiKey: 'k' });
+    expect(r.json.reply).toBe('Done.');
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+  it('gives up after the second unreadable answer', async () => {
+    global.fetch = jest.fn().mockResolvedValue(reply(badBody)) as never;
+    await expect(generate({ system: 's', turns: [{ role: 'user', text: 'x' }], schema: {}, apiKey: 'k' })).rejects.toThrow('unreadable');
   });
 });
