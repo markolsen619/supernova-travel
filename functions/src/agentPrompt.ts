@@ -36,52 +36,41 @@ Budget, expenses, deleting the trip and inviting people are done by the person i
 
 If the request has nothing to do with this trip, say briefly and warmly what you can help with.`;
 
+const STR = { type: 'STRING' } as const;
+const NSTR = { type: 'STRING', nullable: true } as const;
+const INT = { type: 'INTEGER' } as const;
+/** One variant per operation: Gemini sends only required fields (eval 2026-10-17), so each op requires exactly its own. */
+function opSchema(op: string, properties: Record<string, object>, required: string[]): object {
+  return { type: 'OBJECT', properties: { op: { type: 'STRING', enum: [op] }, ...properties }, required: ['op', ...required] };
+}
+const OP_SCHEMAS = [
+  opSchema('addStop', { day: STR, title: STR, type: STR, query: STR, after: NSTR, time: NSTR }, ['day', 'title', 'type', 'query']),
+  opSchema('removeStop', { stop: STR }, ['stop']),
+  opSchema('moveStop', { stop: STR, toDay: STR, after: NSTR }, ['stop', 'toDay']),
+  opSchema('reorderDay', { day: STR, stops: { type: 'ARRAY', items: STR } }, ['day', 'stops']),
+  opSchema('updateStop', { stop: STR, time: NSTR, note: STR, title: STR, type: STR, endTime: NSTR, duration: INT, query: STR }, ['stop']),
+  opSchema('setNights', { city: STR, nights: INT }, ['city', 'nights']),
+  opSchema('addCity', { name: STR, nights: INT, after: NSTR }, ['name', 'nights']),
+  opSchema('removeCity', { city: STR, mode: { type: 'STRING', enum: ['delete', 'move'] } }, ['city', 'mode']),
+  opSchema('moveCity', { city: STR, by: INT }, ['city', 'by']),
+  opSchema('shiftDates', { newStart: STR }, ['newStart']),
+  opSchema('optimizeDay', { day: STR }, ['day']),
+  opSchema('swapDays', { day: STR, with: STR }, ['day', 'with']),
+  opSchema('updateTrip', { title: STR, description: STR, visibility: { type: 'STRING', enum: ['public', 'followers', 'private'] } }, []),
+  opSchema('addPacking', { label: STR, category: STR }, ['label']),
+  opSchema('checkPacking', { item: STR, checked: { type: 'BOOLEAN' } }, ['item', 'checked']),
+  opSchema('removePacking', { item: STR }, ['item']),
+  opSchema('addReservation', { type: STR, transitMode: { type: 'STRING', enum: ['train', 'bus', 'ferry'] }, title: STR, date: STR, time: NSTR, endDate: NSTR, confirmationCode: NSTR }, ['type', 'title', 'date', 'time', 'confirmationCode']),
+  opSchema('linkBooking', { booking: STR }, ['booking']),
+  opSchema('unlinkBooking', { booking: STR }, ['booking']),
+  opSchema('updateBooking', { booking: STR, title: STR, date: STR, time: NSTR, confirmationCode: STR }, ['booking']),
+];
+
 export const AGENT_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     reply: { type: 'STRING' },
-    operations: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          op: { type: 'STRING', enum: ['addStop', 'removeStop', 'moveStop', 'reorderDay', 'updateStop', 'setNights', 'addCity', 'removeCity', 'moveCity', 'shiftDates', 'optimizeDay', 'swapDays', 'updateTrip', 'addPacking', 'checkPacking', 'removePacking', 'addReservation', 'linkBooking', 'unlinkBooking', 'updateBooking'] },
-          day: { type: 'STRING' },
-          stop: { type: 'STRING' },
-          toDay: { type: 'STRING' },
-          after: { type: 'STRING', nullable: true },
-          stops: { type: 'ARRAY', items: { type: 'STRING' } },
-          title: { type: 'STRING' },
-          // Gemini skips optional fields unless the schema says when they're needed (eval 2026-10-17: 0/21 without this).
-          query: { type: 'STRING', description: 'Required for addStop and for updateStop that changes the place: the real venue name and its area to search, e.g. "Pennant, Mission Beach".' },
-          // A stop type or a wallet type: each validator checks its own (unknown stop types become 'activity').
-          type: { type: 'STRING' },
-          time: { type: 'STRING', nullable: true },
-          note: { type: 'STRING' },
-          city: { type: 'STRING' },
-          nights: { type: 'INTEGER' },
-          name: { type: 'STRING' },
-          mode: { type: 'STRING', enum: ['delete', 'move'] },
-          by: { type: 'INTEGER' },
-          newStart: { type: 'STRING' },
-          with: { type: 'STRING' },
-          endTime: { type: 'STRING', nullable: true },
-          duration: { type: 'INTEGER' },
-          description: { type: 'STRING' },
-          visibility: { type: 'STRING', enum: ['public', 'followers', 'private'] },
-          label: { type: 'STRING' },
-          category: { type: 'STRING' },
-          item: { type: 'STRING' },
-          checked: { type: 'BOOLEAN' },
-          booking: { type: 'STRING' },
-          date: { type: 'STRING' },
-          endDate: { type: 'STRING', nullable: true },
-          confirmationCode: { type: 'STRING', nullable: true },
-          transitMode: { type: 'STRING', enum: ['train', 'bus', 'ferry'] },
-        },
-        required: ['op', 'query'],
-      },
-    },
+    operations: { type: 'ARRAY', items: { anyOf: OP_SCHEMAS } },
   },
   required: ['reply', 'operations'],
 } as const;

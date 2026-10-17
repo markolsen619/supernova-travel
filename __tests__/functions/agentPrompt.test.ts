@@ -10,9 +10,21 @@ describe('Nova prompt (phase 2)', () => {
     expect(TRIP_SYSTEM_PROMPT).toMatch(/"query"/);
     expect(TRIP_SYSTEM_PROMPT).toMatch(/km from/);
   });
-  it('schema accepts query', () => {
-    expect((AGENT_RESPONSE_SCHEMA.properties.operations.items.properties as Record<string, { type: string; description?: string }>).query).toMatchObject({ type: 'STRING' });
-    expect((AGENT_RESPONSE_SCHEMA.properties.operations.items.properties as Record<string, { description?: string }>).query.description).toMatch(/addStop/);
+  // Eval 2026-10-17: Gemini sends only required fields, so each operation has its own variant (anyOf) with its own required fields.
+  const variants = AGENT_RESPONSE_SCHEMA.properties.operations.items.anyOf as { properties: { op: { enum: string[] } }; required: string[] }[];
+  const variant = (op: string) => variants.find((v) => v.properties.op.enum[0] === op)!;
+  it('one schema variant per operation the validators know', () => {
+    const ops = variants.map((v) => v.properties.op.enum[0]).sort();
+    expect(ops).toEqual(['addCity', 'addPacking', 'addReservation', 'addStop', 'checkPacking', 'linkBooking', 'moveCity', 'moveStop', 'optimizeDay', 'removeCity', 'removePacking', 'removeStop', 'reorderDay', 'setNights', 'shiftDates', 'swapDays', 'unlinkBooking', 'updateBooking', 'updateStop', 'updateTrip']);
+  });
+  it('a new place always carries its search query', () => {
+    expect(variant('addStop').required).toEqual(expect.arrayContaining(['op', 'day', 'title', 'type', 'query']));
+  });
+  it('a reservation always carries title, date, time and code (null when unknown)', () => {
+    expect(variant('addReservation').required).toEqual(expect.arrayContaining(['op', 'type', 'title', 'date', 'time', 'confirmationCode']));
+  });
+  it('a removal needs only its stop', () => {
+    expect(variant('removeStop').required).toEqual(['op', 'stop']);
   });
 });
 

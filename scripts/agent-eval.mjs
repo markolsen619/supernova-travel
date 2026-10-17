@@ -11,7 +11,8 @@ const admin = require('../functions/node_modules/firebase-admin');
 const { buildTripContext } = require('../functions/lib/agentTripContext.js');
 const { validateTripOps } = require('../functions/lib/agentTripOps.js');
 const { OP_CAPABILITY } = require('../functions/lib/agentTypes.js');
-const CAPS = new Set((arg2('--caps') ?? 'trip.v1,trip.v2').split(','));
+const { validateWalletOps, WALLET_OPS } = require('../functions/lib/agentWalletOps.js');
+const CAPS = new Set((arg2('--caps') ?? 'trip.v1,trip.v2,wallet.v1').split(','));
 function arg2(n) { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : null; }
 const { generate } = require('../functions/lib/agentModel.js');
 const { TRIP_SYSTEM_PROMPT, AGENT_RESPONSE_SCHEMA, polishReply } = require('../functions/lib/agentPrompt.js');
@@ -35,7 +36,10 @@ const REQUESTS = [
   // trip.v2
   'Rename the trip to Mission Beach weekend', 'Add sunscreen and a beach towel to the packing list',
   'That bar is the wrong Pennant, use the one in Mission Beach', 'Swap day 2 and day 3',
+  // wallet.v1 (a synthetic unlinked hotel booking, b1, is in the context)
+  'I booked Pennant for 7pm on the first day, confirmation ABC123', 'My hotel booking should be on this trip', 'Our dinner reservation on day 2 moved to 8pm, add it if it is not there',
 ];
+const WALLET = new Set(['I booked Pennant for 7pm on the first day, confirmation ABC123', 'My hotel booking should be on this trip', 'Our dinner reservation on day 2 moved to 8pm, add it if it is not there']);
 const V2 = new Set(['Rename the trip to Mission Beach weekend', 'Add sunscreen and a beach towel to the packing list', 'That bar is the wrong Pennant, use the one in Mission Beach', 'Swap day 2 and day 3']);
 
 // Questions expect an answer and no changes; every other request should come back with changes.
@@ -64,7 +68,9 @@ async function loadTrip() {
     stops: (await d.ref.collection('activities').get()).docs.map((a) => ({ id: a.id, title: a.get('title'), type: a.get('type'), startTime: a.get('startTime') ?? null, placed: a.get('lat') != null, order: a.get('order') ?? 0, lat: a.get('lat') ?? null, lng: a.get('lng') ?? null })),
   })));
   const cities = [t.destination, ...(t.additionalDestinations ?? [])].map((c) => ({ name: c.name, nights: c.nights ?? null }));
-  const built = buildTripContext({ title: t.title, startDay: '2026-11-02', today: new Date().toISOString().slice(0, 10), cities, days: ctxDays, bookings: [], topPlaces: [] });
+  // One synthetic unlinked hotel booking so wallet requests have something to link (never written anywhere).
+  const hotel = { kind: 'hotel', name: 'Catamaran Resort Hotel', date: '2026-11-02', time: null, shared: false, label: 'b1', linked: false, hasStop: false, hasCode: true, ref: { kind: 'reservation', id: 'EVAL_R1' } };
+  const built = buildTripContext({ title: t.title, startDay: '2026-11-02', today: new Date().toISOString().slice(0, 10), cities, days: ctxDays, bookings: [hotel], topPlaces: [] });
   const cityOfDay = (dayId) => { const d = ctxDays.find((x) => x.id === dayId); return d ? (cities[d.city]?.name ?? cities[0]?.name ?? null) : null; };
   return { ...built, cityOfDay };
 }
@@ -72,12 +78,17 @@ async function loadTrip() {
 const { text, labels, cityOfDay } = await loadTrip();
 console.log(`context: ${text.length} chars`);
 for (const model of models) {
-  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0, adds = 0, addsWithQuery = 0, apologies = 0, v2ok = 0;
+  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0, adds = 0, addsWithQuery = 0, apologies = 0, v2ok = 0, walletOk = 0;
   const changeRequests = REQUESTS.filter((r) => !QUESTIONS.has(r)).length;
   for (const r of REQUESTS) {
     try {
       const res = await generate({ system: TRIP_SYSTEM_PROMPT, turns: [{ role: 'user', text: `${text}\n\nREQUEST: ${r}` }], schema: AGENT_RESPONSE_SCHEMA, apiKey, model });
-      const v0 = validateTripOps(res.json.operations, labels, cityOfDay);
+      const raw = Array.isArray(res.json.operations) ? res.json.operations : [];
+      const isW = (o) => o && WALLET_OPS.has(String(o.op));
+      const tp = validateTripOps(raw.filter((o) => !isW(o)), labels, cityOfDay);
+      const wp = validateWalletOps(raw.filter(isW), labels, { startDay: '2026-11-02', endDay: '2026-11-06' });
+      const v0 = { ops: [...tp.ops, ...wp.ops], dropped: tp.dropped + wp.dropped };
+      if (WALLET.has(r) && v0.ops.some((o) => OP_CAPABILITY[o.kind] === 'wallet.v1')) walletOk += 1;
       // Same capability filter as the function: an op the app didn't declare counts as dropped.
       const kept = v0.ops.filter((o) => CAPS.has(OP_CAPABILITY[o.kind]));
       const v = { ops: kept, dropped: v0.dropped + (v0.ops.length - kept.length) };
@@ -98,6 +109,6 @@ for (const model of models) {
   const ok = REQUESTS.length - failed;
   const [pi, po] = PRICES[model] ?? [0, 0];
   const cost = ok ? ((inT / ok) * pi + (outT / ok) * po) / 1e6 : 0;
-  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, apologies ${apologies}, new places with a query ${addsWithQuery}/${adds}, trip.v2 used for ${v2ok}/${V2.size}, ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
+  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, apologies ${apologies}, new places with a query ${addsWithQuery}/${adds}, trip.v2 used for ${v2ok}/${V2.size}, wallet used for ${walletOk}/${WALLET.size}, ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
 }
 process.exit(0);
