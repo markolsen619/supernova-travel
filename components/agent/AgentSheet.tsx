@@ -11,6 +11,7 @@ import { StarMark } from '@/components/ui/StarMark';
 import { agentSuggestions, quotaLine } from '@/utils/agentCard';
 import type { TripWithDays } from '@/types';
 import type { AgentOp } from '@/types/agent';
+import type { NovaGround } from '@/utils/agentGround';
 
 export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip: TripWithDays; onClose: () => void }) {
   const { colors } = useTheme();
@@ -44,13 +45,15 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     ]);
   }), []);
 
-  const apply = useCallback(async (messageId: string, ops: AgentOp[]) => {
+  const apply = useCallback(async (messageId: string, ops: AgentOp[], grounded: Record<number, NovaGround> = {}) => {
     setApplying(messageId); // the Apply button fires its own Medium haptic
     setApplyError(null);
     try {
-      const r = await agent.apply(messageId, ops, confirmDrops);
+      const r = await agent.apply(messageId, ops, confirmDrops, grounded);
       if (r.applied) {
-        const label = r.skipped ? `Changed ${r.applied} · ${r.skipped} no longer fit` : `Changed ${r.applied} thing${r.applied === 1 ? '' : 's'}`;
+        const base = r.skipped ? `Changed ${r.applied} · ${r.skipped} no longer fit` : `Changed ${r.applied} thing${r.applied === 1 ? '' : 's'}`;
+        // When code chose the spot, say where it went ("placed after The Taco Stand").
+        const label = 'placedNote' in r && r.placedNote ? `${base} · placed ${r.placedNote}` : base;
         setUndo({ label, run: r.undo });
       }
     } catch {
@@ -104,7 +107,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
                 <Text style={{ color: m.role === 'user' ? colors.background.primary : colors.text.primary, fontSize: 15, lineHeight: 22 }}>{m.text}</Text>
               </View>
               {m.role === 'assistant' && m.operations.length > 0 && (
-                <ProposalCard message={m} trip={trip} busy={applying === m.id} onApply={(ops) => apply(m.id, ops)} onDismiss={() => agent.dismiss(m.id)} />
+                <ProposalCard message={m} trip={trip} busy={applying === m.id} onApply={(ops, g) => apply(m.id, ops, g)} onDismiss={() => agent.dismiss(m.id)} />
               )}
             </View>
           ))}

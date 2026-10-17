@@ -8,6 +8,7 @@ import { draftFromRows, previewRoute, routeRowsFromTrip, useTripRoute } from '@/
 import { resolveCityByName } from '@/services/places/mapboxSearch';
 import { applyRouteOps, planApply, undoSteps, type ApplyStep } from '@/utils/agentApply';
 import { requestIdFor } from '@/utils/agentCard';
+import type { NovaGround } from '@/utils/agentGround';
 import { fetchTripWithDays } from '@/hooks/useTrip';
 import { dropsWarning } from '@/utils/tripRoute';
 import { parseCalendarDate } from '@/utils/calendarDate';
@@ -95,13 +96,13 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
     [qc, tripId],
   );
 
-  const apply = useCallback(async (messageId: string, ops: AgentOp[], confirmDrops: (text: string) => Promise<boolean>) => {
+  const apply = useCallback(async (messageId: string, ops: AgentOp[], confirmDrops: (text: string) => Promise<boolean>, grounded: Record<number, NovaGround> = {}) => {
     if (!tripId || !uid) return { applied: 0, skipped: ops.length, undo: null };
     const setStatus = (status: 'applied' | 'partial' | 'dismissed') => updateDoc(doc(db, threadPath(uid, tripId), messageId), { status });
     let current = await freshTrip();
     if (!current) return { applied: 0, skipped: ops.length, undo: null };
 
-    const first = planApply(current, ops);
+    const first = planApply(current, ops, grounded);
     let routeSkipped = 0;
     try {
       // Route first, confirmed (it may delete days with stops); then the stop changes are planned
@@ -122,7 +123,11 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
         await saveRoute(trip0, draft);
         current = (await freshTrip()) ?? trip0;
       }
-      const plan = first.routeOps.length ? planApply(current, ops.filter((o) => !first.routeOps.includes(o))) : first;
+      // Re-plan the stop changes on the saved route; their grounding follows them to their new indices.
+      const rest: AgentOp[] = [];
+      const restGround: Record<number, NovaGround> = {};
+      ops.forEach((o, i) => { if (!first.routeOps.includes(o)) { if (grounded[i]) restGround[rest.length] = grounded[i]; rest.push(o); } });
+      const plan = first.routeOps.length ? planApply(current, rest, restGround) : first;
       const skipped = routeSkipped + plan.skipped.length;
       const added = await runSteps(current.id, plan.steps);
       await setStatus(skipped ? 'partial' : 'applied');
@@ -134,7 +139,7 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
         await setStatus('dismissed');
         await qc.invalidateQueries({ queryKey: key });
       };
-      return { applied: ops.length - skipped, skipped, undo };
+      return { applied: ops.length - skipped, skipped, undo, placedNote: Object.values(plan.placedNote)[0] ?? null };
     } catch (e) {
       // Some writes may have gone through: say so on the card, show the trip as it is, and let the sheet tell the person.
       await setStatus('partial').catch(() => {});

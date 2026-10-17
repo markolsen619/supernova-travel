@@ -79,3 +79,21 @@ describe('requestIdFor', () => {
     expect(requestIdFor('  Add a rooftop bar ', { text: 'Add a rooftop bar', requestId: 'OLD' }, mint)).toBe('OLD');
   });
 });
+
+describe('opLine with grounding (phase 2)', () => {
+  const trip = { destination: { name: 'Mission Beach' }, additionalDestinations: [], days: [{ id: 'D1', dayNumber: 1, destinationIndex: 0, activities: [] }] } as never;
+  const op = { kind: 'trip.addStop', dayId: 'D1', title: 'Drinks at Pennant', type: 'restaurant', afterStopId: null, time: null, query: 'Pennant, Mission Beach' } as never;
+  it('shows the found address', () => {
+    const l = opLine(op, trip, { status: 'found', place: { name: 'Pennant', address: '2893 Mission Blvd', lat: 1, lng: 1 } } as never);
+    expect(l?.detail).toBe('Pennant · 2893 Mission Blvd');
+    expect(l?.unavailable).toBeFalsy();
+  });
+  it('greys out a place not found nearby', () => {
+    const l = opLine(op, trip, { status: 'notFound' });
+    expect(l?.unavailable).toBe(true);
+    expect(l?.detail).toBe("Couldn't find this near Mission Beach");
+  });
+  it('says it is looking while pending', () => {
+    expect(opLine(op, trip, 'pending')?.detail).toBe('Finding it on the map…');
+  });
+});

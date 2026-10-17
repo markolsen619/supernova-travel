@@ -1,19 +1,27 @@
 import type { ActivityType, TripWithDays } from '@/types';
 import type { AgentOp, AgentQuotaView } from '@/types/agent';
 import { parseCalendarDate } from '@/utils/calendarDate';
+import type { NovaGround } from '@/utils/agentGround';
 
-export interface OpLine { icon: 'add' | 'remove' | 'move' | 'reorder' | 'edit' | 'route' | 'dates'; type: ActivityType | null; text: string }
+/** `detail`: where a new place is (or why it can't be added); `unavailable`: greyed out and can't be ticked. */
+export interface OpLine { icon: 'add' | 'remove' | 'move' | 'reorder' | 'edit' | 'route' | 'dates'; type: ActivityType | null; text: string; detail?: string; unavailable?: boolean }
 
 const cities = (t: TripWithDays) => [t.destination, ...t.additionalDestinations];
 const dayOf = (t: TripWithDays, id: string) => t.days.find((d) => d.id === id) ?? null;
 const stopOf = (t: TripWithDays, dayId: string, id: string) => dayOf(t, dayId)?.activities.find((a) => a.id === id) ?? null;
 const nightsWord = (n: number) => `${n} night${n === 1 ? '' : 's'}`;
 
-export function opLine(op: AgentOp, trip: TripWithDays): OpLine | null {
+export function opLine(op: AgentOp, trip: TripWithDays, ground?: NovaGround | 'pending'): OpLine | null {
   switch (op.kind) {
     case 'trip.addStop': {
       const d = dayOf(trip, op.dayId);
-      return d ? { icon: 'add', type: op.type, text: `Day ${d.dayNumber} · ${op.title}${op.time ? ` at ${op.time}` : ''}` } : null;
+      if (!d) return null;
+      const line: OpLine = { icon: 'add', type: op.type, text: `Day ${d.dayNumber} · ${op.title}${op.time ? ` at ${op.time}` : ''}` };
+      const city = cities(trip)[d.destinationIndex ?? 0]?.name ?? cities(trip)[0]?.name ?? 'the trip';
+      if (ground === 'pending') return { ...line, detail: 'Finding it on the map…' };
+      if (ground?.status === 'found') return { ...line, detail: `${ground.place.name}${ground.place.address ? ` · ${ground.place.address}` : ''}` };
+      if (ground?.status === 'notFound') return { ...line, detail: `Couldn't find this near ${city}`, unavailable: true };
+      return line;
     }
     case 'trip.removeStop': {
       const d = dayOf(trip, op.dayId); const s = stopOf(trip, op.dayId, op.stopId);
@@ -81,8 +89,12 @@ export function quotaLine(q: AgentQuotaView): string | null {
  * once applied, a removed stop or a moved one (new id) can't be described from the trip any more,
  * so it's left out instead of being called stale (review 2026-10-15).
  */
-export function cardLines(ops: AgentOp[], trip: TripWithDays, done: boolean): { index: number; op: AgentOp; line: OpLine | null }[] {
-  const all = ops.map((op, index) => ({ index, op, line: opLine(op, trip) }));
+export function cardLines(
+  ops: AgentOp[], trip: TripWithDays, done: boolean, grounded: Record<number, NovaGround> = {}, pending = false,
+): { index: number; op: AgentOp; line: OpLine | null }[] {
+  const groundOf = (op: AgentOp, index: number): NovaGround | 'pending' | undefined =>
+    grounded[index] ?? (pending && op.kind === 'trip.addStop' && op.query ? 'pending' : undefined);
+  const all = ops.map((op, index) => ({ index, op, line: opLine(op, trip, done ? undefined : groundOf(op, index)) }));
   return done ? all.filter((l) => l.line) : all;
 }
 
