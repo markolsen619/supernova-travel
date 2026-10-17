@@ -8,7 +8,7 @@ const labels: LabelMap = {
   days: { d1: 'D1', d2: 'D2' },
   stops: { s1: { dayId: 'D1', stopId: 'A' }, s2: { dayId: 'D1', stopId: 'B' }, s3: { dayId: 'D2', stopId: 'C' } },
   dayStops: { D1: ['A', 'B'], D2: ['C'] },
-  packing: {}, cityCount: 2,
+  packing: {}, bookings: {}, cityCount: 2,
 };
 
 describe('validateTripOps', () => {
