@@ -8,6 +8,8 @@ import type { AgentOp } from '@/types/agent';
 import { addRow, moveRow, removeRow, setRowNights, type RouteRow } from '@/utils/tripRoute';
 import { manualSearchQuery } from '@/utils/groundingQueue';
 import { toCalendarDate } from '@/utils/calendarDate';
+import { bestInsertion, insertionCostKm, type PlaceStop } from '@/utils/routePlacement';
+import type { NovaGround } from '@/utils/agentGround';
 
 export type ApplyStep =
   | { do: 'delete'; dayId: string; activity: TripActivity }
@@ -17,7 +19,11 @@ export type ApplyStep =
   | { do: 'add'; dayId: string; activity: Omit<TripActivity, 'id' | 'order' | 'createdAt'>; order: number }
   | { do: 'dates'; newStart: string; newEnd: string | null; previousStart: string | null; previousEnd: string | null };
 
-export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: AgentOp[] }
+/** `placedNote[opIndex]` = where a new stop went when code chose its spot ("after The Taco Stand"). */
+export interface ApplyPlan { steps: ApplyStep[]; routeOps: AgentOp[]; skipped: AgentOp[]; placedNote: Record<number, string> }
+
+/** How far a named spot may backtrack before code's best spot wins (phase 2 spec §3). */
+const NAMED_SLACK_KM = 2;
 
 const STEP = 1000;
 const RANK: Record<string, number> = { delete: 0, move: 1, reorder: 1, update: 2, dates: 3, add: 4 };
@@ -30,9 +36,10 @@ export function orderAfter(stops: { id: string; order: number }[], afterStopId: 
   return (sorted[i].order + sorted[i + 1].order) / 2;
 }
 
-export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
+export function planApply(trip: TripWithDays, ops: AgentOp[], grounded: Record<number, NovaGround> = {}): ApplyPlan {
   const steps: ApplyStep[] = [];
   const addAfter = new Map<number, string | null>();
+  const addOp = new Map<number, number>();
   const routeOps: AgentOp[] = [];
   const skipped: AgentOp[] = [];
   const day = (id: string) => trip.days.find((d) => d.id === id) ?? null;
@@ -42,7 +49,7 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
     return list[d?.destinationIndex ?? 0]?.name ?? list[0]?.name ?? null;
   };
 
-  for (const op of ops) {
+  ops.forEach((op, opIndex) => {
     switch (op.kind) {
       case 'trip.removeStop': {
         const a = day(op.dayId)?.activities.find((x) => x.id === op.stopId);
@@ -76,11 +83,17 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
       case 'trip.addStop': {
         const d = day(op.dayId);
         if (!d) { skipped.push(op); break; }
+        const g = grounded[opIndex];
+        // A place grounding couldn't find near the day's city is never added (the Pennant Bar case).
+        if (g?.status === 'notFound') { skipped.push(op); break; }
+        const place = g?.status === 'found' ? g.place : null;
         addAfter.set(steps.length, op.afterStopId);
+        addOp.set(steps.length, opIndex);
         steps.push({
           do: 'add', dayId: d.id, order: 0,
           activity: {
-            type: op.type, title: op.title, placeId: null, address: null, lat: null, lng: null,
+            type: op.type, title: op.title, placeId: place ? (place.placeId ?? '') : null, address: place?.address ?? null,
+            lat: place?.lat ?? null, lng: place?.lng ?? null, ...(place?.isVenue ? { placeName: place.name } : {}),
             startTime: op.time, endTime: null, durationMinutes: null, notes: '', bookingRef: null,
             cost: null, currency: null, mediaUrls: [],
             searchQuery: op.query ?? manualSearchQuery(op.type, op.title, cityName(d.id)),
@@ -99,10 +112,23 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
       default:
         routeOps.push(op);
     }
-  }
-  const ranked = steps.map((step, i) => ({ step, after: addAfter.get(i) ?? null })).sort((a, b) => RANK[a.step.do] - RANK[b.step.do]);
-  placeInOrder(trip, ranked);
-  return { steps: ranked.map((r) => r.step), routeOps, skipped };
+  });
+  const ranked = steps.map((step, i) => ({ step, after: addAfter.get(i) ?? null, opIndex: addOp.get(i) ?? null })).sort((a, b) => RANK[a.step.do] - RANK[b.step.do]);
+  const placedNote: Record<number, string> = {};
+  placeInOrder(trip, ranked, placedNote);
+  return { steps: ranked.map((r) => r.step), routeOps, skipped, placedNote };
+}
+
+type Placed = PlaceStop & { order: number };
+const asPlaced = (a: { id: string; order: number; lat?: number | null; lng?: number | null; type: string; title: string; startTime?: string | null }): Placed =>
+  ({ id: a.id, order: a.order, lat: a.lat ?? null, lng: a.lng ?? null, type: a.type, title: a.title, startTime: a.startTime ?? null });
+
+/** The order value for a stop going in at `idx` of a sorted list. */
+function orderAt(list: { order: number }[], idx: number): number {
+  if (!list.length) return STEP;
+  if (idx <= 0) return list[0].order / 2;
+  if (idx >= list.length) return list[list.length - 1].order + STEP;
+  return (list[idx - 1].order + list[idx].order) / 2;
 }
 
 /**
@@ -110,36 +136,50 @@ export function planApply(trip: TripWithDays, ops: AgentOp[]): ApplyPlan {
  * day keeps a running list, a reorder renumbers it the way reorderActivities writes (idx * 1000), and
  * stops proposed after the same stop follow one another instead of sharing a position.
  */
-function placeInOrder(trip: TripWithDays, ranked: { step: ApplyStep; after: string | null }[]): void {
-  const lists = new Map<string, { id: string; order: number }[]>();
+function placeInOrder(trip: TripWithDays, ranked: { step: ApplyStep; after: string | null; opIndex: number | null }[], placedNote: Record<number, string>): void {
+  const lists = new Map<string, Placed[]>();
   const list = (dayId: string) => {
     if (!lists.has(dayId)) {
       const d = trip.days.find((x) => x.id === dayId);
-      lists.set(dayId, [...(d?.activities ?? [])].map((a) => ({ id: a.id, order: a.order })).sort((a, b) => a.order - b.order));
+      lists.set(dayId, [...(d?.activities ?? [])].map(asPlaced).sort((a, b) => a.order - b.order));
     }
     return lists.get(dayId)!;
   };
   const chain = new Map<string, string>(); // `${dayId}|${after}` -> the stop most recently placed there
-  const place = (dayId: string, after: string | null, id: string): number => {
+  const place = (dayId: string, after: string | null, stop: Placed): number => {
     const key = `${dayId}|${after ?? 'END'}`;
     const effective = chain.get(key) ?? after;
     const l = list(dayId);
     const order = orderAfter(l, effective);
-    l.push({ id, order });
+    const id = stop.id;
+    l.push({ ...stop, order });
     l.sort((a, b) => a.order - b.order);
     chain.set(key, id);
     return order;
   };
-  ranked.forEach(({ step, after }, i) => {
+  ranked.forEach(({ step, after, opIndex }, i) => {
     switch (step.do) {
       case 'delete': lists.set(step.dayId, list(step.dayId).filter((x) => x.id !== step.activity.id)); break;
-      case 'reorder': lists.set(step.dayId, step.after.map((a, idx) => ({ id: a.id, order: idx * 1000 }))); break;
+      case 'reorder': lists.set(step.dayId, step.after.map((a, idx) => ({ ...asPlaced(a), order: idx * 1000 }))); break;
       case 'move': {
         lists.set(step.fromDayId, list(step.fromDayId).filter((x) => x.id !== step.activity.id));
-        step.order = place(step.toDayId, step.afterStopId, step.activity.id);
+        step.order = place(step.toDayId, step.afterStopId, asPlaced(step.activity));
         break;
       }
-      case 'add': step.order = place(step.dayId, after, `new-${i}`); break;
+      case 'add': {
+        const stop = asPlaced({ id: `new-${i}`, order: 0, lat: step.activity.lat, lng: step.activity.lng, type: step.activity.type, title: step.activity.title, startTime: step.activity.startTime });
+        if (stop.lat == null || stop.lng == null) { step.order = place(step.dayId, after, stop); break; }
+        // A grounded stop goes where it adds the least travel; a named spot wins unless it backtracks > 2 km.
+        const l = list(step.dayId);
+        const best = bestInsertion(l, stop);
+        const named = after ? l.findIndex((x) => x.id === after) + 1 : 0;
+        const useNamed = named > 0 && insertionCostKm(l, stop, named) - insertionCostKm(l, stop, best) <= NAMED_SLACK_KM;
+        const idx = useNamed ? named : best;
+        step.order = orderAt(l, idx);
+        if (!useNamed && idx > 0 && opIndex != null) placedNote[opIndex] = `after ${l[idx - 1].title}`;
+        l.splice(idx, 0, { ...stop, order: step.order });
+        break;
+      }
       default: break;
     }
   });

@@ -149,3 +149,49 @@ describe('planApply dates', () => {
     expect(p.steps[0]).toMatchObject({ do: 'dates', newStart: '2026-11-04', newEnd: null });
   });
 });
+
+describe('planApply — grounded placement (phase 2)', () => {
+  const act = (id: string, title: string, order: number, lat: number | null, lng: number | null, type = 'activity') =>
+    ({ id, title, order, lat, lng, type, startTime: null, placeId: null, address: null }) as never;
+  const trip = {
+    id: 'T', destination: { name: 'Mission Beach', lat: 32.77, lng: -117.25 }, additionalDestinations: [],
+    startDate: null, endDate: null,
+    days: [{ id: 'D2', dayNumber: 2, destinationIndex: 0, activities: [
+      act('torrey', 'Torrey Pines', 1000, 32.921, -117.251), act('museum', 'Museum of Art', 2000, 32.732, -117.150),
+      act('taco', 'The Taco Stand', 3000, 32.839, -117.277, 'restaurant'), act('ob', 'Dinner at South Beach', 4000, 32.747, -117.252, 'restaurant'),
+    ] }],
+  } as never;
+  const add = { kind: 'trip.addStop', dayId: 'D2', title: 'La Jolla Cove', type: 'activity', afterStopId: null, time: null, query: 'La Jolla Cove, San Diego' } as const;
+  const found = { 0: { status: 'found', place: { name: 'La Jolla Cove', lat: 32.850, lng: -117.273, address: 'Coast Blvd', countryCode: 'US', source: 'mapbox', placeId: null, mapboxId: 'm', isVenue: false } } } as never;
+
+  it('puts a grounded stop where it adds the least travel (next to the Taco Stand)', () => {
+    const plan = planApply(trip, [add] as never, found);
+    const step = plan.steps[0] as { order: number; activity: { lat: number } };
+    // Next to the Taco Stand (just before it is 0.6 km shorter than just after), never after Ocean Beach.
+    expect(step.order).toBeGreaterThan(2000);
+    expect(step.order).toBeLessThan(4000);
+    expect(step.activity.lat).toBe(32.850);
+  });
+  it('skips a place grounding could not find nearby', () => {
+    const plan = planApply(trip, [add] as never, { 0: { status: 'notFound' } } as never);
+    expect(plan.steps).toHaveLength(0);
+    expect(plan.skipped).toHaveLength(1);
+  });
+  it('overrides a named "after" that backtracks more than 2 km', () => {
+    // "After Ocean Beach" would add ~9.6 km over the best spot.
+    const plan = planApply(trip, [{ ...add, afterStopId: 'ob' }] as never, found);
+    const step = plan.steps[0] as { order: number };
+    expect(step.order).toBeGreaterThan(2000);
+    expect(step.order).toBeLessThan(3000);
+    expect(plan.placedNote[0]).toBe('after Museum of Art');
+  });
+  it('honours a named "after" within 2 km of the best spot', () => {
+    const plan = planApply(trip, [{ ...add, afterStopId: 'torrey' }] as never, found);
+    expect((plan.steps[0] as { order: number }).order).toBe(1500);
+    expect(plan.placedNote[0]).toBeUndefined();
+  });
+  it('without grounding info behaves as before (v1 path)', () => {
+    const plan = planApply(trip, [add] as never);
+    expect((plan.steps[0] as { order: number }).order).toBe(5000);
+  });
+});
