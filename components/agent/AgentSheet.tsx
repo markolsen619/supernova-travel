@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,8 @@ import { useLimitPaywall } from '@/hooks/useLimitPaywall';
 import { ProposalCard } from '@/components/agent/ProposalCard';
 import { NovaAvatar } from '@/components/agent/NovaAvatar';
 import { agentSuggestions, quotaLine } from '@/utils/agentCard';
+import { findingText, greeting, tripCheck } from '@/utils/tripCheck';
+import { useUserStore } from '@/stores/useUserStore';
 import type { TripWithDays } from '@/types';
 import type { AgentOp } from '@/types/agent';
 import type { NovaGround } from '@/utils/agentGround';
@@ -70,6 +72,20 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     ]);
   }, [agent]);
 
+  // The trip check runs on the phone when the sheet opens: free, no message used (spec §2).
+  const findings = useMemo(() => (visible ? tripCheck(trip) : []), [visible, trip]);
+  const firstName = useUserStore((st) => st.profile?.fullName?.split(' ')[0] || null);
+  const fixLocal = useCallback(async (ops: AgentOp[], label: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setApplyError(null);
+    try {
+      const r = await agent.applyLocal(ops, confirmDrops);
+      if (r.applied) setUndo({ label, run: r.undo });
+    } catch {
+      setApplyError("That change couldn't be saved. Check the trip and try again.");
+    }
+  }, [agent, confirmDrops]);
+
   const q = agent.quota ? quotaLine(agent.quota) : null;
   const empty = !agent.loading && agent.messages.length === 0;
 
@@ -94,9 +110,27 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
           {agent.loading && <ActivityIndicator color={colors.text.tertiary} />}
           {empty && (
             <View style={styles.empty}>
-              <NovaAvatar size={48} />
-              <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>Plan with Nova</Text>
-              <Text style={[styles.emptyBody, { color: colors.text.secondary }]}>Ask for changes — nothing happens until you accept.</Text>
+              <View style={styles.theirsRow}>
+                <NovaAvatar size={28} />
+                <View style={[styles.bubble, { backgroundColor: colors.background.card }]}>
+                  <Text style={{ color: colors.text.primary, fontSize: 15, lineHeight: 22 }}>{greeting(firstName, findings)}</Text>
+                </View>
+              </View>
+              {findings.map((f) => {
+                const t = findingText(f);
+                return (
+                  <TouchableOpacity
+                    key={`${f.kind}-${f.dayId}`}
+                    onPress={() => (t.local ? fixLocal(t.local, `${t.action} · done`) : send(t.prompt ?? undefined))}
+                    style={[styles.fix, { borderColor: colors.text.primary }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.text} ${t.action}`}
+                  >
+                    <Text style={{ color: colors.text.primary, fontWeight: '600' }}>{t.action}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <Text style={[styles.emptyBody, { color: colors.text.secondary }]}>Or ask for anything. Nothing changes until you accept.</Text>
               {agentSuggestions(trip).map((s) => (
                 <TouchableOpacity key={s} onPress={() => send(s)} style={[styles.chip, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]} accessibilityRole="button">
                   <Text style={{ color: colors.text.primary }}>{s}</Text>
@@ -172,8 +206,8 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9 },
   title: { fontSize: 26, fontWeight: '600', letterSpacing: -0.5 },
   content: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
-  empty: { alignItems: 'center', gap: 10, paddingTop: 40 },
-  emptyTitle: { fontSize: 17, fontWeight: '500' },
+  empty: { alignItems: 'stretch', gap: 10, paddingTop: 24 },
+  fix: { borderRadius: 12, borderWidth: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, marginLeft: 36 },
   emptyBody: { fontSize: 15, textAlign: 'center', marginBottom: 8 },
   chip: { borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center', alignSelf: 'stretch', alignItems: 'center' },
   mine: { alignItems: 'flex-end' },

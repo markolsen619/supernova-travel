@@ -103,9 +103,10 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
     [qc, tripId],
   );
 
-  const apply = useCallback(async (messageId: string, ops: AgentOp[], confirmDrops: (text: string) => Promise<boolean>, grounded: Record<number, NovaGround> = {}) => {
+  // messageId null = a local proposal from the trip check: nothing in the thread to mark (spec §2).
+  const apply = useCallback(async (messageId: string | null, ops: AgentOp[], confirmDrops: (text: string) => Promise<boolean>, grounded: Record<number, NovaGround> = {}) => {
     if (!tripId || !uid) return { applied: 0, skipped: ops.length, undo: null };
-    const setStatus = (status: 'applied' | 'partial' | 'dismissed') => updateDoc(doc(db, threadPath(uid, tripId), messageId), { status });
+    const setStatus = (status: 'applied' | 'partial' | 'dismissed') => (messageId ? updateDoc(doc(db, threadPath(uid, tripId), messageId), { status }) : Promise.resolve());
     let current = await freshTrip();
     if (!current) return { applied: 0, skipped: ops.length, undo: null };
 
@@ -160,6 +161,9 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
     }
   }, [tripId, uid, freshTrip, saveRoute, runSteps, qc]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** A free local fix from the trip check (no AI call, no message used). */
+  const applyLocal = useCallback((ops: AgentOp[], confirmDrops: (text: string) => Promise<boolean>) => apply(null, ops, confirmDrops), [apply]);
+
   const dismiss = useCallback(async (messageId: string) => {
     if (!uid || !tripId) return;
     await updateDoc(doc(db, threadPath(uid, tripId), messageId), { status: 'dismissed' });
@@ -176,5 +180,5 @@ export function useAgent({ trip, enabled }: { surface: 'trip'; trip: TripWithDay
   }, [uid, tripId, qc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const messages = [...(thread.data ?? []), ...(pending ? [pending] : [])];
-  return { messages, loading: thread.isLoading, sending, error, quota: (quota.data as AgentQuotaView | undefined) ?? null, send, apply, dismiss, clear };
+  return { messages, loading: thread.isLoading, sending, error, quota: (quota.data as AgentQuotaView | undefined) ?? null, send, apply, applyLocal, dismiss, clear };
 }
