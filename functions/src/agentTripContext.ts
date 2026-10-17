@@ -3,7 +3,7 @@
  * compact text with short labels (d1, s4, c2) in place of Firestore ids — fewer
  * tokens, and the model can't invent an id. Pure: no firebase-admin.
  */
-export interface CtxStop { id: string; title: string; type: string; startTime: string | null; placed: boolean; order: number }
+export interface CtxStop { id: string; title: string; type: string; startTime: string | null; placed: boolean; order: number; lat?: number | null; lng?: number | null }
 export interface CtxDay { id: string; dayNumber: number; city: number; stops: CtxStop[] }
 export interface CtxCity { name: string; nights: number | null }
 export interface CtxBooking { kind: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transit' | 'car'; name: string; date: string | null; time: string | null; shared: boolean }
@@ -25,6 +25,14 @@ function addDays(day: string, n: number): string {
 }
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/** Great-circle km: the model judges nearness from these numbers, never from memory (phase 2 spec §3). */
+function kmBetween(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const toR = (d: number) => (d * Math.PI) / 180;
+  const h = Math.sin(toR(b.lat - a.lat) / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(toR(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+const fmtKm = (k: number) => (k < 10 ? k.toFixed(1) : String(Math.round(k)));
+
 export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_BUDGET_CHARS): { text: string; labels: LabelMap } {
   const labels: LabelMap = { days: {}, stops: {}, dayStops: {}, cityCount: input.cities.length };
   const days = [...input.days].sort((a, b) => a.dayNumber - b.dayNumber);
@@ -39,12 +47,30 @@ export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_B
     const stops = [...d.stops].sort((a, b) => a.order - b.order);
     labels.dayStops[d.id] = stops.map((s) => s.id);
     const city = input.cities[d.city]?.name ?? input.cities[0]?.name ?? '';
-    const head = start ? `${dl} ${addDays(start, d.dayNumber - 1)} ${city}` : `${dl} ${city}`;
+    let prev: { label: string; lat: number; lng: number } | null = null;
+    let route = 0;
+    let placedCount = 0;
     const parts = stops.map((s) => {
       n += 1;
-      labels.stops[`s${n}`] = { dayId: d.id, stopId: s.id };
-      return `s${n} ${clip(s.title, TITLE_MAX)} [${fixMeta(s.type, s.startTime, s.placed)}]`;
+      const label = `s${n}`;
+      labels.stops[label] = { dayId: d.id, stopId: s.id };
+      const point = s.lat != null && s.lng != null ? { lat: s.lat, lng: s.lng } : null;
+      let dist = '';
+      if (point) {
+        placedCount += 1;
+        if (prev) {
+          const k = kmBetween(prev, point);
+          route += k;
+          dist = ` (${fmtKm(k)} km from ${prev.label})`;
+        }
+        prev = { label, ...point };
+      }
+      // Callers without coordinates (lat undefined) keep the old placed flag.
+      const placed = point != null || (s.lat === undefined && s.placed);
+      return `${label} ${clip(s.title, TITLE_MAX)} [${fixMeta(s.type, s.startTime, placed)}]${dist}`;
     });
+    const routeTag = placedCount >= 2 ? ` · route ${Math.round(route)} km` : '';
+    const head = (start ? `${dl} ${addDays(start, d.dayNumber - 1)} ${city}` : `${dl} ${city}`) + routeTag;
     const first = n - stops.length + 1;
     dayLines.push({
       full: `${head}: ${parts.length ? parts.join(' · ') : '(no stops)'}`,
@@ -75,7 +101,7 @@ export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_B
 
 function fixMeta(type: string, time: string | null, placed: boolean): string {
   const head = time ? `${type} ${time}` : type;
-  return placed ? head : `${head}, unplaced`;
+  return placed ? head : `${head}, no location`;
 }
 
 function groupTop(places: CtxTopPlace[]): string {

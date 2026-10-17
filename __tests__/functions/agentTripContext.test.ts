@@ -21,7 +21,7 @@ describe('buildTripContext', () => {
     const { text, labels } = buildTripContext(trip());
     expect(text).toContain('d1 2026-11-02 Lisbon');
     expect(text).toContain('s1 Check in at Memmo Alfama [hotel]');
-    expect(text).toContain('s2 Lunch at Time Out Market [restaurant 13:00, unplaced]');
+    expect(text).toContain('s2 Lunch at Time Out Market [restaurant 13:00, no location]');
     expect(labels.days.d2).toBe('D2');
     expect(labels.stops.s3).toEqual({ dayId: 'D2', stopId: 'C' });
     expect(labels.dayStops.D1).toEqual(['A', 'B']);
@@ -69,5 +69,28 @@ describe('bookingForContext', () => {
   });
   it('ignores bookings without a name', () => {
     expect(bookingForContext('reservation', { type: 'hotel' }, false)).toBeNull();
+  });
+});
+
+import { buildTripContext as build2 } from '../../functions/src/agentTripContext';
+
+describe('distances in context (phase 2)', () => {
+  const stop = (id: string, title: string, lat: number | null, lng: number | null, order: number) =>
+    ({ id, title, type: 'activity', startTime: null, placed: lat != null, order, lat, lng });
+  const input = {
+    title: 'MB', startDay: '2026-11-01', today: '2026-10-16', cities: [{ name: 'Mission Beach', nights: 2 }],
+    bookings: [], topPlaces: [],
+    days: [{ id: 'D1', dayNumber: 1, city: 0, stops: [
+      stop('a', 'Torrey Pines', 32.921, -117.251, 1), stop('b', 'Museum of Art', 32.732, -117.150, 2), stop('c', 'Mystery', null, null, 3),
+    ] }],
+  };
+  it('says how far each stop is from the previous placed one', () => {
+    const { text } = build2(input as never);
+    expect(text).toMatch(/s2 Museum of Art \[activity\] \(23 km from s1\)/);
+  });
+  it('marks unplaced stops and adds the day route length', () => {
+    const { text } = build2(input as never);
+    expect(text).toContain('s3 Mystery [activity, no location]');
+    expect(text).toMatch(/d1 2026-11-01 Mission Beach · route 23 km:/);
   });
 });

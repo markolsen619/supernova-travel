@@ -93,6 +93,7 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
         stops: acts.docs.map((a) => ({
           id: a.id, title: String(a.get('title') ?? ''), type: String(a.get('type') ?? 'activity'),
           startTime: (a.get('startTime') as string | null) ?? null, placed: a.get('lat') != null, order: Number(a.get('order') ?? 0),
+          lat: (a.get('lat') as number | null) ?? null, lng: (a.get('lng') as number | null) ?? null,
         })),
       };
     }));

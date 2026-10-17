@@ -51,7 +51,7 @@ async function loadTrip() {
   const days = await doc.ref.collection('days').get();
   const ctxDays = await Promise.all(days.docs.map(async (d) => ({
     id: d.id, dayNumber: d.get('dayNumber'), city: d.get('destinationIndex') ?? 0,
-    stops: (await d.ref.collection('activities').get()).docs.map((a) => ({ id: a.id, title: a.get('title'), type: a.get('type'), startTime: a.get('startTime') ?? null, placed: a.get('lat') != null, order: a.get('order') ?? 0 })),
+    stops: (await d.ref.collection('activities').get()).docs.map((a) => ({ id: a.id, title: a.get('title'), type: a.get('type'), startTime: a.get('startTime') ?? null, placed: a.get('lat') != null, order: a.get('order') ?? 0, lat: a.get('lat') ?? null, lng: a.get('lng') ?? null })),
   })));
   const cities = [t.destination, ...(t.additionalDestinations ?? [])].map((c) => ({ name: c.name, nights: c.nights ?? null }));
   return buildTripContext({ title: t.title, startDay: '2026-11-02', today: new Date().toISOString().slice(0, 10), cities, days: ctxDays, bookings: [], topPlaces: [] });
