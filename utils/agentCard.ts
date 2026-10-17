@@ -63,6 +63,8 @@ export function opLine(op: AgentOp, trip: TripWithDays, ground?: NovaGround | 'p
       const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       return { icon: 'dates', type: null, text: `Start the trip on ${label}` };
     }
+    default:
+      return null;
   }
 }
 

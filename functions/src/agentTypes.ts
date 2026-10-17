@@ -17,7 +17,14 @@ export type AgentOp =
   | { kind: 'trip.addCity'; name: string; nights: number; afterCity: number | null }
   | { kind: 'trip.removeCity'; city: number; mode: 'delete' | 'move' }
   | { kind: 'trip.moveCity'; city: number; by: -1 | 1 }
-  | { kind: 'trip.shiftDates'; newStart: string };
+  | { kind: 'trip.shiftDates'; newStart: string }
+  | { kind: 'trip.editStop'; dayId: string; stopId: string; title?: string; type?: ActivityType; time?: string | null; endTime?: string | null; durationMinutes?: number | null; notes?: string; query?: string }
+  | { kind: 'trip.optimizeDay'; dayId: string }
+  | { kind: 'trip.swapDays'; dayId: string; withDayId: string }
+  | { kind: 'trip.updateTrip'; title?: string; description?: string; visibility?: 'public' | 'followers' | 'private' }
+  | { kind: 'trip.addPacking'; label: string; category: string }
+  | { kind: 'trip.checkPacking'; itemId: string; checked: boolean }
+  | { kind: 'trip.removePacking'; itemId: string };
 
 /** Which capability an app must declare to be sent each operation. */
 export const OP_CAPABILITY: Record<AgentOp['kind'], string> = {
@@ -25,6 +32,9 @@ export const OP_CAPABILITY: Record<AgentOp['kind'], string> = {
   'trip.reorderDay': 'trip.v1', 'trip.updateStop': 'trip.v1', 'trip.setNights': 'trip.v1',
   'trip.addCity': 'trip.v1', 'trip.removeCity': 'trip.v1', 'trip.moveCity': 'trip.v1',
   'trip.shiftDates': 'trip.v1',
+  // Phase 2 (2026-10-16): apps from 1.0.7 declare trip.v2.
+  'trip.editStop': 'trip.v2', 'trip.optimizeDay': 'trip.v2', 'trip.swapDays': 'trip.v2', 'trip.updateTrip': 'trip.v2',
+  'trip.addPacking': 'trip.v2', 'trip.checkPacking': 'trip.v2', 'trip.removePacking': 'trip.v2',
 };
 
 export type AgentStatus = 'proposed' | 'applied' | 'partial' | 'dismissed';

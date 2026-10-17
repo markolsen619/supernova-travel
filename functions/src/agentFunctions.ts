@@ -80,12 +80,14 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
   });
 
   try {
-    const [daysSnap, history, bookings, topPlaces] = await Promise.all([
+    const [daysSnap, history, bookings, topPlaces, packingSnap] = await Promise.all([
       tripRef.collection('days').get(),
       thread.orderBy('createdAt', 'desc').limit(HISTORY).get(),
       loadBookings(uid, subjectId),
       loadTopPlaces(trip),
+      tripRef.collection('packingItems').limit(40).get(),
     ]);
+    const packing = packingSnap.docs.map((p) => ({ id: p.id, label: String(p.get('label') ?? ''), checked: p.get('checked') === true })).filter((p) => p.label);
     const days: CtxDay[] = await Promise.all(daysSnap.docs.map(async (d) => {
       const acts = await d.ref.collection('activities').get();
       return {
@@ -103,7 +105,7 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     const startDay = typeof trip.startDay === 'string' ? trip.startDay : startMs != null ? new Date(startMs + 12 * 3_600_000).toISOString().slice(0, 10) : null;
     const { text: context, labels } = buildTripContext({
       title: String(trip.title ?? 'Trip'), startDay, today: new Date().toISOString().slice(0, 10),
-      cities, days, bookings, topPlaces,
+      cities, days, bookings, topPlaces, packing, visibility: String(trip.visibility ?? ''),
     });
 
     const turns: ModelTurn[] = [];

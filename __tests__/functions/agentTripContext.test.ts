@@ -94,3 +94,16 @@ describe('distances in context (phase 2)', () => {
     expect(text).toMatch(/d1 2026-11-01 Mission Beach · route 23 km:/);
   });
 });
+
+describe('packing in context (phase 2)', () => {
+  it('lists packing items with labels', () => {
+    const { text, labels } = build2({ title: 'MB', startDay: null, today: '2026-10-17', cities: [{ name: 'MB', nights: 1 }], days: [], bookings: [], topPlaces: [],
+      packing: [{ id: 'P1', label: 'Sunscreen', checked: true }, { id: 'P2', label: 'Towel', checked: false }] } as never);
+    expect(text).toContain('PACKING: k1 Sunscreen [x] · k2 Towel [ ]');
+    expect(labels.packing.k1).toBe('P1');
+  });
+  it('shows the trip visibility', () => {
+    const { text } = build2({ title: 'MB', startDay: null, today: '2026-10-17', cities: [], days: [], bookings: [], topPlaces: [], visibility: 'private' } as never);
+    expect(text).toContain('TRIP DETAILS: visibility private');
+  });
+});

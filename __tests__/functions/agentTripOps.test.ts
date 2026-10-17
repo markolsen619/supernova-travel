@@ -1,3 +1,4 @@
+import { OP_CAPABILITY } from '../../functions/src/agentTypes';
 // __tests__/functions/agentTripOps.test.ts
 import { validateTripOps, MAX_OPERATIONS } from '../../functions/src/agentTripOps';
 import { filterByCapabilities, isAgentSurface, threadId } from '../../functions/src/agentSurfaces';
@@ -7,7 +8,7 @@ const labels: LabelMap = {
   days: { d1: 'D1', d2: 'D2' },
   stops: { s1: { dayId: 'D1', stopId: 'A' }, s2: { dayId: 'D1', stopId: 'B' }, s3: { dayId: 'D2', stopId: 'C' } },
   dayStops: { D1: ['A', 'B'], D2: ['C'] },
-  cityCount: 2,
+  packing: {}, cityCount: 2,
 };
 
 describe('validateTripOps', () => {
@@ -119,5 +120,43 @@ describe('addStop query (phase 2)', () => {
   it('no query for free time', () => {
     const { ops } = validateTripOps([{ op: 'addStop', day: 'd1', title: 'Rest at the hotel', type: 'free' }], labels as never, () => 'Mission Beach');
     expect((ops[0] as { query: string | null }).query).toBeNull();
+  });
+});
+
+describe('trip.v2 operations', () => {
+  const labels = {
+    days: { d1: 'D1', d2: 'D2' }, stops: { s1: { dayId: 'D1', stopId: 'A' } }, dayStops: { D1: ['A'], D2: [] },
+    cityCount: 1, packing: { k1: 'P1' },
+  } as never;
+  const v = (op: object) => validateTripOps([op], labels).ops[0];
+
+  it('updateStop with only time stays v1', () => {
+    expect(v({ op: 'updateStop', stop: 's1', time: '19:00' })).toMatchObject({ kind: 'trip.updateStop' });
+  });
+  it('updateStop with a title or query becomes editStop', () => {
+    expect(v({ op: 'updateStop', stop: 's1', title: 'Drinks at Pennant', query: 'Pennant, Mission Beach' }))
+      .toEqual({ kind: 'trip.editStop', dayId: 'D1', stopId: 'A', title: 'Drinks at Pennant', query: 'Pennant, Mission Beach' });
+  });
+  it('updateStop with only a query re-places the stop (the wrong-Pennant fix)', () => {
+    expect(v({ op: 'updateStop', stop: 's1', query: 'Pennant, Mission Beach' }))
+      .toEqual({ kind: 'trip.editStop', dayId: 'D1', stopId: 'A', query: 'Pennant, Mission Beach' });
+  });
+  it('optimizeDay, swapDays', () => {
+    expect(v({ op: 'optimizeDay', day: 'd1' })).toEqual({ kind: 'trip.optimizeDay', dayId: 'D1' });
+    expect(v({ op: 'swapDays', day: 'd1', with: 'd2' })).toEqual({ kind: 'trip.swapDays', dayId: 'D1', withDayId: 'D2' });
+    expect(v({ op: 'swapDays', day: 'd1', with: 'd1' })).toBeUndefined();
+  });
+  it('updateTrip needs a valid field', () => {
+    expect(v({ op: 'updateTrip', visibility: 'public' })).toEqual({ kind: 'trip.updateTrip', visibility: 'public' });
+    expect(v({ op: 'updateTrip', visibility: 'everyone' })).toBeUndefined();
+  });
+  it('packing ops use packing labels', () => {
+    expect(v({ op: 'addPacking', label: 'Sunscreen' })).toEqual({ kind: 'trip.addPacking', label: 'Sunscreen', category: 'Essentials' });
+    expect(v({ op: 'checkPacking', item: 'k1', checked: true })).toEqual({ kind: 'trip.checkPacking', itemId: 'P1', checked: true });
+    expect(v({ op: 'removePacking', item: 'k9' })).toBeUndefined();
+  });
+  it('v2 kinds map to trip.v2', () => {
+    expect(OP_CAPABILITY['trip.editStop']).toBe('trip.v2');
+    expect(OP_CAPABILITY['trip.addPacking']).toBe('trip.v2');
   });
 });

@@ -8,12 +8,15 @@ export interface CtxDay { id: string; dayNumber: number; city: number; stops: Ct
 export interface CtxCity { name: string; nights: number | null }
 export interface CtxBooking { kind: 'flight' | 'hotel' | 'restaurant' | 'activity' | 'transit' | 'car'; name: string; date: string | null; time: string | null; shared: boolean }
 export interface CtxTopPlace { city: number; name: string; type: string }
-export interface TripCtxInput { title: string; startDay: string | null; today: string; cities: CtxCity[]; days: CtxDay[]; bookings: CtxBooking[]; topPlaces: CtxTopPlace[] }
+export interface CtxPacking { id: string; label: string; checked: boolean }
+export interface TripCtxInput { title: string; startDay: string | null; today: string; cities: CtxCity[]; days: CtxDay[]; bookings: CtxBooking[]; topPlaces: CtxTopPlace[]; packing?: CtxPacking[]; visibility?: string }
 export interface LabelMap {
   days: Record<string, string>;
   stops: Record<string, { dayId: string; stopId: string }>;
   dayStops: Record<string, string[]>;
   cityCount: number;
+  /** k1… → packing item id. */
+  packing: Record<string, string>;
 }
 
 export const CONTEXT_BUDGET_CHARS = 12_000;
@@ -34,7 +37,7 @@ function kmBetween(a: { lat: number; lng: number }, b: { lat: number; lng: numbe
 const fmtKm = (k: number) => (k < 10 ? k.toFixed(1) : String(Math.round(k)));
 
 export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_BUDGET_CHARS): { text: string; labels: LabelMap } {
-  const labels: LabelMap = { days: {}, stops: {}, dayStops: {}, cityCount: input.cities.length };
+  const labels: LabelMap = { days: {}, stops: {}, dayStops: {}, cityCount: input.cities.length, packing: {} };
   const days = [...input.days].sort((a, b) => a.dayNumber - b.dayNumber);
   const start = input.startDay && DAY_RE.test(input.startDay) ? input.startDay : null;
 
@@ -86,13 +89,19 @@ export function buildTripContext(input: TripCtxInput, budget: number = CONTEXT_B
   const bookings = input.bookings.length
     ? `BOOKINGS: ${input.bookings.map((b) => [b.kind, b.name, b.date, b.time].filter(Boolean).join(' ') + (b.shared ? ' (shared)' : '')).join(' | ')}`
     : 'BOOKINGS: none';
+  const packingItems = (input.packing ?? []).slice(0, 40);
+  packingItems.forEach((p, i) => { labels.packing[`k${i + 1}`] = p.id; });
+  const packing = packingItems.length
+    ? `PACKING: ${packingItems.map((p, i) => `k${i + 1} ${clip(p.label, 40)} [${p.checked ? 'x' : ' '}]`).join(' · ')}`
+    : '';
+  const details = input.visibility ? `TRIP DETAILS: visibility ${input.visibility}` : '';
   const favourites = input.topPlaces.length
     ? `COMMUNITY FAVOURITES: ${groupTop(input.topPlaces)}`
     : '';
 
   // Trim: far days (from the end) drop to one-line summaries until it fits.
   const lines = dayLines.map((d) => d.full);
-  const assemble = () => [header, ...lines, bookings, favourites].filter(Boolean).join('\n');
+  const assemble = () => [header, details, ...lines, bookings, packing, favourites].filter(Boolean).join('\n');
   for (let i = lines.length - 1; i >= 0 && assemble().length > budget; i--) lines[i] = dayLines[i].short;
   let text = assemble();
   if (text.length > budget) text = text.slice(0, budget);

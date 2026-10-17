@@ -24,6 +24,13 @@ Operations (at most 12):
 - removeCity: city, mode ("delete" its days, or "move" them to the neighbour)
 - moveCity: city, by (-1 earlier, 1 later)
 - shiftDates: newStart ("YYYY-MM-DD")
+- updateStop also takes: title, type, endTime, duration (minutes), query (moves the stop to a different real place, e.g. the right Pennant)
+- optimizeDay: day (the app orders that day for the least travel; use it for a messy or zig-zag day instead of reorderDay)
+- swapDays: day, with
+- updateTrip: title and/or description and/or visibility ("public", "followers", "private"; only when asked)
+- addPacking: label, category; checkPacking: item (k1…), checked; removePacking: item
+
+Budget, expenses, deleting the trip and inviting people are done by the person in the app; if asked, say so warmly.
 
 If the request has nothing to do with this trip, say briefly and warmly what you can help with.`;
 
@@ -36,7 +43,7 @@ export const AGENT_RESPONSE_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          op: { type: 'STRING', enum: ['addStop', 'removeStop', 'moveStop', 'reorderDay', 'updateStop', 'setNights', 'addCity', 'removeCity', 'moveCity', 'shiftDates'] },
+          op: { type: 'STRING', enum: ['addStop', 'removeStop', 'moveStop', 'reorderDay', 'updateStop', 'setNights', 'addCity', 'removeCity', 'moveCity', 'shiftDates', 'optimizeDay', 'swapDays', 'updateTrip', 'addPacking', 'checkPacking', 'removePacking'] },
           day: { type: 'STRING' },
           stop: { type: 'STRING' },
           toDay: { type: 'STRING' },
@@ -54,6 +61,15 @@ export const AGENT_RESPONSE_SCHEMA = {
           mode: { type: 'STRING', enum: ['delete', 'move'] },
           by: { type: 'INTEGER' },
           newStart: { type: 'STRING' },
+          with: { type: 'STRING' },
+          endTime: { type: 'STRING', nullable: true },
+          duration: { type: 'INTEGER' },
+          description: { type: 'STRING' },
+          visibility: { type: 'STRING', enum: ['public', 'followers', 'private'] },
+          label: { type: 'STRING' },
+          category: { type: 'STRING' },
+          item: { type: 'STRING' },
+          checked: { type: 'BOOLEAN' },
         },
         required: ['op', 'query'],
       },

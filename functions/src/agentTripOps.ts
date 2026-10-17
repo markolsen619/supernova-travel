@@ -96,9 +96,75 @@ export function validateTripOps(raw: unknown, labels: LabelMap, cityOfDay: (dayI
         if (!s) return null;
         const t = time(r.time);
         const badTime = r.time !== undefined && r.time !== null && r.time !== '' && t === undefined;
+        if (badTime) return null;
+        // Anything beyond time/note is a trip.v2 edit (title, type, length, end, place); time/note alone stays v1.
+        const title = str(r.title);
+        const typeRaw = str(r.type);
+        const type = (ACTIVITY_TYPES as readonly string[]).includes(typeRaw) ? (typeRaw as ActivityType) : undefined;
+        const end = time(r.endTime);
+        const badEnd = r.endTime !== undefined && r.endTime !== null && r.endTime !== '' && end === undefined;
+        const dur = int(r.duration);
+        const query = str(r.query);
+        const v2 = (title.length >= 2 && title.length <= 120) || !!type || (end !== undefined && !badEnd) || (dur != null && dur >= 5 && dur <= 1440) || (query.length >= 2 && query.length <= 120);
+        if (v2) {
+          if (!take(s.stopId)) return null;
+          const notes = typeof r.note === 'string' ? r.note.trim().slice(0, 1000) : undefined;
+          return {
+            kind: 'trip.editStop', dayId: s.dayId, stopId: s.stopId,
+            ...(title.length >= 2 && title.length <= 120 ? { title } : {}),
+            ...(type ? { type } : {}),
+            ...(t !== undefined ? { time: t } : {}),
+            ...(end !== undefined && !badEnd ? { endTime: end } : {}),
+            ...(dur != null && dur >= 5 && dur <= 1440 ? { durationMinutes: dur } : {}),
+            ...(notes !== undefined ? { notes } : {}),
+            ...(query.length >= 2 && query.length <= 120 ? { query } : {}),
+          };
+        }
         const notes = typeof r.note === 'string' ? r.note.trim().slice(0, 300) : undefined;
-        if (badTime || (t === undefined && notes === undefined) || !take(s.stopId)) return null;
+        if ((t === undefined && notes === undefined) || !take(s.stopId)) return null;
         return { kind: 'trip.updateStop', dayId: s.dayId, stopId: s.stopId, ...(t !== undefined ? { time: t } : {}), ...(notes !== undefined ? { notes } : {}) };
+      }
+      case 'optimizeDay': {
+        const dayId = labels.days[str(r.day)];
+        if (!dayId) return null;
+        const current = labels.dayStops[dayId] ?? [];
+        if (current.some((id) => touched.has(id))) return null;
+        current.forEach((id) => touched.add(id));
+        return { kind: 'trip.optimizeDay', dayId };
+      }
+      case 'swapDays': {
+        const dayId = labels.days[str(r.day)];
+        const withDayId = labels.days[str(r.with)];
+        if (!dayId || !withDayId || dayId === withDayId) return null;
+        const both = [...(labels.dayStops[dayId] ?? []), ...(labels.dayStops[withDayId] ?? [])];
+        if (both.some((id) => touched.has(id))) return null;
+        both.forEach((id) => touched.add(id));
+        return { kind: 'trip.swapDays', dayId, withDayId };
+      }
+      case 'updateTrip': {
+        const title = str(r.title);
+        const description = typeof r.description === 'string' ? r.description.trim() : undefined;
+        const vis = str(r.visibility);
+        const out: { kind: 'trip.updateTrip'; title?: string; description?: string; visibility?: 'public' | 'followers' | 'private' } = { kind: 'trip.updateTrip' };
+        if (title) { if (title.length < 2 || title.length > 120) return null; out.title = title; }
+        if (description !== undefined && description !== '') { if (description.length > 1000) return null; out.description = description; }
+        if (vis) { if (vis !== 'public' && vis !== 'followers' && vis !== 'private') return null; out.visibility = vis; }
+        return out.title || out.description || out.visibility ? out : null;
+      }
+      case 'addPacking': {
+        const label = str(r.label);
+        if (label.length < 2 || label.length > 80) return null;
+        const category = str(r.category).slice(0, 40) || 'Essentials';
+        return { kind: 'trip.addPacking', label, category };
+      }
+      case 'checkPacking': {
+        const itemId = labels.packing?.[str(r.item)];
+        if (!itemId || typeof r.checked !== 'boolean') return null;
+        return { kind: 'trip.checkPacking', itemId, checked: r.checked };
+      }
+      case 'removePacking': {
+        const itemId = labels.packing?.[str(r.item)];
+        return itemId ? { kind: 'trip.removePacking', itemId } : null;
       }
       case 'setNights': {
         const city = cityIndex(r.city, labels.cityCount);

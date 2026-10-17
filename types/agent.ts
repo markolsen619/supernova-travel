@@ -14,7 +14,14 @@ export type AgentOp =
   | { kind: 'trip.addCity'; name: string; nights: number; afterCity: number | null }
   | { kind: 'trip.removeCity'; city: number; mode: 'delete' | 'move' }
   | { kind: 'trip.moveCity'; city: number; by: -1 | 1 }
-  | { kind: 'trip.shiftDates'; newStart: string };
+  | { kind: 'trip.shiftDates'; newStart: string }
+  | { kind: 'trip.editStop'; dayId: string; stopId: string; title?: string; type?: ActivityType; time?: string | null; endTime?: string | null; durationMinutes?: number | null; notes?: string; query?: string }
+  | { kind: 'trip.optimizeDay'; dayId: string }
+  | { kind: 'trip.swapDays'; dayId: string; withDayId: string }
+  | { kind: 'trip.updateTrip'; title?: string; description?: string; visibility?: 'public' | 'followers' | 'private' }
+  | { kind: 'trip.addPacking'; label: string; category: string }
+  | { kind: 'trip.checkPacking'; itemId: string; checked: boolean }
+  | { kind: 'trip.removePacking'; itemId: string };
 
 export type AgentStatus = 'proposed' | 'applied' | 'partial' | 'dismissed';
 export interface AgentQuotaView { used: number; limit: number; fairUse: boolean; resetsAt: string }
