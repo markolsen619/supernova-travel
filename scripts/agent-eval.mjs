@@ -26,10 +26,13 @@ const REQUESTS = [
   'Add lunch on every day that has none', 'Swap the order of the two cities', 'Set dinner at 20:00 on day 2',
   'Add a famous viewpoint for sunset', 'Which day is best for the market?', 'Drop the last city',
   'Make it kid friendly', 'Add a cooking class', 'We hate museums', 'Plan nothing after 6pm on day 2',
+  // Phase 2 (the owner's Mission Beach conversation, 2026-10-16)
+  'My friend says I have to check out Pennant in Mission Beach, add it', 'Is there anything near the Taco Stand on day 2?',
+  'What should I do differently about this trip?', 'Fix day 2 so we are not crossing town',
 ];
 
 // Questions expect an answer and no changes; every other request should come back with changes.
-const QUESTIONS = new Set(['Is day 3 too packed?', 'What should we not miss here?', 'Which day is best for the market?']);
+const QUESTIONS = new Set(['Is day 3 too packed?', 'What should we not miss here?', 'Which day is best for the market?', 'Is there anything near the Taco Stand on day 2?']);
 const LABEL = /\b[dsc]\d+\b/;
 
 const env = Object.fromEntries(fs.readFileSync('functions/.env', 'utf8').split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]));
@@ -38,7 +41,7 @@ admin.initializeApp({ credential: admin.credential.cert(JSON.parse(fs.readFileSy
 const db = admin.firestore();
 
 const arg = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : null; };
-const models = (arg('--models') ?? 'gemini-2.5-flash,gemini-2.5-flash-lite').split(',');
+const models = (arg('--models') ?? 'gemini-2.5-flash').split(',');
 
 async function loadTrip() {
   let doc;
@@ -54,18 +57,23 @@ async function loadTrip() {
     stops: (await d.ref.collection('activities').get()).docs.map((a) => ({ id: a.id, title: a.get('title'), type: a.get('type'), startTime: a.get('startTime') ?? null, placed: a.get('lat') != null, order: a.get('order') ?? 0, lat: a.get('lat') ?? null, lng: a.get('lng') ?? null })),
   })));
   const cities = [t.destination, ...(t.additionalDestinations ?? [])].map((c) => ({ name: c.name, nights: c.nights ?? null }));
-  return buildTripContext({ title: t.title, startDay: '2026-11-02', today: new Date().toISOString().slice(0, 10), cities, days: ctxDays, bookings: [], topPlaces: [] });
+  const built = buildTripContext({ title: t.title, startDay: '2026-11-02', today: new Date().toISOString().slice(0, 10), cities, days: ctxDays, bookings: [], topPlaces: [] });
+  const cityOfDay = (dayId) => { const d = ctxDays.find((x) => x.id === dayId); return d ? (cities[d.city]?.name ?? cities[0]?.name ?? null) : null; };
+  return { ...built, cityOfDay };
 }
 
-const { text, labels } = await loadTrip();
+const { text, labels, cityOfDay } = await loadTrip();
 console.log(`context: ${text.length} chars`);
 for (const model of models) {
-  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0;
+  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0, adds = 0, addsWithQuery = 0, apologies = 0;
   const changeRequests = REQUESTS.filter((r) => !QUESTIONS.has(r)).length;
   for (const r of REQUESTS) {
     try {
       const res = await generate({ system: TRIP_SYSTEM_PROMPT, turns: [{ role: 'user', text: `${text}\n\nREQUEST: ${r}` }], schema: AGENT_RESPONSE_SCHEMA, apiKey, model });
-      const v = validateTripOps(res.json.operations, labels);
+      const v = validateTripOps(res.json.operations, labels, cityOfDay);
+      // Every new place must come with the model's own search name (not just the title+city default).
+      for (const raw of res.json.operations ?? []) if (raw.op === 'addStop' && raw.type !== 'free' && raw.type !== 'transport') { adds += 1; if (typeof raw.query === 'string' && raw.query.trim().length >= 2) addsWithQuery += 1; }
+      if (/apolog/i.test(res.json.reply)) { apologies += 1; if (process.argv.includes('--verbose')) console.log('  apology:', r, '→', res.json.reply); }
       if (v.dropped === 0) valid += 1;
       if (v.dropped > 0 && process.argv.includes('--verbose')) console.log('  DROPPED in', r, '→', JSON.stringify(res.json.operations));
       if (!QUESTIONS.has(r) && v.ops.length > 0) acted += 1;
@@ -78,6 +86,6 @@ for (const model of models) {
   const ok = REQUESTS.length - failed;
   const [pi, po] = PRICES[model] ?? [0, 0];
   const cost = ok ? ((inT / ok) * pi + (outT / ok) * po) / 1e6 : 0;
-  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
+  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, apologies ${apologies}, new places with a query ${addsWithQuery}/${adds}, ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
 }
 process.exit(0);

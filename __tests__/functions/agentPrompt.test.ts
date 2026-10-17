@@ -11,6 +11,7 @@ describe('Nova prompt (phase 2)', () => {
     expect(TRIP_SYSTEM_PROMPT).toMatch(/km from/);
   });
   it('schema accepts query', () => {
-    expect((AGENT_RESPONSE_SCHEMA.properties.operations.items.properties as Record<string, unknown>).query).toEqual({ type: 'STRING' });
+    expect((AGENT_RESPONSE_SCHEMA.properties.operations.items.properties as Record<string, { type: string; description?: string }>).query).toMatchObject({ type: 'STRING' });
+    expect((AGENT_RESPONSE_SCHEMA.properties.operations.items.properties as Record<string, { description?: string }>).query.description).toMatch(/addStop/);
   });
 });
