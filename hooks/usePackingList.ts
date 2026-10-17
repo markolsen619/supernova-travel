@@ -1,19 +1,17 @@
 import { isTripMember } from '@/utils/tripAccess';
 import { useEffect, useRef } from 'react';
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
   getDocs,
   orderBy,
   query,
   serverTimestamp,
-  updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
+import { addPackingItem, deletePackingItem, setPackingChecked } from '@/services/packing';
 import { generatePackingList } from '@/services/packingTemplates';
 import type { PackingItem, Trip } from '@/types';
 
@@ -73,20 +71,13 @@ export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: st
 
   const addItem = useMutation({
     mutationFn: ({ label, category, addedByUid }: { label: string; category: string; addedByUid: string }) =>
-      addDoc(collection(db, 'trips', tripId!, 'packingItems'), {
-        label,
-        category,
-        checked: false,
-        isCustom: true,
-        addedByUid,
-        createdAt: serverTimestamp(),
-      }),
+      addPackingItem(tripId!, { label, category, addedByUid }),
     onSuccess: invalidate,
   });
 
   const toggleItem = useMutation({
     mutationFn: ({ itemId, checked }: { itemId: string; checked: boolean }) =>
-      updateDoc(doc(db, 'trips', tripId!, 'packingItems', itemId), { checked }),
+      setPackingChecked(tripId!, itemId, checked),
     onMutate: async ({ itemId, checked }) => {
       const previous = queryClient.getQueryData<PackingItem[]>(queryKey);
       queryClient.setQueryData<PackingItem[]>(queryKey, (old) =>
@@ -101,7 +92,7 @@ export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: st
   });
 
   const deleteItem = useMutation({
-    mutationFn: (itemId: string) => deleteDoc(doc(db, 'trips', tripId!, 'packingItems', itemId)),
+    mutationFn: (itemId: string) => deletePackingItem(tripId!, itemId),
     onSuccess: invalidate,
   });
 
