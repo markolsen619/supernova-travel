@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
-import { Keyboard, LayoutAnimation, Platform, type View } from 'react-native';
-import { keyboardOverlap } from '@/utils/keyboardOverlap';
+import { Dimensions, Keyboard, LayoutAnimation, Platform, type View } from 'react-native';
+import { keyboardOverlap, keyboardOverScreenBottom } from '@/utils/keyboardOverlap';
 
 /**
  * Bottom padding that keeps a view's bottom edge above the keyboard, measured
@@ -10,20 +10,30 @@ import { keyboardOverlap } from '@/utils/keyboardOverlap';
  * form should use automaticallyAdjustKeyboardInsets instead.
  *
  * iOS only. Android resizes the window for the keyboard itself.
+ *
+ * Pass `ref: null` inside an RN `<Modal>` page sheet: there the view can't be measured on screen
+ * (see keyboardOverScreenBottom), and the sheet's bottom is the screen's bottom anyway.
  */
-export function useKeyboardInset(ref: RefObject<View | null>): number {
+export function useKeyboardInset(ref: RefObject<View | null> | null): number {
   const [inset, setInset] = useState(0);
 
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
 
     const change = Keyboard.addListener('keyboardWillChangeFrame', (e) => {
-      ref.current?.measureInWindow((_x, y, _w, height) => {
+      const apply = (next: number) => {
         LayoutAnimation.configureNext({
           duration: e.duration,
           update: { type: LayoutAnimation.Types.keyboard },
         });
-        setInset(keyboardOverlap({ y, height }, e.endCoordinates.screenY));
+        setInset(next);
+      };
+      if (!ref) {
+        apply(keyboardOverScreenBottom(e.endCoordinates.screenY, Dimensions.get('screen').height));
+        return;
+      }
+      ref.current?.measureInWindow((_x, y, _w, height) => {
+        apply(keyboardOverlap({ y, height }, e.endCoordinates.screenY));
       });
     });
     const hide = Keyboard.addListener('keyboardWillHide', (e) => {

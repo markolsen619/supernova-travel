@@ -83,10 +83,10 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
     ]);
   }, [agent]);
 
-  // The composer rises by exactly what the keyboard covers, measured on screen: KeyboardAvoidingView
-  // mis-measures in a page sheet, which left the text field under the keyboard (useKeyboardInset).
-  const root = useRef<View>(null);
-  const lift = useKeyboardInset(root);
+  // The composer rises by exactly what the keyboard covers. This is an RN <Modal> page sheet, where
+  // neither KeyboardAvoidingView nor measuring the sheet sees its top gap (both left the text field
+  // under the keyboard, builds 37 and 40), so only the keyboard is measured (useKeyboardInset(null)).
+  const lift = useKeyboardInset(null);
   useEffect(() => { if (lift > 0) setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 60); }, [lift]);
 
   // The trip check runs on the phone when the sheet opens: free, no message used (spec §2).
@@ -115,7 +115,7 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View ref={root} style={[styles.flex, { backgroundColor: colors.background.primary }]}>
+      <View style={[styles.flex, { backgroundColor: colors.background.primary }]}>
         <View style={styles.header}>
           <View style={styles.headerTitle}>
             <NovaAvatar size={44} thinking={agent.sending} />
