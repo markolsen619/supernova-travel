@@ -295,3 +295,29 @@ describe('zoomForLeg', () => {
     expect(zoomForLeg('flight', 5_400_000)).toBeGreaterThanOrEqual(2.5);
   });
 });
+
+import { legTravel as lt2, legMode as lm2, zoomForLeg as zf2 } from '@/utils/tripRoutes';
+
+describe('travel methods (playback, 2026-10-17)', () => {
+  const at = (id: string, lat: number, lng: number, extra = {}) => ({ id, type: 'activity', title: id, notes: '', lat, lng, ...extra }) as never;
+  const prague = at('Prague', 50.087, 14.421);
+  const budapest = at('Budapest', 47.497, 19.040);
+  it('a booking hint on the arriving stop wins over the distance guess', () => {
+    expect(lt2(prague, budapest)).toBe('flight');
+    expect(lt2(prague, { ...(budapest as object), arriveBy: 'train' } as never)).toBe('train');
+  });
+  it('a short hop stays on foot even with a hint', () => {
+    expect(lt2(at('a', 50.087, 14.421), { ...(at('b', 50.088, 14.422) as object), arriveBy: 'train' } as never)).toBe('walk');
+  });
+  it('reads cruise and bus from transport stops', () => {
+    const cruise = at('Cruise to Santorini', 37.4, 25.4, { type: 'transport', title: 'Cruise to Santorini' });
+    const bus = at('Coach to Salzburg', 47.8, 13.0, { type: 'transport', title: 'Coach to Salzburg' });
+    expect(lt2(at('Athens', 37.94, 23.64), cruise)).toBe('cruise');
+    expect(lt2(at('Vienna', 48.2, 16.37), bus)).toBe('bus');
+  });
+  it('a bus drives on roads, a cruise is drawn as an arc', () => {
+    expect(lm2(at('Vienna', 48.2, 16.37), { ...(at('S', 47.8, 13.0) as object), arriveBy: 'bus' } as never)).toBe('driving');
+    expect(lm2(at('Athens', 37.94, 23.64), { ...(at('S', 36.4, 25.4) as object), arriveBy: 'cruise' } as never)).toBe('arc');
+    expect(zf2('bus', 250_000)).toBe(zf2('drive', 250_000));
+  });
+});

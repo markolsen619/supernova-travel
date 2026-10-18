@@ -15,6 +15,8 @@ export interface RouteStop {
   notes: string;
   lat: number;
   lng: number;
+  /** How the traveler reached this stop, when a booking says (train ticket, flight, ferry, cruise): utils/playback arrivalHints. */
+  arriveBy?: Travel;
 }
 
 export interface CachedLeg {
@@ -34,7 +36,7 @@ export interface MissingLeg {
 }
 
 /** How a leg is travelled — decides its route, its line style and its flyover vehicle. */
-export type Travel = 'walk' | 'drive' | 'flight' | 'train' | 'ferry';
+export type Travel = 'walk' | 'drive' | 'flight' | 'train' | 'ferry' | 'bus' | 'cruise';
 
 export interface PathLeg {
   travel: Travel;
@@ -73,7 +75,9 @@ export function haversineMeters(a: LatLng, b: LatLng): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-const WATER_CROSSING = /\b(ferry|boat|catamaran|cruise)\b/i;
+const CRUISE = /\bcruise\b/i;
+const WATER_CROSSING = /\b(ferry|boat|catamaran)\b/i;
+const BUS = /\b(bus|coach)\b/i;
 const RAIL = /\b(train|rail|railway|tram|metro)\b/i;
 
 /**
@@ -82,14 +86,18 @@ const RAIL = /\b(train|rail|railway|tram|metro)\b/i;
  * from distance: nothing over 400 km is driven.
  */
 export function legTravel(a: RouteStop, b: RouteStop): Travel {
+  const meters = haversineMeters(a, b);
+  // A booking on the arriving stop's day says how they got there (a short hop is still on foot).
+  if (b.arriveBy && meters >= WALK_MAX_METERS) return b.arriveBy;
   if (a.type === 'flight' || b.type === 'flight') return 'flight';
   for (const s of [a, b]) {
     if (s.type !== 'transport') continue;
     const text = `${s.title} ${s.notes}`;
+    if (CRUISE.test(text)) return 'cruise';
     if (WATER_CROSSING.test(text)) return 'ferry';
     if (RAIL.test(text)) return 'train';
+    if (BUS.test(text)) return 'bus';
   }
-  const meters = haversineMeters(a, b);
   if (meters > ARC_MIN_METERS) return 'flight';
   return meters < WALK_MAX_METERS ? 'walk' : 'drive';
 }
@@ -98,7 +106,7 @@ export function legTravel(a: RouteStop, b: RouteStop): Travel {
 export function legMode(a: RouteStop, b: RouteStop): LegMode {
   const travel = legTravel(a, b);
   if (travel === 'walk') return 'walking';
-  if (travel === 'drive') return 'driving';
+  if (travel === 'drive' || travel === 'bus') return 'driving';
   return 'arc';
 }
 
@@ -304,6 +312,6 @@ export function zoomForLeg(travel: Travel, meters: number): number {
   // route line drew (build 31). Close-ups happen where the camera pauses, at stops (utils/mapLook).
   if (travel === 'walk') return 15;
   const km = Math.max(0.5, meters / 1000);
-  if (travel === 'drive') return Math.min(14, Math.max(10, 15 - Math.log2(km / 2)));
+  if (travel === 'drive' || travel === 'bus') return Math.min(14, Math.max(10, 15 - Math.log2(km / 2)));
   return Math.min(9, Math.max(2.5, 11.5 - Math.log2(km / 10)));
 }

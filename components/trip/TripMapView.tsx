@@ -21,7 +21,7 @@ import {
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, ArrowClockwise, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
+import { ArrowLeft, ArrowClockwise, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, Bus, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
 import { arrivalCamera, basemapConfig, SATELLITE_TILES } from '@/utils/mapLook';
 import { aheadBearing, legPitch, legZoom, limitTurn } from '@/utils/flyoverCamera';
 import { MAP_STALL_MS, parseMapLoadError, shouldReportMapError, shouldShowMapRetry } from '@/utils/mapLoadHealth';
@@ -44,6 +44,10 @@ import { SPRING } from '@/constants/motion';
 import { TripDay, TripActivity, TripStatus } from '@/types';
 import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { routeFeatures } from '@/utils/routeFeatures';
+import { arrivalHints, playbackPlan, travelLabel } from '@/utils/playback';
+import type { TripBooking } from '@/utils/bookingDays';
+import { useStopPhotos } from '@/hooks/useStopPhotos';
+import { Avatar } from '@/components/ui/Avatar';
 import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS, DAY_INTRO_MS } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
@@ -124,8 +128,8 @@ function SpringIn({ children }: { children: React.ReactNode }) {
   return <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>;
 }
 
-function toRouteStop(s: GroundedStop): RouteStop {
-  return { id: s.activity.id, type: s.activity.type, title: s.activity.title, notes: s.activity.notes ?? '', lat: s.lat, lng: s.lng };
+function toRouteStop(s: GroundedStop, arriveBy?: RouteStop['arriveBy']): RouteStop {
+  return { id: s.activity.id, type: s.activity.type, title: s.activity.title, notes: s.activity.notes ?? '', lat: s.lat, lng: s.lng, ...(arriveBy ? { arriveBy } : {}) };
 }
 
 interface TripMapViewProps {
@@ -159,6 +163,11 @@ interface TripMapViewProps {
   tripEndDate: Date | null;
   /** Opens the trip recap (from the Actual view's totals). */
   onOpenRecap?: () => void;
+  /** The trip's bookings: how each day was reached (train, flight, ferry, cruise) for the playback. */
+  bookings?: TripBooking[];
+  /** Organizer + accepted collaborators: whose photos the playback shows at each stop. */
+  memberUids?: string[];
+  organizerUid?: string | null;
 }
 
 export function TripMapView({
@@ -179,6 +188,9 @@ export function TripMapView({
   tripStatus,
   tripEndDate,
   onOpenRecap,
+  bookings,
+  memberUids,
+  organizerUid,
 }: TripMapViewProps) {
   // Always-dark immersive screen (Architecture Rule 3) — the trip map is
   // atmosphere, not app chrome, so this hardcodes DarkColors rather than
@@ -284,6 +296,19 @@ export function TripMapView({
     return [...byDay.entries()];
   }, [grounded]);
 
+  // Playback for every trip (2026-10-17): day by day when a day has two located stops, else the whole
+  // trip city to city. Each day's first stop carries how that day was reached, from its bookings.
+  const plan = useMemo(() => playbackPlan(stopsByDay.map(([dayId, stops]) => [dayId, stops.map((st) => ({ id: st.activity.id }))])), [stopsByDay]);
+  const hints = useMemo(
+    () => arrivalHints(days.map((d) => ({ id: d.id, date: d.date ? d.date.toDate() : null })), bookings ?? []),
+    [days, bookings],
+  );
+  const tripStops = useMemo(() => stopsByDay.flatMap(([, stops]) => stops), [stopsByDay]);
+  const tripRouteStops = useMemo(
+    () => tripStops.map((st, i) => toRouteStop(st, i > 0 && st.stopNumber === 1 ? hints[st.dayId] : undefined)),
+    [tripStops, hints],
+  );
+
   // The trip as actually taken: visited stops in the order they were
   // checked off (no GPS — see actualStopOrder).
   const actualStops = useMemo(
@@ -298,10 +323,11 @@ export function TripMapView({
   // — planned days and the actual route share legs, so they share the cache.
   const allMissing = useMemo(
     () => [
-      ...stopsByDay.flatMap(([, stops]) => buildPath(stops.map(toRouteStop), {}).missing),
-      ...buildPath(actualStops.map(toRouteStop), {}).missing,
+      ...stopsByDay.flatMap(([, stops]) => buildPath(stops.map((st) => toRouteStop(st)), {}).missing),
+      ...buildPath(actualStops.map((st) => toRouteStop(st)), {}).missing,
+      ...(plan === 'wholeTrip' ? buildPath(tripRouteStops, {}).missing : []),
     ],
-    [stopsByDay, actualStops],
+    [stopsByDay, actualStops, plan, tripRouteStops],
   );
   const { cache } = useTripRoutes(tripId, allMissing, canEditRoutes);
 
@@ -310,12 +336,13 @@ export function TripMapView({
       dayId,
       color: stops[0].dayColor,
       stops,
-      path: buildPath(stops.map(toRouteStop), cache),
+      path: buildPath(stops.map((st) => toRouteStop(st)), cache),
     })),
     [stopsByDay, cache],
   );
 
-  const actualPath = useMemo(() => buildPath(actualStops.map(toRouteStop), cache), [actualStops, cache]);
+  const actualPath = useMemo(() => buildPath(actualStops.map((st) => toRouteStop(st)), cache), [actualStops, cache]);
+  const wholePath = useMemo(() => (plan === 'wholeTrip' ? buildPath(tripRouteStops, cache) : null), [plan, tripRouteStops, cache]);
 
   // Planned | Actual — offered once there's something actual to show.
   const [mapMode, setMapMode] = useState<'planned' | 'actual'>('planned');
@@ -328,17 +355,20 @@ export function TripMapView({
   const flightPaths = useMemo(
     () => (actualMode
       ? (actualPath.coordinates.length > 1 ? [{ dayId: 'actual', color: palette.actual, stops: actualStops, path: actualPath }] : [])
-      : dayPaths),
-    [actualMode, actualPath, actualStops, dayPaths, palette.actual],
+      : wholePath && wholePath.coordinates.length > 1
+        ? [{ dayId: 'trip', color: tripStops[0]?.dayColor ?? palette.days[0], stops: tripStops, path: wholePath }]
+        : dayPaths),
+    [actualMode, actualPath, actualStops, dayPaths, palette.actual, palette.days, wholePath, tripStops],
   );
 
   // One line per leg (road, rail, ferry or flight). flightIndex ties a line
   // to the flyover's sequence; -1 = never flown. In Actual mode the planned
   // days stay underneath, faded.
   const routesCollection: GeoJSON.FeatureCollection = useMemo(() => routeFeatures([
-    ...dayPaths.map((d, i) => ({ path: d.path, color: d.color, flightIndex: actualMode ? -1 : i, faded: actualMode })),
+    // A whole-trip playback draws its city-to-city route; day paths of one stop draw nothing.
+    ...(!actualMode && wholePath ? flightPaths : dayPaths).map((d, i) => ({ path: d.path, color: d.color, flightIndex: actualMode ? -1 : i, faded: actualMode })),
     ...(actualMode ? [{ path: actualPath, color: palette.actual, flightIndex: 0, faded: false }] : []),
-  ]), [dayPaths, actualMode, actualPath, palette.actual]);
+  ]), [dayPaths, actualMode, actualPath, palette.actual, wholePath, flightPaths]);
 
   // Markers are native views — only worth their cost close in. Tracked as a
   // boolean flipped at the threshold, not the live zoom, so a pinch doesn't
@@ -516,7 +546,7 @@ export function TripMapView({
   // the same choice as the stop dots, which render reliably where point
   // layers didn't in testing.
   const groundVehicle = useMemo(() => {
-    if (!flying || !flyPath || !activeLeg || (activeLeg.travel !== 'train' && activeLeg.travel !== 'ferry')) return null;
+    if (!flying || !flyPath || !activeLeg || !['train', 'ferry', 'cruise', 'bus'].includes(activeLeg.travel)) return null;
     const legCoords = flyPath.coordinates.slice(activeLeg.from, activeLeg.to + 1);
     return { travel: activeLeg.travel, point: pointAlongPath(legCoords, legT).point };
   }, [flying, flyPath, activeLeg, legT]);
@@ -543,6 +573,19 @@ export function TripMapView({
   // The shown stop's own day: in Actual mode one path spans every day, so the
   // flight path's day would label every stop "DAY 1".
   const flyStopDay = flyStop ? days.find((d) => d.id === flyStop.dayId) ?? flyDayMeta : flyDayMeta;
+  // Members' photos at each stop, loaded once a playback starts (utils/playback stopPhotos).
+  const photosByStop = useStopPhotos({
+    tripId,
+    stops: tripStops.map((st) => ({ id: st.activity.id, dayId: st.dayId, placeId: st.activity.placeId || null })),
+    memberUids: memberUids ?? [],
+    organizerUid: organizerUid ?? null,
+    enabled: flying,
+  });
+  const flyPhoto = flyStop ? photosByStop[flyStop.activity.id]?.[0] ?? null : null;
+  const flyPhotoCount = flyStop ? photosByStop[flyStop.activity.id]?.length ?? 0 : 0;
+  // While moving between stops: how, and to where ("By train to Budapest").
+  const legTo = flying && activeLeg && curLeg >= 0 ? flyDay?.stops[curLeg + 1] : undefined;
+  const legLine = legTo && activeLeg && legT > 0 && legT < 1 ? travelLabel(activeLeg.travel, legTo.activity.placeName || legTo.activity.title) : null;
   const playingNow = flyover.status === 'playing';
   useEffect(() => {
     // Only while resting on it — resuming mid-leg mustn't pull the camera back.
@@ -1066,7 +1109,9 @@ export function TripMapView({
             <View style={[styles.vehicle, { backgroundColor: flyDay?.color ?? palette.days[0] }]}>
               {groundVehicle.travel === 'train'
                 ? <Train size={20} color="#ffffff" weight="fill" />
-                : <Boat size={20} color="#ffffff" weight="fill" />}
+                : groundVehicle.travel === 'bus'
+                  ? <Bus size={20} color="#ffffff" weight="fill" />
+                  : <Boat size={20} color="#ffffff" weight="fill" />}
             </View>
           </MarkerView>
         ) : null}
@@ -1404,7 +1449,14 @@ export function TripMapView({
         <View style={[styles.flyCard, { backgroundColor: colors.background.elevated, bottom: insets.bottom + Spacing['4'] }]}>
           <SpringIn key={flyStop?.activity.id ?? 'none'}>
             <View style={styles.flyStopRow}>
-              {flyStop?.activity.mediaUrls?.[0] ? (
+              {flyPhoto ? (
+                <View accessible accessibilityLabel={`Photo by ${flyPhoto.name}`}>
+                  <Image source={{ uri: flyPhoto.url }} style={styles.flyPhoto} />
+                  <View style={[styles.flyPhotoBy, { borderColor: colors.background.card }]}>
+                    <Avatar uri={flyPhoto.avatarUrl} name={flyPhoto.name} size="xs" />
+                  </View>
+                </View>
+              ) : flyStop?.activity.mediaUrls?.[0] ? (
                 <Image source={{ uri: flyStop.activity.mediaUrls[0] }} style={styles.flyThumb} />
               ) : flyStop ? (
                 <TypeIconBubble Icon={ACTIVITY_ICONS[flyStop.activity.type].Icon} color={ACTIVITY_ICONS[flyStop.activity.type].color} bubbleSize={44} iconSize={22} />
@@ -1421,6 +1473,13 @@ export function TripMapView({
                 <Text style={[styles.flyTitle, { color: colors.text.primary }]} numberOfLines={1}>
                   {flyStop ? (flyStop.activity.placeName || flyStop.activity.title) : ' '}
                 </Text>
+                {legLine ? (
+                  <Text style={[styles.flyMeta, { color: colors.text.secondary }]} numberOfLines={1}>{legLine}</Text>
+                ) : flyPhoto ? (
+                  <Text style={[styles.flyMeta, { color: colors.text.secondary }]} numberOfLines={1}>
+                    {`Photo by ${flyPhoto.name}${flyPhotoCount > 1 ? ` · ${flyPhotoCount} photos` : ''}`}
+                  </Text>
+                ) : null}
                 {flyStop?.activity.startTime || flyStop?.activity.notes ? (
                   <Text style={[styles.flyMeta, { color: colors.text.secondary }]} numberOfLines={2}>
                     {[flyStop.activity.startTime, flyStop.activity.notes].filter(Boolean).join(' · ')}
@@ -1449,11 +1508,11 @@ export function TripMapView({
                     onPress={() => handleJumpDay(i)}
                     disabled={durations[i] === 0 && d.stops.length === 0}
                     style={[styles.dayChip, { borderColor: d.color }, active && { backgroundColor: d.color }]}
-                    accessibilityLabel={`Day ${meta?.dayNumber ?? i + 1}`}
+                    accessibilityLabel={d.dayId === 'trip' ? 'Whole trip' : `Day ${meta?.dayNumber ?? i + 1}`}
                     accessibilityState={{ selected: active, disabled: durations[i] === 0 && d.stops.length === 0 }}
                   >
                     <Text style={[styles.dayChipText, { color: active ? '#0B0A12' : colors.text.primary }]}>
-                      {`Day ${meta?.dayNumber ?? i + 1}`}
+                      {d.dayId === 'trip' ? 'Whole trip' : `Day ${meta?.dayNumber ?? i + 1}`}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1606,6 +1665,8 @@ const styles = StyleSheet.create({
   flyStopRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'] },
   flyStopText: { flex: 1 },
   flyThumb: { width: 56, height: 56, borderRadius: 12 },
+  flyPhoto: { width: 64, height: 64, borderRadius: 12 },
+  flyPhotoBy: { position: 'absolute', right: -6, bottom: -6, borderRadius: 999, borderWidth: 2 },
   flyMeta: { fontSize: 13, marginTop: 2 },
   flyEyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.08 * FontSize.xs },
   flyTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold, marginTop: 2 },

@@ -1130,6 +1130,9 @@ export default function TripDetailScreen() {
           canEditRoutes={isOwner || isCollaborator}
           tripStatus={tripStatus}
           tripEndDate={trip.endDate ? trip.endDate.toDate() : null}
+          bookings={tripBookings}
+          memberUids={memberUids}
+          organizerUid={trip.authorUid}
           onOpenRecap={() => {
             setViewMode('timeline');
             setRecapVisible(true);
