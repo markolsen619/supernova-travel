@@ -41,6 +41,8 @@ interface TripCardProps {
    * renders the row's loading state, not a fake "traveler" placeholder.
    */
   author?: { name: string; avatarUrl: string | null } | null;
+  /** An editorial pick on a destination page: the top-left pill reads "SUPERNOVA PICK · CULTURAL". */
+  pick?: boolean;
 }
 
 // This badge sits on the raw cover photo, not app chrome — a light-tint-on-
@@ -76,7 +78,7 @@ function LiveDot({ color }: { color: string }) {
   return <Animated.View style={[styles.statusDot, { backgroundColor: color, opacity }]} />;
 }
 
-export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: TripCardProps) {
+export function TripCard({ trip, onPress, style, fallbackCoverUrl, author, pick }: TripCardProps) {
   const { colors } = useTheme();
   const coverUrl = trip.coverImageUrl || fallbackCoverUrl || null;
   const styleLabel = tripStyleLabel(trip);
@@ -136,8 +138,15 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: Tri
             </View>
           )}
 
-          {/* Style label — top-left, same dark pill as the status (2026-10-17). */}
-          {styleLabel ? (
+          {/* Style label — top-left, same dark pill as the status (2026-10-17). A destination
+              page's editorial pick shares the pill rather than covering it. */}
+          {pick ? (
+            <View style={[styles.styleBadge, { backgroundColor: colors.text.primary }]}>
+              <Text style={[styles.styleText, { color: colors.background.primary }]} numberOfLines={1}>
+                {styleLabel ? `SUPERNOVA PICK · ${styleLabel.toUpperCase()}` : 'SUPERNOVA PICK'}
+              </Text>
+            </View>
+          ) : styleLabel ? (
             <View style={styles.styleBadge}>
               <Text style={styles.styleText}>{styleLabel.toUpperCase()}</Text>
             </View>
@@ -224,6 +233,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Spacing['2'],
     left: Spacing['2'],
+    maxWidth: '62%',
     backgroundColor: 'rgba(0,0,0,0.55)',
     paddingHorizontal: Spacing['2'],
     paddingVertical: 3,

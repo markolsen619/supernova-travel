@@ -7,7 +7,7 @@
  * pin, or a search row. Reads the cached catalog (useDestinations), so a cold
  * deep link loads it too.
  */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
@@ -57,6 +57,12 @@ export default function DestinationScreen() {
     const next = e.nativeEvent.contentOffset.y > HERO_HEIGHT - insets.top - 44;
     setPastHero((prev) => (prev === next ? prev : next));
   }, [insets.top]);
+  // Once the hero has scrolled away, a canvas strip sits under the status bar so the
+  // clock never lands on the content scrolling beneath it (build 39: the CTA did).
+  const barFade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(barFade, { toValue: pastHero ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+  }, [pastHero, barFade]);
   const [place, setPlace] = useState<EnrichedPlace | null>(null);
   const placeSlide = useRef(new Animated.Value(SHEET_CLOSED)).current;
 
@@ -156,12 +162,8 @@ export default function DestinationScreen() {
           onPress={() => openTrip(trip.id)}
           author={author ? { name: author.name, avatarUrl: author.avatarUrl } : null}
           fallbackCoverUrl={destination.coverImageUrl}
+          pick={pick}
         />
-        {pick ? (
-          <View style={[styles.pick, { backgroundColor: colors.text.primary }]} pointerEvents="none">
-            <Text style={[styles.pickText, { color: colors.background.primary }]}>SUPERNOVA PICK</Text>
-          </View>
-        ) : null}
       </View>
     );
   };
@@ -284,6 +286,10 @@ export default function DestinationScreen() {
           </View>
         </ScrollView>
 
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.statusBarBackdrop, { height: insets.top, opacity: barFade, backgroundColor: colors.background.primary }]}
+        />
         {backButton}
 
         {place ? (
@@ -324,15 +330,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: FontWeight.medium, letterSpacing: 0.08 * 11 },
   tripGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -Spacing['2'] },
   tripCell: { paddingHorizontal: Spacing['2'], paddingBottom: Spacing['4'] },
-  pick: {
-    position: 'absolute',
-    top: Spacing['3'],
-    left: Spacing['2'] + Spacing['3'],
-    paddingHorizontal: Spacing['2'],
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  pickText: { fontSize: 10, fontWeight: FontWeight.semiBold, letterSpacing: 0.08 * 10 },
+  statusBarBackdrop: { position: 'absolute', top: 0, left: 0, right: 0 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], minHeight: 56, paddingVertical: Spacing['2'] },
   placeText: { flex: 1, gap: 2 },
   placeName: { fontSize: 15, fontWeight: FontWeight.medium },
