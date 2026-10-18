@@ -8,7 +8,7 @@ import { useProGate } from '@/hooks/useProGate';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 
-/** The wallet's way into Email import. Pro; free users see the PRO tag and the paywall. */
+/** The wallet's way into Email import: one slim line (it was a full card; owner, 2026-10-17). Pro; free users see the PRO tag and the paywall. */
 export function EmailImportRow() {
   const { colors } = useTheme();
   const { isPro, openPaywall } = useProGate();
@@ -28,13 +28,8 @@ export function EmailImportRow() {
       accessibilityRole="button"
       accessibilityLabel={isPro ? 'Email import' : 'Email import, a Pro feature'}
     >
-      <View style={[styles.bubble, { backgroundColor: colors.background.sunken }]}>
-        <EnvelopeSimple size={20} color={colors.text.primary} weight="duotone" />
-      </View>
-      <View style={styles.text}>
-        <Text style={[styles.title, { color: colors.text.primary }]}>Email import</Text>
-        <Text style={[styles.subtitle, { color: colors.text.tertiary }]} numberOfLines={1}>Forward bookings to your own address</Text>
-      </View>
+      <EnvelopeSimple size={18} color={colors.text.secondary} weight="duotone" />
+      <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={1}>Import bookings from email</Text>
       {!isPro && (
         <View style={[styles.tag, { backgroundColor: colors.background.sunken }]}>
           <Text style={[styles.tagText, { color: colors.text.secondary }]}>PRO</Text>
@@ -47,13 +42,10 @@ export function EmailImportRow() {
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], minHeight: 64, marginHorizontal: Spacing['5'],
-    marginBottom: Spacing['3'], paddingHorizontal: Spacing['4'], borderRadius: BorderRadius.xl, borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing['2'], minHeight: 44, marginHorizontal: Spacing['5'],
+    marginBottom: Spacing['3'], paddingHorizontal: Spacing['3'], borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth,
   },
-  bubble: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  text: { flex: 1, gap: 2 },
-  title: { fontSize: FontSize.md, fontWeight: FontWeight.medium },
-  subtitle: { fontSize: 13 },
+  title: { flex: 1, fontSize: FontSize.sm, fontWeight: FontWeight.medium },
   tag: { borderRadius: BorderRadius.full, paddingHorizontal: Spacing['2'], paddingVertical: 2 },
   tagText: { fontSize: 11, fontWeight: FontWeight.semiBold, letterSpacing: 0.9 },
 });
