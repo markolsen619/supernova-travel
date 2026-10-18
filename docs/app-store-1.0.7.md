@@ -1,8 +1,9 @@
 # App Store text for 1.0.7
 
-> Drafted 2026-10-17 for **build 40**. 1.0.6 (Ask Nova, phase 1) was TestFlight-only, so 1.0.7 is the first App Store version with Ask Nova. Changes from 1.0.5: What's New; one PLAN bullet (Ask Nova), one DISCOVER bullet tweak (trip styles), one SHARE bullet (post links), one PLAN bullet tweak (playback for every trip); review notes swap NEW IN 1.0.5 for NEW IN 1.0.7, and the AI section names Ask Nova.
+> **SUBMITTED 2026-10-18 1:22 PM with build 41 — Waiting for Review, AUTOMATIC release** (owner's call: iOS goes out on approval; Android is published separately once Google approves). Promotional text entered: "Meet Nova, your trip planner: ask it to add places nearby, reorder a day or build a packing list, and see every change before it happens."
+
+> Drafted 2026-10-17 for build 40; submitted with build 41 (build 40 had the Nova keyboard bug). 1.0.6 (Ask Nova, phase 1) was TestFlight-only, so 1.0.7 is the first App Store version with Ask Nova. Changes from 1.0.5: What's New; one PLAN bullet (Ask Nova), one DISCOVER bullet tweak (trip styles), one SHARE bullet (post links), one PLAN bullet tweak (playback for every trip); review notes swap NEW IN 1.0.5 for NEW IN 1.0.7, and the AI section names Ask Nova.
 > **App Privacy: no change.** Nova conversations are stored per user (`agentThreads`) and fit Other User Content (already declared); what Nova sends to Gemini is trip and booking data already collected for App Functionality, and Gemini is a service provider (no tracking). The privacy policy names Ask Nova and exactly what it sends (deployed 2026-10-17).
-> **Release: manual.** Hold until Google approves Android 1.0.7, then release both together.
 > Demo account (checked 2026-10-17): free, consent v1, October's AI trip unused, Nova unused, so the reviewer sees the v3 consent sheet the first time they open Ask Nova.
 
 ## What's New (473 characters)
