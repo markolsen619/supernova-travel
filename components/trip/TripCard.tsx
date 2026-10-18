@@ -1,3 +1,4 @@
+import { tripStyleLabel } from '@/utils/tripStyle';
 import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
@@ -78,6 +79,7 @@ function LiveDot({ color }: { color: string }) {
 export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: TripCardProps) {
   const { colors } = useTheme();
   const coverUrl = trip.coverImageUrl || fallbackCoverUrl || null;
+  const styleLabel = tripStyleLabel(trip);
   // Dot hues come from the shared accent/brand tokens (identical in both
   // themes) — the dot sits on the photo's dark scrim, so it needs the
   // bright variants, not the light-theme semantic tones.
@@ -133,6 +135,13 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author }: Tri
               <MapPin size={28} color={colors.text.disabled} weight="duotone" />
             </View>
           )}
+
+          {/* Style label — top-left, same dark pill as the status (2026-10-17). */}
+          {styleLabel ? (
+            <View style={styles.styleBadge}>
+              <Text style={styles.styleText}>{styleLabel.toUpperCase()}</Text>
+            </View>
+          ) : null}
 
           {/* Status badge — top-right. Solid dark pill, not a tint: it must
               stay legible over bright and dark photos alike. */}
@@ -210,6 +219,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['2'],
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
+  },
+  styleBadge: {
+    position: 'absolute',
+    top: Spacing['2'],
+    left: Spacing['2'],
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: Spacing['2'],
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+  },
+  styleText: {
+    fontSize: 10,
+    fontWeight: FontWeight.semiBold,
+    letterSpacing: 0.8,
+    color: '#fff',
   },
   statusDot: {
     width: 6,

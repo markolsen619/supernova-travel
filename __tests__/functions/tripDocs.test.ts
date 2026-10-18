@@ -99,3 +99,10 @@ describe('AI stops have no preset times', () => {
     expect(docs.days[0].activities[0]).toMatchObject({ startTime: null, endTime: null, order: 0 });
   });
 });
+
+describe('tripDocuments saves the travel styles (trip cards show them, 2026-10-17)', () => {
+  it('stores the styles the trip was planned for', () => {
+    const { trip } = tripDocuments('u1', { ...request, travelStyle: 'cultural', travelStyles: ['cultural', 'foodie'] } as never, generated as never, 'NOW');
+    expect(trip.travelStyles).toEqual(['cultural', 'foodie']);
+  });
+});

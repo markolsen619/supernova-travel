@@ -1,3 +1,4 @@
+import { resolveTravelStyles } from './promptRules';
 import type { GenerateTripRequest, GeneratedTrip } from './types';
 import { resolveTripVisibility } from './promptRules';
 
@@ -53,6 +54,8 @@ export function tripDocuments(
     budgetAmount: null,
     budgetCurrency: null,
     isAiGenerated: true,
+    // The styles it was planned for: trip cards label them (2026-10-17). Older apps ignore the field.
+    travelStyles: resolveTravelStyles(data),
     status: 'planning' as const,
     tags: [],
     likesCount: 0,

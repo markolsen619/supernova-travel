@@ -144,6 +144,8 @@ export interface Trip {
   isAiGenerated: boolean;
   status: TripStatus;
   tags: string[];
+  /** How the trip was planned (AI trips; seeded trips backfilled 2026-10-17). Shown as the card label. */
+  travelStyles?: string[];
   likesCount: number;
   savesCount: number;
   createdAt: Timestamp;
