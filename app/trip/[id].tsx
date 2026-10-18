@@ -37,6 +37,7 @@ import { InviteFriendsSheet } from '@/components/trip/InviteFriendsSheet';
 import { ShareTripSheet } from '@/components/trip/ShareTripSheet';
 import { AgentSheet } from '@/components/agent/AgentSheet';
 import { NovaCard } from '@/components/agent/NovaCard';
+import { TripMembersSheet } from '@/components/trip/TripMembersSheet';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 import { TripBookingsSheet } from '@/components/trip/TripBookingsSheet';
 import { useTripBookings } from '@/hooks/useTripBookings';
@@ -195,6 +196,11 @@ export default function TripDetailScreen() {
     [trip],
   );
   const { data: memberProfiles = {} } = useAuthorProfiles(memberUids);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const openMembers = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMembersOpen(true);
+  }, []);
 
   // Collapsible description state
   const [descExpanded, setDescExpanded] = useState(false);
@@ -1287,7 +1293,12 @@ export default function TripDetailScreen() {
         {/* Trip members — only worth a row once someone besides the owner
             has actually accepted; an author-only stack of one isn't news. */}
         {trip.collaborators.length > 0 && (
-          <View style={styles.membersRow}>
+          <TouchableOpacity
+            style={styles.membersRow}
+            onPress={openMembers}
+            accessibilityRole="button"
+            accessibilityLabel={`${memberUids.length} people on this trip. Show them`}
+          >
             {memberUids.slice(0, 5).map((uid, i) => (
               <View
                 key={uid}
@@ -1302,7 +1313,7 @@ export default function TripDetailScreen() {
             <Text style={[styles.membersText, { color: colors.text.tertiary }]}>
               {memberUids.length} on this trip
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* ── 3. Chips: destination + status + visibility ── */}
@@ -1684,6 +1695,13 @@ export default function TripDetailScreen() {
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
+      <TripMembersSheet
+        visible={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        authorUid={trip.authorUid}
+        collaborators={trip.collaborators}
+        profiles={memberProfiles}
+      />
       {aiConsentSheet}
       {multiCity && canEditItinerary && (
         <RouteEditorSheet visible={routeEditorVisible} trip={trip} onClose={() => setRouteEditorVisible(false)} onSaved={() => setCityFilter(null)} />
