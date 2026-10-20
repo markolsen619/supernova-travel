@@ -26,6 +26,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { SPRING } from '@/constants/motion';
 import type { BoardingPass } from '@/types';
 import { requireOnline } from '@/services/offline';
+import { CalendarSwitchRow } from '@/components/wallet/CalendarSwitchRow';
 
 const CARD_HEIGHT = 200;
 
@@ -170,6 +171,7 @@ export default function BoardingPassDetailScreen() {
         <View style={styles.tripBlock}>
           <TripSuggestionCard kind="boarding_pass" item={pass} />
           <BookingTripRow kind="boarding_pass" item={pass} />
+          <CalendarSwitchRow kind="boarding_pass" item={pass} />
         </View>
 
         {/* Edit button */}

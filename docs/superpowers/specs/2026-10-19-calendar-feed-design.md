@@ -43,7 +43,7 @@ Pure builder `functions/src/calendarFeed.ts` → `buildCalendar(input, now) : st
 
 ## 3. In the app
 
-- **Settings → Calendar** row and **trip ⋯ menu → Add to calendar** open `CalendarSheet` (RN `Modal` page sheet):
+- **Settings → Calendar** row and a **Calendar chip** in the trip page's chip row (members; the trip's ⋯ is Report/Block on others' trips) open `CalendarSheet` (RN `Modal` page sheet):
   - Off: title "Your trips in your calendar", one line of explanation, primary "Turn on" (calls `createCalendarFeed`).
   - On: "Add to Apple Calendar" (iOS; `Linking.openURL(webcal…)`), "Add to Google Calendar" (opens the Google URL), "Copy link" (`expo-clipboard`), then the five type switches with the line "Gmail or your airline may already add flights and hotels to your calendar. Turn them off here so nothing shows twice.", then text links "New link" (confirm: the old link stops working) and "Turn off".
 - **Booking detail screens** (boarding pass, reservation): a "Show in calendar" switch (writes `showInCalendar` on the owner's doc; existing rules allow it). Offline: `requireOnline()`.

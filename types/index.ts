@@ -554,6 +554,8 @@ export interface BoardingPass {
   tripLinkDismissed?: boolean;
   /** false keeps it from the trip's other members; unset = shared (functions/src/sharedBookings.ts). */
   sharedWithTrip?: boolean;
+  /** false hides it from the user's calendar feed (functions/src/calendarFeed.ts); unset = shown. */
+  showInCalendar?: boolean;
   placeCity?: string;
   /** ISO 3166-1 alpha-2. For a flight, the destination's. */
   placeCountryCode?: string;
@@ -606,6 +608,8 @@ export interface Reservation {
   tripLinkDismissed?: boolean;
   /** false keeps it from the trip's other members; unset = shared (functions/src/sharedBookings.ts). */
   sharedWithTrip?: boolean;
+  /** false hides it from the user's calendar feed (functions/src/calendarFeed.ts); unset = shown. */
+  showInCalendar?: boolean;
   placeCity?: string;
   /** ISO 3166-1 alpha-2. For a flight, the destination's. */
   placeCountryCode?: string;

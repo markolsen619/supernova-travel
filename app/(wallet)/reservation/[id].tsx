@@ -25,6 +25,7 @@ import { formatCalendarDate } from '@/utils/calendarDate';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { requireOnline } from '@/services/offline';
+import { CalendarSwitchRow } from '@/components/wallet/CalendarSwitchRow';
 
 const TYPE_LABELS: Record<ReservationType, string> = {
   hotel: 'Hotel',
@@ -143,6 +144,7 @@ export default function ReservationDetailScreen() {
         {/* Which trip it's for (Pro): the suggestion card, then the Trip row. */}
         <TripSuggestionCard kind="reservation" item={reservation} />
         <BookingTripRow kind="reservation" item={reservation} />
+        <CalendarSwitchRow kind="reservation" item={reservation} />
 
         {/* Confirmation code */}
         <View
