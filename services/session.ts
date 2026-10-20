@@ -137,22 +137,26 @@ export async function hydrateSession(
  * migration has written hasSeenOnboarding to the document.
  */
 export async function saveSessionSnapshot(uid: string, hasSeenOnboarding: boolean): Promise<void> {
-  const profile = useUserStore.getState().profile;
-  if (!profile) return;
-  const { blockedUids, hiddenKeys } = useModerationStore.getState();
-  const snap: SessionSnapshot = {
-    v: 1,
-    uid,
-    profile: profile as unknown as Record<string, unknown>,
-    tier: useAuthStore.getState().serverTier ?? 'free',
-    hasSeenOnboarding,
-    aiConsentVersion: useAiConsentStore.getState().version ?? null,
-    blockedUids,
-    hiddenKeys,
-    savedAt: Date.now(),
-  };
-  await AsyncStorage.setItem(snapshotKey(uid), JSON.stringify(snap)).catch((e) =>
-    console.warn('[session] snapshot save failed:', e));
+  // Best-effort and fire-and-forget: a failure here must never surface as an unhandled rejection.
+  try {
+    const profile = useUserStore.getState().profile;
+    if (!profile) return;
+    const { blockedUids, hiddenKeys } = useModerationStore.getState();
+    const snap: SessionSnapshot = {
+      v: 1,
+      uid,
+      profile: profile as unknown as Record<string, unknown>,
+      tier: useAuthStore.getState().serverTier ?? 'free',
+      hasSeenOnboarding,
+      aiConsentVersion: useAiConsentStore.getState().version ?? null,
+      blockedUids,
+      hiddenKeys,
+      savedAt: Date.now(),
+    };
+    await AsyncStorage.setItem(snapshotKey(uid), JSON.stringify(snap));
+  } catch (e) {
+    console.warn('[session] snapshot save failed:', e);
+  }
 }
 
 /** The saved snapshot for this uid, or null. */
