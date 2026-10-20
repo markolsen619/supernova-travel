@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, CalendarBlank, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -80,6 +80,7 @@ import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '
 import { useProGate } from '@/hooks/useProGate';
 import { Badge } from '@/components/ui/Badge';
 import { isOnline, requireOnline, useIsOnline } from '@/services/offline';
+import { CalendarSheet } from '@/components/calendar/CalendarSheet';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -256,6 +257,7 @@ export default function TripDetailScreen() {
   // Owner-only trip edit/delete sheet
   const online = useIsOnline();
   const [editTripVisible, setEditTripVisible] = useState(false);
+  const [calendarVisible, setCalendarVisible] = useState(false);
 
   // TM-3: journal sheet for a visited stop — reachable from both the
   // timeline and the map, so it's owned here and rendered in both branches.
@@ -1479,6 +1481,22 @@ export default function TripDetailScreen() {
           </TouchableOpacity>
           )}
 
+          {/* Calendar (spec 2026-10-19): your trips in your phone's calendar, kept up to date. */}
+          {(isOwner || isCollaborator) && (
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setCalendarVisible(true);
+            }}
+            style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            accessibilityLabel="Add to calendar"
+          >
+            <CalendarBlank size={13} color={colors.text.secondary} weight="duotone" />
+            <Text style={[styles.chipText, { color: colors.text.primary }]}>Calendar</Text>
+          </TouchableOpacity>
+          )}
+
           {/* Your wallet bookings linked to this trip (only you see them). */}
           {tripBookings.length > 0 && (
             <TouchableOpacity
@@ -1719,6 +1737,7 @@ export default function TripDetailScreen() {
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
+      <CalendarSheet visible={calendarVisible} onClose={() => setCalendarVisible(false)} />
       <TripMembersSheet
         visible={membersOpen}
         onClose={() => setMembersOpen(false)}

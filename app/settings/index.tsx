@@ -13,7 +13,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
-import { X, UserCircle, LockSimple, Sparkle, Ticket, BellSimple } from 'phosphor-react-native';
+import { X, UserCircle, LockSimple, Sparkle, Ticket, BellSimple, CalendarBlank } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { CancelReasonSheet } from '@/components/settings/CancelReasonSheet';
@@ -34,6 +34,8 @@ import Constants from 'expo-constants';
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/constants/legal';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { CalendarSheet } from '@/components/calendar/CalendarSheet';
+import { useCalendarFeed } from '@/hooks/useCalendarFeed';
 
 const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
   { label: 'Dark', value: 'dark' },
@@ -110,6 +112,13 @@ export default function SettingsScreen() {
   }, []);
 
   const [cancelVisible, setCancelVisible] = useState(false);
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const { token: calendarToken } = useCalendarFeed();
+  const openCalendar = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCalendarVisible(true);
+  }, []);
+  const closeCalendar = useCallback(() => setCalendarVisible(false), []);
 
   // Cancelling lands in the same Customer Center as "Subscription" — this row
   // exists so the way out is findable rather than behind a word that reads
@@ -218,6 +227,13 @@ export default function SettingsScreen() {
             showDivider
           />
           <SettingsRow
+            label="Calendar"
+            icon={CalendarBlank}
+            value={calendarToken ? 'On' : 'Off'}
+            onPress={openCalendar}
+            showDivider
+          />
+          <SettingsRow
             label="Notifications"
             icon={BellSimple}
             value={pushRow.label}
@@ -268,6 +284,7 @@ export default function SettingsScreen() {
         onClose={() => setCancelVisible(false)}
         onContinue={handleCancelContinue}
       />
+      <CalendarSheet visible={calendarVisible} onClose={closeCalendar} />
     </View>
   );
 }
