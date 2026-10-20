@@ -15,7 +15,7 @@ import { addPackingItem, deletePackingItem, setPackingChecked } from '@/services
 import { generatePackingList } from '@/services/packingTemplates';
 import type { PackingItem, Trip } from '@/types';
 
-async function fetchPackingItems(tripId: string): Promise<PackingItem[]> {
+export async function fetchPackingItems(tripId: string): Promise<PackingItem[]> {
   const snap = await getDocs(query(collection(db, 'trips', tripId, 'packingItems'), orderBy('createdAt', 'asc')));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PackingItem);
 }

@@ -74,3 +74,24 @@ export function cacheBuster(uid: string): string {
 export function cacheBelongsTo(buster: string | undefined, uid: string): boolean {
   return buster === cacheBuster(uid);
 }
+
+/** A calendar day ("2026-11-01") read at noon UTC, so no timezone moves it to a neighbouring day. */
+function dayToTimestamp(day: string | null): Timestamp | null {
+  if (!day) return null;
+  const d = new Date(`${day}T12:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
+}
+
+/**
+ * Own trips (['trips', uid], Firestore timestamps) and joined trips (['myTrips', uid], calendar-day summaries)
+ * as one list for offlineTripSet. An own trip's real timestamps win over its summary.
+ */
+export function tripsForOffline(
+  own: DatedTrip[],
+  joined: { tripId: string; start: string | null; end: string | null }[],
+): DatedTrip[] {
+  const byId = new Map<string, DatedTrip>();
+  for (const s of joined) byId.set(s.tripId, { id: s.tripId, startDate: dayToTimestamp(s.start), endDate: dayToTimestamp(s.end) });
+  for (const t of own) byId.set(t.id, t);
+  return [...byId.values()];
+}

@@ -26,24 +26,27 @@ export async function fetchSharedBookings(tripId: string): Promise<TripBooking[]
  * (`ownerUid == me`, the (ownerUid, tripId) indexes) plus what the other
  * members share with it. Callers enable it only for members.
  */
+export async function fetchTripBookings(tripId: string, uid: string): Promise<TripBooking[]> {
+  const [passes, reservations, shared] = await Promise.all([
+    getDocs(query(collection(db, 'boarding_passes'), where('ownerUid', '==', uid), where('tripId', '==', tripId))),
+    getDocs(query(collection(db, 'reservations'), where('ownerUid', '==', uid), where('tripId', '==', tripId))),
+    fetchSharedBookings(tripId),
+  ]);
+  const own: TripBooking[] = [
+    ...passes.docs.map((d) => ({ kind: 'boarding_pass' as const, item: { id: d.id, ...d.data() } as BoardingPass })),
+    ...reservations.docs.map((d) => ({ kind: 'reservation' as const, item: { id: d.id, ...d.data() } as Reservation })),
+  ];
+  return mergeTripBookings(own, shared, uid);
+}
+
+/** Hook form of fetchTripBookings; callers enable it only for members. */
 export function useTripBookings(tripId: string | null) {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['tripBookings', tripId, uid],
     enabled: !!tripId && !!uid,
     staleTime: 1000 * 60 * 2,
-    queryFn: async (): Promise<TripBooking[]> => {
-      const [passes, reservations, shared] = await Promise.all([
-        getDocs(query(collection(db, 'boarding_passes'), where('ownerUid', '==', uid), where('tripId', '==', tripId))),
-        getDocs(query(collection(db, 'reservations'), where('ownerUid', '==', uid), where('tripId', '==', tripId))),
-        fetchSharedBookings(tripId!),
-      ]);
-      const own: TripBooking[] = [
-        ...passes.docs.map((d) => ({ kind: 'boarding_pass' as const, item: { id: d.id, ...d.data() } as BoardingPass })),
-        ...reservations.docs.map((d) => ({ kind: 'reservation' as const, item: { id: d.id, ...d.data() } as Reservation })),
-      ];
-      return mergeTripBookings(own, shared, uid!);
-    },
+    queryFn: () => fetchTripBookings(tripId!, uid!),
   });
   return { bookings, isLoading };
 }

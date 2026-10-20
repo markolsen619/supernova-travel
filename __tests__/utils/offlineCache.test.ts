@@ -2,7 +2,7 @@
 import { Timestamp } from 'firebase/firestore';
 import {
   shouldPersistQuery, reviveTimestamps, offlineTripSet, needsPrefetch,
-  cacheBuster, cacheBelongsTo, OFFLINE_TRIP_CAP,
+  cacheBuster, cacheBelongsTo, OFFLINE_TRIP_CAP, tripsForOffline,
 } from '@/utils/offlineCache';
 
 const allowed = new Set(['t1']);
@@ -93,5 +93,24 @@ describe('cacheBelongsTo', () => {
     expect(cacheBelongsTo(cacheBuster('a'), 'a')).toBe(true);
     expect(cacheBelongsTo(cacheBuster('a'), 'b')).toBe(false);
     expect(cacheBelongsTo(undefined, 'a')).toBe(false);
+  });
+});
+
+describe('tripsForOffline', () => {
+  it('merges own trips and joined trip summaries by id, turning calendar dates into timestamps', () => {
+    const own = [{ id: 'a', startDate: Timestamp.fromDate(new Date('2026-11-01T12:00:00Z')), endDate: null }];
+    const joined = [
+      { tripId: 'a', start: '2026-11-01', end: '2026-11-03' },
+      { tripId: 'b', start: '2026-12-10', end: null },
+      { tripId: 'c', start: null, end: null },
+    ];
+    const out = tripsForOffline(own, joined);
+    expect(out.map((t) => t.id).sort()).toEqual(['a', 'b', 'c']);
+    const b = out.find((t) => t.id === 'b')!;
+    expect(b.startDate).toBeInstanceOf(Timestamp);
+    expect(b.startDate!.toDate().toISOString().slice(0, 10)).toBe('2026-12-10');
+    expect(out.find((t) => t.id === 'c')!.startDate).toBeNull();
+    // An own trip keeps its real timestamps.
+    expect(out.find((t) => t.id === 'a')!.startDate!.toMillis()).toBe(own[0].startDate!.toMillis());
   });
 });

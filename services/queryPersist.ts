@@ -8,7 +8,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import type { Timestamp } from 'firebase/firestore';
-import { cacheBuster, offlineTripSet, OFFLINE_MAX_AGE_MS, reviveTimestamps, shouldPersistQuery } from '@/utils/offlineCache';
+import { cacheBuster, offlineTripSet, OFFLINE_MAX_AGE_MS, reviveTimestamps, shouldPersistQuery, tripsForOffline } from '@/utils/offlineCache';
 
 const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
@@ -22,13 +22,11 @@ let unsubscribe: (() => void) | null = null;
 
 type DatedTrip = { id: string; startDate: Timestamp | null; endDate: Timestamp | null };
 
-/** The user's own + joined trips, from whichever list is loaded. */
+/** The user's own + joined trips, from whichever lists are loaded. */
 export function knownTrips(queryClient: QueryClient, uid: string): DatedTrip[] {
-  const mine = (queryClient.getQueryData<DatedTrip[]>(['myTrips', uid]) ?? []);
-  const own = (queryClient.getQueryData<DatedTrip[]>(['trips', uid]) ?? []);
-  const byId = new Map<string, DatedTrip>();
-  for (const t of [...own, ...mine]) byId.set(t.id, t);
-  return [...byId.values()];
+  const own = queryClient.getQueryData<DatedTrip[]>(['trips', uid]) ?? [];
+  const joined = queryClient.getQueryData<{ tripId: string; start: string | null; end: string | null }[]>(['myTrips', uid]) ?? [];
+  return tripsForOffline(own, joined);
 }
 
 export async function startPersistence(queryClient: QueryClient, uid: string): Promise<void> {

@@ -17,6 +17,7 @@ import { TAB_BAR_HEIGHT } from '@/constants/layout';
 import { SPRING } from '@/constants/motion';
 import { ReadingColumn } from '@/components/layout/ReadingColumn';
 import { usesReadingColumn } from '@/utils/layout';
+import { useOfflinePrefetch } from '@/hooks/useOfflinePrefetch';
 
 const TABS = [
   { name: 'index',   label: 'Feed'    },
@@ -128,6 +129,8 @@ function FullWidthTabBar({ state, navigation }: TabBarProps) {
 }
 
 export default function TabLayout() {
+  // Offline trips: while online, quietly keep your trips' details on the phone.
+  useOfflinePrefetch();
   return (
     <Tabs
       tabBar={(props) => <FullWidthTabBar {...(props as unknown as TabBarProps)} />}
