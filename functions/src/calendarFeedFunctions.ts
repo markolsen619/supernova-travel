@@ -4,10 +4,12 @@
  */
 import * as admin from 'firebase-admin';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
-import { buildCalendar, DEFAULT_TYPES, newFeedToken, tokenFromPath, type CalTypes, type CalTrip } from './calendarFeed';
+import { buildCalendar, DEFAULT_TYPES, isFeedRequest, newFeedToken, tokenFromPath, tripsWorthLoading, type CalTypes, type CalTrip } from './calendarFeed';
 
 const db = admin.firestore();
 const privateDoc = (uid: string) => db.doc(`users/${uid}/private/calendar`);
+/** generateTrip stopped writing stop times on 2026-10-09 (ff914ee); older AI trips carry guessed times. */
+const AI_TIMES_STOPPED_MS = Date.parse('2026-10-09T00:00:00Z');
 
 async function liveTokens(uid: string): Promise<string[]> {
   return (await db.collection('calendarFeeds').where('uid', '==', uid).get()).docs.map((d) => d.id);
@@ -75,7 +77,12 @@ async function loadTrips(uid: string): Promise<CalTrip[]> {
   ]);
   const byId = new Map<string, admin.firestore.QueryDocumentSnapshot>();
   for (const d of [...own.docs, ...joined.docs]) byId.set(d.id, d);
-  return Promise.all([...byId.values()].map(async (t) => {
+  // Only trips ending within the window have their days read (final review: cost grew with history).
+  const candidates = tripsWorthLoading(
+    [...byId.values()].map((doc) => ({ doc, endDateMs: (doc.get('endDate')?.toMillis?.() as number | undefined) ?? null })),
+    new Date(),
+  ).map((c) => c.doc);
+  return Promise.all(candidates.map(async (t) => {
     const daysSnap = await t.ref.collection('days').get();
     const days = await Promise.all(daysSnap.docs.map(async (d) => {
       const acts = await d.ref.collection('activities').get();
@@ -95,12 +102,13 @@ async function loadTrips(uid: string): Promise<CalTrip[]> {
       id: t.id, title: data.title, region: data.region ?? data.destination?.name ?? null,
       startDateMs: data.startDate?.toMillis?.() ?? null, endDateMs: data.endDate?.toMillis?.() ?? null,
       startDay: typeof data.startDay === 'string' ? data.startDay : null, days,
+      aiTimesUntrusted: data.isAiGenerated === true && (data.createdAt?.toMillis?.() ?? 0) < AI_TIMES_STOPPED_MS,
     };
   }));
 }
 
 export const calendarFeed = onRequest({ region: 'us-central1' }, async (req, res) => {
-  const token = req.method === 'GET' ? tokenFromPath(req.path) : null;
+  const token = isFeedRequest(req.method) ? tokenFromPath(req.path) : null;
   const feed = token ? await db.doc(`calendarFeeds/${token}`).get() : null;
   if (!feed?.exists) { res.status(404).send(''); return; }
   const uid = feed.get('uid') as string;

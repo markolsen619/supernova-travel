@@ -123,6 +123,10 @@ export function CalendarSheet({ visible, onClose }: { visible: boolean; onClose:
                 variant={Platform.OS === 'ios' ? 'secondary' : 'primary'}
                 onPress={handleGoogle}
               />
+              {/* Google adds calendars by link only on the web on a computer (final review, 2026-10-19). */}
+              <Text style={[styles.caption, { color: colors.text.tertiary }]}>
+                If Google Calendar doesn&apos;t add it on your phone, copy the link and add it on a computer: Other calendars → From URL.
+              </Text>
               <TouchableOpacity onPress={handleCopy} style={styles.link} accessibilityRole="button">
                 <Text style={[styles.linkText, { color: colors.text.primary }]}>{copied ? 'Copied' : 'Copy link'}</Text>
               </TouchableOpacity>

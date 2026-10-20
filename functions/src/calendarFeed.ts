@@ -10,11 +10,15 @@ import { dayKey, tripDays } from './friendsTraveling';
 export type CalTypes = { flights: boolean; stays: boolean; dining: boolean; transit: boolean; tripDays: boolean };
 export const DEFAULT_TYPES: CalTypes = { flights: true, stays: true, dining: true, transit: true, tripDays: true };
 
-export type CalPass = { id: string; airline?: string; flightNumber?: string; origin?: string; destination?: string; departureTime?: string; arrivalTime?: string; seat?: string; gate?: string; terminal?: string; boardingGroup?: string; showInCalendar?: boolean };
+export type CalPass = { id: string; status?: string; airline?: string; flightNumber?: string; origin?: string; destination?: string; departureTime?: string; arrivalTime?: string; seat?: string; gate?: string; terminal?: string; boardingGroup?: string; showInCalendar?: boolean };
 export type CalReservation = { id: string; type: string; title?: string; checkIn?: string; checkOut?: string; time?: string; transitMode?: string; departureLocalTime?: string; showInCalendar?: boolean };
 export type CalStop = { id: string; title?: string; startTime?: string | null; endTime?: string | null; order?: number };
 export type CalDay = { id: string; dayNumber?: number | null; dateMs: number | null; city?: string | null; stops: CalStop[] };
-export type CalTrip = { id: string; title?: string; region?: string | null; startDateMs: number | null; endDateMs: number | null; startDay?: string | null; days: CalDay[] };
+/**
+ * `aiTimesUntrusted`: AI trips generated before 2026-10-09 still carry AI-guessed times on every stop (the
+ * generator stopped writing them then, with no backfill), so their stop times are not the user's own.
+ */
+export type CalTrip = { id: string; title?: string; region?: string | null; startDateMs: number | null; endDateMs: number | null; startDay?: string | null; aiTimesUntrusted?: boolean; days: CalDay[] };
 
 const DOMAIN = 'supernovatravel.app';
 const WINDOW_MS = 30 * 86_400_000;
@@ -23,7 +27,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
 export function escapeText(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n');
 }
 
 /** Folds at 75 octets (RFC 5545 §3.1), never inside a UTF-8 character. */
@@ -82,6 +86,7 @@ function minutesBetween(start: string, end: string | null | undefined, fallback:
 function flightEvents(passes: CalPass[]): Ev[] {
   const out: Ev[] = [];
   for (const p of passes) {
+    if (p.status === 'cancelled') continue;
     const dep = p.departureTime ? Date.parse(p.departureTime) : NaN;
     if (Number.isNaN(dep)) continue;
     const arrRaw = p.arrivalTime ? Date.parse(p.arrivalTime) : NaN;
@@ -140,6 +145,7 @@ function tripEvents(trips: CalTrip[]): Ev[] {
         [`Day ${d.dayNumber ?? ''}`.trim(), d.city].filter(Boolean).join(' · '),
         stops.map((s) => s.title?.trim()).filter(Boolean).join('\n') || undefined));
       for (const s of stops) {
+        if (trip.aiTimesUntrusted) break;
         if (!s.startTime || !TIME_RE.test(s.startTime)) continue;
         out.push(timed(`stop-${s.id}@${DOMAIN}`, date, s.startTime, minutesBetween(s.startTime, s.endTime, 60), s.title?.trim() || 'Stop'));
       }
@@ -161,7 +167,7 @@ export function buildCalendar(
   ].filter((e) => e.endsAtMs >= now.getTime() - WINDOW_MS);
   const stamp = utc(now.getTime());
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Galaxie Labs//Supernova//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-    'X-WR-CALNAME:Supernova trips', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'];
+    'X-WR-CALNAME:Supernova trips', 'REFRESH-INTERVAL;VALUE=DURATION:PT3H', 'X-PUBLISHED-TTL:PT3H'];
   for (const e of evs) {
     lines.push('BEGIN:VEVENT', `UID:${e.uid}`, `DTSTAMP:${stamp}`, e.start, e.end, `SUMMARY:${escapeText(e.summary)}`);
     if (e.description) lines.push(`DESCRIPTION:${escapeText(e.description)}`);
@@ -189,4 +195,18 @@ export function newFeedToken(random: (n: number) => Buffer = randomBytes): strin
 export function tokenFromPath(path: string): string | null {
   const m = /^\/cal\/([a-z0-9]{24})(?:\.ics)?$/.exec(path);
   return m ? m[1] : null;
+}
+
+/**
+ * Trips whose days are worth reading for the feed: dated and ending within the window. Applied before any day or
+ * stop is read, so a refresh costs reads in proportion to current travel, not to the user's whole history.
+ */
+export function tripsWorthLoading<T extends { endDateMs: number | null }>(trips: T[], now: Date): T[] {
+  const cutoff = now.getTime() - WINDOW_MS - 86_400_000; // a day of slack for time zones
+  return trips.filter((t) => t.endDateMs != null && t.endDateMs >= cutoff);
+}
+
+/** Calendar apps may check a subscription with HEAD before GET. */
+export function isFeedRequest(method: string): boolean {
+  return method === 'GET' || method === 'HEAD';
 }

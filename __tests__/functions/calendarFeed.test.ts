@@ -1,5 +1,5 @@
 // __tests__/functions/calendarFeed.test.ts
-import { buildCalendar, escapeText, foldLine, newFeedToken, tokenFromPath, type CalTrip } from '../../functions/src/calendarFeed';
+import { buildCalendar, escapeText, foldLine, isFeedRequest, newFeedToken, tokenFromPath, tripsWorthLoading, type CalTrip } from '../../functions/src/calendarFeed';
 
 const now = new Date('2026-10-19T12:00:00Z');
 const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
@@ -142,5 +142,43 @@ describe('tokenFromPath', () => {
     expect(tokenFromPath('/cal/SHORT.ics')).toBeNull();
     expect(tokenFromPath('/cal/../users.ics')).toBeNull();
     expect(tokenFromPath('/trip/x')).toBeNull();
+  });
+});
+
+describe('final-review fixes', () => {
+  it('ignores stop times on trips whose times were AI guesses (aiTimesUntrusted)', () => {
+    const ics = buildCalendar({ trips: [trip({ aiTimesUntrusted: true })], passes: [], reservations: [] }, now);
+    expect(ics).not.toContain('UID:stop-s2@');
+    expect(ics).toContain('UID:day-d1@');
+  });
+  it('leaves cancelled flights out', () => {
+    const ics = buildCalendar({ trips: [], reservations: [], passes: [
+      { id: 'c1', flightNumber: 'BA1', departureTime: '2026-11-01T09:00:00Z', status: 'cancelled' },
+    ] }, now);
+    expect(ics).not.toContain('flight-c1@');
+  });
+  it('escapes a lone carriage return too', () => {
+    expect(escapeText('a\rb')).toBe('a\\nb');
+  });
+});
+
+describe('tripsWorthLoading', () => {
+  const ms = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+  it('keeps trips that end within the window and drops undated or long-past ones before their days are read', () => {
+    const kept = tripsWorthLoading([
+      { id: 'future', endDateMs: ms('2026-12-01') },
+      { id: 'recent', endDateMs: ms('2026-10-01') },
+      { id: 'old', endDateMs: ms('2026-08-01') },
+      { id: 'tbd', endDateMs: null },
+    ], now).map((t) => t.id);
+    expect(kept).toEqual(['future', 'recent']);
+  });
+});
+
+describe('isFeedRequest', () => {
+  it('serves GET and HEAD', () => {
+    expect(isFeedRequest('GET')).toBe(true);
+    expect(isFeedRequest('HEAD')).toBe(true);
+    expect(isFeedRequest('POST')).toBe(false);
   });
 });
