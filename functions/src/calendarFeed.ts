@@ -184,3 +184,9 @@ export function newFeedToken(random: (n: number) => Buffer = randomBytes): strin
   }
   return out;
 }
+
+/** The token in /cal/{token}.ics — exactly 24 of a-z0-9, so nothing else can be looked up. */
+export function tokenFromPath(path: string): string | null {
+  const m = /^\/cal\/([a-z0-9]{24})(?:\.ics)?$/.exec(path);
+  return m ? m[1] : null;
+}

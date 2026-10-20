@@ -27,6 +27,7 @@ export { matchBooking, onTripWrittenRematch } from './bookingMatchFunctions';
 export { onBoardingPassWrittenShare, onReservationWrittenShare } from './sharedBookingFunctions';
 export { onTripDayCreatedBookingStops } from './bookingStopFunctions';
 export { inboundEmail, createImportAddress, rotateImportAddress } from './emailImportFunctions';
+export { calendarFeed, createCalendarFeed, rotateCalendarFeed, disableCalendarFeed, setCalendarTypes } from './calendarFeedFunctions';
 export { onPlaceReviewWritten } from './placeReviewFunctions';
 export {
   onTripWrittenFriends, onTripDayWrittenFriends, onFollowWrittenFriends, onUserWrittenFriends,

@@ -1,5 +1,5 @@
 // __tests__/functions/calendarFeed.test.ts
-import { buildCalendar, escapeText, foldLine, newFeedToken, type CalTrip } from '../../functions/src/calendarFeed';
+import { buildCalendar, escapeText, foldLine, newFeedToken, tokenFromPath, type CalTrip } from '../../functions/src/calendarFeed';
 
 const now = new Date('2026-10-19T12:00:00Z');
 const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
@@ -132,5 +132,15 @@ describe('escapeText / foldLine', () => {
 describe('newFeedToken', () => {
   it('is 24 lowercase letters or digits', () => {
     expect(newFeedToken()).toMatch(/^[a-z0-9]{24}$/);
+  });
+});
+
+describe('tokenFromPath', () => {
+  it('reads /cal/{token}.ics and nothing else', () => {
+    expect(tokenFromPath('/cal/abcdefghijklmnopqrstuvwx.ics')).toBe('abcdefghijklmnopqrstuvwx');
+    expect(tokenFromPath('/cal/abcdefghijklmnopqrstuvwx')).toBe('abcdefghijklmnopqrstuvwx');
+    expect(tokenFromPath('/cal/SHORT.ics')).toBeNull();
+    expect(tokenFromPath('/cal/../users.ics')).toBeNull();
+    expect(tokenFromPath('/trip/x')).toBeNull();
   });
 });

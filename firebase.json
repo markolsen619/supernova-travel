@@ -29,6 +29,13 @@
     ],
     "rewrites": [
       {
+        "source": "/cal/**",
+        "function": {
+          "functionId": "calendarFeed",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/trip/**",
         "function": {
           "functionId": "tripPreview",

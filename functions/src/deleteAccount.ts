@@ -163,6 +163,10 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
   const addresses = await db.collection('inboundAddresses').where('uid', '==', uid).get();
   await Promise.all(addresses.docs.map((d) => d.ref.delete()));
 
+  // Calendar links (calendarFeedFunctions.ts): every live one dies; users/{uid}/private/calendar goes with users/{uid}.
+  const feeds = await db.collection('calendarFeeds').where('uid', '==', uid).get();
+  await Promise.all(feeds.docs.map((d) => d.ref.delete()));
+
   // Their place reviews (the places' totals recompute through onPlaceReviewWritten); photos go with the Storage prefixes.
   const reviews = await db.collection('placeReviews').where('authorUid', '==', uid).get();
   await Promise.all(reviews.docs.map((d) => d.ref.delete()));
