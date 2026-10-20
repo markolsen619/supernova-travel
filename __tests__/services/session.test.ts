@@ -37,7 +37,7 @@ jest.mock('@/services/push', () => ({
 }));
 
 jest.mock('@/services/moderation', () => ({
-  loadModerationState: jest.fn(),
+  loadModerationState: jest.fn(() => Promise.resolve()),
 }));
 
 import { getDoc } from 'firebase/firestore';

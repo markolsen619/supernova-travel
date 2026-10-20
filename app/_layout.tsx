@@ -1,13 +1,15 @@
 import { useEffect } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { auth } from '@/services/firebase';
 import { configureGoogleSignIn } from '@/services/oauth';
-import { hydrateSession } from '@/services/session';
+import { clearSessionSnapshots, hydrateSession, loadSessionSnapshot, restoreFromSnapshot } from '@/services/session';
+import NetInfo from '@react-native-community/netinfo';
+import { canUseSnapshot } from '@/utils/sessionSnapshot';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useModerationStore } from '@/stores/useModerationStore';
@@ -112,14 +114,35 @@ export default function RootLayout() {
         if (firebaseUser) {
           // Restore this account's saved trips and wallet before routing, so an offline launch has them.
           await startPersistence(queryClient, firebaseUser.uid);
-          const { hasProfile, hasSeenOnboarding } = await hydrateSession(firebaseUser);
-          router.replace(resolveAuthRoute({
-            isAuthenticated: true, hasProfile, onboardingComplete: hasSeenOnboarding,
-          }));
+          try {
+            const { hasProfile, hasSeenOnboarding } = await hydrateSession(firebaseUser);
+            router.replace(resolveAuthRoute({
+              isAuthenticated: true, hasProfile, onboardingComplete: hasSeenOnboarding,
+            }));
+          } catch (error) {
+            // Offline launch (spec 2026-10-19 §2): open signed in from the saved session instead of
+            // the welcome screen. NetInfo's first event may not have arrived yet, so ask it directly.
+            const offline = !(await NetInfo.fetch()).isConnected;
+            const snapshot = await loadSessionSnapshot(firebaseUser.uid);
+            const restored = snapshot && canUseSnapshot({ readFailed: true, offline, uid: firebaseUser.uid, snapshot })
+              ? restoreFromSnapshot(snapshot)
+              : null;
+            if (!restored) throw error; // today's behaviour: the outer catch routes to welcome
+            router.replace(resolveAuthRoute({
+              isAuthenticated: true, hasProfile: true, onboardingComplete: restored.hasSeenOnboarding,
+            }));
+            // Refresh tier, profile and moderation once signal returns, without re-routing.
+            const off = onlineManager.subscribe((online) => {
+              if (!online) return;
+              off();
+              hydrateSession(firebaseUser).catch((e) => console.warn('[auth] re-hydrate after reconnect failed:', e));
+            });
+          }
         } else {
           // Sign-out and account deletion both end here (auth.signOut()), so one wipe covers both:
           // the next person on this phone never sees the previous account's trips or passes.
           await stopPersistence(queryClient, { wipe: true });
+          await clearSessionSnapshots();
           useUserStore.getState().setProfile(null);
           useModerationStore.getState().reset();
           useAiConsentStore.getState().setVersion(null);

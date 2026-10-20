@@ -8,6 +8,8 @@ import { useAiConsentStore } from '@/stores/useAiConsentStore';
 import { configureRevenueCat } from '@/services/revenuecat';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUserStore } from '@/stores/useUserStore';
+import { useModerationStore } from '@/stores/useModerationStore';
+import { snapshotKey, parseSnapshot, type SessionSnapshot } from '@/utils/sessionSnapshot';
 
 // Pre-namespacing (per-uid) onboarding flag. Never write this key again —
 // it survives only as a one-time migration source inside hydrateSession.
@@ -95,7 +97,10 @@ export async function hydrateSession(
   // Non-prompting on purpose: the permission ask now happens at a moment
   // that explains itself (services/push.ts), not cold during onboarding.
   registerPushTokenIfGranted(firebaseUser.uid);
-  loadModerationState(firebaseUser.uid);
+  // Saved once moderation has loaded, so an offline launch hides the same people (offline spec §2).
+  loadModerationState(firebaseUser.uid).finally(() => {
+    saveSessionSnapshot(firebaseUser.uid, resolveHasSeenOnboarding(data, false));
+  });
 
   let legacyFlagPresent = false;
   if (!('hasSeenOnboarding' in data)) {
@@ -124,4 +129,49 @@ export async function hydrateSession(
     hasProfile: true,
     hasSeenOnboarding: resolveHasSeenOnboarding(data, legacyFlagPresent),
   };
+}
+
+/**
+ * Offline trips (spec 2026-10-19 §2): what the app needs to open signed in without signal. Saved after each
+ * successful hydrateSession; the onboarding flag ignores the legacy key on purpose — by the next launch the
+ * migration has written hasSeenOnboarding to the document.
+ */
+export async function saveSessionSnapshot(uid: string, hasSeenOnboarding: boolean): Promise<void> {
+  const profile = useUserStore.getState().profile;
+  if (!profile) return;
+  const { blockedUids, hiddenKeys } = useModerationStore.getState();
+  const snap: SessionSnapshot = {
+    v: 1,
+    uid,
+    profile: profile as unknown as Record<string, unknown>,
+    tier: useAuthStore.getState().serverTier ?? 'free',
+    hasSeenOnboarding,
+    aiConsentVersion: useAiConsentStore.getState().version ?? null,
+    blockedUids,
+    hiddenKeys,
+    savedAt: Date.now(),
+  };
+  await AsyncStorage.setItem(snapshotKey(uid), JSON.stringify(snap)).catch((e) =>
+    console.warn('[session] snapshot save failed:', e));
+}
+
+/** The saved snapshot for this uid, or null. */
+export async function loadSessionSnapshot(uid: string): Promise<SessionSnapshot | null> {
+  return parseSnapshot(await AsyncStorage.getItem(snapshotKey(uid)).catch(() => null), uid);
+}
+
+/** Fills the stores from a saved snapshot (checked with canUseSnapshot first). */
+export function restoreFromSnapshot(snap: SessionSnapshot): { hasSeenOnboarding: boolean } {
+  useAuthStore.getState().setTier(snap.tier);
+  useAuthStore.getState().setServerTier(snap.tier);
+  useAiConsentStore.getState().setVersion(snap.aiConsentVersion);
+  useUserStore.getState().setProfile(snap.profile as never);
+  useModerationStore.getState().setAll({ blockedUids: snap.blockedUids, hiddenKeys: snap.hiddenKeys });
+  return { hasSeenOnboarding: snap.hasSeenOnboarding };
+}
+
+/** Sign-out: every saved snapshot on this phone goes (the uid is already gone by then). */
+export async function clearSessionSnapshots(): Promise<void> {
+  const keys = (await AsyncStorage.getAllKeys().catch(() => [] as readonly string[])).filter((k) => k.startsWith('sessionSnapshot:'));
+  if (keys.length) await AsyncStorage.multiRemove(keys).catch(() => undefined);
 }
