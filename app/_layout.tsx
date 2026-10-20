@@ -24,9 +24,13 @@ import { useNotificationRouting } from '@/hooks/useNotificationRouting';
 import { usePushIntro } from '@/hooks/usePushIntro';
 import { NotificationArrivalBanner } from '@/components/NotificationArrivalBanner';
 import { useLinkRouting } from '@/hooks/useLinkRouting';
+import { startOnlineSync } from '@/services/offline';
+import { startPersistence, stopPersistence } from '@/services/queryPersist';
 
 SplashScreen.preventAutoHideAsync();
 configureGoogleSignIn();
+// Offline trips (spec 2026-10-19): queries pause without signal and show what's saved on the phone.
+startOnlineSync();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -106,11 +110,16 @@ export default function RootLayout() {
       setUser(firebaseUser);
       try {
         if (firebaseUser) {
+          // Restore this account's saved trips and wallet before routing, so an offline launch has them.
+          await startPersistence(queryClient, firebaseUser.uid);
           const { hasProfile, hasSeenOnboarding } = await hydrateSession(firebaseUser);
           router.replace(resolveAuthRoute({
             isAuthenticated: true, hasProfile, onboardingComplete: hasSeenOnboarding,
           }));
         } else {
+          // Sign-out and account deletion both end here (auth.signOut()), so one wipe covers both:
+          // the next person on this phone never sees the previous account's trips or passes.
+          await stopPersistence(queryClient, { wipe: true });
           useUserStore.getState().setProfile(null);
           useModerationStore.getState().reset();
           useAiConsentStore.getState().setVersion(null);
