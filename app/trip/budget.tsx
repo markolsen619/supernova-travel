@@ -29,6 +29,7 @@ import { EXPENSE_ICONS } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { Expense } from '@/types';
+import { requireOnline } from '@/services/offline';
 
 function formatMoney(amount: number, currency: string): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
@@ -70,6 +71,8 @@ export default function BudgetScreen() {
   }, []);
 
   const openBudgetEditor = useCallback(() => {
+    // Offline: the budget isn't saved on the phone, so the editor would open empty and overwrite it.
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setBudgetInput(budgetAmount != null ? String(budgetAmount) : '');
     setEditingBudget(true);
@@ -77,6 +80,7 @@ export default function BudgetScreen() {
 
   const saveBudget = useCallback(async () => {
     if (!id) return;
+    if (!requireOnline()) return;
     const parsed = parseFloat(budgetInput);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await setBudget.mutateAsync(Number.isNaN(parsed) || parsed <= 0 ? null : parsed);
@@ -85,6 +89,7 @@ export default function BudgetScreen() {
 
   const handleAddExpense = useCallback(
     async (data: ExpenseFormData) => {
+      if (!requireOnline()) return;
       await addExpense.mutateAsync({ ...data, createdByUid: currentUid });
     },
     [addExpense, currentUid],
@@ -92,6 +97,7 @@ export default function BudgetScreen() {
 
   const handleDeleteExpense = useCallback(
     (expenseId: string) => {
+      if (!requireOnline()) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       deleteExpense.mutate(expenseId);
     },

@@ -36,6 +36,7 @@ import { ACTIVITY_ICONS } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { TripActivity } from '@/types';
+import { requireOnline } from '@/services/offline';
 
 const NOTE_MAX = 280;
 const PHOTO_SIZE = 108;
@@ -84,6 +85,8 @@ export function JournalSheet({ visible, tripId, dayId, activity, isOwner, onClos
   }, [visible, entry, isLoading]);
 
   const handleAddPhotos = useCallback(async () => {
+    // Offline (spec 2026-10-19): the journal isn't saved on the phone, so an offline save would overwrite it.
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setError(null);
     const { urls, error: pickError } = await pickJournalPhotos(uid, tripId, activity.id, photoUrls.length);
@@ -101,6 +104,7 @@ export function JournalSheet({ visible, tripId, dayId, activity, isOwner, onClos
 
   const handleSave = useCallback(async () => {
     if (saving) return;
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError(null);
     const saveError = await saveJournal(tripId, dayId, activity.id, { note, photoUrls });

@@ -28,7 +28,8 @@ import { NotificationArrivalBanner } from '@/components/NotificationArrivalBanne
 import { useLinkRouting } from '@/hooks/useLinkRouting';
 import { startOnlineSync } from '@/services/offline';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
-import { startPersistence, stopPersistence } from '@/services/queryPersist';
+import { keepOfflineQueriesAlive, startPersistence, stopPersistence } from '@/services/queryPersist';
+import { looksOffline } from '@/utils/offlineCache';
 
 SplashScreen.preventAutoHideAsync();
 configureGoogleSignIn();
@@ -50,6 +51,10 @@ const queryClient = new QueryClient({
     queries: { staleTime: 1000 * 60 * 2, retry: 2 },
   },
 });
+keepOfflineQueriesAlive(queryClient);
+
+/** The pending "re-hydrate when signal returns" after an offline launch; cancelled on any auth change. */
+let cancelReconnectHydrate: (() => void) | null = null;
 
 function AppStack() {
   const { isDark } = useTheme();
@@ -111,6 +116,8 @@ export default function RootLayout() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      cancelReconnectHydrate?.();
+      cancelReconnectHydrate = null;
       try {
         if (firebaseUser) {
           // Restore this account's saved trips and wallet before routing, so an offline launch has them.
@@ -123,7 +130,8 @@ export default function RootLayout() {
           } catch (error) {
             // Offline launch (spec 2026-10-19 §2): open signed in from the saved session instead of
             // the welcome screen. NetInfo's first event may not have arrived yet, so ask it directly.
-            const offline = !(await NetInfo.fetch()).isConnected;
+            // Captive / plane Wi-Fi reports connected but unreachable; Firestore says `unavailable`.
+            const offline = looksOffline(await NetInfo.fetch(), error);
             const snapshot = await loadSessionSnapshot(firebaseUser.uid);
             const restored = snapshot && canUseSnapshot({ readFailed: true, offline, uid: firebaseUser.uid, snapshot })
               ? restoreFromSnapshot(snapshot)
@@ -136,8 +144,12 @@ export default function RootLayout() {
             const off = onlineManager.subscribe((online) => {
               if (!online) return;
               off();
+              cancelReconnectHydrate = null;
+              // Only for the account that is still signed in (another may have signed in meanwhile).
+              if (auth.currentUser?.uid !== firebaseUser.uid) return;
               hydrateSession(firebaseUser).catch((e) => console.warn('[auth] re-hydrate after reconnect failed:', e));
             });
+            cancelReconnectHydrate = off;
           }
         } else {
           // Sign-out and account deletion both end here (auth.signOut()), so one wipe covers both:

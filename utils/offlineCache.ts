@@ -15,15 +15,40 @@ const USER_LISTS = new Set(['trips', 'myTrips', 'boardingPasses', 'reservations'
 const TRIP_DETAILS = new Set(['trip', 'tripBookings', 'packingItems']);
 export const PERSISTED_ROOTS = [...USER_LISTS, ...TRIP_DETAILS, 'sharedTripBookings'] as const;
 
-export function shouldPersistQuery(queryKey: readonly unknown[], status: string, allowedTripIds: ReadonlySet<string>): boolean {
-  if (status !== 'success') return false;
-  const [root, second] = queryKey;
+/** The profile Trips tab lists that are the user's own ('withJoined' on the tab, 'all' via their own profile). */
+const OWN_TRIP_SCOPES = new Set(['withJoined', 'all']);
+
+/**
+ * Kept when the query has data (a refresh that failed on weak signal keeps its last good copy) and belongs to
+ * `uid` — another account's list is never written under this account's cache.
+ */
+export function shouldPersistQuery(queryKey: readonly unknown[], hasData: boolean, allowedTripIds: ReadonlySet<string>, uid: string): boolean {
+  if (!hasData) return false;
+  const [root, second, third] = queryKey;
   if (typeof root !== 'string') return false;
-  // ['trips', uid, 'public'] is someone's profile tab, not the user's own list.
-  if (USER_LISTS.has(root)) return queryKey.length === 2;
-  if (root === 'sharedTripBookings') return true;
+  if (USER_LISTS.has(root)) {
+    if (second !== uid) return false;
+    if (queryKey.length === 2) return true;
+    // ['trips', uid, 'public' | 'followers'] is how others see a profile; only the owner's scopes are kept.
+    return root === 'trips' && queryKey.length === 3 && OWN_TRIP_SCOPES.has(third as string);
+  }
+  if (root === 'sharedTripBookings') return second === uid;
+  if (root === 'tripBookings') return typeof second === 'string' && allowedTripIds.has(second) && third === uid;
   if (TRIP_DETAILS.has(root)) return typeof second === 'string' && allowedTripIds.has(second);
   return false;
+}
+
+/**
+ * Whether a failed profile read at launch means "no signal" (open from the saved session) rather than a real
+ * server error (keep today's welcome). Captive or plane Wi-Fi reports connected but unreachable; Firestore
+ * reports `unavailable` when it can't reach its backend.
+ */
+export function looksOffline(
+  net: { isConnected: boolean | null; isInternetReachable: boolean | null },
+  error: unknown,
+): boolean {
+  if (net.isConnected === false || net.isInternetReachable === false) return true;
+  return (error as { code?: unknown } | null)?.code === 'unavailable';
 }
 
 /** Timestamp.toJSON() writes {type: 'firestore/timestamp/1.0', seconds, nanoseconds}; only that marker is revived. */
@@ -94,4 +119,13 @@ export function tripsForOffline(
   for (const s of joined) byId.set(s.tripId, { id: s.tripId, startDate: dayToTimestamp(s.start), endDate: dayToTimestamp(s.end) });
   for (const t of own) byId.set(t.id, t);
   return [...byId.values()];
+}
+
+/**
+ * The persister writes up to 2 s late (throttled), with the client it dehydrated earlier. Refusing any write
+ * whose buster isn't the signed-in account's stops a sign-out or account switch from being undone by it.
+ */
+export function serializeIfCurrent<T extends { buster?: string }>(data: T, activeBuster: string | null): string {
+  if (!activeBuster || data.buster !== activeBuster) throw new Error('offline cache: stale write dropped');
+  return JSON.stringify(data);
 }

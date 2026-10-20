@@ -930,6 +930,7 @@ export default function TripDetailScreen() {
   );
 
   const handleOpenJournal = useCallback((activity: TripActivity, dayId: string) => {
+    if (!requireOnline()) return;
     setJournalActivity({ activity, dayId });
   }, []);
 

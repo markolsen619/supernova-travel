@@ -2,30 +2,43 @@
 import { Timestamp } from 'firebase/firestore';
 import {
   shouldPersistQuery, reviveTimestamps, offlineTripSet, needsPrefetch,
-  cacheBuster, cacheBelongsTo, OFFLINE_TRIP_CAP, tripsForOffline,
+  cacheBuster, cacheBelongsTo, OFFLINE_TRIP_CAP, tripsForOffline, looksOffline, PERSISTED_ROOTS, serializeIfCurrent,
 } from '@/utils/offlineCache';
 
 const allowed = new Set(['t1']);
+const U = 'u1';
 
 describe('shouldPersistQuery', () => {
+  it('keeps the profile Trips tab lists (own + joined, own profile)', () => {
+    expect(shouldPersistQuery(['trips', U, 'withJoined'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['trips', U, 'all'], true, allowed, U)).toBe(true);
+  });
+  it('never keeps another uid\'s lists, whatever the key', () => {
+    expect(shouldPersistQuery(['boardingPasses', 'other'], true, allowed, U)).toBe(false);
+    expect(shouldPersistQuery(['trips', 'other', 'withJoined'], true, allowed, U)).toBe(false);
+    expect(shouldPersistQuery(['sharedTripBookings', 'other', 't1'], true, allowed, U)).toBe(false);
+    expect(shouldPersistQuery(['tripBookings', 't1', 'other'], true, allowed, U)).toBe(false);
+  });
+  it('keeps data that a later refresh failed to update (weak signal must not erase the saved copy)', () => {
+    expect(shouldPersistQuery(['trip', 't1'], true, allowed, U)).toBe(true);
+  });
   it('keeps the wallet and trip lists for the signed-in user', () => {
-    expect(shouldPersistQuery(['boardingPasses', 'u1'], 'success', allowed)).toBe(true);
-    expect(shouldPersistQuery(['reservations', 'u1'], 'success', allowed)).toBe(true);
-    expect(shouldPersistQuery(['trips', 'u1'], 'success', allowed)).toBe(true);
-    expect(shouldPersistQuery(['myTrips', 'u1'], 'success', allowed)).toBe(true);
-    expect(shouldPersistQuery(['sharedTripBookings', 'u1', 't1,t2'], 'success', allowed)).toBe(true);
+    expect(shouldPersistQuery(['boardingPasses', 'u1'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['reservations', 'u1'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['trips', 'u1'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['myTrips', 'u1'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['sharedTripBookings', 'u1', 't1,t2'], true, allowed, U)).toBe(true);
   });
   it('keeps trip details only for trips in the offline set', () => {
-    expect(shouldPersistQuery(['trip', 't1'], 'success', allowed)).toBe(true);
-    expect(shouldPersistQuery(['tripBookings', 't1', 'u1'], 'success', allowed)).toBe(true);
-    expect(shouldPersistQuery(['packingItems', 't1'], 'success', allowed)).toBe(true);
-    expect(shouldPersistQuery(['trip', 't9'], 'success', allowed)).toBe(false);
+    expect(shouldPersistQuery(['trip', 't1'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['tripBookings', 't1', 'u1'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['packingItems', 't1'], true, allowed, U)).toBe(true);
+    expect(shouldPersistQuery(['trip', 't9'], true, allowed, U)).toBe(false);
   });
-  it('drops other people\'s trip lists, feeds and failed queries', () => {
-    expect(shouldPersistQuery(['trips', 'u1', 'public'], 'success', allowed)).toBe(false);
-    expect(shouldPersistQuery(['feed', 'forYou'], 'success', allowed)).toBe(false);
-    expect(shouldPersistQuery(['boardingPasses', 'u1'], 'error', allowed)).toBe(false);
-    expect(shouldPersistQuery(['boardingPasses', 'u1'], 'pending', allowed)).toBe(false);
+  it('drops other people\'s trip lists, feeds and queries with no data', () => {
+    expect(shouldPersistQuery(['trips', 'u1', 'public'], true, allowed, U)).toBe(false);
+    expect(shouldPersistQuery(['feed', 'forYou'], true, allowed, U)).toBe(false);
+    expect(shouldPersistQuery(['boardingPasses', 'u1'], false, allowed, U)).toBe(false);
   });
 });
 
@@ -112,5 +125,35 @@ describe('tripsForOffline', () => {
     expect(out.find((t) => t.id === 'c')!.startDate).toBeNull();
     // An own trip keeps its real timestamps.
     expect(out.find((t) => t.id === 'a')!.startDate!.toMillis()).toBe(own[0].startDate!.toMillis());
+  });
+});
+
+describe('looksOffline', () => {
+  it('is offline with no connection or an unreachable internet (captive / plane Wi-Fi)', () => {
+    expect(looksOffline({ isConnected: false, isInternetReachable: null }, null)).toBe(true);
+    expect(looksOffline({ isConnected: true, isInternetReachable: false }, null)).toBe(true);
+  });
+  it('treats Firestore unavailable as offline even when NetInfo is unsure', () => {
+    expect(looksOffline({ isConnected: true, isInternetReachable: null }, { code: 'unavailable' })).toBe(true);
+  });
+  it('is not offline for a real server error on a working connection', () => {
+    expect(looksOffline({ isConnected: true, isInternetReachable: true }, { code: 'permission-denied' })).toBe(false);
+    expect(looksOffline({ isConnected: true, isInternetReachable: null }, new Error('internal'))).toBe(false);
+  });
+});
+
+describe('PERSISTED_ROOTS', () => {
+  it('lists every root the persister keeps, so each gets a long gcTime', () => {
+    expect([...PERSISTED_ROOTS].sort()).toEqual(['boardingPasses', 'myTrips', 'packingItems', 'reservations', 'sharedTripBookings', 'trip', 'tripBookings', 'trips'].sort());
+  });
+});
+
+describe('serializeIfCurrent', () => {
+  it('writes the cache for the account that is still signed in', () => {
+    expect(serializeIfCurrent({ buster: cacheBuster('a'), x: 1 }, cacheBuster('a'))).toBe(JSON.stringify({ buster: cacheBuster('a'), x: 1 }));
+  });
+  it('refuses a late write after sign-out or an account switch', () => {
+    expect(() => serializeIfCurrent({ buster: cacheBuster('a') }, null)).toThrow();
+    expect(() => serializeIfCurrent({ buster: cacheBuster('a') }, cacheBuster('b'))).toThrow();
   });
 });
