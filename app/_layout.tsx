@@ -27,6 +27,7 @@ import { usePushIntro } from '@/hooks/usePushIntro';
 import { NotificationArrivalBanner } from '@/components/NotificationArrivalBanner';
 import { useLinkRouting } from '@/hooks/useLinkRouting';
 import { startOnlineSync } from '@/services/offline';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { startPersistence, stopPersistence } from '@/services/queryPersist';
 
 SplashScreen.preventAutoHideAsync();
@@ -166,6 +167,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
         <AppStack />
+        <OfflineBanner />
         <SplashOverlay visible={!isInitialized} />
       </QueryClientProvider>
     </GestureHandlerRootView>

@@ -28,8 +28,11 @@ import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { ScreenHeaderStar } from '@/components/ui/ScreenHeaderStar';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
+import { useIsOnline } from '@/services/offline';
+import { OfflineEmptyState } from '@/components/ui/OfflineEmptyState';
 
 export default function ExploreScreen() {
+  const online = useIsOnline();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -99,6 +102,9 @@ export default function ExploreScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/(wallet)');
   }, [router]);
+
+  // Offline (spec 2026-10-19 §3): nothing saved for this screen, so say so instead of spinning.
+  if (!online && trips.length === 0 && destinations.length === 0) return <OfflineEmptyState title="Connect to explore" description="Your trips and wallet still work offline." />;
 
   return (
     <ScreenEntrance>

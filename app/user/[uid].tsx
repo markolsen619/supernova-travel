@@ -40,11 +40,14 @@ import { useModeration } from '@/hooks/useModeration';
 import { contentKey, filterVisible } from '@/utils/moderation';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { useIsOnline } from '@/services/offline';
+import { OfflineEmptyState } from '@/components/ui/OfflineEmptyState';
 
 type ProfileTab = 'Posts' | 'Trips' | 'Saved';
 const PROFILE_TABS: ProfileTab[] = ['Posts', 'Trips', 'Saved'];
 
 export default function UserProfileScreen() {
+  const online = useIsOnline();
   const { uid } = useLocalSearchParams<{ uid: string }>();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -169,6 +172,9 @@ export default function UserProfileScreen() {
   }, []);
 
   // ── Loading state — mirrors the loaded layout so nothing jumps ────────────
+  // Offline (spec 2026-10-19 §3): nothing saved for this screen, so say so instead of spinning.
+  if (!online && !profile) return <OfflineEmptyState title="Connect to see this profile" description="Your trips and wallet still work offline." />;
+
   if (isLoading) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background.primary }]}>

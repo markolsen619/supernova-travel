@@ -29,8 +29,11 @@ import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { Post } from '@/types';
 import { Spacing } from '@/constants/spacing';
+import { useIsOnline } from '@/services/offline';
+import { OfflineEmptyState } from '@/components/ui/OfflineEmptyState';
 
 export default function FeedScreen() {
+  const online = useIsOnline();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
@@ -146,6 +149,9 @@ export default function FeedScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/notifications');
   }, [router]);
+
+  // Offline (spec 2026-10-19 §3): nothing saved for this screen, so say so instead of spinning.
+  if (!online && !data) return <OfflineEmptyState title="Connect to see the feed" description="Your trips and wallet still work offline." />;
 
   return (
     <ScreenEntrance>

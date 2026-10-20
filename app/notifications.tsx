@@ -27,6 +27,8 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import { ACTIVITY_ICONS } from '@/constants/icons';
 import { resolveNotificationRoute } from '@/utils/notificationRoute';
 import type { AppNotification } from '@/types';
+import { useIsOnline } from '@/services/offline';
+import { OfflineEmptyState } from '@/components/ui/OfflineEmptyState';
 
 /** Mirrors checkFlightStatus's push copy, minus the "Your flight" prefix —
  *  the flight number is already the bolded subject of the row. */
@@ -48,6 +50,7 @@ function timeAgo(date: Date): string {
 }
 
 export default function NotificationsScreen() {
+  const online = useIsOnline();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const moderation = useModeration();
@@ -481,6 +484,9 @@ export default function NotificationsScreen() {
     // openNotification is reached through rowProps now, which lists it itself.
     [colors, handled, serverAnswers, handleRespond, handleFollowRespond, openNotification, confirmDelete, rowProps],
   );
+
+  // Offline (spec 2026-10-19 §3): nothing saved for this screen, so say so instead of spinning.
+  if (!online && allNotifications.length === 0 && allThreads.length === 0) return <OfflineEmptyState title="Connect to see notifications" description="Your trips and wallet still work offline." />;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
