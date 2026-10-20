@@ -38,3 +38,12 @@ export function requireOnline(): boolean {
   Alert.alert("You're offline", 'Try again when you\'re connected.');
   return false;
 }
+
+/**
+ * A mutation whose `mutate` refuses offline (requireOnline) instead of starting a write that would be lost.
+ * Used where many screens share one mutation (follows, packing), so the guard lives in one place.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function onlineOnly<M extends { mutate: (...args: any[]) => void }>(m: M): M {
+  return { ...m, mutate: (...args: Parameters<M['mutate']>) => { if (requireOnline()) m.mutate(...args); } };
+}

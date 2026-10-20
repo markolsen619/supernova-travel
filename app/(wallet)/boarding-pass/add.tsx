@@ -26,6 +26,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { BoardingPass } from '@/types';
 import { useWalletAllowance } from '@/hooks/useWalletAllowance';
+import { requireOnline } from '@/services/offline';
 
 interface FormState {
   airline: string;
@@ -125,6 +126,7 @@ export default function AddBoardingPassScreen() {
   }, []);
 
   const handleSubmit = useCallback(() => {
+    if (!requireOnline()) return;
     if (!form.airline.trim() || !form.flightNumber.trim() || !form.origin.trim() || !form.destination.trim()) {
       Alert.alert('Missing details', 'Fill in airline, flight number, origin, and destination.');
       return;

@@ -25,6 +25,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { SPRING } from '@/constants/motion';
 import type { BoardingPass } from '@/types';
+import { requireOnline } from '@/services/offline';
 
 const CARD_HEIGHT = 200;
 
@@ -94,11 +95,13 @@ export default function BoardingPassDetailScreen() {
   }, []);
 
   const handleEdit = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/(wallet)/boarding-pass/add?id=${id}`);
   }, [id]);
 
   const handleDelete = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Delete boarding pass',

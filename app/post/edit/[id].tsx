@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/Button';
 import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { requireOnline } from '@/services/offline';
 
 const MAX_PHOTOS = 10;
 
@@ -121,6 +122,7 @@ export default function EditPostScreen() {
   const canSave = post?.mediaType !== 'photo' || photoItems.length > 0;
 
   const handleSave = useCallback(async () => {
+    if (!requireOnline()) return;
     if (!post || !canSave) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {

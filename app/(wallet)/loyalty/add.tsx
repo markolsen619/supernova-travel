@@ -24,6 +24,7 @@ import { LoyaltyUnit, LoyaltyTier, LoyaltyProgram } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useWalletAllowance } from '@/hooks/useWalletAllowance';
+import { requireOnline } from '@/services/offline';
 
 type ProgramType = LoyaltyProgram['programType'];
 
@@ -84,6 +85,7 @@ export default function AddLoyaltyScreen() {
   }, [existing]);
 
   const handleSubmit = useCallback(() => {
+    if (!requireOnline()) return;
     if (!programName.trim()) {
       Alert.alert('Missing details', 'Enter a program name to save it.');
       return;

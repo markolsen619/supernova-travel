@@ -13,6 +13,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { onlineOnly } from '@/services/offline';
 
 function followDocId(followerUid: string, followeeUid: string) {
   return `${followerUid}_${followeeUid}`;
@@ -96,7 +97,8 @@ export function useFollow(followeeUid: string) {
     onSuccess: invalidate,
   });
 
-  return { follow, unfollow };
+  // Offline (spec 2026-10-19): view only.
+  return { follow: onlineOnly(follow), unfollow: onlineOnly(unfollow) };
 }
 
 async function fetchConnections(uid: string): Promise<string[]> {

@@ -25,6 +25,7 @@ import { formatGroupName } from '@/utils/dm';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { DmMessage } from '@/types';
+import { requireOnline } from '@/services/offline';
 
 export default function DmThreadScreen() {
   const { threadId } = useLocalSearchParams<{ threadId: string }>();
@@ -117,6 +118,7 @@ export default function DmThreadScreen() {
   }, [directOtherUid, headerName, unblock]);
 
   const handleSend = useCallback(() => {
+    if (!requireOnline()) return;
     if (!text.trim()) return;
     if (containsObjectionableText(text)) {
       setSendError(OBJECTIONABLE_TEXT_MESSAGE);

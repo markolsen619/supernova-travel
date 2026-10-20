@@ -24,6 +24,7 @@ import { ReservationType } from '@/types';
 import { formatCalendarDate } from '@/utils/calendarDate';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { requireOnline } from '@/services/offline';
 
 const TYPE_LABELS: Record<ReservationType, string> = {
   hotel: 'Hotel',
@@ -59,11 +60,13 @@ export default function ReservationDetailScreen() {
   }, []);
 
   const handleEdit = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/(wallet)/reservation/add?id=${id}`);
   }, [id]);
 
   const handleDelete = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Delete reservation',

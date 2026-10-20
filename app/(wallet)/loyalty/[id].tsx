@@ -19,6 +19,7 @@ import { PointsBalance } from '@/components/wallet/PointsBalance';
 import { formatCalendarDate } from '@/utils/calendarDate';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { requireOnline } from '@/services/offline';
 
 const PROGRAM_TYPE_LABELS: Record<string, string> = {
   airline: 'Airline',
@@ -46,11 +47,13 @@ export default function LoyaltyDetailScreen() {
   }, []);
 
   const handleEdit = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/(wallet)/loyalty/add?id=${id}`);
   }, [id]);
 
   const handleDelete = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Delete loyalty program',

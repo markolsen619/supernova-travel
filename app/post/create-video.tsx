@@ -13,6 +13,7 @@ import { MAX_VIDEO_SECONDS } from '@/utils/videoPost';
 import { CLIP_AUDIO_MIXING } from '@/utils/videoPlayback';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { requireOnline } from '@/services/offline';
 
 interface Clip {
   uri: string;
@@ -80,6 +81,7 @@ export default function CreateVideoScreen() {
   }, []);
 
   const handlePost = useCallback(async () => {
+    if (!requireOnline()) return;
     if (!clip || isUploading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setError(null);

@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { db } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { linkPatch } from '@/utils/walletLink';
+import { requireOnline } from '@/services/offline';
 
 /** Link, unlink or dismiss a wallet booking's trip by hand (manual links are never changed automatically). */
 export function useBookingTripLink(kind: 'boarding_pass' | 'reservation', id: string) {
@@ -26,14 +27,17 @@ export function useBookingTripLink(kind: 'boarding_pass' | 'reservation', id: st
   }, [kind, id, uid, queryClient]);
 
   const link = useCallback((tripId: string) => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     write(linkPatch('link', tripId));
   }, [write]);
   const unlink = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     write(linkPatch('unlink'));
   }, [write]);
   const notForTrip = useCallback(() => {
+    if (!requireOnline()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     write(linkPatch('not_for_trip'));
   }, [write]);

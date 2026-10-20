@@ -28,6 +28,7 @@ import { ReservationType, Reservation } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useWalletAllowance } from '@/hooks/useWalletAllowance';
+import { requireOnline } from '@/services/offline';
 
 const RESERVATION_TYPES: { type: ReservationType; label: string }[] = [
   { type: 'hotel', label: 'Hotel' },
@@ -129,6 +130,7 @@ export default function AddReservationScreen() {
   }, []);
 
   const handleSubmit = useCallback(() => {
+    if (!requireOnline()) return;
     if (!title.trim() || !confirmationCode.trim()) {
       Alert.alert('Missing details', 'Enter a title and confirmation code to save it.');
       return;

@@ -14,6 +14,7 @@ import { db } from '@/services/firebase';
 import { addPackingItem, deletePackingItem, setPackingChecked } from '@/services/packing';
 import { generatePackingList } from '@/services/packingTemplates';
 import type { PackingItem, Trip } from '@/types';
+import { onlineOnly } from '@/services/offline';
 
 export async function fetchPackingItems(tripId: string): Promise<PackingItem[]> {
   const snap = await getDocs(query(collection(db, 'trips', tripId, 'packingItems'), orderBy('createdAt', 'asc')));
@@ -99,8 +100,9 @@ export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: st
   return {
     items: itemsQuery.data ?? [],
     isLoading: itemsQuery.isLoading,
-    addItem,
-    toggleItem,
-    deleteItem,
+    // Offline (spec 2026-10-19): view only.
+    addItem: onlineOnly(addItem),
+    toggleItem: onlineOnly(toggleItem),
+    deleteItem: onlineOnly(deleteItem),
   };
 }

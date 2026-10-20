@@ -25,6 +25,7 @@ import { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { tripPlaceLabel } from '@/utils/tripRegion';
+import { requireOnline } from '@/services/offline';
 
 function formatDateRange(trip: Trip): string | null {
   if (!trip.startDate) return null;
@@ -91,6 +92,7 @@ export default function CreateTripPostScreen() {
   }, []);
 
   const handleShare = useCallback(async () => {
+    if (!requireOnline()) return;
     if (!selectedTrip || isUploading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {

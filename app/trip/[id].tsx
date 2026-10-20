@@ -79,6 +79,7 @@ import { tripPlaceLabel } from '@/utils/tripRegion';
 import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '@/utils/tripStatus';
 import { useProGate } from '@/hooks/useProGate';
 import { Badge } from '@/components/ui/Badge';
+import { isOnline, requireOnline, useIsOnline } from '@/services/offline';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -253,6 +254,7 @@ export default function TripDetailScreen() {
   const citySectionY = useRef(0);
 
   // Owner-only trip edit/delete sheet
+  const online = useIsOnline();
   const [editTripVisible, setEditTripVisible] = useState(false);
 
   // TM-3: journal sheet for a visited stop — reachable from both the
@@ -288,7 +290,10 @@ export default function TripDetailScreen() {
   const [shareVisible, setShareVisible] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const { requireConsent: requireAiConsent, consentSheet: aiConsentSheet } = useAiConsentGate();
-  const openNova = useCallback(() => requireAiConsent('agent', () => setAgentOpen(true)), [requireAiConsent]);
+  const openNova = useCallback(() => {
+    if (!requireOnline()) return;
+    requireAiConsent('agent', () => setAgentOpen(true));
+  }, [requireAiConsent]);
   const [bookingsVisible, setBookingsVisible] = useState(false);
   // Multi-city trips: tapping a city's pill shows only its days (utils/dayDestination daysInDestination).
   const [cityFilter, setCityFilter] = useState<number | null>(null);
@@ -332,6 +337,7 @@ export default function TripDetailScreen() {
     ]);
   }, [trip, saveRoute]);
   const openCityMenu = useCallback((ci: number) => {
+    if (!requireOnline()) return;
     if (!trip) return;
     // Android shows at most three alert buttons; the route editor has every action.
     if (Platform.OS === 'android') { setRouteEditorVisible(true); return; }
@@ -401,6 +407,7 @@ export default function TripDetailScreen() {
   const moreRef = useRef<View>(null);
   const authorName = trip ? memberProfiles[trip.authorUid]?.name ?? 'this traveler' : 'this traveler';
   const handleMore = useCallback(() => {
+    if (!requireOnline()) return;
     if (!trip) return;
     openActions({
       target: { type: 'trip', id: trip.id, ownerUid: trip.authorUid },
@@ -437,13 +444,15 @@ export default function TripDetailScreen() {
   // a viewer opening an unresolved trip first just sees the placeholder
   // until an owner opens it once.
   useEffect(() => {
-    if (!trip) return;
+    // Offline (spec 2026-10-19): Places can't be reached; try again once signal returns.
+    if (!trip || !online) return;
     resolveCover(trip, isOwner);
-  }, [trip, isOwner, resolveCover]);
+  }, [trip, isOwner, resolveCover, online]);
 
   // ── Handlers: add / edit activity ────────────────────────────────────────────
 
   const handleOpenAddActivity = useCallback((day: TripDay) => {
+    if (!requireOnline()) return;
     setFormMode('add');
     setActiveDay(day);
     setEditingActivity(null);
@@ -452,6 +461,7 @@ export default function TripDetailScreen() {
 
   const handleOpenEditActivity = useCallback(
     (activity: TripActivity, dayId: string) => {
+    if (!requireOnline()) return;
       const day = trip?.days.find((d) => d.id === dayId) ?? null;
       setFormMode('edit');
       setActiveDay(day);
@@ -469,6 +479,7 @@ export default function TripDetailScreen() {
 
   const handleSubmitActivityForm = useCallback(
     async (data: ActivityFormData) => {
+    if (!requireOnline()) return;
       if (!id || !activeDay || !trip) return;
       // The day's city, so a typed stop is looked up there and lands on the map (utils/groundingQueue).
       const sortedForCity = [...trip.days].sort((x, y) => x.dayNumber - y.dayNumber);
@@ -518,12 +529,14 @@ export default function TripDetailScreen() {
   );
 
   const handleDeleteActivity = useCallback(async () => {
+    if (!requireOnline()) return;
     if (!id || !activeDay || !editingActivity) return;
     await deleteActivity(id, activeDay.id, editingActivity.id, editingActivity.fromBooking);
   }, [id, activeDay, editingActivity, deleteActivity]);
 
   const handleMoveActivity = useCallback(
     async (targetDayId: string) => {
+    if (!requireOnline()) return;
       if (!id || !activeDay || !editingActivity) return;
       await moveActivityToDay(id, activeDay.id, targetDayId, editingActivity);
     },
@@ -534,6 +547,7 @@ export default function TripDetailScreen() {
 
   const handleReorderActivities = useCallback(
     (dayId: string, orderedActivities: TripActivity[]) => {
+    if (!requireOnline()) return;
       if (!id) return;
       reorderActivities(id, dayId, orderedActivities).catch((err) => {
         // The list has already snapped back (reorderActivities reverts its
@@ -546,6 +560,7 @@ export default function TripDetailScreen() {
   );
 
   const handleOpenAddStop = useCallback((day: TripDay) => {
+    if (!requireOnline()) return;
     setAddStopDay(day);
   }, []);
 
@@ -553,6 +568,7 @@ export default function TripDetailScreen() {
 
   const handleDeleteDay = useCallback(
     (day: TripDay) => {
+    if (!requireOnline()) return;
       if (!id || !trip) return;
       Alert.alert(
         'Delete Day',
@@ -576,6 +592,7 @@ export default function TripDetailScreen() {
   );
 
   const handleAddDay = useCallback(async () => {
+    if (!requireOnline()) return;
     if (!id || !trip) return;
     const nextDayNumber = trip.days.length + 1;
     // Carry the destination forward rather than writing null. Day 1 of an empty
@@ -756,7 +773,7 @@ export default function TripDetailScreen() {
   const handleGroundActivity = useCallback(
     async (activity: TripActivity, dayId: string) => {
       const alreadyGrounded = activity.lat != null && activity.lng != null;
-      if (!id || !trip || alreadyGrounded || !activity.searchQuery || resolvingActivityId) return;
+      if (!id || !trip || alreadyGrounded || !activity.searchQuery || resolvingActivityId || !isOnline()) return;
       setResolvingActivityId(activity.id);
       try {
         const dayIndex = trip.days.findIndex((d) => d.id === dayId);
@@ -826,7 +843,8 @@ export default function TripDetailScreen() {
   // first moment the pass has a geographic anchor to search inside.
   useEffect(() => {
     // Any trip: stops typed by hand carry a search query too (utils/groundingQueue manualSearchQuery).
-    if (!trip || !isOwner || !destReady) return;
+    // Offline: grounding needs the network; `online` in the key restarts the pass on reconnect.
+    if (!trip || !isOwner || !destReady || !online) return;
     let cancelled = false;
 
     (async () => {
@@ -863,7 +881,7 @@ export default function TripDetailScreen() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip?.id, isOwner, destReady, pendingGroundKey]);
+  }, [trip?.id, isOwner, destReady, pendingGroundKey, online]);
 
   // Timeline tap: ungrounded → ground it in place; already-grounded → jump to
   // the map, centered on its pin (Part C: "tapping an activity in the
@@ -919,6 +937,7 @@ export default function TripDetailScreen() {
   // selected-stop card, same as grounding (handleGroundActivity) above.
   const handleToggleVisited = useCallback(
     (activity: TripActivity, dayId: string) => {
+    if (!requireOnline()) return;
       if (!id) return;
       toggleVisited(id, dayId, activity.id, !activity.visited);
     },
@@ -1274,6 +1293,7 @@ export default function TripDetailScreen() {
             <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (!requireOnline()) return;
                 setEditTripVisible(true);
               }}
               style={[styles.headerBtn, { top: insets.top + Spacing['2'], right: Spacing['4'] }]}
@@ -1362,7 +1382,7 @@ export default function TripDetailScreen() {
 
           {multiCity && canEditItinerary && (
             <TouchableOpacity
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRouteEditorVisible(true); }}
+              onPress={() => { if (!requireOnline()) return; Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRouteEditorVisible(true); }}
               hitSlop={6}
               style={[styles.chip, { backgroundColor: colors.background.sunken }]}
               accessibilityRole="button"
@@ -1533,7 +1553,7 @@ export default function TripDetailScreen() {
                   title="Plan it city by city"
                   description="Set how many nights you'll spend in each city, and every city gets its own days."
                   actionLabel="Set your route"
-                  onAction={() => setRouteEditorVisible(true)}
+                  onAction={() => { if (!requireOnline()) return; setRouteEditorVisible(true); }}
                   actionHaptic="light"
                 />
               ) : (

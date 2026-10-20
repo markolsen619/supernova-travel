@@ -53,6 +53,7 @@ import { useContentActions } from '@/components/moderation/useContentActions';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { contentKey, filterVisible, isContentVisible } from '@/utils/moderation';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
+import { requireOnline } from '@/services/offline';
 
 /**
  * Every photo of the post, swiped one at a time with page dots — it used to
@@ -398,6 +399,7 @@ export default function PostDetailScreen() {
 
   async function handleSubmitComment() {
     if (!commentText.trim() || !uid || !id) return;
+    if (!requireOnline()) return;
     if (containsObjectionableText(commentText)) {
       setCommentError(OBJECTIONABLE_TEXT_MESSAGE);
       return;

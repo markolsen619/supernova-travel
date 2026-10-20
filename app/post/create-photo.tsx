@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { useCreatePost } from '@/hooks/useCreatePost';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { requireOnline } from '@/services/offline';
 
 const MAX_PHOTOS = 10;
 
@@ -54,6 +55,7 @@ export default function CreatePhotoScreen() {
   }, []);
 
   const handlePost = useCallback(async () => {
+    if (!requireOnline()) return;
     if (selectedUris.length === 0 || isUploading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
