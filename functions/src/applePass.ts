@@ -24,7 +24,7 @@ export function passJson(p: PassInput): Record<string, unknown> {
   const flight = text(p.flightNumber) ?? text(p.airline) ?? 'Flight';
   const dep = valid(p.departureTime) ? p.departureTime! : null;
   const time = (key: string, label: string, iso: string): Field =>
-    ({ key, label, value: iso, timeStyle: 'PKDateStyleShort', ignoresTimeZone: true });
+    ({ key, label, value: iso, timeStyle: 'PKDateStyleShort' });
 
   const secondary: Field[] = [];
   if (dep) secondary.push(time('departs', 'DEPARTS', dep));
@@ -33,11 +33,11 @@ export function passJson(p: PassInput): Record<string, unknown> {
 
   const auxiliary: Field[] = [{ key: 'flight', label: 'FLIGHT', value: flight }];
   if (text(p.terminal)) auxiliary.push({ key: 'terminal', label: 'TERMINAL', value: text(p.terminal)! });
-  if (dep) auxiliary.push({ key: 'date', label: 'DATE', value: dep, dateStyle: 'PKDateStyleMedium', ignoresTimeZone: true });
+  if (dep) auxiliary.push({ key: 'date', label: 'DATE', value: dep, dateStyle: 'PKDateStyleMedium' });
 
   const back: Field[] = [];
   if (text(p.airline)) back.push({ key: 'airline', label: 'Airline', value: text(p.airline)! });
-  if (valid(p.arrivalTime)) back.push({ key: 'arrives', label: 'Arrives', value: p.arrivalTime!, dateStyle: 'PKDateStyleMedium', timeStyle: 'PKDateStyleShort', ignoresTimeZone: true });
+  if (valid(p.arrivalTime)) back.push({ key: 'arrives', label: 'Arrives', value: p.arrivalTime!, dateStyle: 'PKDateStyleMedium', timeStyle: 'PKDateStyleShort' });
   back.push({ key: 'source', label: 'Supernova', value: 'Added from Supernova' });
 
   const json: Record<string, unknown> = {

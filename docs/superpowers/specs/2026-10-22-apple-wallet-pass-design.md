@@ -35,7 +35,7 @@ Pure builder `functions/src/applePass.ts` → `passJson(pass, now)` (the `pass.j
   - secondary: departure (`DEPARTS`, time), seat (`SEAT`), group (`GROUP`, only if set)
   - auxiliary: flight number (`FLIGHT`), terminal (`TERMINAL`, only if set), date (`DATE`)
   - back: airline, arrival time (if any), "Added from Supernova"
-- Times: `dateStyle`/`timeStyle` with `ignoresTimeZone: true`, value = the stored ISO string with its offset, so the departure airport's local time shows wherever the phone is. `relevantDate` = departure (lock-screen relevance).
+- Times: `dateStyle`/`timeStyle`, value = the stored ISO string, shown in the **phone's** time zone (final review: times are stored in UTC, so `ignoresTimeZone` would have shown UTC; airport-local display needs an airport time-zone lookup — later). `relevantDate` = departure (lock-screen relevance).
 - Barcode: `barcodes: [{ format, message, messageEncoding: 'iso-8859-1' }]` with `aztec→PKBarcodeFormatAztec`, `qr→PKBarcodeFormatQR`, `pdf417→PKBarcodeFormatPDF417`, `code128→PKBarcodeFormatCode128`; missing format → QR; no barcode → no `barcodes` key.
 - Colours: `backgroundColor rgb(26,16,53)` (the app's `BoardingPassCard`), `foregroundColor rgb(255,255,255)`, `labelColor rgb(196,181,253)`.
 - Images: `icon.png` / `@2x` / `@3x` (29/58/87 pt) and `logo.png` / `@2x` (≤160×50) from the app's star (`assets/images/SupernovaStar.png`), generated once and committed under `functions/assets/pass/`.

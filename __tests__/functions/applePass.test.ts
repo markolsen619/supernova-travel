@@ -29,10 +29,12 @@ describe('passJson', () => {
     expect(keys(j, 'auxiliaryFields')).toEqual(['flight', 'terminal', 'date']);
     expect(j.relevantDate).toBe('2026-11-01T09:20:00+00:00');
   });
-  it('shows times in the departure airport\'s local time', () => {
-    const departs = fields(passJson(full), 'secondaryFields').find((f) => f.key === 'departs')!;
-    expect(departs.ignoresTimeZone).toBe(true);
-    expect(departs.value).toBe('2026-11-01T09:20:00+00:00');
+  it('lets Wallet show times in the phone\'s time zone (times are stored in UTC, not the airport offset)', () => {
+    const j = passJson({ ...full, departureTime: '2026-11-01T22:30:00.000Z' });
+    const departs = fields(j, 'secondaryFields').find((f) => f.key === 'departs')!;
+    expect(departs.value).toBe('2026-11-01T22:30:00.000Z');
+    expect('ignoresTimeZone' in departs).toBe(false);
+    expect(JSON.stringify(j)).not.toContain('ignoresTimeZone');
   });
   it('uses the real barcode format', () => {
     expect(passJson(full).barcodes).toEqual([{ format: 'PKBarcodeFormatPDF417', message: full.barcode, messageEncoding: 'iso-8859-1' }]);
