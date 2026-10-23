@@ -89,3 +89,21 @@ describe('formatDelay', () => {
     expect(formatDelay(135)).toBe('2 h 15 min');
   });
 });
+
+describe('final review fixes', () => {
+  const dep = '2026-10-23T12:00:00.000Z';
+  it('a "landed" answer before the flight has even left is another day\'s flight — ignored', () => {
+    const before = Date.parse(dep) - 2 * 3_600_000;
+    expect(flightChanges({ status: 'upcoming', departureTime: dep }, live({ status: 'landed', gate: 'Z9' }), before))
+      .toEqual({ patch: { liveCheckedAtMs: before }, alerts: [] });
+  });
+  it('landed after departure still counts', () => {
+    const after = Date.parse(dep) + 5 * 3_600_000;
+    expect(flightChanges({ status: 'boarded', departureTime: dep }, live({ status: 'landed' }), after).alerts).toEqual([{ kind: 'landed' }]);
+  });
+  it('a delay that clears goes back to on time', () => {
+    const r = flightChanges({ status: 'upcoming', delayMinutes: 45 } as never, live({ status: 'scheduled', delayMinutes: null }), NOW);
+    expect(r.patch.delayMinutes).toBe(0);
+    expect(r.alerts).toEqual([]);
+  });
+});

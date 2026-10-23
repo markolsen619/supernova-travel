@@ -17,6 +17,8 @@ export interface PollablePass {
   flightNumber: string;
   /** ISO 8601 instant — a departure really does happen at one moment. */
   departureTime: string;
+  /** The departure airport's calendar day ("2026-10-23"), when the parser saw it. AviationStack's flight_date is this, not the UTC day. */
+  localDate?: string | null;
 }
 
 /** The tiers that pay. Anything else, including nothing, does not. */
@@ -76,11 +78,17 @@ export function flightKey(flightNumber: string, departureTime: string): string {
  * One group per real flight, so the caller makes one API call per flight
  * rather than one per passenger. Order is stable: first appearance wins.
  */
+/** The local departure day when known, else the UTC day (wrong for flights near midnight UTC, but all there is). */
+function flightDay(pass: PollablePass): string {
+  return typeof pass.localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pass.localDate) ? pass.localDate : pass.departureTime.slice(0, 10);
+}
+
 export function groupPassesByFlight<T extends PollablePass>(passes: T[]): FlightGroup<T>[] {
   const groups = new Map<string, FlightGroup<T>>();
 
   for (const pass of passes) {
-    const key = flightKey(pass.flightNumber, pass.departureTime);
+    const day = flightDay(pass);
+    const key = flightKey(pass.flightNumber, day);
     const existing = groups.get(key);
     if (existing) {
       existing.passes.push(pass);
@@ -88,7 +96,7 @@ export function groupPassesByFlight<T extends PollablePass>(passes: T[]): Flight
     }
     groups.set(key, {
       flightNumber: pass.flightNumber.toUpperCase().replace(/[^A-Z0-9]/g, ''),
-      departureDate: pass.departureTime.slice(0, 10),
+      departureDate: day,
       passes: [pass],
     });
   }
@@ -113,4 +121,11 @@ export function dueCheckpoint(departureMs: number, arrivalMs: number | null, now
   if (arrivalMs !== null && Number.isFinite(arrivalMs)) marks.push(['afterArrival', arrivalMs + 30 * MIN]);
   for (const [name, at] of marks) if (at <= nowMs && at > nowMs - runMinutes * MIN) return name;
   return null;
+}
+
+/** Runs fn over items one at a time; a throw is reported and the rest still run (a pass deleted mid-run must not cost everyone else their check). */
+export async function eachIsolated<T>(items: T[], fn: (item: T) => Promise<void>, onError: (error: unknown, item: T) => void): Promise<void> {
+  for (const item of items) {
+    try { await fn(item); } catch (error) { onError(error, item); }
+  }
 }

@@ -6,6 +6,7 @@ import {
   groupPassesByFlight,
   isPaidTier,
   dueCheckpoint,
+  eachIsolated,
 } from '../../functions/src/flightPolling';
 
 type Pass = { id: string; flightNumber: string; departureTime: string };
@@ -140,5 +141,30 @@ describe('filterPassesForPaidOwners', () => {
 
   it('returns nothing when no owner is paid', () => {
     expect(filterPassesForPaidOwners(passes, new Map([['freeloader', 'free']]))).toEqual([]);
+  });
+});
+
+describe('local departure date (final review)', () => {
+  it('asks AviationStack for the local date when the pass has one', () => {
+    // 07:00 in Tokyo is 22:00Z the day before: the UTC day would fetch yesterday's (landed) flight.
+    const [g] = groupPassesByFlight([{ id: 'a', flightNumber: 'JL5', departureTime: '2026-10-22T22:00:00.000Z', localDate: '2026-10-23' }]);
+    expect(g.departureDate).toBe('2026-10-23');
+  });
+  it('falls back to the UTC day without one', () => {
+    const [g] = groupPassesByFlight([{ id: 'a', flightNumber: 'JL5', departureTime: '2026-10-22T22:00:00.000Z' }]);
+    expect(g.departureDate).toBe('2026-10-22');
+  });
+});
+
+describe('eachIsolated (final review)', () => {
+  it('one failure does not stop the rest, and is reported', async () => {
+    const seen: string[] = [];
+    const errors: unknown[] = [];
+    await eachIsolated(['a', 'b', 'c'], async (x) => {
+      if (x === 'b') throw new Error('gone');
+      seen.push(x);
+    }, (e) => errors.push(e));
+    expect(seen).toEqual(['a', 'c']);
+    expect(errors).toHaveLength(1);
   });
 });

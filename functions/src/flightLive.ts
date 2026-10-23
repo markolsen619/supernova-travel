@@ -9,7 +9,7 @@ export type FlightAlert =
   | { kind: 'delay'; minutes: number; departureLocal: string | null }
   | { kind: 'landed' }
   | { kind: 'cancelled' };
-export type PassState = { status?: string; gate?: string; terminal?: string; delayAlertedMinutes?: number };
+export type PassState = { status?: string; gate?: string; terminal?: string; delayMinutes?: number; delayAlertedMinutes?: number; departureTime?: string };
 
 const LIMIT_CODES = new Set(['usage_limit_reached', 'monthly_limit_reached']);
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -36,6 +36,9 @@ export function flightChanges(pass: PassState, live: LiveFlight, nowMs: number):
     if (pass.status !== 'cancelled') { patch.status = 'cancelled'; alerts.push({ kind: 'cancelled' }); }
     return { patch, alerts };
   }
+  // A flight can't land before it leaves: that answer is another day's flight (a wrong flight_date), so trust none of it.
+  const departureMs = Date.parse(pass.departureTime ?? '');
+  if (live.status === 'landed' && Number.isFinite(departureMs) && nowMs < departureMs) return { patch, alerts };
   if (live.status === 'landed') {
     if (pass.status !== 'completed') { patch.status = 'completed'; alerts.push({ kind: 'landed' }); }
     return { patch, alerts };
@@ -49,6 +52,8 @@ export function flightChanges(pass: PassState, live: LiveFlight, nowMs: number):
     if (onGround) alerts.push({ kind: 'gate', gate: live.gate });
   }
   if (live.terminal && norm(live.terminal) !== norm(pass.terminal)) patch.terminal = live.terminal;
+  // No delay figure on a scheduled or airborne flight means on time: clear an old delay so the pass stops saying "Delayed".
+  if (live.delayMinutes === null && (pass.delayMinutes ?? 0) > 0 && (live.status === 'scheduled' || live.status === 'active')) patch.delayMinutes = 0;
   if (live.delayMinutes !== null) {
     patch.delayMinutes = live.delayMinutes;
     if (live.departureLocal) patch.liveDepartureLocal = live.departureLocal;

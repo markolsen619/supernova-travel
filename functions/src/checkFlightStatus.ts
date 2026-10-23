@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { notifyUser } from './notify';
-import { dueCheckpoint, filterPassesForPaidOwners, groupPassesByFlight, LOOKAHEAD_HOURS, LOOKBACK_HOURS } from './flightPolling';
+import { dueCheckpoint, eachIsolated, filterPassesForPaidOwners, groupPassesByFlight, LOOKAHEAD_HOURS, LOOKBACK_HOURS } from './flightPolling';
 import { alertNotification, flightChanges, parseLiveFlight, type LiveResult } from './flightLive';
 
 const db = admin.firestore();
@@ -47,6 +47,7 @@ export const checkFlightStatus = onSchedule(
       flightNumber: doc.data().flightNumber as string,
       departureTime: doc.data().departureTime as string,
       arrivalTime: doc.data().arrivalTime as string | undefined,
+      localDate: doc.data().localDate as string | null | undefined,
     })).filter((c) => c.flightNumber && c.departureTime);
 
     // Pro only, decided before anything is spent (one getAll for the distinct owners).
@@ -70,13 +71,14 @@ export const checkFlightStatus = onSchedule(
       }
       if (result.kind === 'error') console.warn('[checkFlightStatus] AviationStack error', { code: result.code });
       if (result.kind !== 'flight') continue;
-      for (const { doc } of group.passes) {
+      const flight = result.flight;
+      await eachIsolated(group.passes, async ({ doc }) => {
         const pass = doc.data();
-        const { patch, alerts } = flightChanges(pass, result.flight, Date.now());
+        const { patch, alerts } = flightChanges(pass, flight, Date.now());
         // update(), never set(): an edit the owner made a moment ago keeps every field this check didn't compute.
         await doc.ref.update(patch);
         for (const alert of alerts) await notifyUser(pass.ownerUid, alertNotification(alert, doc.id, pass.flightNumber));
-      }
+      }, (error, { doc }) => console.error('[checkFlightStatus] pass update failed', { passId: doc.id, error: (error as Error).message }));
     }
   },
 );
