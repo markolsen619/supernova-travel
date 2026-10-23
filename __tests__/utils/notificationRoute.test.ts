@@ -21,6 +21,10 @@ describe('resolveNotificationRoute', () => {
     );
   });
 
+  it('sends a gate change or delay to the boarding pass', () => {
+    expect(resolveNotificationRoute({ type: 'flight_change', passId: 'bp1' })).toBe('/(wallet)/boarding-pass/bp1');
+  });
+
   it('returns null for a type this build does not know, so an older app opens the feed instead of crashing', () => {
     expect(resolveNotificationRoute({ type: 'trip_comment_reaction', tripId: 't1' })).toBeNull();
   });

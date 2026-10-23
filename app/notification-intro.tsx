@@ -13,7 +13,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
 const REASONS: { Icon: PhosphorIcon; title: string; body: string }[] = [
-  { Icon: AirplaneTilt, title: 'Flight changes', body: 'Gate changes, delays and boarding, as they happen (Pro).' },
+  { Icon: AirplaneTilt, title: 'Flight changes', body: 'Gate changes, delays, landing and cancellations (Pro).' },
   { Icon: UsersThree, title: 'Trips with friends', body: 'Invites, and who joined your trip.' },
   { Icon: ChatCircleDots, title: 'Messages', body: 'When someone writes to you.' },
   { Icon: EnvelopeSimple, title: 'Your wallet', body: 'Bookings and balances added from your email (Pro).' },

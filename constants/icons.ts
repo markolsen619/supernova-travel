@@ -71,7 +71,7 @@ export const PAYWALL_FEATURE_ICONS: Array<{
   { Icon: MapTrifold,  color: '#60a5fa', label: 'Multi-city trips',   description: 'Let AI route a trip through several cities and countries' },
   { Icon: UsersThree,  color: '#f472b6', label: 'Travel together',    description: 'Invite friends to plan, split a budget and share a packing list' },
   { Icon: Bag,         color: '#34d399', label: 'Unlimited wallet',   description: 'Every pass, booking and loyalty card, plus AI import from confirmations' },
-  { Icon: Bell,        color: '#fbbf24', label: 'Flight alerts',      description: 'Boarding, landing and cancellation alerts' },
+  { Icon: Bell,        color: '#fbbf24', label: 'Flight alerts',      description: 'Gate, delay, landing and cancellation alerts' },
 ];
 
 export const EXPENSE_ICONS: Record<ExpenseCategory, IconEntry> = {

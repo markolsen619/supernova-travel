@@ -66,7 +66,7 @@ export function formatDelay(minutes: number): string {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-export function alertNotification(alert: FlightAlert, passId: string, flightNumber: string) {
+export function alertNotification(alert: FlightAlert, passId: string, flightNumber: string): { notification: Record<string, unknown>; push: { title: string; body: string } } {
   const base = { passId, flightNumber };
   switch (alert.kind) {
     case 'gate':

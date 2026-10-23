@@ -284,6 +284,19 @@ export interface FlightStatusNotification {
   createdAt: Timestamp;
 }
 
+/** A gate change or delay found by checkFlightStatus (spec 2026-10-23). Older apps show it from its saved title/body. */
+export interface FlightChangeNotification {
+  id: string;
+  type: 'flight_change';
+  passId: string;
+  flightNumber: string;
+  change: 'gate' | 'delay';
+  gate?: string;
+  delayMinutes?: number;
+  read: boolean;
+  createdAt: Timestamp;
+}
+
 /** A booking (or several) arrived by email (functions/src/emailImportFunctions.ts). */
 export interface EmailImportNotification {
   id: string;
@@ -309,7 +322,8 @@ export type AppNotification =
   | CommentLikeNotification
   | FollowRequestNotification
   | FollowAcceptedNotification
-  | FlightStatusNotification;
+  | FlightStatusNotification
+  | FlightChangeNotification;
 
 // ── Direct messaging ─────────────────────────────────────────────────────
 

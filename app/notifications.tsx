@@ -33,7 +33,7 @@ import { OfflineEmptyState } from '@/components/ui/OfflineEmptyState';
 /** Mirrors checkFlightStatus's push copy, minus the "Your flight" prefix —
  *  the flight number is already the bolded subject of the row. */
 const FLIGHT_STATUS_COPY: Record<string, string> = {
-  boarded: 'is boarding now',
+  boarded: 'has taken off',
   completed: 'has landed',
   cancelled: 'was cancelled',
 };
@@ -422,7 +422,7 @@ export default function NotificationsScreen() {
         );
       }
 
-      if (item.type === 'flight_status') {
+      if (item.type === 'flight_status' || item.type === 'flight_change') {
         const { Icon, color } = ACTIVITY_ICONS.flight;
         return (
           <TouchableOpacity {...rowProps(item)}>
@@ -433,7 +433,9 @@ export default function NotificationsScreen() {
             <View style={styles.rowText}>
               <Text style={[styles.rowBody, { color: colors.text.primary }]}>
                 <Text style={styles.rowBold}>{item.flightNumber}</Text>{' '}
-                {FLIGHT_STATUS_COPY[item.status] ?? 'has an update'}
+                {item.type === 'flight_change'
+                  ? (item.change === 'gate' && item.gate ? `moved to gate ${item.gate}` : 'is delayed')
+                  : (FLIGHT_STATUS_COPY[item.status] ?? 'has an update')}
               </Text>
               <Text style={[styles.rowTime, { color: colors.text.tertiary }]}>
                 {timeAgo(item.createdAt.toDate())}
