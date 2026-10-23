@@ -7,12 +7,13 @@ import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import type { PassInput } from './applePass';
 import { buildSignedPass } from './applePassSign';
-import { signWalletToken, verifyWalletToken, walletTokenFromPath } from './walletLink';
+import { signWalletToken, verifyWalletToken, walletAuthToken, walletTokenFromPath } from './walletLink';
+import { WALLET_SERVICE_URL } from './appleWalletService';
 
-const PASSKIT_KEY = defineSecret('PASSKIT_KEY');
-const PASSKIT_CERT = defineSecret('PASSKIT_CERT');
-const PASSKIT_WWDR = defineSecret('PASSKIT_WWDR');
-const WALLET_LINK_SECRET = defineSecret('WALLET_LINK_SECRET');
+export const PASSKIT_KEY = defineSecret('PASSKIT_KEY');
+export const PASSKIT_CERT = defineSecret('PASSKIT_CERT');
+export const PASSKIT_WWDR = defineSecret('PASSKIT_WWDR');
+export const WALLET_LINK_SECRET = defineSecret('WALLET_LINK_SECRET');
 
 const db = admin.firestore();
 const HOST = 'https://supernova-a2125.web.app';
@@ -39,7 +40,7 @@ export const appleWalletPass = onRequest(
     try {
       const file = buildSignedPass({ id: snap.id, ...(snap.data() as Omit<PassInput, 'id'>) }, {
         signerKey: PASSKIT_KEY.value(), signerCert: PASSKIT_CERT.value(), wwdr: PASSKIT_WWDR.value(),
-      });
+      }, undefined, { webServiceURL: WALLET_SERVICE_URL, authenticationToken: walletAuthToken(`bp-${snap.id}`, WALLET_LINK_SECRET.value()) });
       res.set('Content-Type', 'application/vnd.apple.pkpass');
       res.set('Content-Disposition', 'attachment; filename="boarding-pass.pkpass"');
       res.set('Cache-Control', 'no-store');

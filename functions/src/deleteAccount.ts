@@ -169,6 +169,10 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
   const feeds = await db.collection('calendarFeeds').where('uid', '==', uid).get();
   await Promise.all(feeds.docs.map((d) => d.ref.delete()));
 
+  // Apple Wallet registrations for their passes (appleWalletServiceFunctions.ts).
+  const walletRegs = await db.collection('appleWalletRegistrations').where('ownerUid', '==', uid).get();
+  await Promise.all(walletRegs.docs.map((d) => d.ref.delete()));
+
   // Their place reviews (the places' totals recompute through onPlaceReviewWritten); photos go with the Storage prefixes.
   const reviews = await db.collection('placeReviews').where('authorUid', '==', uid).get();
   await Promise.all(reviews.docs.map((d) => d.ref.delete()));

@@ -454,6 +454,10 @@ service cloud.firestore {
     match /androidGifts/{uid} {
       allow read, write: if false;
     }
+    // Apple Wallet live passes (functions/src/appleWalletServiceFunctions.ts): server only.
+    match /appleWalletRegistrations/{id} {
+      allow read, write: if false;
+    }
     match /trendSeen/{tripId} {
       allow read, write: if false;
     }
