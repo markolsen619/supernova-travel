@@ -29,6 +29,13 @@
     ],
     "rewrites": [
       {
+        "source": "/wallet/apple/**",
+        "function": {
+          "functionId": "appleWalletPass",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/cal/**",
         "function": {
           "functionId": "calendarFeed",
