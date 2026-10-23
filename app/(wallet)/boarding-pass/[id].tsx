@@ -27,6 +27,7 @@ import { SPRING } from '@/constants/motion';
 import type { BoardingPass } from '@/types';
 import { requireOnline } from '@/services/offline';
 import { CalendarSwitchRow } from '@/components/wallet/CalendarSwitchRow';
+import { AddToAppleWallet } from '@/components/wallet/AddToAppleWallet';
 
 const CARD_HEIGHT = 200;
 
@@ -159,6 +160,9 @@ export default function BoardingPassDetailScreen() {
         ) : (
           <BoardingPassCard pass={pass} onPress={() => {}} />
         )}
+
+        {/* Apple Wallet (spec 2026-10-22): Apple's own button, right under the pass people show at the gate. */}
+        <AddToAppleWallet passId={pass.id} style={styles.tripBlock} />
 
         {/* Why this pass never changes status on a free account. Renders
             nothing for paid users. Sits directly under the pass, where the
