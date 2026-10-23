@@ -155,6 +155,8 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
     ...requestsReceived.docs.map((d) => d.ref),
     ...owned.flatMap((snap) => snap.docs.map((d) => d.ref)),
     db.doc(`usage_quotas/${uid}`),
+    // Android welcome gift record (androidGiftFunctions.ts); the place it used stays counted.
+    db.doc(`androidGifts/${uid}`),
   ]);
 
   // Email import addresses (emailImportFunctions.ts); the private doc and the

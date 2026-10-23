@@ -14,6 +14,7 @@ export { parseTravelConfirmation } from './parseTravelConfirmation';
 export { getImportQuota } from './getImportQuota';
 export { syncTier } from './syncTier';
 export { reconcileTier } from './reconcileTier';
+export { claimAndroidGift } from './androidGiftFunctions';
 export { deleteAccount } from './deleteAccount';
 export { onReportCreated, onBlockCreated } from './moderationEvents';
 export { tagTripDestinations, aggregateDiscovery } from './discoveryFunctions';

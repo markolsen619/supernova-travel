@@ -24,6 +24,7 @@ import { SplashOverlay } from '@/components/SplashOverlay';
 import { useRevenueCatSync } from '@/hooks/useRevenueCatSync';
 import { useNotificationRouting } from '@/hooks/useNotificationRouting';
 import { usePushIntro } from '@/hooks/usePushIntro';
+import { useAndroidGift } from '@/hooks/useAndroidGift';
 import { NotificationArrivalBanner } from '@/components/NotificationArrivalBanner';
 import { useLinkRouting } from '@/hooks/useLinkRouting';
 import { startOnlineSync } from '@/services/offline';
@@ -66,6 +67,8 @@ function AppStack() {
   useNotificationRouting();
   // "Know when it matters", once per account, after it first reaches the tabs.
   usePushIntro();
+  // Android welcome gift: the first 10 new Android accounts get a year of Pro.
+  useAndroidGift();
   useLinkRouting();
   return (
     <>
@@ -100,6 +103,7 @@ function AppStack() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="(wallet)" />
         <Stack.Screen name="notification-intro" options={{ presentation: 'modal', gestureEnabled: false }} />
+        <Stack.Screen name="pro-gift" options={{ presentation: 'modal' }} />
         <Stack.Screen name="place/review" options={{ presentation: 'modal' }} />
         <Stack.Screen name="place/reviews" />
       </Stack>

@@ -450,6 +450,10 @@ service cloud.firestore {
     match /serverState/{docId} {
       allow read, write: if false;
     }
+    // Android welcome gift (functions/src/androidGiftFunctions.ts): one per account, server only.
+    match /androidGifts/{uid} {
+      allow read, write: if false;
+    }
     match /trendSeen/{tripId} {
       allow read, write: if false;
     }
