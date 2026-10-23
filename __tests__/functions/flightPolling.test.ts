@@ -5,7 +5,7 @@ import {
   flightKey,
   groupPassesByFlight,
   isPaidTier,
-  shouldPollFlight,
+  dueCheckpoint,
 } from '../../functions/src/flightPolling';
 
 type Pass = { id: string; flightNumber: string; departureTime: string };
@@ -62,29 +62,37 @@ describe('groupPassesByFlight', () => {
   });
 });
 
-describe('shouldPollFlight', () => {
-  // The scheduler fires every 30 minutes, so `now` is always near :00 or :30.
-  // Back-off is derived from the clock rather than stored per pass — no extra
-  // Firestore write per flight per run just to remember the last check.
-
-  it('polls every run inside the final three hours', () => {
-    expect(shouldPollFlight(0.5, at('2026-10-15T07:30:00.000Z'))).toBe(true);
-    expect(shouldPollFlight(2.9, at('2026-10-15T09:30:00.000Z'))).toBe(true);
+describe('dueCheckpoint', () => {
+  const dep = Date.parse('2026-10-15T12:00:00.000Z');
+  const arr = Date.parse('2026-10-15T15:00:00.000Z');
+  const at = (iso: string) => Date.parse(iso);
+  it('checks two hours before departure, in the run that follows that moment', () => {
+    expect(dueCheckpoint(dep, arr, at('2026-10-15T10:00:00.000Z'))).toBe('before120');
+    expect(dueCheckpoint(dep, arr, at('2026-10-15T10:29:00.000Z'))).toBe('before120');
+    expect(dueCheckpoint(dep, arr, at('2026-10-15T10:30:00.000Z'))).toBeNull();
   });
-
-  it('polls hourly between three and twelve hours out', () => {
-    expect(shouldPollFlight(6, at('2026-10-15T07:00:00.000Z'))).toBe(true);
-    expect(shouldPollFlight(6, at('2026-10-15T07:30:00.000Z'))).toBe(false);
+  it('checks 45 minutes before departure', () => {
+    expect(dueCheckpoint(dep, arr, at('2026-10-15T11:30:00.000Z'))).toBe('before45');
   });
-
-  it('polls every four hours beyond twelve hours out', () => {
-    expect(shouldPollFlight(20, at('2026-10-15T08:00:00.000Z'))).toBe(true);
-    expect(shouldPollFlight(20, at('2026-10-15T09:00:00.000Z'))).toBe(false);
-    expect(shouldPollFlight(20, at('2026-10-15T12:00:00.000Z'))).toBe(true);
+  it('checks 30 minutes after the scheduled arrival', () => {
+    expect(dueCheckpoint(dep, arr, at('2026-10-15T15:30:00.000Z'))).toBe('afterArrival');
   });
-
-  it('does not poll a flight that has already departed', () => {
-    expect(shouldPollFlight(-0.1, at('2026-10-15T08:00:00.000Z'))).toBe(false);
+  it('without an arrival time only the two departure checks run', () => {
+    expect(dueCheckpoint(dep, null, at('2026-10-15T15:30:00.000Z'))).toBeNull();
+    expect(dueCheckpoint(dep, NaN, at('2026-10-15T15:30:00.000Z'))).toBeNull();
+    expect(dueCheckpoint(dep, null, at('2026-10-15T10:00:00.000Z'))).toBe('before120');
+  });
+  it('spends nothing between checkpoints', () => {
+    for (const iso of ['2026-10-15T08:00:00.000Z', '2026-10-15T11:00:00.000Z', '2026-10-15T13:00:00.000Z']) {
+      expect(dueCheckpoint(dep, arr, at(iso))).toBeNull();
+    }
+  });
+  it('a full day of half-hourly runs makes exactly three checks', () => {
+    let n = 0;
+    for (let t = at('2026-10-15T00:00:00.000Z'); t < at('2026-10-16T00:00:00.000Z'); t += 30 * 60_000) {
+      if (dueCheckpoint(dep, arr, t)) n += 1;
+    }
+    expect(n).toBe(3);
   });
 });
 

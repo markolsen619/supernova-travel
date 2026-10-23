@@ -97,29 +97,20 @@ export function groupPassesByFlight<T extends PollablePass>(passes: T[]): Flight
 }
 
 /**
- * Whether this run should poll a flight departing in `hoursUntilDeparture`.
- *
- * The schedule fires every 30 minutes, so this thins that down by distance
- * from departure: nothing meaningful changes 20 hours out, and everything
- * does in the last hour.
- *
- *   under 3h   every run      (~30 min)
- *   3h to 12h  top of hour    (~1 h)
- *   over 12h   every 4th hour (~4 h)
- *
- * Derived from the clock rather than a stored lastCheckedAt, so back-off
- * costs no extra Firestore write per flight per run — which would have eaten
- * a good part of what the API saving bought.
+ * Which of a flight's three checks (if any) this run should make. AviationStack's free plan is
+ * 100 calls a month, so each flight gets three: two hours out (first gate, early delay), 45 minutes
+ * out (late gate change, new delay) and 30 minutes after scheduled arrival (landed / cancelled).
+ * A checkpoint is due in the one half-hourly run that follows it — derived from the clock, so it
+ * costs no Firestore write; a missed run just skips that check.
  */
-export function shouldPollFlight(hoursUntilDeparture: number, now: Date): boolean {
-  // Already left. The Firestore query bounds this too, but a pass can depart
-  // between the query and this check on a slow run.
-  if (hoursUntilDeparture < 0) return false;
+export type Checkpoint = 'before120' | 'before45' | 'afterArrival';
+export const LOOKBACK_HOURS = 20;
+export const LOOKAHEAD_HOURS = 3;
+const MIN = 60_000;
 
-  if (hoursUntilDeparture <= 3) return true;
-
-  const onTheHour = now.getUTCMinutes() < 30;
-  if (hoursUntilDeparture <= 12) return onTheHour;
-
-  return onTheHour && now.getUTCHours() % 4 === 0;
+export function dueCheckpoint(departureMs: number, arrivalMs: number | null, nowMs: number, runMinutes = 30): Checkpoint | null {
+  const marks: [Checkpoint, number][] = [['before120', departureMs - 120 * MIN], ['before45', departureMs - 45 * MIN]];
+  if (arrivalMs !== null && Number.isFinite(arrivalMs)) marks.push(['afterArrival', arrivalMs + 30 * MIN]);
+  for (const [name, at] of marks) if (at <= nowMs && at > nowMs - runMinutes * MIN) return name;
+  return null;
 }
