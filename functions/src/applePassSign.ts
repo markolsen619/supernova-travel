@@ -19,7 +19,8 @@ export function buildSignedPass(
   pass: PassInput,
   certs: { signerKey: string; signerCert: string; wwdr: string },
   imgs: Record<string, Buffer> = passImages(),
+  web?: { webServiceURL: string; authenticationToken: string },
 ): Buffer {
-  const pk = new PKPass({ ...imgs, 'pass.json': Buffer.from(JSON.stringify(passJson(pass))) }, certs);
+  const pk = new PKPass({ ...imgs, 'pass.json': Buffer.from(JSON.stringify(passJson(pass, web))) }, certs);
   return pk.getAsBuffer();
 }

@@ -1,5 +1,5 @@
 // __tests__/functions/walletLink.test.ts
-import { signWalletToken, verifyWalletToken, walletTokenFromPath, WALLET_LINK_TTL_MS } from '../../functions/src/walletLink';
+import { signWalletToken, walletAuthToken, verifyWalletToken, walletTokenFromPath, WALLET_LINK_TTL_MS } from '../../functions/src/walletLink';
 
 const S = 'test-secret-0123456789';
 const now = 1_760_000_000_000;
@@ -29,5 +29,15 @@ describe('wallet links', () => {
     expect(walletTokenFromPath(`/wallet/apple/${t}`)).toBe(t);
     expect(walletTokenFromPath('/wallet/apple/../x.pkpass')).toBeNull();
     expect(walletTokenFromPath('/cal/abc.ics')).toBeNull();
+  });
+});
+
+describe('walletAuthToken', () => {
+  it('is stable per serial, differs between serials and secrets, and is long enough for Wallet', () => {
+    const a = walletAuthToken('bp-1', S);
+    expect(walletAuthToken('bp-1', S)).toBe(a);
+    expect(walletAuthToken('bp-2', S)).not.toBe(a);
+    expect(walletAuthToken('bp-1', S + 'x')).not.toBe(a);
+    expect(a.length).toBeGreaterThanOrEqual(16);
   });
 });

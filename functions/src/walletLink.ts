@@ -32,3 +32,8 @@ export function walletTokenFromPath(path: string): string | null {
   const m = /^\/wallet\/apple\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)(?:\.pkpass)?$/.exec(path);
   return m ? m[1] : null;
 }
+
+/** Wallet's per-pass authenticationToken (spec 2026-10-23 §3): derived, so nothing is stored. */
+export function walletAuthToken(serial: string, secret: string): string {
+  return createHmac('sha256', secret).update(`wallet-auth:${serial}`).digest('base64url');
+}

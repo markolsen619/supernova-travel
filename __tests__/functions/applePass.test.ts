@@ -1,5 +1,5 @@
 // __tests__/functions/applePass.test.ts
-import { passJson, PASS_TYPE_ID, TEAM_ID } from '../../functions/src/applePass';
+import { passJson, statusLine, PASS_TYPE_ID, TEAM_ID } from '../../functions/src/applePass';
 
 const full = {
   id: 'p1', airline: 'British Airways', flightNumber: 'BA117', origin: 'LHR', originCity: 'London', destination: 'JFK', destinationCity: 'New York',
@@ -48,7 +48,7 @@ describe('passJson', () => {
   });
   it('leaves out optional fields that are missing instead of showing blanks', () => {
     const j = passJson({ id: 'p2', flightNumber: 'BA1', origin: 'LHR', destination: 'JFK', departureTime: '2026-11-01T09:20:00Z' });
-    expect(fields(j, 'headerFields')).toEqual([{ key: 'gate', label: 'GATE', value: '—' }]);
+    expect(fields(j, 'headerFields')).toEqual([{ key: 'gate', label: 'GATE', value: '—', changeMessage: 'Gate changed to %@' }]);
     expect(keys(j, 'secondaryFields')).toEqual(['departs']);
     expect(keys(j, 'auxiliaryFields')).toEqual(['flight', 'date']);
     expect(JSON.stringify(j)).not.toMatch(/undefined|null/);
@@ -62,5 +62,31 @@ describe('passJson', () => {
     expect(j.backgroundColor).toBe('rgb(26,16,53)');
     expect(j.foregroundColor).toBe('rgb(255,255,255)');
     expect(j.labelColor).toBe('rgb(196,181,253)');
+  });
+});
+
+describe('live pass', () => {
+  const web = { webServiceURL: 'https://example.test/ws', authenticationToken: 'tok-0123456789abcdef' };
+  it('carries the update address and token only when given', () => {
+    expect(passJson(full, web)).toMatchObject(web);
+    expect(passJson(full).webServiceURL).toBeUndefined();
+  });
+  it('announces gate and time changes on the lock screen', () => {
+    const j = passJson(full, web) as Record<string, any>;
+    expect(j.boardingPass.headerFields[0].changeMessage).toBe('Gate changed to %@');
+    expect(fields(j, 'secondaryFields').find((f) => f.key === 'departs')).toMatchObject({ changeMessage: 'Now departs %@' });
+  });
+  it('a STATUS line once the flight has been checked', () => {
+    expect(keys(passJson(full), 'secondaryFields')).not.toContain('status');
+    const j = passJson({ ...full, liveCheckedAtMs: 1 }) as Record<string, any>;
+    expect(fields(j, 'secondaryFields').find((f) => f.key === 'status')).toMatchObject({ value: 'On time', changeMessage: '%@' });
+  });
+  it('statusLine', () => {
+    expect(statusLine({ id: 'p', status: 'cancelled' })).toBe('Cancelled');
+    expect(statusLine({ id: 'p', status: 'completed' })).toBe('Landed');
+    expect(statusLine({ id: 'p', delayMinutes: 45, liveDepartureLocal: '14:35' })).toBe('Delayed 45 min · 14:35');
+    expect(statusLine({ id: 'p', delayMinutes: 80 })).toBe('Delayed 1 h 20 min');
+    expect(statusLine({ id: 'p', delayMinutes: 5, liveCheckedAtMs: 1 })).toBe('On time');
+    expect(statusLine({ id: 'p' })).toBeNull();
   });
 });
