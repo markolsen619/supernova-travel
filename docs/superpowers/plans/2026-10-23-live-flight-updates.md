@@ -608,12 +608,12 @@ export function statusLine(p: PassInput): string | null {
 
 change the signature to `export function passJson(p: PassInput, web?: { webServiceURL: string; authenticationToken: string }): Record<string, unknown>`; in it: the `departs` field gets `changeMessage: 'Now departs %@'` (build it as `{ ...time('departs', 'DEPARTS', dep), changeMessage: 'Now departs %@' }`); after the seat/group pushes add `const status = statusLine(p); if (status) secondary.push({ key: 'status', label: 'STATUS', value: status, changeMessage: '%@' });`; the header gate field becomes `{ key: 'gate', label: 'GATE', value: text(p.gate) ?? '—', changeMessage: 'Gate changed to %@' }`; before `return json;` add `if (web) Object.assign(json, web);`.
 
-`functions/src/walletLink.ts` — add (it already imports `crypto` for the link HMAC; reuse that import):
+`functions/src/walletLink.ts` — add (it already has `import { createHmac, timingSafeEqual } from 'crypto';`):
 
 ```ts
 /** Wallet's per-pass authenticationToken (spec 2026-10-23 §3): derived, so nothing is stored. */
 export function walletAuthToken(serial: string, secret: string): string {
-  return crypto.createHmac('sha256', secret).update(`wallet-auth:${serial}`).digest('base64url');
+  return createHmac('sha256', secret).update(`wallet-auth:${serial}`).digest('base64url');
 }
 ```
 
