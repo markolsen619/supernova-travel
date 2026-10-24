@@ -8,6 +8,25 @@ import { usePublicTrips } from '@/hooks/useTripList';
 import { useModeration } from '@/hooks/useModeration';
 import { contentKey, filterVisible } from '@/utils/moderation';
 
+/** A users/{uid} document as a UserProfile (shared with useTravelerSuggestions). */
+export function toUserProfile(id: string, data: Record<string, any>): UserProfile {
+  const fullName: string = data.fullName ?? data.displayName ?? '';
+  return {
+    uid: id,
+    fullName,
+    username: data.username ?? fullName.toLowerCase().replace(/\s+/g, '') ?? '',
+    avatarUrl: data.avatarUrl ?? null,
+    bio: data.bio ?? '',
+    location: data.location ?? '',
+    followersCount: data.followersCount ?? 0,
+    followingCount: data.followingCount ?? 0,
+    tripsCount: data.tripsCount ?? 0,
+    settings: { privacy: data.settings?.privacy === 'private' ? 'private' : 'public' },
+    tier: data.tier ?? 'free',
+    createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+  } as UserProfile;
+}
+
 export async function fetchUserSuggestions(): Promise<UserProfile[]> {
   const q = query(
     collection(db, 'users'),
@@ -15,24 +34,7 @@ export async function fetchUserSuggestions(): Promise<UserProfile[]> {
     limit(10)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((doc) => {
-    const data = doc.data();
-    const fullName: string = data.fullName ?? data.displayName ?? '';
-    return {
-      uid: doc.id,
-      fullName,
-      username: data.username ?? fullName.toLowerCase().replace(/\s+/g, '') ?? '',
-      avatarUrl: data.avatarUrl ?? null,
-      bio: data.bio ?? '',
-      location: data.location ?? '',
-      followersCount: data.followersCount ?? 0,
-      followingCount: data.followingCount ?? 0,
-      tripsCount: data.tripsCount ?? 0,
-      settings: { privacy: data.settings?.privacy === 'private' ? 'private' : 'public' },
-      tier: data.tier ?? 'free',
-      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-    } as UserProfile;
-  });
+  return snap.docs.map((doc) => toUserProfile(doc.id, doc.data()));
 }
 
 export function useExplore(): {

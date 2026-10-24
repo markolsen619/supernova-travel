@@ -6,7 +6,7 @@ export const FOLLOW_TARGET = 3;
 export type SuggestionCandidate = FaceCandidate & { followersCount: number; lastPostMs: number | null };
 
 export function rankSuggestions<T extends SuggestionCandidate>(
-  pool: T[], opts: { selfUid: string | null; following: Set<string>; blocked: Set<string>; max?: number },
+  pool: T[], opts: { selfUid: string | null; following: ReadonlySet<string>; blocked: ReadonlySet<string>; max?: number },
 ): T[] {
   const seen = new Set<string>();
   const ok = pool.filter((p) => {
