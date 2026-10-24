@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -24,14 +24,18 @@ import { OnboardingTripsSlide } from '@/components/onboarding/OnboardingTripsSli
 import { OnboardingWalletSlide } from '@/components/onboarding/OnboardingWalletSlide';
 import { OnboardingCommunitySlide } from '@/components/onboarding/OnboardingCommunitySlide';
 import { OnboardingProSlide } from '@/components/onboarding/OnboardingProSlide';
+import { OnboardingFollowSlide } from '@/components/onboarding/OnboardingFollowSlide';
+import { useTravelerSuggestions } from '@/hooks/useTravelerSuggestions';
 import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
 
-// Discover, AI itinerary, flyover, wallet, community, Pro (2026-10-11 showcase).
-const SLIDE_COUNT = 6;
-const SLIDE_INDEXES = [0, 1, 2, 3, 4, 5];
+// Discover, AI itinerary, flyover, wallet, community, Pro (2026-10-11 showcase), then Travelers to follow when
+// anyone is eligible (2026-10-24, utils/travelerSuggestions).
+const SHOWCASE_SLIDES = 6;
+const PRO_SLIDE = 5;
+const FOLLOW_SLIDE = 6;
 
 function markOnboardingComplete() {
   const uid = auth.currentUser?.uid;
@@ -72,6 +76,9 @@ export default function OnboardingScreen() {
   const listRef = useRef<FlatList<number>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const showcase = useOnboardingShowcase();
+  const { suggestions } = useTravelerSuggestions();
+  const slideCount = SHOWCASE_SLIDES + (suggestions.length > 0 ? 1 : 0);
+  const slideIndexes = useMemo(() => Array.from({ length: slideCount }, (_, i) => i), [slideCount]);
 
   const handleFinish = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -86,7 +93,7 @@ export default function OnboardingScreen() {
   }, []);
 
   const handleNext = useCallback(() => {
-    if (activeIndex < SLIDE_COUNT - 1) {
+    if (activeIndex < slideCount - 1) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const next = activeIndex + 1;
       listRef.current?.scrollToIndex({ index: next, animated: true });
@@ -94,7 +101,7 @@ export default function OnboardingScreen() {
     } else {
       handleFinish();
     }
-  }, [activeIndex, handleFinish]);
+  }, [activeIndex, handleFinish, slideCount]);
 
   const handleSkip = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -140,16 +147,18 @@ export default function OnboardingScreen() {
               index={index}
             />
           );
+        case FOLLOW_SLIDE:
+          return <OnboardingFollowSlide active={active} suggestions={suggestions} />;
         default:
           return <OnboardingProSlide active={active} />;
       }
       })();
       return <View style={{ flex: 1, paddingTop: insets.top }}>{slideContent}</View>;
     },
-    [activeIndex, showcase, scrollX, insets.top]
+    [activeIndex, showcase, scrollX, insets.top, suggestions]
   );
 
-  const isLast = activeIndex === SLIDE_COUNT - 1;
+  const isLast = activeIndex === slideCount - 1;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
@@ -161,7 +170,7 @@ export default function OnboardingScreen() {
 
       <Animated.FlatList
         ref={listRef}
-        data={SLIDE_INDEXES}
+        data={slideIndexes}
         keyExtractor={(i) => String(i)}
         renderItem={renderSlide}
         horizontal
@@ -180,13 +189,13 @@ export default function OnboardingScreen() {
 
       <View style={styles.controls}>
         <View style={styles.dots}>
-          {SLIDE_INDEXES.map((i) => (
+          {slideIndexes.map((i) => (
             <DotItem key={i} active={i === activeIndex} />
           ))}
         </View>
 
         <Button
-          label={isLast ? 'Get started' : 'Next'}
+          label={isLast ? (activeIndex === FOLLOW_SLIDE ? 'Continue' : 'Get started') : 'Next'}
           onPress={handleNext}
           variant="primary"
           size="lg"
@@ -194,7 +203,7 @@ export default function OnboardingScreen() {
           haptic="none"
         />
 
-        {isLast ? (
+        {activeIndex === PRO_SLIDE ? (
           <TouchableOpacity onPress={handleSeePlans} activeOpacity={0.7} style={styles.seePlans}>
             <Text style={[styles.seePlansText, { color: colors.text.secondary }]}>See plans</Text>
           </TouchableOpacity>
