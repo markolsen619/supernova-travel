@@ -108,6 +108,8 @@ export function filmTiming(durations: number[], stopCounts: number[]): { duratio
   const stops = stopCounts.reduce((a, b, i) => a + (flown[i] ? b : 0), 0);
   let timing: FlyoverTiming = { introMs: 1200, dwellMs: 600 };
   if (days * timing.introMs + stops * timing.dwellMs > FILM_BUDGET_MS / 2) timing = { introMs: 600, dwellMs: 0 };
+  // Very long trips (40+ days): even 0.6 s openings overflow, so share half the budget between them.
+  if (days * timing.introMs > FILM_BUDGET_MS / 2) timing = { introMs: Math.max(1, Math.floor(FILM_BUDGET_MS / 2 / days)), dwellMs: 0 };
   const fixed = days * timing.introMs + stops * timing.dwellMs;
   const routed = durations.filter((d) => d > 0);
   const drawBudget = Math.max(0, FILM_BUDGET_MS - fixed);

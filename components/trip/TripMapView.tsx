@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView, Image, Platform, StatusBar, Share, AppState, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView, Image, Platform, StatusBar, Share, AppState, Pressable, Dimensions } from 'react-native';
 import {
   MapView,
   Camera,
@@ -488,9 +488,11 @@ export function TripMapView({
         animationMode: 'linearTo',
       });
     };
-    const id = setInterval(() => move(1000), 1000);
+    // The trip video's days last ~1–3 s: glide more often so the camera keeps up with the line.
+    const step = filming ? 500 : 1000;
+    const id = setInterval(() => move(step), step);
     return () => clearInterval(id);
-  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, tickDurations]);
+  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, tickDurations, filming]);
 
   // The leg being drawn, and how far along it the head is.
   const flyPath = flightPaths[flyover.dayIndex]?.path;
@@ -640,17 +642,21 @@ export function TripMapView({
         padding: { paddingTop: 140, paddingBottom: 260, paddingLeft: 40, paddingRight: 40 },
         pitch: 40,
         heading: 0,
-        animationDuration: 1100,
+        animationDuration: filming ? Math.min(1100, Math.round(filmPlan.timing.introMs * 0.8)) : 1100,
         animationMode: 'flyTo',
       });
-      timers.push(setTimeout(arrive, DAY_INTRO_MS - STOP_DWELL_MS), setTimeout(circle, DAY_INTRO_MS - STOP_DWELL_MS + 1250));
+      // The trip video's day opening is too short for the fly-in and orbit; the follow camera takes it from here.
+      if (!filming) timers.push(setTimeout(arrive, DAY_INTRO_MS - STOP_DWELL_MS), setTimeout(circle, DAY_INTRO_MS - STOP_DWELL_MS + 1250));
+    } else if (filming) {
+      // Film pauses are 0.6 s: a quick move onto the stop, no orbit (it would still be turning when the line moves on).
+      cameraRef.current?.setCamera({ centerCoordinate: [flyStop.lng, flyStop.lat], zoomLevel: cam.zoom, pitch: cam.pitch, animationDuration: 500, animationMode: 'easeTo' });
     } else {
       arrive();
       timers.push(setTimeout(circle, 1250));
     }
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per stop reached, not per tick
-  }, [playingNow, flyover.dayIndex, flyover.stopIndex]);
+  }, [playingNow, flyover.dayIndex, flyover.stopIndex, filming]);
 
   // Fits the camera to whatever's grounded — a single stop gets the same
   // deliberate zoom-14 framing used everywhere else for one place (a bounds
@@ -724,9 +730,15 @@ export function TripMapView({
 
   // ── Trip video ────────────────────────────────────────────────────────────
   const placedStopCount = grounded.length;
-  const canRecord = Platform.OS === 'ios' && !!ScreenRecorder && canFly && placedStopCount >= 2 && (() => {
-    try { return ScreenRecorder!.isAvailable(); } catch { return false; }
-  })();
+  // Asked once, not per render (the flyover re-renders ~30 times a second).
+  const recorderAvailable = useMemo(() => {
+    if (Platform.OS !== 'ios' || !ScreenRecorder) return false;
+    try { return ScreenRecorder.isAvailable(); } catch { return false; }
+  }, []);
+  const canRecord = recorderAvailable && canFly && placedStopCount >= 2;
+  const rootRef = useRef<View>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
   const filmTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const filmRef = useRef<FilmState>('idle');
   filmRef.current = film;
@@ -742,7 +754,8 @@ export function TripMapView({
   }, [fitAllStops]);
 
   const cancelFilm = useCallback(() => {
-    if (filmRef.current === 'idle' || filmRef.current === 'confirm') return;
+    // 'saving': the video is being finished — let it finish (a cancel would race stop()).
+    if (filmRef.current === 'idle' || filmRef.current === 'confirm' || filmRef.current === 'saving') return;
     ScreenRecorder?.cancel().catch(() => {});
     finishFilm();
   }, [finishFilm]);
@@ -757,13 +770,27 @@ export function TripMapView({
 
   const recordVideo = useCallback(async () => {
     if (!ScreenRecorder) return;
+    // Close the sheet first, so its slide-out isn't in the video.
     setFilm('starting');
     setFilmError(null);
+    await new Promise((r) => setTimeout(r, 400));
+    if (!mountedRef.current || filmRef.current !== 'starting') return;
+    // Frames are cropped to the map: the trip page is a sheet, and ReplayKit records the whole window.
+    const rect = await new Promise<{ x: number; y: number; w: number; h: number }>((resolve) => {
+      if (!rootRef.current) return resolve({ x: 0, y: 0, w: 0, h: 0 });
+      rootRef.current.measureInWindow((x, y, w, h) => resolve({ x, y, w, h }));
+    });
     try {
-      await ScreenRecorder.start();
+      await ScreenRecorder.start(rect.x, rect.y, rect.w, rect.h, Dimensions.get('window').width);
     } catch {
+      if (!mountedRef.current) return;
       setFilmError("Recording wasn't allowed. Try again when you're ready.");
       setFilm('confirm');
+      return;
+    }
+    // Cancelled or left while iOS was asking for permission: stop the capture that just began, change nothing else.
+    if (!mountedRef.current || filmRef.current !== 'starting') {
+      ScreenRecorder.cancel().catch(() => {});
       return;
     }
     setSelected(null);
@@ -792,6 +819,7 @@ export function TripMapView({
       }
       finishFilm();
       if (!uri) return;
+      if (!mountedRef.current) { ScreenRecorder?.discard(uri); return; }
       try {
         await Share.share({ url: uri });
       } catch {
@@ -808,7 +836,9 @@ export function TripMapView({
   const cancelFilmRef = useRef(cancelFilm);
   cancelFilmRef.current = cancelFilm;
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => { if (s !== 'active') cancelFilmRef.current(); });
+    // 'background' only: iOS's "Allow screen recording?" alert makes the app 'inactive', and cancelling on that
+    // stopped the recording the person was agreeing to.
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'background') cancelFilmRef.current(); });
     return () => { sub.remove(); cancelFilmRef.current(); };
   }, []);
 
@@ -1098,7 +1128,7 @@ export function TripMapView({
     : undefined;
 
   return (
-    <View style={styles.container}>
+    <View ref={rootRef} collapsable={false} style={styles.container}>
       <MapView
         key={mapKey}
         ref={mapRef}
@@ -1692,7 +1722,7 @@ export function TripMapView({
         </>
       ) : null}
       <TripVideoSheet
-        visible={film === 'confirm' || film === 'starting'}
+        visible={film === 'confirm'}
         tripTitle={tripTitle}
         error={filmError}
         busy={film === 'starting'}

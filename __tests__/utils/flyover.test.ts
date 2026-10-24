@@ -182,3 +182,12 @@ describe('filmTiming (trip video)', () => {
     expect(s.hold).toBe(600);
   });
 });
+
+describe('filmTiming — very long trips (final review)', () => {
+  it.each([45, 60, 90])('a %i-day trip still fits the budget', (n) => {
+    const f = filmTiming(Array(n).fill(12000), Array(n).fill(6));
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
+    expect(f.timing.introMs).toBeGreaterThan(0);
+    expect(f.durations.every((d) => d > 0)).toBe(true);
+  });
+});
