@@ -1,5 +1,5 @@
 // __tests__/functions/googlePass.test.ts
-import { CLASS_ID, ISSUER_ID, WALLET_SERVICE_ACCOUNT, formatDeparture, genericClass, genericObject, googleObjectId, saveJwtClaims } from '../../functions/src/googlePass';
+import { CLASS_ID, ISSUER_ID, WALLET_SERVICE_ACCOUNT, formatDeparture, genericClass, genericObject, googleObjectId, inactiveObject, saveJwtClaims } from '../../functions/src/googlePass';
 
 const full = {
   id: 'p1', airline: 'KLM', flightNumber: 'KL1357', origin: 'AMS', originCity: 'Amsterdam', destination: 'LHR', destinationCity: 'London',
@@ -83,5 +83,12 @@ describe('class and save link', () => {
   it('save-to-wallet claims, valid one hour', () => {
     const c = saveJwtClaims({ id: 'x' }, 1000) as any;
     expect(c).toEqual({ iss: WALLET_SERVICE_ACCOUNT, aud: 'google', typ: 'savetowallet', iat: 1000, exp: 4600, origins: [], payload: { genericObjects: [{ id: 'x' }] } });
+  });
+});
+
+describe('inactiveObject (final review)', () => {
+  it('a deleted pass keeps nothing personal in Google Wallet — no barcode, no details', () => {
+    const o = inactiveObject('p1') as Record<string, any>;
+    expect(o).toEqual({ id: `${ISSUER_ID}.bp_p1`, classId: CLASS_ID, state: 'INACTIVE', cardTitle: { defaultValue: { language: 'en-US', value: 'Supernova' } }, header: { defaultValue: { language: 'en-US', value: 'Boarding pass removed' } } });
   });
 });

@@ -454,6 +454,11 @@ service cloud.firestore {
     match /androidGifts/{uid} {
       allow read, write: if false;
     }
+    // App switches set by the team (e.g. wallet.googleWalletLive). Read-only to signed-in apps.
+    match /appConfig/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
     // Apple Wallet live passes (functions/src/appleWalletServiceFunctions.ts): server only.
     match /appleWalletRegistrations/{id} {
       allow read, write: if false;

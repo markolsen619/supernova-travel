@@ -12,8 +12,8 @@ import { PASS_TYPE_ID, type PassInput } from './applePass';
 import { buildSignedPass } from './applePassSign';
 import { walletAuthToken } from './walletLink';
 import { pushPassUpdates } from './apns';
-import { genericObject, googleObjectId } from './googlePass';
-import { patchObject } from './googleWalletApi';
+import { genericObject, googleObjectId, inactiveObject } from './googlePass';
+import { putObject } from './googleWalletApi';
 import { PASSKIT_CERT, PASSKIT_KEY, PASSKIT_WWDR, WALLET_LINK_SECRET } from './appleWalletFunctions';
 import { parseWalletServicePath, passIdFromSerial, serialsUpdatedSince, tokenFromAuthHeader, walletFieldsChanged, WALLET_SERVICE_URL } from './appleWalletService';
 
@@ -86,20 +86,26 @@ export const onBoardingPassWrittenWallet = onDocumentWritten(
     const googleId = googleObjectId(event.params.passId);
     const google = async (object: Record<string, unknown>) => {
       if (!googleId || !(before?.googleWalletObject || after?.googleWalletObject)) return;
-      try { await patchObject(googleId, object); } catch (e) { console.warn('[googleWallet] update failed', (e as Error).message); }
+      try { await putObject(googleId, object); } catch (e) { console.warn('[googleWallet] update failed', (e as Error).message); }
     };
-    if (!after) {
+    const apple = async (deleted: boolean) => {
       const regs = await db.collection(REGS).where('serial', '==', serial).get();
-      await Promise.all(regs.docs.map((d) => d.ref.delete()));
-      await google({ state: 'INACTIVE' });
+      if (deleted) { await Promise.all(regs.docs.map((d) => d.ref.delete())); return; }
+      if (regs.empty) return;
+      const gone = await pushPassUpdates(regs.docs.map((d) => String(d.get('pushToken'))), { cert: PASSKIT_CERT.value(), key: PASSKIT_KEY.value() });
+      await Promise.all(regs.docs.filter((d) => gone.includes(String(d.get('pushToken')))).map((d) => d.ref.delete()));
+    };
+    // Apple and Google side by side: one slow or failing never delays or stops the other.
+    if (!after) {
+      await Promise.allSettled([apple(true), google(inactiveObject(event.params.passId))]);
       return;
     }
     if (!walletFieldsChanged(before, after)) return;
     await event.data!.after.ref.update({ walletUpdatedAtMs: Date.now() });
-    await google(genericObject({ id: event.params.passId, ...(after as Omit<PassInput, 'id'>) }, (after.walletTimeZone as string | null) ?? null));
-    const regs = await db.collection(REGS).where('serial', '==', serial).get();
-    if (regs.empty) return;
-    const gone = await pushPassUpdates(regs.docs.map((d) => String(d.get('pushToken'))), { cert: PASSKIT_CERT.value(), key: PASSKIT_KEY.value() });
-    await Promise.all(regs.docs.filter((d) => gone.includes(String(d.get('pushToken')))).map((d) => d.ref.delete()));
+    const results = await Promise.allSettled([
+      apple(false),
+      google(genericObject({ id: event.params.passId, ...(after as Omit<PassInput, 'id'>) }, (after.walletTimeZone as string | null) ?? null)),
+    ]);
+    for (const r of results) if (r.status === 'rejected') console.warn('[wallet] update failed', (r.reason as Error)?.message);
   },
 );

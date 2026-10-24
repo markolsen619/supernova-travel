@@ -69,3 +69,8 @@ export function genericClass(): Record<string, unknown> {
 export function saveJwtClaims(object: Record<string, unknown>, nowS: number): Record<string, unknown> {
   return { iss: WALLET_SERVICE_ACCOUNT, aud: 'google', typ: 'savetowallet', iat: nowS, exp: nowS + 3600, origins: [], payload: { genericObjects: [object] } };
 }
+
+/** What a deleted pass becomes in Google Wallet: inactive and stripped — the barcode holds the passenger's name and booking reference. */
+export function inactiveObject(passId: string): Record<string, unknown> {
+  return { id: googleObjectId(passId), classId: CLASS_ID, state: 'INACTIVE', cardTitle: loc('Supernova'), header: loc('Boarding pass removed') };
+}
