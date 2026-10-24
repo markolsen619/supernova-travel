@@ -1,9 +1,9 @@
 import { postImageUrls } from '@/utils/postImages';
+import { FeedPhoto } from '@/components/feed/FeedPhoto';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
-  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -166,16 +166,11 @@ export function FeedCard({ post, isActive, author, onMorePress }: FeedCardProps)
           style={StyleSheet.absoluteFill}
         >
           {imageUrls.map((uri, i) => (
-            <Image
-              key={`${uri}-${i}`}
-              source={{ uri }}
-              style={{ width, height }}
-              resizeMode="cover"
-            />
+            <FeedPhoto key={`${uri}-${i}`} uri={uri} style={{ width, height }} />
           ))}
         </ScrollView>
       ) : imageUrls.length > 0 ? (
-        <Image source={{ uri: imageUrls[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        <FeedPhoto uri={imageUrls[0]} style={StyleSheet.absoluteFill} />
       ) : (
         // Post.mediaUrl is required, so this is unreachable in practice — kept
         // as a light, named placeholder (not a dark gradient) for parity with
