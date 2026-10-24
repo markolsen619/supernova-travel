@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView, Image, Platform, StatusBar, Share, AppState, Pressable } from 'react-native';
 import {
   MapView,
   Camera,
@@ -21,7 +21,11 @@ import {
 } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, ArrowClockwise, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, Bus, GlobeHemisphereWest, MapTrifold } from 'phosphor-react-native';
+import { ArrowLeft, ArrowClockwise, MapPinLine, ListBullets, Notebook, X, CaretLeft, CaretRight, Palette, Play, Pause, Airplane, Train, Boat, Bus, GlobeHemisphereWest, MapTrifold, VideoCamera } from 'phosphor-react-native';
+import { ScreenRecorder } from '@/modules/screen-recorder';
+import { TripVideoSheet } from '@/components/trip/TripVideoSheet';
+import { FilmOverlay } from '@/components/trip/FilmOverlay';
+import { dayCaption, openingEyebrow } from '@/utils/tripVideo';
 import { arrivalCamera, basemapConfig, SATELLITE_TILES } from '@/utils/mapLook';
 import { aheadBearing, legPitch, legZoom, limitTurn } from '@/utils/flyoverCamera';
 import { MAP_STALL_MS, parseMapLoadError, shouldReportMapError, shouldShowMapRetry } from '@/utils/mapLoadHealth';
@@ -48,7 +52,7 @@ import { arrivalHints, playbackPlan, travelLabel } from '@/utils/playback';
 import type { TripBooking } from '@/utils/bookingDays';
 import { useStopPhotos } from '@/hooks/useStopPhotos';
 import { Avatar } from '@/components/ui/Avatar';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS, DAY_INTRO_MS } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS, DAY_INTRO_MS, filmTiming, FILM_OPENING_MS, FILM_END_MS } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -168,6 +172,10 @@ interface TripMapViewProps {
   /** Organizer + accepted collaborators: whose photos the playback shows at each stop. */
   memberUids?: string[];
   organizerUid?: string | null;
+  /** For the trip video's opening caption (utils/tripVideo). */
+  tripStartDate?: Date | null;
+  /** Day id → its city, for the trip video's day captions. */
+  dayCities?: Record<string, string | null>;
 }
 
 export function TripMapView({
@@ -191,6 +199,8 @@ export function TripMapView({
   bookings,
   memberUids,
   organizerUid,
+  tripStartDate = null,
+  dayCities = {},
 }: TripMapViewProps) {
   // Always-dark immersive screen (Architecture Rule 3) — the trip map is
   // atmosphere, not app chrome, so this hardcodes DarkColors rather than
@@ -410,6 +420,15 @@ export function TripMapView({
   // Where each stop sits on its day's line — the reducer rests the head on each.
   const stopFractions = useMemo(() => flightPaths.map((d) => d.path.stopFractions), [flightPaths]);
 
+  // Trip video (spec 2026-10-24-trip-video-design.md): the same flyover on film timing while recording.
+  type FilmState = 'idle' | 'confirm' | 'starting' | 'opening' | 'flying' | 'end' | 'saving';
+  const [film, setFilm] = useState<FilmState>('idle');
+  const [filmError, setFilmError] = useState<string | null>(null);
+  const filming = film === 'opening' || film === 'flying' || film === 'end' || film === 'saving';
+  const filmPlan = useMemo(() => filmTiming(durations, flightPaths.map((d) => d.stops.length)), [durations, flightPaths]);
+  const tickDurations = filming ? filmPlan.durations : durations;
+  const tickTiming = filming ? filmPlan.timing : undefined;
+
   useEffect(() => {
     if (flyover.status !== 'playing') return;
     let frame = 0;
@@ -421,14 +440,14 @@ export function TripMapView({
       if (now - last >= 33) {
         // Capped: a busy frame (3D tiles loading) handed the reducer a second at once and it skipped past
         // stops and whole days. Falling behind now slows the flyover a little instead.
-        dispatch({ type: 'tick', dt: Math.min(100, now - last), durations, stopFractions });
+        dispatch({ type: 'tick', dt: Math.min(100, now - last), durations: tickDurations, stopFractions, timing: tickTiming });
         last = now;
       }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [flyover.status, durations, stopFractions]);
+  }, [flyover.status, tickDurations, stopFractions, tickTiming]);
 
   // Camera: settles on each day's first stop during its hold, then follows
   // the drawing head once a second with a matching one-second glide — slow
@@ -448,7 +467,7 @@ export function TripMapView({
       const legCoords = day.path.coordinates.slice(leg.from, leg.to + 1);
       const span = leg.endFraction - leg.startFraction || 1;
       // Aim where the drawing head will be when this glide ends, so the camera leads the line, not trails it.
-      const dayMs = durations[flyover.dayIndex] || 1;
+      const dayMs = tickDurations[flyover.dayIndex] || 1;
       const ahead = Math.min(leg.endFraction, progress + durationMs / dayMs);
       const t = Math.min(1, Math.max(0, (ahead - leg.startFraction) / span));
       const { point } = pointAlongPath(legCoords, t);
@@ -471,7 +490,7 @@ export function TripMapView({
     };
     const id = setInterval(() => move(1000), 1000);
     return () => clearInterval(id);
-  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, durations]);
+  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, tickDurations]);
 
   // The leg being drawn, and how far along it the head is.
   const flyPath = flightPaths[flyover.dayIndex]?.path;
@@ -570,6 +589,10 @@ export function TripMapView({
   const flyDayMeta = flyDay ? days.find((d) => d.id === flyDay.dayId) : undefined;
   // The stop the head last reached — shown in the card, framed by the camera.
   const flyStop = flying ? flyDay?.stops[flyover.stopIndex] : undefined;
+  // The trip video's caption: the day of the stop the flyover is at — right for per-day and whole-trip flyovers alike.
+  const filmStopDayId = flyDay?.stops[Math.max(0, flyover.stopIndex)]?.dayId;
+  const filmDay = filmStopDayId ? days.find((d) => d.id === filmStopDayId) : undefined;
+  const filmCaption = filmDay ? dayCaption(filmDay.dayNumber, dayCities[filmDay.id] ?? null) : null;
   // The shown stop's own day: in Actual mode one path spans every day, so the
   // flight path's day would label every stop "DAY 1".
   const flyStopDay = flyStop ? days.find((d) => d.id === flyStop.dayId) ?? flyDayMeta : flyDayMeta;
@@ -698,6 +721,96 @@ export function TripMapView({
     dispatch({ type: 'stop' });
     fitAllStops();
   }, [fitAllStops]);
+
+  // ── Trip video ────────────────────────────────────────────────────────────
+  const placedStopCount = grounded.length;
+  const canRecord = Platform.OS === 'ios' && !!ScreenRecorder && canFly && placedStopCount >= 2 && (() => {
+    try { return ScreenRecorder!.isAvailable(); } catch { return false; }
+  })();
+  const filmTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const filmRef = useRef<FilmState>('idle');
+  filmRef.current = film;
+  const clearFilmTimers = () => { filmTimers.current.forEach(clearTimeout); filmTimers.current = []; };
+
+  // Everything back as it was — on success, cancel, error or leaving the screen.
+  const finishFilm = useCallback(() => {
+    clearFilmTimers();
+    StatusBar.setHidden(false, 'fade');
+    dispatch({ type: 'stop' });
+    setFilm('idle');
+    fitAllStops();
+  }, [fitAllStops]);
+
+  const cancelFilm = useCallback(() => {
+    if (filmRef.current === 'idle' || filmRef.current === 'confirm') return;
+    ScreenRecorder?.cancel().catch(() => {});
+    finishFilm();
+  }, [finishFilm]);
+
+  const openVideo = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFilmError(null);
+    setFilm('confirm');
+  }, []);
+
+  const closeVideo = useCallback(() => setFilm('idle'), []);
+
+  const recordVideo = useCallback(async () => {
+    if (!ScreenRecorder) return;
+    setFilm('starting');
+    setFilmError(null);
+    try {
+      await ScreenRecorder.start();
+    } catch {
+      setFilmError("Recording wasn't allowed. Try again when you're ready.");
+      setFilm('confirm');
+      return;
+    }
+    setSelected(null);
+    setPickerOpen(false);
+    StatusBar.setHidden(true, 'fade');
+    dispatch({ type: 'stop' });
+    fitAllStops();
+    setFilm('opening');
+    filmTimers.current.push(setTimeout(() => {
+      dispatch({ type: 'play', timing: filmPlan.timing });
+      setFilm('flying');
+    }, FILM_OPENING_MS));
+  }, [fitAllStops, filmPlan.timing]);
+
+  // The flyover finished: end card, then the file, then the share sheet.
+  useEffect(() => {
+    if (film !== 'flying' || flyover.status !== 'done') return;
+    setFilm('end');
+    filmTimers.current.push(setTimeout(async () => {
+      setFilm('saving');
+      let uri: string | null = null;
+      try {
+        uri = await ScreenRecorder!.stop();
+      } catch {
+        uri = null;
+      }
+      finishFilm();
+      if (!uri) return;
+      try {
+        await Share.share({ url: uri });
+      } catch {
+        // Dismissed or failed: nothing to do but tidy up.
+      } finally {
+        ScreenRecorder?.discard(uri);
+      }
+    }, FILM_END_MS));
+  }, [film, flyover.status, finishFilm]);
+
+  // Leaving the screen or the app mid-recording stops it (a leaked capture keeps iOS's red recording indicator on).
+  // A ref, so this subscribes once: re-subscribing on every handler change would run the cleanup (and cancel the
+  // recording) mid-film.
+  const cancelFilmRef = useRef(cancelFilm);
+  cancelFilmRef.current = cancelFilm;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => { if (s !== 'active') cancelFilmRef.current(); });
+    return () => { sub.remove(); cancelFilmRef.current(); };
+  }, []);
 
   const handleJumpDay = useCallback((dayIndex: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1192,6 +1305,8 @@ export function TripMapView({
         })}
       </MapView>
 
+      {/* While the trip video records, only the map and the film overlay show. */}
+      {!filming && (<>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing['2'] }]}>
         <TouchableOpacity onPress={onBack} style={styles.headerBtnCircle} hitSlop={8}>
@@ -1209,6 +1324,11 @@ export function TripMapView({
               {flyover.status === 'playing'
                 ? <Pause size={16} color="#ffffff" weight="fill" />
                 : <Play size={16} color="#ffffff" weight="fill" />}
+            </TouchableOpacity>
+          ) : null}
+          {canRecord ? (
+            <TouchableOpacity onPress={openVideo} style={styles.headerBtnCircle} hitSlop={8} accessibilityLabel="Share a video of this trip">
+              <VideoCamera size={18} color="#ffffff" weight="bold" />
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity
@@ -1557,6 +1677,28 @@ export function TripMapView({
           </Text>
         </View>
       )}
+      </>)}
+
+      {filming ? (
+        <>
+          <FilmOverlay
+            phase={film === 'opening' ? 'opening' : film === 'flying' ? 'flying' : 'end'}
+            eyebrow={openingEyebrow(tripStartDate, tripEndDate, days.length)}
+            title={tripTitle}
+            caption={filmCaption}
+          />
+          {/* A tap anywhere stops the recording; nothing is saved. */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={cancelFilm} accessibilityLabel="Stop recording" />
+        </>
+      ) : null}
+      <TripVideoSheet
+        visible={film === 'confirm' || film === 'starting'}
+        tripTitle={tripTitle}
+        error={filmError}
+        busy={film === 'starting'}
+        onRecord={recordVideo}
+        onClose={closeVideo}
+      />
     </View>
   );
 }

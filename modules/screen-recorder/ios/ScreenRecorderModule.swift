@@ -21,6 +21,7 @@ public class ScreenRecorderModule: Module {
       let recorder = RPScreenRecorder.shared()
       recorder.isMicrophoneEnabled = false
       self.reset()
+      self.removeOldRecordings()
       let file = FileManager.default.temporaryDirectory.appendingPathComponent("supernova-trip-\(UUID().uuidString).mp4")
       self.url = file
       recorder.startCapture(handler: { buffer, type, error in
@@ -47,6 +48,11 @@ public class ScreenRecorderModule: Module {
       }
     }
 
+    /// Deletes a finished video once it has been shared (the share sheet has closed).
+    Function("discard") { (uri: String) -> Void in
+      if let url = URL(string: uri), url.isFileURL { try? FileManager.default.removeItem(at: url) }
+    }
+
     AsyncFunction("cancel") { (promise: Promise) in
       RPScreenRecorder.shared().stopCapture { _ in
         self.queue.async {
@@ -57,6 +63,13 @@ public class ScreenRecorderModule: Module {
         }
       }
     }
+  }
+
+  /// Any earlier trip video still in tmp (an app killed mid-share) goes before a new one starts.
+  private func removeOldRecordings() {
+    let tmp = FileManager.default.temporaryDirectory
+    let names = (try? FileManager.default.contentsOfDirectory(atPath: tmp.path)) ?? []
+    for name in names where name.hasPrefix("supernova-trip-") { try? FileManager.default.removeItem(at: tmp.appendingPathComponent(name)) }
   }
 
   private func reset() {

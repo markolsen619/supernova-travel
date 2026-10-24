@@ -629,6 +629,11 @@ export default function TripDetailScreen() {
     () => (trip ? resolveDayDestinationIndices(trip.days, destinationNames) : []),
     [trip, destinationNames],
   );
+  // Day id → city, for the trip video's captions (TripMapView).
+  const dayCities = useMemo(
+    () => Object.fromEntries((trip?.days ?? []).map((d, i) => [d.id, destinationNames[dayDestinationIndices[i]] ?? null])),
+    [trip, destinationNames, dayDestinationIndices],
+  );
 
   // Booking hand-off for the tapped stop. A hotel gets its own nights (not
   // the whole trip's, which booked multi-city travelers into their first
@@ -1152,6 +1157,8 @@ export default function TripDetailScreen() {
           canEditRoutes={isOwner || isCollaborator}
           tripStatus={tripStatus}
           tripEndDate={trip.endDate ? trip.endDate.toDate() : null}
+          tripStartDate={trip.startDate ? trip.startDate.toDate() : null}
+          dayCities={dayCities}
           bookings={tripBookings}
           memberUids={memberUids}
           organizerUid={trip.authorUid}

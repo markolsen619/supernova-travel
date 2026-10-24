@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from 'expo';
 
-type Recorder = { isAvailable(): boolean; start(): Promise<void>; stop(): Promise<string>; cancel(): Promise<void> };
+type Recorder = { isAvailable(): boolean; start(): Promise<void>; stop(): Promise<string>; cancel(): Promise<void>; discard(uri: string): void };
 
 /**
  * Records this app's screen for the trip video (modules/screen-recorder/ios, ReplayKit). Null on Android and in builds
