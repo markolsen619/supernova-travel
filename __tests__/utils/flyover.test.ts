@@ -1,5 +1,6 @@
 import {
   flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, STOP_DWELL_MS, DAY_INTRO_MS, stopEyebrow,
+  filmTiming, DEFAULT_TIMING, FILM_BUDGET_MS,
   type FlyoverState, type FlyoverAction,
 } from '@/utils/flyover';
 
@@ -145,5 +146,39 @@ describe('stopEyebrow', () => {
 describe('day intro', () => {
   it('each day opens on its overview for longer than a stop rests', () => {
     expect(DAY_INTRO_MS).toBeGreaterThan(STOP_DWELL_MS);
+  });
+});
+
+
+describe('filmTiming (trip video)', () => {
+  const trip = (days: number, ms = 12000, stops = 5) => ({ durations: Array(days).fill(ms), stopCounts: Array(days).fill(stops) });
+  it.each([1, 3, 7, 14, 21])('a %i-day trip fits the budget', (n) => {
+    const { durations, stopCounts } = trip(n);
+    const f = filmTiming(durations, stopCounts);
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
+    expect(f.durations.every((d) => Number.isFinite(d) && d > 0)).toBe(true);
+  });
+  it('a short trip keeps its pauses at stops', () => {
+    expect(filmTiming([9000, 9000], [3, 3]).timing).toEqual({ introMs: 1200, dwellMs: 600 });
+  });
+  it('a long trip drops the pauses', () => {
+    expect(filmTiming(Array(14).fill(12000), Array(14).fill(6)).timing).toEqual({ introMs: 600, dwellMs: 0 });
+  });
+  it('days with no route stay 0, and nothing is NaN', () => {
+    const f = filmTiming([0, 12000, 0], [1, 4, 0]);
+    expect(f.durations[0]).toBe(0);
+    expect(f.durations[2]).toBe(0);
+    expect(Number.isFinite(f.totalMs)).toBe(true);
+    expect(filmTiming([], []).totalMs).toBe(0);
+  });
+  it('the normal flyover is unchanged (defaults)', () => {
+    expect(DEFAULT_TIMING).toEqual({ introMs: DAY_INTRO_MS, dwellMs: STOP_DWELL_MS });
+    expect(flyoverReducer(initialFlyover, { type: 'play' }).hold).toBe(DAY_INTRO_MS);
+    expect(flyoverReducer(initialFlyover, { type: 'play', timing: { introMs: 1200, dwellMs: 600 } }).hold).toBe(1200);
+  });
+  it('a film tick rests on a stop for the film dwell', () => {
+    const playing = { status: 'playing' as const, dayIndex: 0, progress: 0.4, hold: 0, stopIndex: 0 };
+    const s = flyoverReducer(playing, { type: 'tick', dt: 100, durations: [1000], stopFractions: [[0, 0.45]], timing: { introMs: 1200, dwellMs: 600 } });
+    expect(s.hold).toBe(600);
   });
 });
