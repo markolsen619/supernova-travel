@@ -7,7 +7,7 @@ import { ensureClass, signSaveJwt } from './googleWalletApi';
 
 const db = admin.firestore();
 
-export const googleWalletJwt = onCall({ region: 'us-central1' }, async (request) => {
+export const googleWalletJwt = onCall({ region: 'us-central1', invoker: 'public' }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first');
   const data = (request.data ?? {}) as { passId?: unknown; timeZone?: unknown };
   if (typeof data.passId !== 'string' || !googleObjectId(data.passId)) throw new HttpsError('invalid-argument', 'passId is required');
