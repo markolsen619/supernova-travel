@@ -78,7 +78,15 @@ describe('genericObject', () => {
 
 describe('class and save link', () => {
   it('a generic class with our id', () => {
-    expect(genericClass()).toEqual({ id: CLASS_ID });
+    expect(genericClass().id).toBe(CLASS_ID);
+  });
+  it('puts departure, gate and seat on the front of the card, then terminal, group and status', () => {
+    const rows = (genericClass() as any).classTemplateInfo.cardTemplateOverride.cardRowTemplateInfos;
+    const ids = rows.map((r: any) => ['startItem', 'middleItem', 'endItem'].map((k) => r.threeItems[k].firstValue.fields[0].fieldPath));
+    expect(ids).toEqual([
+      ["object.textModulesData['departs']", "object.textModulesData['gate']", "object.textModulesData['seat']"],
+      ["object.textModulesData['terminal']", "object.textModulesData['group']", "object.textModulesData['status']"],
+    ]);
   });
   it('save-to-wallet claims, valid one hour', () => {
     const c = saveJwtClaims({ id: 'x' }, 1000) as any;

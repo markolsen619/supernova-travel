@@ -43,7 +43,11 @@ export async function ensureClass(): Promise<void> {
   if (got.status === 404) {
     const made = await wallet('POST', '/genericClass', genericClass());
     if (!made.ok && made.status !== 409) throw new Error(`genericClass insert failed: HTTP ${made.status} ${(await made.text()).slice(0, 200)}`);
-  } else if (!got.ok) {
+  } else if (got.ok) {
+    // Once per instance: the class carries the card layout, so a layout change in genericClass() reaches existing passes.
+    const put = await wallet('PUT', `/genericClass/${CLASS_ID}`, genericClass());
+    if (!put.ok) throw new Error(`genericClass update failed: HTTP ${put.status} ${(await put.text()).slice(0, 200)}`);
+  } else {
     throw new Error(`genericClass get failed: HTTP ${got.status}`);
   }
   classReady = true;
@@ -55,7 +59,7 @@ export async function ensureClass(): Promise<void> {
  */
 export async function putObject(id: string, object: Record<string, unknown>): Promise<'ok' | 'missing'> {
   const res = await wallet('PUT', `/genericObject/${id}`, object);
-  if (res.status === 404) return 'missing';
+  if (res.status === 404) { console.log('[googleWallet] update skipped: pass was never saved', { id }); return 'missing'; }
   if (!res.ok) throw new Error(`genericObject update failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
   return 'ok';
 }

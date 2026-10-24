@@ -62,8 +62,15 @@ export function genericObject(p: PassInput, timeZone: string | null): Record<str
   return o;
 }
 
+const field = (id: string) => ({ firstValue: { fields: [{ fieldPath: `object.textModulesData['${id}']` }] } });
+const row = (a: string, b: string, c: string) => ({ threeItems: { startItem: field(a), middleItem: field(b), endItem: field(c) } });
+
+/** The class carries the card layout: departure, gate and seat on the front — what you need at the airport — then terminal, group, status. */
 export function genericClass(): Record<string, unknown> {
-  return { id: CLASS_ID };
+  return {
+    id: CLASS_ID,
+    classTemplateInfo: { cardTemplateOverride: { cardRowTemplateInfos: [row('departs', 'gate', 'seat'), row('terminal', 'group', 'status')] } },
+  };
 }
 
 export function saveJwtClaims(object: Record<string, unknown>, nowS: number): Record<string, unknown> {

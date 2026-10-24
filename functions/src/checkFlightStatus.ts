@@ -32,8 +32,11 @@ function fetchLiveFlight(flightNumber: string, date: string, origin: string | nu
  */
 export const checkFlightStatus = onSchedule(
   { schedule: 'every 30 minutes', timeZone: 'UTC', memory: '256MiB' },
-  async () => {
-    const nowMs = Date.now();
+  async (event) => {
+    // The run's scheduled slot, not when it happened to start: a late start must not shift the checkpoint window
+    // and check a flight twice (two of the free plan's 100 calls).
+    const scheduledMs = Date.parse(event.scheduleTime);
+    const nowMs = Number.isFinite(scheduledMs) ? scheduledMs : Date.now();
     const snap = await db
       .collection('boarding_passes')
       .where('status', 'in', ['upcoming', 'boarded'])

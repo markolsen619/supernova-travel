@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { syncBookingStop } from './bookingStopFunctions';
-import { mirrorId, mirrorPlan, shareTarget, sharedCopy, sharedTripId, tripMembers, type BookingKind } from './sharedBookings';
+import { mirrorId, mirrorPlan, shareTarget, sharedCopy, sharedTripId, tripMembers, type BookingKind, bookingWriteMatters } from './sharedBookings';
 
 const db = admin.firestore();
 const COLLECTIONS: Record<BookingKind, string> = { boarding_pass: 'boarding_passes', reservation: 'reservations' };
@@ -33,6 +33,7 @@ async function syncBooking(kind: BookingKind, id: string, before: Record<string,
 
 /** Both jobs a booking write needs: its shared copy, and its stop on the trip's itinerary (bookingStopFunctions.ts). */
 async function onBookingWrite(kind: BookingKind, id: string, before: Record<string, any> | undefined, after: Record<string, any> | undefined) {
+  if (!bookingWriteMatters(before, after)) return;
   try {
     await syncBookingStop(kind, id, before, after);
   } catch (err) {

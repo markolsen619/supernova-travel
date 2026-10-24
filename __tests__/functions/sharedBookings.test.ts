@@ -1,4 +1,4 @@
-import { mirrorId, sharedTripId, sharedCopy, tripMembers, mirrorPlan, shareTarget } from '../../functions/src/sharedBookings';
+import { mirrorId, sharedTripId, sharedCopy, tripMembers, mirrorPlan, shareTarget, bookingWriteMatters } from '../../functions/src/sharedBookings';
 
 const pass = {
   ownerUid: 'mark', airline: 'Lufthansa', flightNumber: 'LH 431', origin: 'ORD', originCity: 'Chicago',
@@ -104,5 +104,21 @@ describe('shareTarget', () => {
   it('is null when the booking is deleted or not shared', () => {
     expect(shareTarget(pass, undefined)).toBeNull();
     expect(shareTarget(pass, { ...pass, sharedWithTrip: false })).toBeNull();
+  });
+});
+
+describe('bookingWriteMatters (2026-10-23)', () => {
+  const pass = { ownerUid: 'u1', flightNumber: 'KL1357', gate: 'B3', tripId: 't1' };
+  it('a live check that only stamped its time changes nothing a trip shows', () => {
+    expect(bookingWriteMatters(pass, { ...pass, liveCheckedAtMs: 5 })).toBe(false);
+    expect(bookingWriteMatters({ ...pass, liveCheckedAtMs: 5 }, { ...pass, liveCheckedAtMs: 6, walletUpdatedAtMs: 7, walletTimeZone: 'UTC', googleWalletObject: true })).toBe(false);
+  });
+  it('any other change still runs the booking jobs', () => {
+    expect(bookingWriteMatters(pass, { ...pass, gate: 'B22', liveCheckedAtMs: 5 })).toBe(true);
+    expect(bookingWriteMatters(pass, { ...pass, tripId: 't2' })).toBe(true);
+  });
+  it('creates and deletes always matter', () => {
+    expect(bookingWriteMatters(undefined, pass)).toBe(true);
+    expect(bookingWriteMatters(pass, undefined)).toBe(true);
   });
 });

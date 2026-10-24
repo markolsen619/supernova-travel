@@ -15,7 +15,7 @@ import { pushPassUpdates } from './apns';
 import { genericObject, googleObjectId, inactiveObject } from './googlePass';
 import { putObject } from './googleWalletApi';
 import { PASSKIT_CERT, PASSKIT_KEY, PASSKIT_WWDR, WALLET_LINK_SECRET } from './appleWalletFunctions';
-import { parseWalletServicePath, passIdFromSerial, serialsUpdatedSince, tokenFromAuthHeader, walletFieldsChanged, WALLET_SERVICE_URL } from './appleWalletService';
+import { isNotModified, registrationAllowed, parseWalletServicePath, passIdFromSerial, serialsUpdatedSince, tokenFromAuthHeader, tokensMatch, walletFieldsChanged, WALLET_SERVICE_URL } from './appleWalletService';
 
 const db = admin.firestore();
 const REGS = 'appleWalletRegistrations';
@@ -41,7 +41,7 @@ export const appleWalletService = onRequest(
     // Every other route is about one pass and carries its token.
     const passId = passIdFromSerial(route.serial);
     const token = tokenFromAuthHeader(req.get('Authorization'));
-    if (!passId || !token || token !== walletAuthToken(route.serial, WALLET_LINK_SECRET.value())) { res.status(401).send(''); return; }
+    if (!passId || !token || !tokensMatch(token, walletAuthToken(route.serial, WALLET_LINK_SECRET.value()))) { res.status(401).send(''); return; }
     const snap = await db.doc(`boarding_passes/${passId}`).get();
     const regRef = (device: string) => db.doc(`${REGS}/${device}__${route.serial}`);
 
@@ -53,6 +53,8 @@ export const appleWalletService = onRequest(
       if (!pushToken) { res.status(400).send(''); return; }
       const ref = regRef(route.device);
       const existed = (await ref.get()).exists;
+      const count = existed ? 0 : (await db.collection(REGS).where('serial', '==', route.serial).count().get()).data().count;
+      if (!registrationAllowed(existed, count)) { res.status(403).send(''); return; }
       await ref.set({ device: route.device, pushToken, serial: route.serial, passId, ownerUid: snap.get('ownerUid'), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       res.status(existed ? 200 : 201).send(''); return;
     }
@@ -60,8 +62,7 @@ export const appleWalletService = onRequest(
     // route.kind === 'pass': the latest copy, or 304 when Wallet already has it.
     const updatedMs = Number(snap.get('walletUpdatedAtMs') ?? snap.updateTime?.toMillis() ?? Date.now());
     const lastModified = new Date(Math.floor(updatedMs / 1000) * 1000);
-    const since = Date.parse(req.get('If-Modified-Since') ?? '');
-    if (Number.isFinite(since) && since >= lastModified.getTime()) { res.status(304).send(''); return; }
+    if (isNotModified(req.get('If-Modified-Since'), updatedMs)) { res.status(304).send(''); return; }
     try {
       const file = buildSignedPass({ id: snap.id, ...(snap.data() as Omit<PassInput, 'id'>) },
         { signerKey: PASSKIT_KEY.value(), signerCert: PASSKIT_CERT.value(), wwdr: PASSKIT_WWDR.value() },

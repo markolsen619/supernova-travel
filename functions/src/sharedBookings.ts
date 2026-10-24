@@ -73,3 +73,17 @@ export function mirrorPlan(
   const keep = new Set(write);
   return { write, remove: existing.filter((id) => !keep.has(id)) };
 }
+
+/** Fields only the server's own bookkeeping writes (live checks, Wallet). A write that touches nothing else changes no shared copy or stop. */
+const BOOKKEEPING = new Set(['liveCheckedAtMs', 'walletUpdatedAtMs', 'walletTimeZone', 'googleWalletObject']);
+
+/** Whether a booking write needs the share/stop jobs (every live flight check stamps liveCheckedAtMs; each used to re-read the trip). */
+export function bookingWriteMatters(before: Record<string, any> | undefined, after: Record<string, any> | undefined): boolean {
+  if (!before || !after) return true;
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  for (const k of keys) {
+    if (BOOKKEEPING.has(k)) continue;
+    if (JSON.stringify(before[k] ?? null) !== JSON.stringify(after[k] ?? null)) return true;
+  }
+  return false;
+}

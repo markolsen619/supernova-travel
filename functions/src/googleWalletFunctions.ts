@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import type { PassInput } from './applePass';
 import { genericObject, googleObjectId, saveJwtClaims } from './googlePass';
-import { ensureClass, signSaveJwt } from './googleWalletApi';
+import { ensureClass, putObject, signSaveJwt } from './googleWalletApi';
 
 const db = admin.firestore();
 
@@ -20,6 +20,11 @@ export const googleWalletJwt = onCall({ region: 'us-central1', invoker: 'public'
     await ensureClass();
     const object = genericObject({ id: snap.id, ...(snap.data() as Omit<PassInput, 'id'>) }, timeZone);
     const jwt = await signSaveJwt(saveJwtClaims(object, Math.floor(Date.now() / 1000)));
+    // Saving a JWT for an id Google already has keeps the saved copy (a re-add from another time zone, or a link
+    // used up to an hour after an edit, would stay stale until the next change), so refresh an existing pass directly.
+    if (snap.get('googleWalletObject') === true && snap.get('walletTimeZone') !== timeZone) {
+      await putObject(googleObjectId(snap.id)!, object).catch((e) => console.warn('[googleWalletJwt] refresh failed', (e as Error).message));
+    }
     await ref.update({ walletTimeZone: timeZone, googleWalletObject: true });
     return { jwt };
   } catch (e) {

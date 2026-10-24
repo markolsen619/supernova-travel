@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'crypto';
+
 /**
  * Apple's PassKit web service, the pure part (spec 2026-10-23 §3): routes, auth header, which pass changes
  * reach Wallet, and the "passes updated since" answer. Wiring in appleWalletServiceFunctions.ts.
@@ -10,7 +12,8 @@ export type WalletRoute =
   | { kind: 'pass'; passType: string; serial: string }
   | { kind: 'log' };
 
-const SEG = /^[A-Za-z0-9._-]+$/;
+// Device library ids and serials are short (~32 chars); a cap keeps an oversized id from becoming a bad Firestore doc id (a 500).
+const SEG = /^[A-Za-z0-9._-]{1,128}$/;
 
 export function parseWalletServicePath(method: string, path: string): WalletRoute | null {
   const s = path.split('/').filter(Boolean);
@@ -52,4 +55,26 @@ export function serialsUpdatedSince(rows: { serial: string; updatedAtMs: number 
   const changed = rows.filter((r) => r.updatedAtMs > after);
   if (changed.length === 0) return null;
   return { serialNumbers: changed.map((r) => r.serial), lastUpdated: String(Math.max(...rows.map((r) => r.updatedAtMs))) };
+}
+
+/** Constant-time token compare (a timing difference must not reveal how much of a guessed token was right). */
+export function tokensMatch(given: string, expected: string): boolean {
+  if (!given || given.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
+
+/**
+ * Whether Wallet's copy (If-Modified-Since, second precision) is at least as new as the pass's last change (ms).
+ * Compared against the exact change time, not one floored to the second, so two changes within one second can't
+ * leave Wallet on the first.
+ */
+export function isNotModified(ifModifiedSince: string | undefined, updatedMs: number): boolean {
+  const since = Date.parse(ifModifiedSince ?? '');
+  return Number.isFinite(since) && since >= updatedMs;
+}
+
+/** Anyone holding the .pkpass file can register devices; each registration is a push on every change. */
+export const MAX_DEVICES_PER_PASS = 10;
+export function registrationAllowed(alreadyRegistered: boolean, currentCount: number): boolean {
+  return alreadyRegistered || currentCount < MAX_DEVICES_PER_PASS;
 }
