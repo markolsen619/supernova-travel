@@ -30,6 +30,7 @@ export { onTripDayCreatedBookingStops } from './bookingStopFunctions';
 export { inboundEmail, createImportAddress, rotateImportAddress } from './emailImportFunctions';
 export { appleWalletLink, appleWalletPass } from './appleWalletFunctions';
 export { appleWalletService, onBoardingPassWrittenWallet } from './appleWalletServiceFunctions';
+export { googleWalletJwt } from './googleWalletFunctions';
 export { calendarFeed, createCalendarFeed, rotateCalendarFeed, disableCalendarFeed, setCalendarTypes } from './calendarFeedFunctions';
 export { onPlaceReviewWritten } from './placeReviewFunctions';
 export {

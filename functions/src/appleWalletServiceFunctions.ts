@@ -1,7 +1,8 @@
 /**
  * Apple Wallet live passes (spec 2026-10-23 §3). appleWalletService is the PassKit web service Wallet calls
  * (registrations, "what changed", the latest pass, logs); onBoardingPassWrittenWallet stamps walletUpdatedAtMs and
- * pushes Wallet when a field shown on the pass changes. Registrations live at
+ * pushes Wallet when a field shown on the pass changes (and PATCHes the Google Wallet copy — googlePass.ts; Apple and Google
+ * run independently, a Google failure never stops the Apple push). Registrations live at
  * appleWalletRegistrations/{device}__{serial} (server only; removed with the pass and by deleteAccount).
  */
 import * as admin from 'firebase-admin';
@@ -11,6 +12,8 @@ import { PASS_TYPE_ID, type PassInput } from './applePass';
 import { buildSignedPass } from './applePassSign';
 import { walletAuthToken } from './walletLink';
 import { pushPassUpdates } from './apns';
+import { genericObject, googleObjectId } from './googlePass';
+import { patchObject } from './googleWalletApi';
 import { PASSKIT_CERT, PASSKIT_KEY, PASSKIT_WWDR, WALLET_LINK_SECRET } from './appleWalletFunctions';
 import { parseWalletServicePath, passIdFromSerial, serialsUpdatedSince, tokenFromAuthHeader, walletFieldsChanged, WALLET_SERVICE_URL } from './appleWalletService';
 
@@ -80,10 +83,21 @@ export const onBoardingPassWrittenWallet = onDocumentWritten(
     const serial = `bp-${event.params.passId}`;
     const before = event.data?.before.data() ?? null;
     const after = event.data?.after.data() ?? null;
-    const regs = await db.collection(REGS).where('serial', '==', serial).get();
-    if (!after) { await Promise.all(regs.docs.map((d) => d.ref.delete())); return; }
+    const googleId = googleObjectId(event.params.passId);
+    const google = async (object: Record<string, unknown>) => {
+      if (!googleId || !(before?.googleWalletObject || after?.googleWalletObject)) return;
+      try { await patchObject(googleId, object); } catch (e) { console.warn('[googleWallet] update failed', (e as Error).message); }
+    };
+    if (!after) {
+      const regs = await db.collection(REGS).where('serial', '==', serial).get();
+      await Promise.all(regs.docs.map((d) => d.ref.delete()));
+      await google({ state: 'INACTIVE' });
+      return;
+    }
     if (!walletFieldsChanged(before, after)) return;
     await event.data!.after.ref.update({ walletUpdatedAtMs: Date.now() });
+    await google(genericObject({ id: event.params.passId, ...(after as Omit<PassInput, 'id'>) }, (after.walletTimeZone as string | null) ?? null));
+    const regs = await db.collection(REGS).where('serial', '==', serial).get();
     if (regs.empty) return;
     const gone = await pushPassUpdates(regs.docs.map((d) => String(d.get('pushToken'))), { cert: PASSKIT_CERT.value(), key: PASSKIT_KEY.value() });
     await Promise.all(regs.docs.filter((d) => gone.includes(String(d.get('pushToken')))).map((d) => d.ref.delete()));
