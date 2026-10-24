@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Image, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontWeight } from '@/constants/typography';
+import { SPRING } from '@/constants/motion';
 import { Spacing } from '@/constants/spacing';
 
 export type FilmPhase = 'opening' | 'flying' | 'end';
@@ -9,10 +10,20 @@ export type FilmPhase = 'opening' | 'flying' | 'end';
 const STAR = require('@/assets/images/SupernovaStar.png');
 
 /** What the trip video shows over the map (spec 2026-10-24-trip-video-design.md §2): mark, opening title, day captions, end card. */
-export function FilmOverlay({ phase, eyebrow, title, caption }: { phase: FilmPhase; eyebrow: string; title: string; caption: string | null }) {
+export function FilmOverlay({ phase, eyebrow, title, caption, photo = null }: {
+  phase: FilmPhase; eyebrow: string; title: string; caption: string | null;
+  /** A member's photo at the stop the film is resting on (trips you're on only — TripMapView). */
+  photo?: { uri: string; place: string } | null;
+}) {
   const insets = useSafeAreaInsets();
   const fade = useRef(new Animated.Value(0)).current;
   const captionFade = useRef(new Animated.Value(0)).current;
+  const photoPop = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    photoPop.setValue(0);
+    if (photo) Animated.spring(photoPop, { toValue: 1, ...SPRING }).start();
+  }, [photo?.uri, photoPop]); // eslint-disable-line react-hooks/exhaustive-deps -- once per photo, not per render
 
   useEffect(() => {
     fade.setValue(0);
@@ -45,7 +56,19 @@ export function FilmOverlay({ phase, eyebrow, title, caption }: { phase: FilmPha
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
           <Text style={styles.openingTitle} numberOfLines={3}>{title}</Text>
         </Animated.View>
-      ) : caption ? (
+      ) : null}
+      {phase === 'flying' && photo ? (
+        <Animated.View
+          style={[styles.photoCard, {
+            opacity: photoPop,
+            transform: [{ rotate: '-3deg' }, { scale: photoPop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
+          }]}
+        >
+          <Image source={{ uri: photo.uri }} style={styles.photo} resizeMode="cover" />
+          <Text style={styles.photoPlace} numberOfLines={1}>{photo.place}</Text>
+        </Animated.View>
+      ) : null}
+      {phase === 'flying' && caption ? (
         <Animated.View style={[styles.captionWrap, { bottom: insets.bottom + Spacing['10'], opacity: captionFade }]}>
           <Text style={styles.caption}>{caption}</Text>
         </Animated.View>
@@ -63,6 +86,9 @@ const styles = StyleSheet.create({
   opening: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing['8'], backgroundColor: 'rgba(11,10,18,0.55)', gap: Spacing['2'] },
   eyebrow: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: FontWeight.medium, letterSpacing: 1.2, textAlign: 'center' },
   openingTitle: { color: '#fff', fontSize: 30, fontWeight: FontWeight.semiBold, letterSpacing: -0.6, textAlign: 'center', ...shadow },
+  photoCard: { position: 'absolute', alignSelf: 'center', top: '22%', width: '68%', backgroundColor: '#fff', padding: 8, paddingBottom: 12, borderRadius: 6, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  photo: { width: '100%', aspectRatio: 4 / 5, borderRadius: 3, backgroundColor: '#ddd' },
+  photoPlace: { marginTop: 8, color: '#1F1C19', fontSize: 14, fontWeight: FontWeight.semiBold, textAlign: 'center' },
   captionWrap: { position: 'absolute', alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
   caption: { color: '#fff', fontSize: 13, fontWeight: FontWeight.semiBold, letterSpacing: 1.1 },
   end: { backgroundColor: '#0B0A12', alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing['8'], gap: Spacing['3'] },

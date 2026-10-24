@@ -25,7 +25,7 @@ import { ArrowLeft, ArrowClockwise, MapPinLine, ListBullets, Notebook, X, CaretL
 import { ScreenRecorder } from '@/modules/screen-recorder';
 import { TripVideoSheet } from '@/components/trip/TripVideoSheet';
 import { FilmOverlay } from '@/components/trip/FilmOverlay';
-import { dayCaption, openingEyebrow } from '@/utils/tripVideo';
+import { dayCaption, openingEyebrow, pickFilmPhotos } from '@/utils/tripVideo';
 import { arrivalCamera, basemapConfig, SATELLITE_TILES } from '@/utils/mapLook';
 import { aheadBearing, legPitch, legZoom, limitTurn } from '@/utils/flyoverCamera';
 import { MAP_STALL_MS, parseMapLoadError, shouldReportMapError, shouldShowMapRetry } from '@/utils/mapLoadHealth';
@@ -425,7 +425,29 @@ export function TripMapView({
   const [film, setFilm] = useState<FilmState>('idle');
   const [filmError, setFilmError] = useState<string | null>(null);
   const filming = film === 'opening' || film === 'flying' || film === 'end' || film === 'saving';
-  const filmPlan = useMemo(() => filmTiming(durations, flightPaths.map((d) => d.stops.length)), [durations, flightPaths]);
+  // Members' photos at each stop, loaded once a playback starts — or the trip video's sheet opens, so the film
+  // can be timed around them (utils/playback stopPhotos).
+  const photosByStop = useStopPhotos({
+    tripId,
+    stops: tripStops.map((st) => ({ id: st.activity.id, dayId: st.dayId, placeId: st.activity.placeId || null })),
+    memberUids: memberUids ?? [],
+    organizerUid: organizerUid ?? null,
+    enabled: flying || film !== 'idle',
+  });
+  // Photos in the video only on trips you're on (owner, 2026-10-25): a video leaves Supernova, and someone
+  // else's photos shouldn't go with it.
+  const filmPhotos = useMemo(
+    () => (canEdit ? pickFilmPhotos(flightPaths.map((d) => ({ dayId: d.dayId, stopIds: d.stops.map((st) => st.activity.id) })), photosByStop) : new Set<string>()),
+    [canEdit, flightPaths, photosByStop],
+  );
+  const filmPlan = useMemo(
+    () => filmTiming(
+      durations,
+      flightPaths.map((d) => d.stops.length),
+      flightPaths.map((d) => d.stops.flatMap((st, i) => (filmPhotos.has(st.activity.id) ? [i] : []))),
+    ),
+    [durations, flightPaths, filmPhotos],
+  );
   const tickDurations = filming ? filmPlan.durations : durations;
   const tickTiming = filming ? filmPlan.timing : undefined;
 
@@ -595,17 +617,14 @@ export function TripMapView({
   const filmStopDayId = flyDay?.stops[Math.max(0, flyover.stopIndex)]?.dayId;
   const filmDay = filmStopDayId ? days.find((d) => d.id === filmStopDayId) : undefined;
   const filmCaption = filmDay ? dayCaption(filmDay.dayNumber, dayCities[filmDay.id] ?? null) : null;
+  // Resting on a stop picked for the video: its first photo, framed over the map.
+  const filmPhotoStop = filming && flyStop && flyover.hold > 0 && filmPhotos.has(flyStop.activity.id) ? flyStop : undefined;
+  const filmPhoto = filmPhotoStop && photosByStop[filmPhotoStop.activity.id]?.[0]
+    ? { uri: photosByStop[filmPhotoStop.activity.id][0].url, place: filmPhotoStop.activity.placeName || filmPhotoStop.activity.title }
+    : null;
   // The shown stop's own day: in Actual mode one path spans every day, so the
   // flight path's day would label every stop "DAY 1".
   const flyStopDay = flyStop ? days.find((d) => d.id === flyStop.dayId) ?? flyDayMeta : flyDayMeta;
-  // Members' photos at each stop, loaded once a playback starts (utils/playback stopPhotos).
-  const photosByStop = useStopPhotos({
-    tripId,
-    stops: tripStops.map((st) => ({ id: st.activity.id, dayId: st.dayId, placeId: st.activity.placeId || null })),
-    memberUids: memberUids ?? [],
-    organizerUid: organizerUid ?? null,
-    enabled: flying,
-  });
   const flyPhoto = flyStop ? photosByStop[flyStop.activity.id]?.[0] ?? null : null;
   const flyPhotoCount = flyStop ? photosByStop[flyStop.activity.id]?.length ?? 0 : 0;
   // While moving between stops: how, and to where ("By train to Budapest").
@@ -775,6 +794,12 @@ export function TripMapView({
     setFilmError(null);
     await new Promise((r) => setTimeout(r, 400));
     if (!mountedRef.current || filmRef.current !== 'starting') return;
+    // The video's photos load before recording, so none pops in half-drawn (≤ 4 s; a slow one just shows late).
+    const urls = [...filmPhotos].map((id) => photosByStop[id]?.[0]?.url).filter((u): u is string => !!u);
+    if (urls.length) {
+      await Promise.race([Promise.all(urls.map((u) => Image.prefetch(u).catch(() => false))), new Promise((r) => setTimeout(r, 4000))]);
+      if (!mountedRef.current || filmRef.current !== 'starting') return;
+    }
     // Frames are cropped to the map: the trip page is a sheet, and ReplayKit records the whole window.
     const rect = await new Promise<{ x: number; y: number; w: number; h: number }>((resolve) => {
       if (!rootRef.current) return resolve({ x: 0, y: 0, w: 0, h: 0 });
@@ -803,7 +828,7 @@ export function TripMapView({
       dispatch({ type: 'play', timing: filmPlan.timing });
       setFilm('flying');
     }, FILM_OPENING_MS));
-  }, [fitAllStops, filmPlan.timing]);
+  }, [fitAllStops, filmPlan.timing, filmPhotos, photosByStop]);
 
   // The flyover finished: end card, then the file, then the share sheet.
   useEffect(() => {
@@ -1716,6 +1741,7 @@ export function TripMapView({
             eyebrow={openingEyebrow(tripStartDate, tripEndDate, days.length)}
             title={tripTitle}
             caption={filmCaption}
+            photo={filmPhoto}
           />
           {/* A tap anywhere stops the recording; nothing is saved. */}
           <Pressable style={StyleSheet.absoluteFill} onPress={cancelFilm} accessibilityLabel="Stop recording" />

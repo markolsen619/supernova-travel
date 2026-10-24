@@ -35,7 +35,12 @@ export const STOP_DWELL_MS = 2500;
 export const DAY_INTRO_MS = 4000;
 
 /** How long a day opens and each stop rests. The trip video passes faster ones (filmTiming); the normal flyover uses these. */
-export type FlyoverTiming = { introMs: number; dwellMs: number };
+export type FlyoverTiming = {
+  introMs: number;
+  dwellMs: number;
+  /** Per day, per stop: a pause that overrides `dwellMs` (the trip video rests longer on stops with a photo). */
+  dwells?: number[][];
+};
 export const DEFAULT_TIMING: FlyoverTiming = { introMs: DAY_INTRO_MS, dwellMs: STOP_DWELL_MS };
 
 export const initialFlyover: FlyoverState = { status: 'idle', dayIndex: 0, progress: 0, hold: 0, stopIndex: -1 };
@@ -89,7 +94,7 @@ export function flyoverReducer(state: FlyoverState, action: FlyoverAction): Flyo
       // tick, so two stops at the same spot each get their own pause.
       const next = state.stopIndex + 1;
       const at = action.stopFractions[state.dayIndex]?.[next];
-      if (at !== undefined && progress >= at) return { ...state, progress: at, stopIndex: next, hold: timing.dwellMs };
+      if (at !== undefined && progress >= at) return { ...state, progress: at, stopIndex: next, hold: timing.dwells?.[state.dayIndex]?.[next] ?? timing.dwellMs };
       if (progress >= 1) return nextDay(state, action.durations, timing);
       return { ...state, progress, hold: 0 };
     }
@@ -101,16 +106,26 @@ export const FILM_END_MS = 2000;
 export const FILM_BUDGET_MS = 26000;
 const FILM_MIN_DAY_MS = 1200;
 
-/** The trip video's timing: the whole flyover in ≤ 26 s (spec 2026-10-24-trip-video-design.md §2). */
-export function filmTiming(durations: number[], stopCounts: number[]): { durations: number[]; timing: FlyoverTiming; totalMs: number } {
+export const FILM_PHOTO_DWELL_MS = 1500;
+
+/**
+ * The trip video's timing: the whole flyover in ≤ 26 s (spec 2026-10-24-trip-video-design.md §2). `photoStops`
+ * lists, per day, the stop indices that show a photo: those rest FILM_PHOTO_DWELL_MS, the rest the plain pause.
+ */
+export function filmTiming(durations: number[], stopCounts: number[], photoStops: number[][] = []): { durations: number[]; timing: FlyoverTiming; totalMs: number } {
   const flown = durations.map((d, i) => d > 0 || (stopCounts[i] ?? 0) > 0);
   const days = flown.filter(Boolean).length;
-  const stops = stopCounts.reduce((a, b, i) => a + (flown[i] ? b : 0), 0);
-  let timing: FlyoverTiming = { introMs: 1200, dwellMs: 600 };
-  if (days * timing.introMs + stops * timing.dwellMs > FILM_BUDGET_MS / 2) timing = { introMs: 600, dwellMs: 0 };
-  // Very long trips (40+ days): even 0.6 s openings overflow, so share half the budget between them.
-  if (days * timing.introMs > FILM_BUDGET_MS / 2) timing = { introMs: Math.max(1, Math.floor(FILM_BUDGET_MS / 2 / days)), dwellMs: 0 };
-  const fixed = days * timing.introMs + stops * timing.dwellMs;
+  const photos = photoStops.reduce((a, p, i) => a + (flown[i] ? p.length : 0), 0);
+  const plain = stopCounts.reduce((a, b, i) => a + (flown[i] ? b : 0), 0) - photos;
+  let introMs = 1200, dwellMs = 600, photoMs = FILM_PHOTO_DWELL_MS;
+  const fixedOf = () => days * introMs + plain * dwellMs + photos * photoMs;
+  if (fixedOf() > FILM_BUDGET_MS / 2) { introMs = 600; dwellMs = 0; }
+  if (fixedOf() > FILM_BUDGET_MS / 2) photoMs = 1000;
+  // Very long trips (40+ days): even 0.6 s openings overflow, so share what's left of half the budget between them.
+  if (fixedOf() > FILM_BUDGET_MS / 2) introMs = Math.max(1, Math.floor((FILM_BUDGET_MS / 2 - photos * photoMs) / Math.max(1, days)));
+  const fixed = fixedOf();
+  const dwells = stopCounts.map((n, i) => Array.from({ length: n }, (_, s) => ((photoStops[i] ?? []).includes(s) ? photoMs : dwellMs)));
+  const timing: FlyoverTiming = { introMs, dwellMs, dwells };
   const routed = durations.filter((d) => d > 0);
   const drawBudget = Math.max(0, FILM_BUDGET_MS - fixed);
   const wanted = routed.reduce((a, b) => a + b, 0);

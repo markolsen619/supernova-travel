@@ -1,4 +1,4 @@
-import { dayCaption, openingEyebrow } from '@/utils/tripVideo';
+import { dayCaption, openingEyebrow, pickFilmPhotos } from '@/utils/tripVideo';
 
 describe('trip video captions', () => {
   it('dates and length above the title', () => {
@@ -13,5 +13,23 @@ describe('trip video captions', () => {
     expect(dayCaption(2, 'Lisbon')).toBe('DAY 2 · LISBON');
     expect(dayCaption(3, null)).toBe('DAY 3');
     expect(dayCaption(3, '  ')).toBe('DAY 3');
+  });
+});
+
+describe('pickFilmPhotos (photos in the trip video)', () => {
+  const day = (dayId: string, ...stopIds: string[]) => ({ dayId, stopIds });
+  const has = (...ids: string[]) => Object.fromEntries(ids.map((id) => [id, [{ url: `https://x/${id}.jpg` }]]));
+  it('one photo per day first, then more in trip order, up to the cap', () => {
+    const days = [day('d1', 'a', 'b', 'c'), day('d2', 'd', 'e'), day('d3', 'f')];
+    const picked = pickFilmPhotos(days, has('a', 'b', 'c', 'd', 'e', 'f'), 4);
+    expect([...picked]).toEqual(['a', 'd', 'f', 'b']);
+  });
+  it('stops without photos are never picked; nothing to show gives an empty set', () => {
+    expect([...pickFilmPhotos([day('d1', 'a', 'b')], has('b'), 8)]).toEqual(['b']);
+    expect(pickFilmPhotos([day('d1', 'a')], {}, 8).size).toBe(0);
+  });
+  it('default cap is 8', () => {
+    const many = Array.from({ length: 12 }, (_, i) => day(`d${i}`, `s${i}`));
+    expect(pickFilmPhotos(many, has(...many.map((d) => d.stopIds[0]))).size).toBe(8);
   });
 });
