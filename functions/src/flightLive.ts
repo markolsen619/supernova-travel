@@ -15,13 +15,22 @@ const LIMIT_CODES = new Set(['usage_limit_reached', 'monthly_limit_reached']);
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const norm = (v: string | null | undefined) => (v ?? '').trim().toUpperCase();
 
-export function parseLiveFlight(json: unknown): LiveResult {
+/**
+ * AviationStack's free plan refuses flight_date, so a lookup returns the flight's recent runs (each with its own
+ * flight_date, often repeated once per codeshare). `want` picks the run on the pass's local date from its origin;
+ * no such run means no answer — never another day's flight.
+ */
+export function parseLiveFlight(json: unknown, want?: { date: string; origin: string | null }): LiveResult {
   const body = (json ?? {}) as { data?: unknown[]; error?: { code?: unknown } };
   if (body.error) {
     const code = str(body.error.code) ?? 'unknown';
     return LIMIT_CODES.has(code) ? { kind: 'limit', code } : { kind: 'error', code };
   }
-  const f = (Array.isArray(body.data) ? body.data[0] : null) as Record<string, any> | null;
+  const runs = (Array.isArray(body.data) ? body.data : []) as Record<string, any>[];
+  const origin = want?.origin ? want.origin.trim().toUpperCase() : null;
+  const f = want
+    ? runs.find((r) => r?.flight_date === want.date && (!origin || String(r?.departure?.iata ?? '').toUpperCase() === origin)) ?? null
+    : runs[0] ?? null;
   if (!f) return { kind: 'none' };
   const dep = (f.departure ?? {}) as Record<string, unknown>;
   const clock = str(dep.estimated)?.match(/T(\d{2}:\d{2})/)?.[1] ?? null;

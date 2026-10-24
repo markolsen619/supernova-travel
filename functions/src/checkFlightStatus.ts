@@ -8,17 +8,17 @@ const db = admin.firestore();
 const HOUR = 3_600_000;
 
 // AviationStack (free plan: HTTP only, 100 calls a month — spec 2026-10-23).
-function fetchLiveFlight(flightNumber: string, date: string): Promise<LiveResult> {
+function fetchLiveFlight(flightNumber: string, date: string, origin: string | null): Promise<LiveResult> {
   const apiKey = process.env.AVIATIONSTACK_API_KEY;
   if (!apiKey) return Promise.resolve({ kind: 'none' });
-  const url = `http://api.aviationstack.com/v1/flights?access_key=${apiKey}&flight_iata=${encodeURIComponent(flightNumber)}&flight_date=${date}`;
+  const url = `http://api.aviationstack.com/v1/flights?access_key=${apiKey}&flight_iata=${encodeURIComponent(flightNumber)}`; // the free plan refuses flight_date: parseLiveFlight picks the day
   return new Promise((resolve) => {
     const http = require('http');
     http.get(url, (res: any) => {
       let data = '';
       res.on('data', (chunk: string) => { data += chunk; });
       res.on('end', () => {
-        try { resolve(parseLiveFlight(JSON.parse(data))); } catch { resolve({ kind: 'none' }); }
+        try { resolve(parseLiveFlight(JSON.parse(data), { date, origin })); } catch { resolve({ kind: 'none' }); }
       });
     }).on('error', () => resolve({ kind: 'none' }));
   });
@@ -64,7 +64,7 @@ export const checkFlightStatus = onSchedule(
     });
 
     for (const group of due) {
-      const result = await fetchLiveFlight(group.flightNumber, group.departureDate);
+      const result = await fetchLiveFlight(group.flightNumber, group.departureDate, (group.passes[0].doc.data().origin as string | undefined) ?? null);
       if (result.kind === 'limit') {
         console.warn('[checkFlightStatus] AviationStack monthly limit reached; no more checks this month', { code: result.code });
         break;

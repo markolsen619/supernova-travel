@@ -107,3 +107,17 @@ describe('final review fixes', () => {
     expect(r.alerts).toEqual([]);
   });
 });
+
+describe('picking the right day (free plan: no flight_date filter)', () => {
+  const run = (date: string, iata: string, gate: string) => ({ flight_date: date, flight_status: 'scheduled', departure: { iata, gate, delay: null, estimated: `${date}T18:10:00+00:00` } });
+  const body = { data: [run('2026-10-22', 'JFK', 'A1'), run('2026-10-23', 'JFK', 'B2'), run('2026-10-23', 'BOS', 'C3')] };
+  it('takes the run on the pass\'s local date from its origin airport', () => {
+    expect(parseLiveFlight(body, { date: '2026-10-23', origin: 'jfk' })).toMatchObject({ kind: 'flight', flight: { gate: 'B2' } });
+  });
+  it('no run on that date means no answer, never another day\'s flight', () => {
+    expect(parseLiveFlight(body, { date: '2026-10-25', origin: 'JFK' })).toEqual({ kind: 'none' });
+  });
+  it('without a known origin, the date alone decides', () => {
+    expect(parseLiveFlight({ data: [run('2026-10-22', 'JFK', 'A1'), run('2026-10-23', 'JFK', 'B2')] }, { date: '2026-10-23', origin: null })).toMatchObject({ flight: { gate: 'B2' } });
+  });
+});
