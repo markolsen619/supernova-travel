@@ -26,6 +26,7 @@ import { OnboardingCommunitySlide } from '@/components/onboarding/OnboardingComm
 import { OnboardingProSlide } from '@/components/onboarding/OnboardingProSlide';
 import { OnboardingFollowSlide } from '@/components/onboarding/OnboardingFollowSlide';
 import { useTravelerSuggestions } from '@/hooks/useTravelerSuggestions';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
@@ -77,20 +78,25 @@ export default function OnboardingScreen() {
   const scrollX = useRef(new Animated.Value(0)).current;
   const showcase = useOnboardingShowcase();
   const { suggestions } = useTravelerSuggestions();
+  const queryClient = useQueryClient();
+  // Follows made here must count in the feed straight away (its suggestions page shows while you follow < 3).
+  const refreshSuggestions = useCallback(() => { queryClient.invalidateQueries({ queryKey: ['travelerSuggestions'] }); }, [queryClient]);
   const slideCount = SHOWCASE_SLIDES + (suggestions.length > 0 ? 1 : 0);
   const slideIndexes = useMemo(() => Array.from({ length: slideCount }, (_, i) => i), [slideCount]);
 
   const handleFinish = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     markOnboardingComplete();
+    refreshSuggestions();
     router.replace('/(tabs)');
-  }, []);
+  }, [refreshSuggestions]);
 
   const handleSeePlans = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     markOnboardingComplete();
+    refreshSuggestions();
     router.replace('/paywall');
-  }, []);
+  }, [refreshSuggestions]);
 
   const handleNext = useCallback(() => {
     if (activeIndex < slideCount - 1) {

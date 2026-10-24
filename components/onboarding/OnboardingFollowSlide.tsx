@@ -4,6 +4,7 @@ import { SlideTextBlock } from '@/components/onboarding/SlideTextBlock';
 import { UserSuggestion } from '@/components/explore/UserSuggestion';
 import { Spacing } from '@/constants/spacing';
 import type { TravelerSuggestion } from '@/hooks/useTravelerSuggestions';
+import { suggestionMeta } from '@/utils/travelerSuggestions';
 
 /** The last onboarding step (spec 2026-10-24-seed-social-design.md): a few travelers to follow, nothing forced. */
 export function OnboardingFollowSlide({ active, suggestions }: { active: boolean; suggestions: TravelerSuggestion[] }) {
@@ -16,7 +17,7 @@ export function OnboardingFollowSlide({ active, suggestions }: { active: boolean
         active={active}
       />
       <View style={styles.list}>
-        {suggestions.map((s) => <UserSuggestion key={s.uid} user={s.profile} />)}
+        {suggestions.map((s) => <UserSuggestion key={s.uid} user={s.profile} meta={suggestionMeta(s)} />)}
       </View>
     </ScrollView>
   );

@@ -37,6 +37,7 @@ import { shouldSuggest } from '@/utils/travelerSuggestions';
 import { Spacing } from '@/constants/spacing';
 import { useIsOnline } from '@/services/offline';
 import { OfflineEmptyState } from '@/components/ui/OfflineEmptyState';
+const feedItemKey = (item: FeedItem<Post>) => (item.kind === 'post' ? `post:${item.post.id}` : item.kind === 'trip' ? `trip:${item.trip.id}` : 'suggestions');
 
 export default function FeedScreen() {
   const online = useIsOnline();
@@ -45,6 +46,9 @@ export default function FeedScreen() {
   const { colors } = useTheme();
   const { height, feedWidth, isLarge } = useLayout();
   const [activeIndex, setActiveIndex] = useState(0);
+  // The page on screen by its key, not its position: trip cards and the suggestions page can be inserted above it
+  // as they load, which would otherwise hand "active" (video playback) to a neighbour.
+  const [activeKey, setActiveKey] = useState<string | null>(null);
   // Off-screen (the post screen on top, another tab) no clip plays: the feed kept playing under them.
   const screenFocused = useIsFocused();
   const listRef = useRef<FlashListRef<FeedItem<Post>>>(null);
@@ -61,7 +65,10 @@ export default function FeedScreen() {
       if (!navigation.isFocused()) return;
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
       setActiveIndex(0);
+      setActiveKey(null);
       queryClient.resetQueries({ queryKey: ['feed'] });
+      // A tap on Feed is the "next feed load" the suggestions page waits for (spec 2026-10-24).
+      queryClient.invalidateQueries({ queryKey: ['travelerSuggestions'] });
     });
   }, [navigation, queryClient]);
   const { data: hasUnread = false } = useHasUnreadActivity();
@@ -86,10 +93,10 @@ export default function FeedScreen() {
   // Trip cards after every 3 posts and once posts run out; "Travelers to follow" while you follow few
   // (spec 2026-10-24-seed-social-design.md).
   const feedTrips = useFeedTrips();
-  const { suggestions, followingCount } = useTravelerSuggestions();
+  const { suggestions, followingCount, isLoading: suggestionsLoading } = useTravelerSuggestions();
   const items = useMemo(
-    () => mixFeed(posts, feedTrips, { postsExhausted: !hasNextPage, showSuggestions: shouldSuggest(followingCount, suggestions.length) }),
-    [posts, feedTrips, hasNextPage, followingCount, suggestions.length],
+    () => mixFeed(posts, feedTrips, { postsExhausted: !hasNextPage, showSuggestions: !suggestionsLoading && shouldSuggest(followingCount, suggestions.length) }),
+    [posts, feedTrips, hasNextPage, followingCount, suggestions.length, suggestionsLoading],
   );
 
   const authorUids = useMemo(
@@ -114,16 +121,20 @@ export default function FeedScreen() {
   // there's actually a card behind it; over the light empty/loading canvas
   // it would just be a stray dark bar.
   // White header icons over photo pages; theme colours over the suggestions page (light in light mode) and empty states.
-  const hasContent = !isLoading && items.length > 0 && items[Math.min(activeIndex, items.length - 1)]?.kind !== 'suggestions';
+  const onScreen = items.find((i) => feedItemKey(i) === activeKey) ?? items[0];
+  const hasContent = !isLoading && items.length > 0 && onScreen?.kind !== 'suggestions';
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 80,
   });
 
   const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: Array<{ index: number | null; isViewable: boolean }> }) => {
+    ({ viewableItems }: { viewableItems: { index: number | null; isViewable: boolean; item?: FeedItem<Post> }[] }) => {
       const first = viewableItems.find((v) => v.isViewable);
-      if (first) setActiveIndex(first.index ?? 0);
+      if (first) {
+        setActiveIndex(first.index ?? 0);
+        setActiveKey(first.item ? feedItemKey(first.item) : null);
+      }
     },
     []
   );
@@ -246,14 +257,14 @@ export default function FeedScreen() {
         <FlashList
           ref={listRef}
           data={items}
-          keyExtractor={(item) => (item.kind === 'post' ? `post:${item.post.id}` : item.kind === 'trip' ? `trip:${item.trip.id}` : 'suggestions')}
+          keyExtractor={feedItemKey}
           getItemType={(item) => item.kind}
           renderItem={({ item, index }) =>
             item.kind === 'post' ? (
               <FeedCard
                 post={item.post}
                 // Index-based, so a clip plays only while its own page is the one on screen.
-                isActive={screenFocused && index === activeIndex}
+                isActive={screenFocused && feedItemKey(item) === (activeKey ?? feedItemKey(items[0]))}
                 author={authorProfiles[item.post.authorUid]}
                 onMorePress={handleMorePress}
               />

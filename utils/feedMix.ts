@@ -23,21 +23,37 @@ export function mixFeed<P extends { id: string; tripId?: string | null }>(
   posts: P[], trips: FeedTrip[], opts: { postsExhausted: boolean; showSuggestions: boolean; every?: number },
 ): FeedItem<P>[] {
   const every = opts.every ?? TRIP_EVERY;
-  const inPosts = new Set(posts.map((p) => p.tripId).filter(Boolean));
-  const queue = trips.filter((t) => !inPosts.has(t.id));
+  // A trip is skipped only if a post *before its slot* already showed it, so a trip card never changes when
+  // a later page of posts arrives (it would swap the card someone is looking at).
+  const shownAsPost = new Set<string>();
+  const queue = [...trips];
+  const nextTrip = () => {
+    while (queue.length && shownAsPost.has(queue[0].id)) queue.shift();
+    return queue.shift();
+  };
   const out: FeedItem<P>[] = [];
   posts.forEach((post, i) => {
     out.push({ kind: 'post', post });
-    if ((i + 1) % every === 0 && queue.length) out.push({ kind: 'trip', trip: queue.shift()! });
+    if (post.tripId) shownAsPost.add(post.tripId);
+    if ((i + 1) % every === 0) {
+      const t = nextTrip();
+      if (t) out.push({ kind: 'trip', trip: t });
+    }
   });
-  if (opts.postsExhausted) for (const trip of queue) out.push({ kind: 'trip', trip });
+  if (opts.postsExhausted) for (let t = nextTrip(); t; t = nextTrip()) out.push({ kind: 'trip', trip: t });
   if (opts.showSuggestions) out.splice(Math.min(SUGGESTIONS_AT, out.length), 0, { kind: 'suggestions' });
   return out;
 }
 
-/** `LISBON · 5 DAYS` above a trip card's title. */
+/** `LISBON · 5 DAYS` above a trip card's title; older trips without a place show only the length. */
 export function tripEyebrow(trip: FeedTrip): string {
-  const place = trip.destinationName.toUpperCase();
-  if (!trip.days) return place;
-  return `${place} · ${trip.days} ${trip.days === 1 ? 'DAY' : 'DAYS'}`;
+  const place = trip.destinationName.trim().toUpperCase();
+  const length = trip.days ? `${trip.days} ${trip.days === 1 ? 'DAY' : 'DAYS'}` : '';
+  return [place, length].filter(Boolean).join(' · ');
+}
+
+/** The card's heading, never blank: the title, else "Trip to {place}", else "A trip". */
+export function tripTitle(trip: FeedTrip): string {
+  if (trip.title.trim()) return trip.title.trim();
+  return trip.destinationName.trim() ? `Trip to ${trip.destinationName.trim()}` : 'A trip';
 }

@@ -1,5 +1,5 @@
 // __tests__/utils/feedMix.test.ts
-import { feedTripPool, mixFeed, tripEyebrow, type FeedTrip } from '@/utils/feedMix';
+import { feedTripPool, mixFeed, tripEyebrow, tripTitle, type FeedTrip } from '@/utils/feedMix';
 
 const trip = (id: string, over: Partial<FeedTrip> = {}): FeedTrip => ({
   id, authorUid: 'a', title: `Trip ${id}`, coverImageUrl: 'https://x/c.jpg', destinationName: 'Lisbon', days: 5,
@@ -53,5 +53,26 @@ describe('tripEyebrow', () => {
     expect(tripEyebrow(trip('a'))).toBe('LISBON · 5 DAYS');
     expect(tripEyebrow(trip('a', { days: 1 }))).toBe('LISBON · 1 DAY');
     expect(tripEyebrow(trip('a', { days: null }))).toBe('LISBON');
+  });
+});
+
+describe('final review (2026-10-24)', () => {
+  it('a trip card keeps its slot when a later post turns out to be that trip', () => {
+    const trips3 = [trip('t1'), trip('t2'), trip('t3')];
+    const first = mixFeed([post('p1'), post('p2'), post('p3'), post('p4')], trips3, { postsExhausted: false, showSuggestions: false });
+    const later = mixFeed([post('p1'), post('p2'), post('p3'), post('p4'), post('p5', 't1'), post('p6')], trips3, { postsExhausted: false, showSuggestions: false });
+    const tripAt3 = (items: { kind: string }[]) => (items[3] as unknown as { trip: FeedTrip }).trip.id;
+    expect(tripAt3(first)).toBe('t1');
+    expect(tripAt3(later)).toBe('t1');
+  });
+  it('a trip shown as an earlier post is still not repeated', () => {
+    const items = mixFeed([post('p1', 't1'), post('p2'), post('p3')], [trip('t1'), trip('t2')], { postsExhausted: true, showSuggestions: false });
+    expect(items.filter((i) => i.kind === 'trip').map((i) => (i as { trip: FeedTrip }).trip.id)).toEqual(['t2']);
+  });
+  it('older trips with no place or title still read well', () => {
+    expect(tripEyebrow(trip('a', { destinationName: '' }))).toBe('5 DAYS');
+    expect(tripEyebrow(trip('a', { destinationName: '', days: null }))).toBe('');
+    expect(tripTitle(trip('a', { title: '  ', destinationName: '' }))).toBe('A trip');
+    expect(tripTitle(trip('a', { title: '', destinationName: 'Lisbon' }))).toBe('Trip to Lisbon');
   });
 });

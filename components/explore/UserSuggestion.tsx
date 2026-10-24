@@ -1,6 +1,6 @@
 import { useFollowRequest } from '@/hooks/useFollowRequests';
 import { isPrivateAccount, followButtonState } from '@/utils/privacy';
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -16,9 +16,13 @@ import { UserProfile } from '@/types';
 interface UserSuggestionProps {
   user: UserProfile;
   onPress?: () => void;
+  /** A short line under @username, e.g. "3 TRIPS · 12 FOLLOWERS" (travelers to follow). */
+  meta?: string;
 }
 
-export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
+export function UserSuggestion({ user, onPress, meta }: UserSuggestionProps) {
+  // A refused follow (e.g. that person blocked you — the app can't see their list) used to just stop spinning.
+  const [followError, setFollowError] = useState(false);
   const { colors } = useTheme();
   const router = useRouter();
   const currentUserUid = useAuthStore((s) => s.user?.uid);
@@ -52,7 +56,10 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
     if (state === 'following') unfollow.mutate();
     else if (state === 'requested') cancel().catch(() => {});
     else if (state === 'request') request().catch(() => {});
-    else follow.mutate();
+    else {
+      setFollowError(false);
+      follow.mutate(undefined, { onError: () => setFollowError(true) });
+    }
   };
 
   return (
@@ -77,6 +84,11 @@ export function UserSuggestion({ user, onPress }: UserSuggestionProps) {
         >
           @{user.username}
         </Text>
+        {followError ? (
+          <Text style={[styles.meta, { color: colors.semantic.error }]} numberOfLines={1}>Couldn&apos;t follow. Try again later.</Text>
+        ) : meta ? (
+          <Text style={[styles.meta, { color: colors.text.tertiary }]} numberOfLines={1}>{meta}</Text>
+        ) : null}
       </View>
 
       {!isCurrentUser && (
@@ -104,6 +116,11 @@ const styles = StyleSheet.create({
   info: {
     flex: 1,
     minWidth: 0,
+  },
+  meta: {
+    fontSize: 11,
+    letterSpacing: 0.6,
+    marginTop: 2,
   },
   displayName: {
     fontSize: FontSize.base,

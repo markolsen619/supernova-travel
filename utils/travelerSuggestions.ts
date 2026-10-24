@@ -22,3 +22,9 @@ export function rankSuggestions<T extends SuggestionCandidate>(
 export function shouldSuggest(followingCount: number, suggestions: number): boolean {
   return followingCount < FOLLOW_TARGET && suggestions > 0;
 }
+
+/** "3 TRIPS · 12 FOLLOWERS" under a suggested traveler's name; parts that are zero are left out. */
+export function suggestionMeta(s: { tripsCount?: number; followersCount: number }): string {
+  const part = (n: number, one: string, many: string) => (n > 0 ? `${n} ${n === 1 ? one : many}` : '');
+  return [part(s.tripsCount ?? 0, 'TRIP', 'TRIPS'), part(s.followersCount, 'FOLLOWER', 'FOLLOWERS')].filter(Boolean).join(' · ');
+}

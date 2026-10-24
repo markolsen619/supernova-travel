@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { TAB_BAR_HEIGHT } from '@/constants/layout';
 import { Spacing } from '@/constants/spacing';
 import { FontWeight } from '@/constants/typography';
-import { tripEyebrow, type FeedTrip } from '@/utils/feedMix';
+import { tripEyebrow, tripTitle, type FeedTrip } from '@/utils/feedMix';
 
 /**
  * A trip as a full-screen feed page (spec 2026-10-24-seed-social-design.md): the cover leads, then the eyebrow,
@@ -30,7 +30,7 @@ export function FeedTripCard({ trip, author, width, height }: {
 
   return (
     <View style={{ width, height, backgroundColor: '#000' }}>
-      <TouchableOpacity activeOpacity={1} onPress={openFromPhoto} style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={`Open trip ${trip.title}`}>
+      <TouchableOpacity activeOpacity={1} onPress={openFromPhoto} style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel={`Open trip ${tripTitle(trip)}`}>
         <FeedPhoto uri={trip.coverImageUrl!} style={StyleSheet.absoluteFill} />
       </TouchableOpacity>
       <LinearGradient
@@ -39,8 +39,8 @@ export function FeedTripCard({ trip, author, width, height }: {
         pointerEvents="none"
       />
       <View style={[styles.info, { bottom: TAB_BAR_HEIGHT + insets.bottom + Spacing['6'] }]} pointerEvents="box-none">
-        <Text style={styles.eyebrow} numberOfLines={1}>{tripEyebrow(trip)}</Text>
-        <Text style={styles.title} numberOfLines={2}>{trip.title}</Text>
+        {tripEyebrow(trip) ? <Text style={styles.eyebrow} numberOfLines={1}>{tripEyebrow(trip)}</Text> : null}
+        <Text style={styles.title} numberOfLines={2}>{tripTitle(trip)}</Text>
         <View style={styles.authorRow}>
           {trip.isEditorial ? (
             <Image source={require('@/assets/images/SupernovaStar.png')} style={styles.star} accessibilityIgnoresInvertColors />

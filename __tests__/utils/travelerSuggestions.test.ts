@@ -1,5 +1,5 @@
 // __tests__/utils/travelerSuggestions.test.ts
-import { rankSuggestions, shouldSuggest, SUGGESTION_MAX } from '@/utils/travelerSuggestions';
+import { rankSuggestions, shouldSuggest, suggestionMeta, SUGGESTION_MAX } from '@/utils/travelerSuggestions';
 import { DEMO_REVIEW_UID } from '@/utils/onboardingShowcase';
 
 const c = (uid: string, over: Record<string, unknown> = {}) => ({ uid, name: uid, avatarUrl: 'https://x/a.jpg', followersCount: 0, lastPostMs: null as number | null, ...over });
@@ -29,5 +29,14 @@ describe('shouldSuggest', () => {
     expect(shouldSuggest(2, 1)).toBe(true);
     expect(shouldSuggest(3, 4)).toBe(false);
     expect(shouldSuggest(0, 0)).toBe(false);
+  });
+});
+
+describe('suggestionMeta (final review)', () => {
+  it('trips and followers, singular where it should be, zeros left out', () => {
+    expect(suggestionMeta({ tripsCount: 3, followersCount: 12 })).toBe('3 TRIPS · 12 FOLLOWERS');
+    expect(suggestionMeta({ tripsCount: 1, followersCount: 1 })).toBe('1 TRIP · 1 FOLLOWER');
+    expect(suggestionMeta({ tripsCount: 0, followersCount: 4 })).toBe('4 FOLLOWERS');
+    expect(suggestionMeta({ followersCount: 0 })).toBe('');
   });
 });
