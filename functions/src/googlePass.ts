@@ -3,6 +3,7 @@
  * the Apple pass (applePass.ts) — never the owner, notes, booking references or trip data.
  */
 import { statusLine, type PassInput } from './applePass';
+import { airportZone } from './airportTime';
 
 export const ISSUER_ID = '3388000000023211693';
 export const CLASS_ID = `${ISSUER_ID}.supernova_boarding_pass`;
@@ -38,7 +39,8 @@ export function genericObject(p: PassInput, timeZone: string | null): Record<str
   const to = text(p.destinationCity) ?? text(p.destination) ?? '—';
   const modules: { id: string; header: string; body: string }[] = [];
   const add = (id: string, header: string, body: string | null) => { if (body) modules.push({ id, header, body }); };
-  add('departs', 'Departs', formatDeparture(p.departureTime, timeZone));
+  // The origin airport's clock (what the airline prints); the phone's zone only for an airport the table doesn't know.
+  add('departs', 'Departs', formatDeparture(p.departureTime, airportZone(p.origin) ?? timeZone));
   add('seat', 'Seat', text(p.seat));
   add('gate', 'Gate', text(p.gate));
   add('terminal', 'Terminal', text(p.terminal));

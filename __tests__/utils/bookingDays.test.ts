@@ -8,7 +8,7 @@ const days = [
 ];
 const flight: TripBooking = { kind: 'boarding_pass', item: {
   id: 'f', ownerUid: 'me', airline: 'American', flightNumber: 'AA104', origin: 'JFK', originCity: 'New York',
-  destination: 'FCO', destinationCity: 'Rome', departureTime: '2026-07-25T08:10:00', seat: '14A',
+  destination: 'FCO', destinationCity: 'Rome', departureTime: '2026-07-25T12:10:00.000Z', seat: '14A', // 08:10 in New York
   status: 'upcoming', createdAt: '', localDate: '2026-07-25', confirmationCode: undefined,
 } as unknown as BoardingPass };
 const hotel: TripBooking = { kind: 'reservation', item: {

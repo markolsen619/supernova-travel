@@ -29,12 +29,11 @@ describe('passJson', () => {
     expect(keys(j, 'auxiliaryFields')).toEqual(['flight', 'terminal', 'date']);
     expect(j.relevantDate).toBe('2026-11-01T09:20:00+00:00');
   });
-  it('lets Wallet show times in the phone\'s time zone (times are stored in UTC, not the airport offset)', () => {
+  it('shows times on the departure airport\'s clock (stored UTC, written with the airport\'s offset)', () => {
     const j = passJson({ ...full, departureTime: '2026-11-01T22:30:00.000Z' });
     const departs = fields(j, 'secondaryFields').find((f) => f.key === 'departs')!;
-    expect(departs.value).toBe('2026-11-01T22:30:00.000Z');
-    expect('ignoresTimeZone' in departs).toBe(false);
-    expect(JSON.stringify(j)).not.toContain('ignoresTimeZone');
+    expect(departs.value).toBe('2026-11-01T22:30:00+00:00'); // LHR in November is UTC+0
+    expect(departs.ignoresTimeZone).toBe(true);
   });
   it('uses the real barcode format', () => {
     expect(passJson(full).barcodes).toEqual([{ format: 'PKBarcodeFormatPDF417', message: full.barcode, messageEncoding: 'iso-8859-1' }]);
@@ -88,5 +87,26 @@ describe('live pass', () => {
     expect(statusLine({ id: 'p', delayMinutes: 80 })).toBe('Delayed 1 h 20 min');
     expect(statusLine({ id: 'p', delayMinutes: 5, liveCheckedAtMs: 1 })).toBe('On time');
     expect(statusLine({ id: 'p' })).toBeNull();
+  });
+});
+
+describe('airport-local times (2026-10-23)', () => {
+  const kl = { id: 'k', flightNumber: 'KL1357', origin: 'AMS', destination: 'PRG', departureTime: '2026-11-18T15:10:00.000Z', arrivalTime: '2026-11-18T16:35:00.000Z' };
+  it('departure shows on Amsterdam\'s clock wherever the phone is', () => {
+    const departs = fields(passJson(kl), 'secondaryFields').find((f) => f.key === 'departs')!;
+    expect(departs.value).toBe('2026-11-18T16:10:00+01:00');
+    expect(departs.ignoresTimeZone).toBe(true);
+    expect(fields(passJson(kl), 'auxiliaryFields').find((f) => f.key === 'date')).toMatchObject({ value: '2026-11-18T16:10:00+01:00', ignoresTimeZone: true });
+  });
+  it('arrival on the destination\'s clock', () => {
+    expect(fields(passJson(kl), 'backFields').find((f) => f.key === 'arrives')).toMatchObject({ value: '2026-11-18T17:35:00+01:00', ignoresTimeZone: true });
+  });
+  it('an airport the table does not know keeps the old behaviour (phone\'s zone)', () => {
+    const departs = fields(passJson({ ...kl, origin: 'ZZZ' }), 'secondaryFields').find((f) => f.key === 'departs')!;
+    expect(departs.value).toBe(kl.departureTime);
+    expect(departs.ignoresTimeZone).toBeUndefined();
+  });
+  it('lock-screen relevance stays the real instant', () => {
+    expect(passJson(kl).relevantDate).toBe(kl.departureTime);
   });
 });

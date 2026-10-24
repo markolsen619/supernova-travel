@@ -100,3 +100,13 @@ describe('inactiveObject (final review)', () => {
     expect(o).toEqual({ id: `${ISSUER_ID}.bp_p1`, classId: CLASS_ID, state: 'INACTIVE', cardTitle: { defaultValue: { language: 'en-US', value: 'Supernova' } }, header: { defaultValue: { language: 'en-US', value: 'Boarding pass removed' } } });
   });
 });
+
+describe('airport-local times (2026-10-23)', () => {
+  it('departure on the origin airport\'s clock, whatever zone the phone sent', () => {
+    expect(mod(genericObject(full, 'America/Los_Angeles') as any, 'departs').body).toBe('Sun, Nov 1 · 10:20');
+  });
+  it('an unknown airport falls back to the phone\'s zone, then UTC', () => {
+    expect(mod(genericObject({ ...full, origin: 'ZZZ' }, 'America/Los_Angeles') as any, 'departs').body).toBe('Sun, Nov 1 · 01:20');
+    expect(mod(genericObject({ ...full, origin: 'ZZZ' }, null) as any, 'departs').body).toBe('Sun, Nov 1 · 09:20 UTC');
+  });
+});

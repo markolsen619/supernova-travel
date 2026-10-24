@@ -4,6 +4,14 @@
  * in appleWalletFunctions.ts. Only whitelisted flight fields — never the owner, notes or booking references.
  */
 import { formatDelay } from './flightLive';
+import { airportZone, zonedIso } from './airportTime';
+
+/** A time on the airport's clock ("16:10" in Amsterdam wherever the phone is); the phone's zone only when the airport is unknown. */
+function onAirportClock(iso: string, airport?: string): { value: string; ignoresTimeZone?: true } {
+  const zone = airportZone(airport);
+  const local = zone ? zonedIso(iso, zone) : null;
+  return local ? { value: local, ignoresTimeZone: true } : { value: iso };
+}
 
 export const PASS_TYPE_ID = 'pass.com.supernovatravel.app';
 export const TEAM_ID = 'R47484PAGA';
@@ -36,11 +44,11 @@ export function statusLine(p: PassInput): string | null {
 export function passJson(p: PassInput, web?: { webServiceURL: string; authenticationToken: string }): Record<string, unknown> {
   const flight = text(p.flightNumber) ?? text(p.airline) ?? 'Flight';
   const dep = valid(p.departureTime) ? p.departureTime! : null;
-  const time = (key: string, label: string, iso: string): Field =>
-    ({ key, label, value: iso, timeStyle: 'PKDateStyleShort' });
+  const time = (key: string, label: string, iso: string, airport?: string): Field =>
+    ({ key, label, ...onAirportClock(iso, airport), timeStyle: 'PKDateStyleShort' });
 
   const secondary: Field[] = [];
-  if (dep) secondary.push({ ...time('departs', 'DEPARTS', dep), changeMessage: 'Now departs %@' });
+  if (dep) secondary.push({ ...time('departs', 'DEPARTS', dep, p.origin), changeMessage: 'Now departs %@' });
   if (text(p.seat)) secondary.push({ key: 'seat', label: 'SEAT', value: text(p.seat)! });
   if (text(p.boardingGroup)) secondary.push({ key: 'group', label: 'GROUP', value: text(p.boardingGroup)! });
   const status = statusLine(p);
@@ -48,11 +56,11 @@ export function passJson(p: PassInput, web?: { webServiceURL: string; authentica
 
   const auxiliary: Field[] = [{ key: 'flight', label: 'FLIGHT', value: flight }];
   if (text(p.terminal)) auxiliary.push({ key: 'terminal', label: 'TERMINAL', value: text(p.terminal)! });
-  if (dep) auxiliary.push({ key: 'date', label: 'DATE', value: dep, dateStyle: 'PKDateStyleMedium' });
+  if (dep) auxiliary.push({ key: 'date', label: 'DATE', ...onAirportClock(dep, p.origin), dateStyle: 'PKDateStyleMedium' });
 
   const back: Field[] = [];
   if (text(p.airline)) back.push({ key: 'airline', label: 'Airline', value: text(p.airline)! });
-  if (valid(p.arrivalTime)) back.push({ key: 'arrives', label: 'Arrives', value: p.arrivalTime!, dateStyle: 'PKDateStyleMedium', timeStyle: 'PKDateStyleShort' });
+  if (valid(p.arrivalTime)) back.push({ key: 'arrives', label: 'Arrives', ...onAirportClock(p.arrivalTime!, p.destination), dateStyle: 'PKDateStyleMedium', timeStyle: 'PKDateStyleShort' });
   back.push({ key: 'source', label: 'Supernova', value: 'Added from Supernova' });
 
   const json: Record<string, unknown> = {

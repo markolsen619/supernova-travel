@@ -22,6 +22,7 @@ import { maybePromptForPush } from '@/services/push';
 import { useImportDraftStore } from '@/stores/useImportDraftStore';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
 import { combineDateAndTime } from '@/utils/date';
+import { instantFromPickers, pickerDateFor } from '@/utils/airportTime';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { BoardingPass } from '@/types';
@@ -86,7 +87,8 @@ export default function AddBoardingPassScreen() {
       gate: existing.gate ?? '',
       terminal: existing.terminal ?? '',
     });
-    const existingDeparture = new Date(existing.departureTime);
+    // The pickers show the time printed on the pass (the origin airport's clock), not the phone's.
+    const existingDeparture = pickerDateFor(existing.departureTime, existing.origin) ?? new Date(existing.departureTime);
     setDepartureDate(existingDeparture);
     setDepartureTime(existingDeparture);
   }, [existing]);
@@ -106,7 +108,7 @@ export default function AddBoardingPassScreen() {
       terminal: draft.fields.terminal ?? prev.terminal,
     }));
     if (draft.fields.departureTime) {
-      const d = new Date(draft.fields.departureTime);
+      const d = pickerDateFor(draft.fields.departureTime, draft.fields.origin) ?? new Date(draft.fields.departureTime);
       setDepartureDate(d);
       setDepartureTime(d);
     }
@@ -138,7 +140,7 @@ export default function AddBoardingPassScreen() {
 
     const departureTimeIso =
       departureDate && departureTime
-        ? combineDateAndTime(departureDate, departureTime)
+        ? instantFromPickers(departureDate, departureTime, form.origin) ?? combineDateAndTime(departureDate, departureTime)
         : new Date().toISOString();
 
     const baseFields = {

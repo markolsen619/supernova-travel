@@ -5,6 +5,7 @@ import { BoardingPass, BoardingPassStatus } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { pickerDateFor } from '@/utils/airportTime';
 
 interface BoardingPassCardProps {
   pass: BoardingPass;
@@ -27,9 +28,10 @@ const STATUS_LABELS: Record<BoardingPassStatus, string> = {
   cancelled: 'Cancelled',
 };
 
-function formatDepartureTime(isoString: string): string {
+/** The departure as printed on the pass: the origin airport's clock (utils/airportTime). */
+function formatDepartureTime(isoString: string, origin?: string): string {
   try {
-    const date = new Date(isoString);
+    const date = pickerDateFor(isoString, origin) ?? new Date(isoString);
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const day = days[date.getDay()];
     const month = date.toLocaleString('en-US', { month: 'short' });
@@ -85,7 +87,7 @@ export function BoardingPassCard({ pass, onPress }: BoardingPassCardProps) {
           <View style={styles.detailItem}>
             <Text style={styles.detailLabel}>DATE</Text>
             <Text style={styles.detailValue} numberOfLines={1}>
-              {formatDepartureTime(pass.departureTime)}
+              {formatDepartureTime(pass.departureTime, pass.origin)}
             </Text>
           </View>
           <View style={styles.detailItem}>

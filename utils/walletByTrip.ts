@@ -2,6 +2,7 @@ import type { BoardingPass, Reservation } from '@/types';
 import type { TripBooking } from '@/utils/bookingDays';
 import type { TripSummary } from '@/utils/walletLink';
 import { parseCalendarDate, toCalendarDate } from '@/utils/calendarDate';
+import { flightClock } from '@/utils/airportTime';
 
 export interface TripSection {
   trip: TripSummary;
@@ -21,9 +22,7 @@ export interface WalletByTrip {
 /** The calendar day a booking happens on, `YYYY-MM-DD`, or null when it has none. */
 export function bookingDay(b: TripBooking): string | null {
   if (b.kind === 'boarding_pass') {
-    if (b.item.localDate) return b.item.localDate;
-    const t = new Date(b.item.departureTime);
-    return Number.isNaN(t.getTime()) ? null : toCalendarDate(t);
+    return b.item.localDate ?? flightClock(b.item.departureTime, b.item.origin)?.date ?? null;
   }
   const d = b.item.checkIn ? parseCalendarDate(b.item.checkIn) : null;
   return d ? toCalendarDate(d) : null;

@@ -1,5 +1,6 @@
 import type { ActivityType, BoardingPass, Reservation } from '@/types';
 import { parseCalendarDate, toCalendarDate } from '@/utils/calendarDate';
+import { flightClock } from '@/utils/airportTime';
 
 /**
  * What a reservation is, for icons, labels and placement. Train/bus/ferry
@@ -18,16 +19,11 @@ export type TripBooking =
 export type BookingRole = 'flight' | 'check_in' | 'staying' | 'check_out' | 'booked';
 export interface DayBooking { booking: TripBooking; role: BookingRole; time: string | null }
 
-const pad = (n: number) => String(n).padStart(2, '0');
 
-/** A flight's day: the date printed on it, else its departure in this device's time (as BoardingPassCard shows it). */
+/** A flight's day and time as printed on it: the origin airport's clock (as BoardingPassCard shows it). */
 function flightDay(p: BoardingPass): { day: string | null; time: string | null } {
-  const t = new Date(p.departureTime);
-  const ok = !Number.isNaN(t.getTime());
-  return {
-    day: p.localDate ?? (ok ? toCalendarDate(t) : null),
-    time: ok ? `${pad(t.getHours())}:${pad(t.getMinutes())}` : null,
-  };
+  const c = flightClock(p.departureTime, p.origin);
+  return { day: p.localDate ?? c?.date ?? null, time: c?.time ?? null };
 }
 
 const calendar = (v?: string | null) => {
