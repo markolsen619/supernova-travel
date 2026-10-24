@@ -199,3 +199,35 @@ export function emailPushCopy(items: { title: string }[], linkedTrip: string | n
 export function trimImportLog(rows: { id: string; receivedAt: number }[], keep = IMPORT_LOG_KEEP): string[] {
   return [...rows].sort((a, b) => b.receivedAt - a.receivedAt).slice(keep).map((r) => r.id);
 }
+
+/**
+ * A boarding pass that arrives by email for a flight already saved — the airline's real pass after a booking
+ * confirmation, or a test pass — updates that pass instead of adding a second one (2026-10-24). Same flight number
+ * (however it's typed) departing within 18 hours: one flight, whatever time zone the day was read in.
+ */
+export function existingPassFor(
+  pass: { flightNumber?: string; departureTime?: string },
+  saved: { id: string; flightNumber?: string; departureTime?: string }[],
+): string | null {
+  const norm = (s?: string) => (s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const ms = Date.parse(pass.departureTime ?? '');
+  if (!norm(pass.flightNumber) || !Number.isFinite(ms)) return null;
+  const hit = saved.find((s) => norm(s.flightNumber) === norm(pass.flightNumber)
+    && Math.abs(Date.parse(s.departureTime ?? '') - ms) <= 18 * 3_600_000);
+  return hit?.id ?? null;
+}
+
+/** Flight details the email may refresh on a saved pass; never the owner, its status, its trip link or Wallet state. */
+const EMAIL_REFRESHES = ['emailImportId', 'airline', 'flightNumber', 'origin', 'originCity', 'destination', 'destinationCity',
+  'departureTime', 'arrivalTime', 'seat', 'boardingGroup', 'gate', 'terminal', 'barcode', 'barcodeFormat',
+  'localDate', 'placeCity', 'placeCountryCode', 'originCountryCode'];
+
+/** The update for a saved pass: only what the email actually says (a missing seat never erases a saved one). */
+export function emailPassUpdate(data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of EMAIL_REFRESHES) {
+    const v = data[k];
+    if (v !== undefined && v !== null && v !== '') out[k] = v;
+  }
+  return out;
+}

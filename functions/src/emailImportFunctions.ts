@@ -5,8 +5,7 @@ import { simpleParser } from 'mailparser';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   IMPORT_DOMAIN, IMPORT_LOG_KEEP, MAX_BOOKINGS_PER_EMAIL, bookingsFromParse, importIdFor, dailyKey, emailPushCopy, gmailConfirmation, gmailConfirmationLink,
-  importGate, looksLikeBooking, newToken, signatureValid, tokenFromAddress, trimImportLog, type ImportStatus,
-} from './emailImport';
+  importGate, looksLikeBooking, newToken, signatureValid, tokenFromAddress, trimImportLog, type ImportStatus, existingPassFor, emailPassUpdate } from './emailImport';
 import { buildExtractionPrompt } from './parseTravelConfirmation';
 import { loyaltyFromParse, loyaltyPushCopy, mixedPushCopy, loyaltyWrite, looksLikeLoyalty, matchLoyalty, MAX_LOYALTY_PER_EMAIL } from './loyaltyImport';
 import { matchOne } from './bookingMatchFunctions';
@@ -148,7 +147,24 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
 
     // One batch: either everything from this email is saved, or none of it is.
     const batch = db.batch();
-    const refs = docs.map((d) => { const ref = db.collection(d.collection).doc(); batch.set(ref, d.data); return { ref, d }; });
+    // A boarding pass for a flight already saved updates it (existingPassFor); each saved pass is used once, so
+    // two passengers' passes in one email never land on the same pass.
+    const saved = docs.some((d) => d.collection === 'boarding_passes')
+      ? (await db.collection('boarding_passes').where('ownerUid', '==', uid).get()).docs
+        .map((s) => ({ id: s.id, flightNumber: s.get('flightNumber') as string | undefined, departureTime: s.get('departureTime') as string | undefined }))
+      : [];
+    const refs = docs.map((d) => {
+      const match = d.collection === 'boarding_passes' ? existingPassFor(d.data as { flightNumber?: string; departureTime?: string }, saved) : null;
+      if (match) {
+        saved.splice(saved.findIndex((s) => s.id === match), 1);
+        const ref = db.doc(`boarding_passes/${match}`);
+        batch.update(ref, emailPassUpdate(d.data as Record<string, unknown>));
+        return { ref, d };
+      }
+      const ref = db.collection(d.collection).doc();
+      batch.set(ref, d.data);
+      return { ref, d };
+    });
     const loyalty: { id: string; title: string; push: { title: string; body: string } }[] = [];
     if (statements.length) {
       const programs = (await db.collection('loyalty_programs').where('ownerUid', '==', uid).get()).docs;

@@ -1,7 +1,6 @@
 import {
   signatureValid, sign, newToken, tokenFromAddress, looksLikeBooking, gmailConfirmation, importGate,
-  dailyKey, bookingsFromParse, emailPushCopy, trimImportLog,
-} from '../../functions/src/emailImport';
+  dailyKey, bookingsFromParse, emailPushCopy, trimImportLog, existingPassFor, emailPassUpdate } from '../../functions/src/emailImport';
 
 describe('signatureValid', () => {
   const body = Buffer.from('{"to":"a@supernovatravel.xyz"}');
@@ -223,5 +222,24 @@ describe('reservation times', () => {
     const [e] = bookingsFromParse({ bookings: [{ kind: 'reservation', reservationType: 'restaurant', fields: {
       title: 'Lokál Dlouhá', confirmationCode: 'L1', checkIn: '2026-11-19', time: '7:30pm' } }] }, ctx);
     expect(e.data.time).toBeUndefined();
+  });
+});
+
+describe('an emailed boarding pass for a flight already saved (2026-10-24)', () => {
+  const saved = [
+    { id: 'kl', flightNumber: 'KL1357', departureTime: '2026-11-18T15:10:00.000Z' },
+    { id: 'other', flightNumber: 'KL0639', departureTime: '2026-12-05T08:55:00.000Z' },
+  ];
+  it('finds the same flight on the same trip day, however the number is typed', () => {
+    expect(existingPassFor({ flightNumber: 'kl 1357', departureTime: '2026-11-18T15:10:00.000Z' }, saved)).toBe('kl');
+    expect(existingPassFor({ flightNumber: 'KL1357', departureTime: '2026-11-18T16:00:00.000Z' }, saved)).toBe('kl');
+  });
+  it('the same number on another day is another flight', () => {
+    expect(existingPassFor({ flightNumber: 'KL1357', departureTime: '2026-11-20T15:10:00.000Z' }, saved)).toBeNull();
+  });
+  it('updates the flight details from the email, never the owner, trip or Wallet fields, and never blanks what the email left out', () => {
+    const patch = emailPassUpdate({ ownerUid: 'u', source: 'email', createdAt: 'now', emailImportId: 'e2', status: 'upcoming', flightNumber: 'KL1357', departureTime: '2026-11-18T15:20:00.000Z', gate: 'D12', seat: '22C', airline: 'KLM' });
+    expect(patch).toEqual({ emailImportId: 'e2', flightNumber: 'KL1357', departureTime: '2026-11-18T15:20:00.000Z', gate: 'D12', seat: '22C', airline: 'KLM' });
+    expect(emailPassUpdate({ flightNumber: 'KL1357', airline: '' })).toEqual({ flightNumber: 'KL1357' });
   });
 });

@@ -275,7 +275,7 @@ export default function AddBoardingPassScreen() {
               style={inputStyle}
               value={form.origin}
               onChangeText={(v) => updateField('origin', v)}
-              placeholder="JFK"
+              placeholder="e.g. JFK"
               placeholderTextColor={colors.text.tertiary}
               autoCapitalize="characters"
               maxLength={3}
@@ -287,7 +287,7 @@ export default function AddBoardingPassScreen() {
               style={inputStyle}
               value={form.originCity}
               onChangeText={(v) => updateField('originCity', v)}
-              placeholder="New York"
+              placeholder="e.g. New York"
               placeholderTextColor={colors.text.tertiary}
               autoCapitalize="words"
             />
@@ -302,7 +302,7 @@ export default function AddBoardingPassScreen() {
               style={inputStyle}
               value={form.destination}
               onChangeText={(v) => updateField('destination', v)}
-              placeholder="LHR"
+              placeholder="e.g. LHR"
               placeholderTextColor={colors.text.tertiary}
               autoCapitalize="characters"
               maxLength={3}
@@ -314,7 +314,7 @@ export default function AddBoardingPassScreen() {
               style={inputStyle}
               value={form.destinationCity}
               onChangeText={(v) => updateField('destinationCity', v)}
-              placeholder="London"
+              placeholder="e.g. London"
               placeholderTextColor={colors.text.tertiary}
               autoCapitalize="words"
             />
@@ -351,7 +351,7 @@ export default function AddBoardingPassScreen() {
               style={inputStyle}
               value={form.seat}
               onChangeText={(v) => updateField('seat', v)}
-              placeholder="14A"
+              placeholder="e.g. 14A"
               placeholderTextColor={colors.text.tertiary}
               autoCapitalize="characters"
             />
@@ -362,7 +362,7 @@ export default function AddBoardingPassScreen() {
               style={inputStyle}
               value={form.gate}
               onChangeText={(v) => updateField('gate', v)}
-              placeholder="B22"
+              placeholder="e.g. B22"
               placeholderTextColor={colors.text.tertiary}
               autoCapitalize="characters"
             />
@@ -373,7 +373,7 @@ export default function AddBoardingPassScreen() {
               style={inputStyle}
               value={form.terminal}
               onChangeText={(v) => updateField('terminal', v)}
-              placeholder="4"
+              placeholder="e.g. 4"
               placeholderTextColor={colors.text.tertiary}
               autoCapitalize="characters"
             />
