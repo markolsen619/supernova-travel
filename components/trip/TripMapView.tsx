@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView, Image, Platform, StatusBar, Share, AppState, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, AccessibilityInfo, ScrollView, Image, Platform, StatusBar, Share, AppState, Pressable, Dimensions, findNodeHandle } from 'react-native';
+import * as Sharing from 'expo-sharing';
 import {
   MapView,
   Camera,
@@ -751,11 +752,13 @@ export function TripMapView({
   const placedStopCount = grounded.length;
   // Asked once, not per render (the flyover re-renders ~30 times a second).
   const recorderAvailable = useMemo(() => {
-    if (Platform.OS !== 'ios' || !ScreenRecorder) return false;
+    if ((Platform.OS !== 'ios' && Platform.OS !== 'android') || !ScreenRecorder) return false;
     try { return ScreenRecorder.isAvailable(); } catch { return false; }
   }, []);
   const canRecord = recorderAvailable && canFly && placedStopCount >= 2;
   const rootRef = useRef<View>(null);
+  // Android draws this view over every captured map frame (spec 2026-10-25-android-trip-video-design.md).
+  const overlayRef = useRef<View>(null);
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
   const filmTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -800,6 +803,40 @@ export function TripMapView({
       await Promise.race([Promise.all(urls.map((u) => Image.prefetch(u).catch(() => false))), new Promise((r) => setTimeout(r, 4000))]);
       if (!mountedRef.current || filmRef.current !== 'starting') return;
     }
+    if (Platform.OS === 'android') {
+      // Android copies the map's frames and draws the film overlay on top, so the overlay must exist first:
+      // enter film mode (chrome hidden, overlay mounted), wait for it to be laid out, then start.
+      setSelected(null);
+      setPickerOpen(false);
+      StatusBar.setHidden(true, 'fade');
+      dispatch({ type: 'stop' });
+      fitAllStops();
+      setFilm('opening');
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+      // Read fresh: the state changes while we wait (TypeScript narrowed it to 'starting' above).
+      if (!mountedRef.current || (filmRef.current as FilmState) !== 'opening') return;
+      const mapTag = rootRef.current ? findNodeHandle(rootRef.current) : null;
+      const overlayTag = overlayRef.current ? findNodeHandle(overlayRef.current) : null;
+      try {
+        if (!mapTag || !overlayTag) throw new Error('views not ready');
+        await ScreenRecorder.startViews(mapTag, overlayTag);
+      } catch {
+        if (!mountedRef.current) return;
+        finishFilm();
+        setFilmError("Couldn't start the video. Try again.");
+        setFilm('confirm');
+        return;
+      }
+      if (!mountedRef.current || (filmRef.current as FilmState) !== 'opening') {
+        ScreenRecorder.cancel().catch(() => {});
+        return;
+      }
+      filmTimers.current.push(setTimeout(() => {
+        dispatch({ type: 'play', timing: filmPlan.timing });
+        setFilm('flying');
+      }, FILM_OPENING_MS));
+      return;
+    }
     // Frames are cropped to the map: the trip page is a sheet, and ReplayKit records the whole window.
     const rect = await new Promise<{ x: number; y: number; w: number; h: number }>((resolve) => {
       if (!rootRef.current) return resolve({ x: 0, y: 0, w: 0, h: 0 });
@@ -828,7 +865,7 @@ export function TripMapView({
       dispatch({ type: 'play', timing: filmPlan.timing });
       setFilm('flying');
     }, FILM_OPENING_MS));
-  }, [fitAllStops, filmPlan.timing, filmPhotos, photosByStop]);
+  }, [fitAllStops, filmPlan.timing, filmPhotos, photosByStop, finishFilm]);
 
   // The flyover finished: end card, then the file, then the share sheet.
   useEffect(() => {
@@ -846,7 +883,8 @@ export function TripMapView({
       if (!uri) return;
       if (!mountedRef.current) { ScreenRecorder?.discard(uri); return; }
       try {
-        await Share.share({ url: uri });
+        if (Platform.OS === 'android') await Sharing.shareAsync(uri, { mimeType: 'video/mp4', dialogTitle: 'Share your trip video', UTI: 'public.mpeg-4' });
+        else await Share.share({ url: uri });
       } catch {
         // Dismissed or failed: nothing to do but tidy up.
       } finally {
@@ -1737,6 +1775,7 @@ export function TripMapView({
       {filming ? (
         <>
           <FilmOverlay
+            ref={overlayRef}
             phase={film === 'opening' ? 'opening' : film === 'flying' ? 'flying' : 'end'}
             eyebrow={openingEyebrow(tripStartDate, tripEndDate, days.length)}
             title={tripTitle}

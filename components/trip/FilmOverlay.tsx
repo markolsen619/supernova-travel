@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { forwardRef, useEffect, useRef } from 'react';
 import { Animated, Image, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontWeight } from '@/constants/typography';
@@ -10,11 +10,14 @@ export type FilmPhase = 'opening' | 'flying' | 'end';
 const STAR = require('@/assets/images/SupernovaStar.png');
 
 /** What the trip video shows over the map (spec 2026-10-24-trip-video-design.md §2): mark, opening title, day captions, end card. */
-export function FilmOverlay({ phase, eyebrow, title, caption, photo = null }: {
+type FilmOverlayProps = {
   phase: FilmPhase; eyebrow: string; title: string; caption: string | null;
   /** A member's photo at the stop the film is resting on (trips you're on only — TripMapView). */
   photo?: { uri: string; place: string } | null;
-}) {
+};
+
+/** The ref is the overlay's root view: on Android the recorder draws it on top of each captured map frame. */
+export const FilmOverlay = forwardRef<View, FilmOverlayProps>(function FilmOverlay({ phase, eyebrow, title, caption, photo = null }, ref) {
   const insets = useSafeAreaInsets();
   const fade = useRef(new Animated.Value(0)).current;
   const captionFade = useRef(new Animated.Value(0)).current;
@@ -35,22 +38,20 @@ export function FilmOverlay({ phase, eyebrow, title, caption, photo = null }: {
     Animated.timing(captionFade, { toValue: 1, duration: 300, useNativeDriver: true }).start();
   }, [caption, captionFade]);
 
-  if (phase === 'end') {
-    return (
-      <Animated.View style={[StyleSheet.absoluteFill, styles.end, { opacity: fade }]} pointerEvents="none">
-        <Image source={STAR} style={styles.endStar} />
-        <Text style={styles.endTitle} numberOfLines={2}>{title}</Text>
-        <Text style={styles.endLine}>Plan yours on Supernova</Text>
-      </Animated.View>
-    );
-  }
-
+  // One root for every phase: Android's recorder keeps this view from the start and draws it on each frame.
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View style={[styles.mark, { top: insets.top + Spacing['3'] }]}>
+    <View ref={ref} collapsable={false} style={StyleSheet.absoluteFill} pointerEvents="none">
+      {phase === 'end' ? (
+        <Animated.View style={[StyleSheet.absoluteFill, styles.end, { opacity: fade }]}>
+          <Image source={STAR} style={styles.endStar} />
+          <Text style={styles.endTitle} numberOfLines={2}>{title}</Text>
+          <Text style={styles.endLine}>Plan yours on Supernova</Text>
+        </Animated.View>
+      ) : null}
+      {phase !== 'end' ? <View style={[styles.mark, { top: insets.top + Spacing['3'] }]}>
         <Image source={STAR} style={styles.markStar} />
         <Text style={styles.markText}>Supernova</Text>
-      </View>
+      </View> : null}
       {phase === 'opening' ? (
         <Animated.View style={[StyleSheet.absoluteFill, styles.opening, { opacity: fade }]}>
           {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
@@ -75,7 +76,7 @@ export function FilmOverlay({ phase, eyebrow, title, caption, photo = null }: {
       ) : null}
     </View>
   );
-}
+});
 
 const shadow = { textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } };
 
