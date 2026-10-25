@@ -230,7 +230,9 @@ class ScreenRecorderModule : Module() {
       overlayBitmap = bmp
     }
     bmp.eraseColor(Color.TRANSPARENT)
-    over.draw(Canvas(bmp))
+    // A photo held as a hardware bitmap can't be drawn into a software canvas (Android throws): that frame goes out
+    // without the overlay rather than crashing the recording.
+    try { over.draw(Canvas(bmp)) } catch (e: Exception) { bmp.eraseColor(Color.TRANSPARENT) }
   }
 
   /** Encoder thread: map then overlay onto the codec's input surface, then pull out what's encoded. */
@@ -253,10 +255,12 @@ class ScreenRecorderModule : Module() {
     val c = codec ?: return
     val m = muxer ?: return
     val info = MediaCodec.BufferInfo()
+    // Finishing waits for the encoder's end-of-stream, but never forever (a codec that never sends it would hang stop()).
+    val deadline = System.currentTimeMillis() + 3_000
     while (true) {
       val index = c.dequeueOutputBuffer(info, if (endOfStream) 10_000 else 0)
       when {
-        index == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream) return
+        index == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream || System.currentTimeMillis() > deadline) return
         index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
           if (!muxerStarted) { track = m.addTrack(c.outputFormat); m.start(); muxerStarted = true }
         }
