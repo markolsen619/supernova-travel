@@ -10,6 +10,7 @@ import {
   Platform,
   Modal,
   Animated,
+  Keyboard,
 } from 'react-native';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import { router } from 'expo-router';
@@ -644,11 +645,15 @@ export default function NewTripScreen() {
         coverImageUrl: null,
         isAiGenerated: false,
       });
-      router.replace(`/trip/${newId}`);
+      // Leave the way the AI flow does (ai-generating waits before its replace): no state change on this screen
+      // after the save, keyboard closed, then swap modals once the screen has settled. Replacing a modal while it
+      // was still re-rendering (the spinner switching off in `finally`) crashed Android with "The specified child
+      // already has a parent" (Play vitals, 1.0.7, 2026-10-24); iOS tolerated it.
+      Keyboard.dismiss();
+      setTimeout(() => router.replace(`/trip/${newId}`), 150);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'The trip didn\'t save. Try again.';
       setCreateError(message);
-    } finally {
       setCreating(false);
     }
   };
