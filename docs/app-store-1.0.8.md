@@ -6,7 +6,7 @@
 
 ## What's New
 
-Turn any trip into a one-minute video from above, with your photos at the stops, ready for Reels, TikTok or Stories. Add boarding passes to Apple Wallet: when the gate or time changes, the pass updates and you get an alert. Subscribe to your trips in your calendar. Trips and boarding passes now open without a connection. Times on boarding passes are shown as printed, in the airport's local time. The feed now suggests trips and travelers to follow.
+Turn any trip into a one-minute video from above, with your photos at the stops, ready for Reels, TikTok or Stories. Add boarding passes to Apple Wallet, and they stay up to date. Pro flight alerts now cover gate changes and delays. Subscribe to your trips in your calendar. Trips and boarding passes now open without a connection. Times on boarding passes are shown as printed, in the airport's local time. The feed now suggests trips and travelers to follow.
 
 ## Description
 
