@@ -5,6 +5,8 @@
 export type FeedTrip = {
   id: string; authorUid: string; title: string; coverImageUrl: string | null; destinationName: string; days: number | null;
   isEditorial: boolean; savesCount: number; createdAtMs: number; moderationHidden?: boolean;
+  /** Server-set once a trip has 3+ stops (functions/src/tripItinerary.ts); absent or false = not shown. */
+  hasItinerary?: boolean;
 };
 export type FeedItem<P> = { kind: 'post'; post: P } | { kind: 'trip'; trip: FeedTrip } | { kind: 'suggestions' };
 
@@ -13,7 +15,8 @@ export const SUGGESTIONS_AT = 2;
 
 /** Travelers' trips newest first, then Supernova picks by saves; a cover is required and your own trips never show. */
 export function feedTripPool(trips: FeedTrip[], selfUid: string | null): FeedTrip[] {
-  const ok = trips.filter((t) => !!t.coverImageUrl && t.authorUid !== selfUid);
+  // Only real itineraries: nobody wants to open a trip card and find no plan inside.
+  const ok = trips.filter((t) => !!t.coverImageUrl && t.authorUid !== selfUid && t.hasItinerary === true);
   const travelers = ok.filter((t) => !t.isEditorial).sort((a, b) => b.createdAtMs - a.createdAtMs);
   const picks = ok.filter((t) => t.isEditorial).sort((a, b) => b.savesCount - a.savesCount);
   return [...travelers, ...picks];

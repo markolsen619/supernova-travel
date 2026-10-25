@@ -55,7 +55,8 @@ export function useDestinationTrips(slug: string): { editorial: Trip[]; communit
     staleTime: 10 * 60 * 1000,
     enabled: !!slug,
   });
-  const split = useMemo(() => splitDestinationTrips(filterVisible(data, moderation, (t) => ({
+  // Only trips with a real itinerary (2026-10-25).
+  const split = useMemo(() => splitDestinationTrips(filterVisible(data.filter((t) => t.hasItinerary === true), moderation, (t) => ({
     authorUid: t.authorUid,
     key: contentKey({ type: 'trip', id: t.id }),
     moderationHidden: t.moderationHidden,

@@ -3,7 +3,7 @@ import { feedTripPool, mixFeed, tripEyebrow, tripTitle, type FeedTrip } from '@/
 
 const trip = (id: string, over: Partial<FeedTrip> = {}): FeedTrip => ({
   id, authorUid: 'a', title: `Trip ${id}`, coverImageUrl: 'https://x/c.jpg', destinationName: 'Lisbon', days: 5,
-  isEditorial: false, savesCount: 0, createdAtMs: 0, ...over,
+  isEditorial: false, savesCount: 0, createdAtMs: 0, hasItinerary: true, ...over,
 });
 const post = (id: string, tripId: string | null = null) => ({ id, tripId });
 const kinds = (items: { kind: string }[]) => items.map((i) => i.kind[0]).join('');
@@ -74,5 +74,12 @@ describe('final review (2026-10-24)', () => {
     expect(tripEyebrow(trip('a', { destinationName: '', days: null }))).toBe('');
     expect(tripTitle(trip('a', { title: '  ', destinationName: '' }))).toBe('A trip');
     expect(tripTitle(trip('a', { title: '', destinationName: 'Lisbon' }))).toBe('Trip to Lisbon');
+  });
+});
+
+describe('only real itineraries in the feed (2026-10-25)', () => {
+  it('a trip with no itinerary yet is never a card', () => {
+    const pool = feedTripPool([trip('full', { hasItinerary: true }), trip('empty', { hasItinerary: false }), trip('unknown', { hasItinerary: undefined })], null);
+    expect(pool.map((t) => t.id)).toEqual(['full']);
   });
 });

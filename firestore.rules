@@ -241,7 +241,7 @@ service cloud.firestore {
 
       allow read: if canRead();
       allow create: if isAuthed() && request.auth.uid == request.resource.data.authorUid
-        && !request.resource.data.keys().hasAny(['moderationHidden', 'isEditorial', 'destinationKeys'])
+        && !request.resource.data.keys().hasAny(['moderationHidden', 'isEditorial', 'destinationKeys', 'hasItinerary'])
         && request.resource.data.get('collaborators', []).size() == 0
         && !(request.resource.data.visibility == 'public' && isPrivateAccount(request.resource.data.authorUid));
       // A private account's trips can't be made Public (they're followers-only while it's private).
@@ -249,7 +249,8 @@ service cloud.firestore {
       // and deleteAccount: it decides who reads the trip's members-only data,
       // including the bookings members share, so no client may edit it.
       allow update: if isAuthed() && !touchesModerationFlag() && !touchesDiscoveryFields()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['collaborators'])
+        // hasItinerary is server-set (tripItineraryFunctions.ts): a client faking it would put an empty trip in the feed.
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['collaborators', 'hasItinerary'])
         && !(request.resource.data.visibility == 'public' && resource.data.visibility != 'public'
              && isPrivateAccount(resource.data.authorUid)) && (
         isOwner(resource.data.authorUid)
@@ -458,6 +459,10 @@ service cloud.firestore {
     match /appConfig/{docId} {
       allow read: if request.auth != null;
       allow write: if false;
+    }
+    // Stop counts behind trips/{id}.hasItinerary (functions/src/tripItineraryFunctions.ts): server only.
+    match /tripStats/{tripId} {
+      allow read, write: if false;
     }
     // Apple Wallet live passes (functions/src/appleWalletServiceFunctions.ts): server only.
     match /appleWalletRegistrations/{id} {

@@ -49,7 +49,8 @@ export function useExplore(): {
   const { data: allTrips = [], isLoading: tripsLoading } = usePublicTrips(20);
   const trips = useMemo(
     () =>
-      filterVisible(allTrips, moderation, (t) => ({
+      // Only trips with a real itinerary (2026-10-25): an empty "Trip to Rome" disappoints whoever opens it.
+      filterVisible(allTrips.filter((t) => t.hasItinerary === true), moderation, (t) => ({
         authorUid: t.authorUid,
         key: contentKey({ type: 'trip', id: t.id }),
         moderationHidden: t.moderationHidden,

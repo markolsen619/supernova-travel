@@ -31,6 +31,7 @@ export { inboundEmail, createImportAddress, rotateImportAddress } from './emailI
 export { appleWalletLink, appleWalletPass } from './appleWalletFunctions';
 export { appleWalletService, onBoardingPassWrittenWallet } from './appleWalletServiceFunctions';
 export { googleWalletJwt } from './googleWalletFunctions';
+export { onTripActivityWrittenCount } from './tripItineraryFunctions';
 export { calendarFeed, createCalendarFeed, rotateCalendarFeed, disableCalendarFeed, setCalendarTypes } from './calendarFeedFunctions';
 export { onPlaceReviewWritten } from './placeReviewFunctions';
 export {

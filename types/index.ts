@@ -111,6 +111,8 @@ export interface Trip {
   destinationKeys?: string[];
   /** Set by functions/src/onReportCreated.ts once enough people report it. Hidden from everyone. */
   moderationHidden?: boolean;
+  /** Server-set once the trip has 3+ stops (functions/src/tripItinerary.ts). Feed, Explore and destination pages show only these. */
+  hasItinerary?: boolean;
   authorUid: string;
   title: string;
   description: string;

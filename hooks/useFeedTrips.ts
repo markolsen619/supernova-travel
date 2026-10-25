@@ -25,6 +25,7 @@ async function fetchFeedTrips(): Promise<FeedTrip[]> {
       savesCount: t.savesCount ?? 0,
       createdAtMs: t.createdAt?.toMillis?.() ?? 0,
       moderationHidden: !!t.moderationHidden,
+      hasItinerary: t.hasItinerary === true,
     };
   });
 }
