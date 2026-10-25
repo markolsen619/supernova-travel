@@ -1,4 +1,4 @@
-import { dayCaption, openingEyebrow, pickFilmPhotos } from '@/utils/tripVideo';
+import { dayCaption, openingEyebrow, outputSize, pickFilmPhotos, shouldCaptureFrame } from '@/utils/tripVideo';
 
 describe('trip video captions', () => {
   it('dates and length above the title', () => {
@@ -31,5 +31,22 @@ describe('pickFilmPhotos (photos in the trip video)', () => {
   it('default cap is 8', () => {
     const many = Array.from({ length: 12 }, (_, i) => day(`d${i}`, `s${i}`));
     expect(pickFilmPhotos(many, has(...many.map((d) => d.stopIds[0]))).size).toBe(8);
+  });
+});
+
+describe('android frame capture rules', () => {
+  it('captures at most every 33 ms', () => {
+    expect(shouldCaptureFrame(null, 1000)).toBe(true);
+    expect(shouldCaptureFrame(1000, 1020)).toBe(false);
+    expect(shouldCaptureFrame(1000, 1033)).toBe(true);
+  });
+  it('output ≤ 1080 wide, even, aspect kept', () => {
+    expect(outputSize(1440, 3088)).toEqual({ width: 1080, height: 2316 });
+    expect(outputSize(1079, 2337)).toEqual({ width: 1078, height: 2336 });
+    expect(outputSize(720, 1600)).toEqual({ width: 720, height: 1600 });
+  });
+  it('nothing to record gives null', () => {
+    expect(outputSize(0, 2000)).toBeNull();
+    expect(outputSize(1080, 1)).toBeNull();
   });
 });

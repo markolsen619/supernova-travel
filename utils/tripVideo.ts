@@ -39,3 +39,15 @@ export function pickFilmPhotos(
   }
   return picked;
 }
+export const FRAME_INTERVAL_MS = 33;
+/** Android frame capture (spec 2026-10-25): ≤ 30 fps — a busy frame is dropped, the film is never slowed. */
+export function shouldCaptureFrame(lastMs: number | null, nowMs: number): boolean {
+  return lastMs === null || nowMs - lastMs >= FRAME_INTERVAL_MS;
+}
+/** The encoded video's size: ≤ 1080 px wide, even dimensions (H.264), aspect kept; null when there's nothing to record. */
+export function outputSize(width: number, height: number): { width: number; height: number } | null {
+  if (width < 2 || height < 2) return null;
+  const scale = Math.min(1, 1080 / width);
+  const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2);
+  return { width: even(width * scale), height: even(height * scale) };
+}
