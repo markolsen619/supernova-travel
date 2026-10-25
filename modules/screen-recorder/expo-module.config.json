@@ -1,6 +1,16 @@
 {
-  "platforms": ["apple"],
+  "platforms": [
+    "apple",
+    "android"
+  ],
   "apple": {
-    "modules": ["ScreenRecorderModule"]
+    "modules": [
+      "ScreenRecorderModule"
+    ]
+  },
+  "android": {
+    "modules": [
+      "expo.modules.screenrecorder.ScreenRecorderModule"
+    ]
   }
 }
