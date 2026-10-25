@@ -58,7 +58,7 @@ Terms of use: https://supernova-a2125.web.app/terms
 Privacy policy: https://supernova-a2125.web.app/privacy
 ```
 
-## App Review notes (4010 of 4,000 characters)
+## App Review notes (3976 of 4,000 characters)
 
 ```
 ABOUT THIS APP
@@ -86,7 +86,7 @@ ACCOUNT DELETION (5.1.1(v))
 Settings > Account > Delete account deletes the account and its content in the app. For Sign in with Apple accounts we also revoke the Apple token.
 
 AI AND THIRD-PARTY DATA (5.1.2(i))
-Itinerary generation, Ask Nova and booking-confirmation parsing send trip details (for Nova also the user's message and their bookings on that trip, never confirmation codes) to Google Gemini via our server, only after explicit in-app consent. The demo account has already given that consent (withdraw it in Settings > Privacy to see the sheet again).
+Itinerary generation, Ask Nova and booking-confirmation parsing send trip details (for Nova also the user's message and their bookings on that trip, never confirmation codes) to Google Gemini via our server, only after explicit in-app consent. The demo account has already consented (Settings > Privacy withdraws it).
 
 AGE RATING
 13+. Under-13 sign-ups are blocked by a date of birth check; the date is not stored.
