@@ -16,7 +16,7 @@ The trip flyover is Supernova's most distinctive moment and it can't leave the a
 ## 1. Entry
 
 - Trip map (`components/trip/TripMapView`): a **"Share video"** button beside the flyover's play button, iOS only, shown when `canFly` and the trip has ≥ 2 placed stops, and the native recorder is available (`ScreenRecorder.isAvailable()`).
-- Tap → a small sheet: eyebrow `TRIP VIDEO`, title (trip title), body "About 25 seconds of your trip from above, ready for Reels, TikTok or Stories.", primary **"Record video"**, text link **"Not now"**. Never records without that tap.
+- Tap → a small sheet: eyebrow `TRIP VIDEO`, title (trip title), body "Up to a minute of your trip from above, ready for Reels, TikTok or Stories.", primary **"Record video"**, text link **"Not now"**. Never records without that tap.
 
 ## 2. Film mode (what's recorded)
 
@@ -28,6 +28,8 @@ The trip flyover is Supernova's most distinctive moment and it can't leave the a
 - **End card** 2 s: dark, star, trip title, "Plan yours on Supernova".
 - Another person's public trip: only the trip title and places appear — never their name or photo.
 - A tap anywhere during recording cancels (nothing saved).
+
+**Revised 2026-10-25 (owner):** 26 s rushed an 8-day, 32-stop trip through without stopping (no plain pauses on long trips). Now ≤ 54 s of flyover (~1 minute with opening and end card): every day features up to 4 stops (`featuredStops`: photo stops first, then first/last/spread) with a real pause — 1 s, 1.5 s with a photo — falling back to 3, 2, 1 per day, then 0.6 s openings/pauses, before anything else; other stops are flown past. Fits Reels/TikTok; Stories split over 60 s.
 
 ## 3. Recording (iOS native module `modules/screen-recorder`)
 

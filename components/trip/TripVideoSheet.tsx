@@ -21,7 +21,7 @@ export function TripVideoSheet({ visible, tripTitle, error, busy, onRecord, onCl
       <View style={[styles.sheet, { backgroundColor: c.background.secondary, borderColor: c.background.cardBorder, paddingBottom: insets.bottom + Spacing['5'] }]}>
         <Text style={[styles.eyebrow, { color: c.text.tertiary }]}>TRIP VIDEO</Text>
         <Text style={[styles.title, { color: c.text.primary }]} numberOfLines={2}>{tripTitle}</Text>
-        <Text style={[styles.body, { color: c.text.secondary }]}>About 25 seconds of your trip from above, ready for Reels, TikTok or Stories.</Text>
+        <Text style={[styles.body, { color: c.text.secondary }]}>Up to a minute of your trip from above, ready for Reels, TikTok or Stories.</Text>
         {error ? <Text style={[styles.body, { color: c.semantic.error }]}>{error}</Text> : null}
         <View style={styles.actions}>
           <Button label="Record video" onPress={onRecord} loading={busy} haptic="medium" fullWidth />

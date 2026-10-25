@@ -150,7 +150,7 @@ describe('day intro', () => {
 });
 
 
-describe('filmTiming (trip video)', () => {
+describe('filmTiming (trip video, up to ~60 s — owner 2026-10-25)', () => {
   const trip = (days: number, ms = 12000, stops = 5) => ({ durations: Array(days).fill(ms), stopCounts: Array(days).fill(stops) });
   it.each([1, 3, 7, 14, 21])('a %i-day trip fits the budget', (n) => {
     const { durations, stopCounts } = trip(n);
@@ -158,11 +158,29 @@ describe('filmTiming (trip video)', () => {
     expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
     expect(f.durations.every((d) => Number.isFinite(d) && d > 0)).toBe(true);
   });
-  it('a short trip keeps its pauses at stops', () => {
-    expect(filmTiming([9000, 9000], [3, 3]).timing).toMatchObject({ introMs: 1200, dwellMs: 600 });
+  it('the budget is about a minute', () => {
+    expect(FILM_BUDGET_MS).toBe(54000);
   });
-  it('a long trip drops the pauses', () => {
-    expect(filmTiming(Array(14).fill(12000), Array(14).fill(6)).timing).toMatchObject({ introMs: 600, dwellMs: 0 });
+  it('a short trip stops at every stop for a real pause', () => {
+    const f = filmTiming([9000, 9000], [3, 3]);
+    expect(f.timing.dwells).toEqual([[1000, 1000, 1000], [1000, 1000, 1000]]);
+  });
+  it('the Tokyo trip (8 days, 4 stops a day) stops at every stop', () => {
+    const f = filmTiming(Array(8).fill(14000), Array(8).fill(4));
+    expect(f.timing.dwells!.flat().every((d) => d >= 1000)).toBe(true);
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
+  });
+  it('a busy day features at most 4 stops: first, last and spread between', () => {
+    const f = filmTiming([12000], [9]);
+    const paused = f.timing.dwells![0].flatMap((d, i) => (d > 0 ? [i] : []));
+    expect(paused).toEqual([0, 3, 5, 8]);
+  });
+  it('a long trip features fewer stops per day, but every day keeps at least one real stop', () => {
+    const f = filmTiming(Array(21).fill(12000), Array(21).fill(6));
+    const perDay = f.timing.dwells!.map((d) => d.filter((x) => x > 0).length);
+    expect(Math.max(...perDay)).toBeLessThan(4);
+    expect(perDay.every((n) => n >= 1)).toBe(true);
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
   });
   it('days with no route stay 0, and nothing is NaN', () => {
     const f = filmTiming([0, 12000, 0], [1, 4, 0]);
@@ -193,19 +211,17 @@ describe('filmTiming — very long trips (final review)', () => {
 });
 
 describe('filmTiming — photo stops', () => {
-  it('a stop with a photo rests longer than one without', () => {
+  it('a photo stop rests longer and is always featured', () => {
     const f = filmTiming([9000, 9000], [3, 3], [[1], []]);
-    expect(f.timing.dwells?.[0]).toEqual([600, 1500, 600]);
-    expect(f.timing.dwells?.[1]).toEqual([600, 600, 600]);
+    expect(f.timing.dwells?.[0]).toEqual([1000, 1500, 1000]);
+  });
+  it('photo stops are featured first on a busy day', () => {
+    const f = filmTiming([12000], [9], [[4]]);
+    expect(f.timing.dwells![0][4]).toBe(1500);
+    expect(f.timing.dwells![0].filter((x) => x > 0).length).toBeLessThanOrEqual(4);
   });
   it('with photos the film still fits the budget', () => {
-    const f = filmTiming(Array(7).fill(12000), Array(7).fill(5), Array.from({ length: 7 }, (_, i) => (i < 8 ? [0] : [])));
-    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
-  });
-  it('a long trip drops plain pauses but keeps photo pauses', () => {
-    const f = filmTiming(Array(14).fill(12000), Array(14).fill(6), Array.from({ length: 14 }, (_, i) => (i < 8 ? [2] : [])));
-    expect(f.timing.dwellMs).toBe(0);
-    expect(f.timing.dwells?.[0]?.[2]).toBeGreaterThan(0);
+    const f = filmTiming(Array(7).fill(12000), Array(7).fill(5), Array.from({ length: 7 }, () => [0]));
     expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
   });
   it('the reducer rests on a photo stop for its own pause', () => {

@@ -103,29 +103,69 @@ export function flyoverReducer(state: FlyoverState, action: FlyoverAction): Flyo
 
 export const FILM_OPENING_MS = 1500;
 export const FILM_END_MS = 2000;
-export const FILM_BUDGET_MS = 26000;
+export const FILM_BUDGET_MS = 54000;
 const FILM_MIN_DAY_MS = 1200;
 
 export const FILM_PHOTO_DWELL_MS = 1500;
+export const FILM_STOP_DWELL_MS = 1000;
+export const FILM_STOPS_PER_DAY = 4;
 
 /**
- * The trip video's timing: the whole flyover in ≤ 26 s (spec 2026-10-24-trip-video-design.md §2). `photoStops`
- * lists, per day, the stop indices that show a photo: those rest FILM_PHOTO_DWELL_MS, the rest the plain pause.
+ * Which stops of a day get a real pause in the trip video: its photo stops first, then spread across the day
+ * (first, last, evenly between), at most `k`. A day with `k` stops or fewer: every stop.
+ */
+export function featuredStops(n: number, photos: number[], k: number): Set<number> {
+  const out = new Set<number>();
+  if (n <= 0 || k <= 0) return out;
+  for (const p of photos) if (p >= 0 && p < n && out.size < k) out.add(p);
+  if (n <= k) { for (let i = 0; i < n; i++) out.add(i); return out; }
+  const spread = Array.from({ length: k }, (_, i) => (k === 1 ? 0 : Math.round((i * (n - 1)) / (k - 1))));
+  for (const i of spread) if (out.size < k) out.add(i);
+  for (let i = 0; i < n && out.size < k; i++) out.add(i);
+  return out;
+}
+
+/**
+ * The trip video's timing: the whole flyover in ≤ 54 s, about a minute with the opening and end card (owner,
+ * 2026-10-25: 26 s rushed through an 8-day trip without stopping). Every day features up to 4 stops with a real
+ * pause (1 s, 1.5 s with a photo) — fewer per day, then shorter openings and pauses, only when the trip doesn't fit.
+ * `photoStops` lists, per day, the stop indices that show a photo.
  */
 export function filmTiming(durations: number[], stopCounts: number[], photoStops: number[][] = []): { durations: number[]; timing: FlyoverTiming; totalMs: number } {
   const flown = durations.map((d, i) => d > 0 || (stopCounts[i] ?? 0) > 0);
   const days = flown.filter(Boolean).length;
-  const photos = photoStops.reduce((a, p, i) => a + (flown[i] ? p.length : 0), 0);
-  const plain = stopCounts.reduce((a, b, i) => a + (flown[i] ? b : 0), 0) - photos;
-  let introMs = 1200, dwellMs = 600, photoMs = FILM_PHOTO_DWELL_MS;
-  const fixedOf = () => days * introMs + plain * dwellMs + photos * photoMs;
-  if (fixedOf() > FILM_BUDGET_MS / 2) { introMs = 600; dwellMs = 0; }
-  if (fixedOf() > FILM_BUDGET_MS / 2) photoMs = 1000;
-  // Very long trips (40+ days): even 0.6 s openings overflow, so share what's left of half the budget between them.
-  if (fixedOf() > FILM_BUDGET_MS / 2) introMs = Math.max(1, Math.floor((FILM_BUDGET_MS / 2 - photos * photoMs) / Math.max(1, days)));
-  const fixed = fixedOf();
-  const dwells = stopCounts.map((n, i) => Array.from({ length: n }, (_, s) => ((photoStops[i] ?? []).includes(s) ? photoMs : dwellMs)));
-  const timing: FlyoverTiming = { introMs, dwellMs, dwells };
+  const routedDays = durations.filter((d) => d > 0).length;
+  const plan = (perDay: number, introMs: number, stopMs: number, photoMs: number) => {
+    const dwells = stopCounts.map((n, i) => {
+      if (!flown[i]) return Array(n).fill(0);
+      const photos = photoStops[i] ?? [];
+      const featured = featuredStops(n, photos, perDay);
+      return Array.from({ length: n }, (_, s) => (!featured.has(s) ? 0 : photos.includes(s) ? photoMs : stopMs));
+    });
+    const fixed = days * introMs + dwells.flat().reduce((a, b) => a + b, 0);
+    return { dwells, fixed, introMs, stopMs };
+  };
+  // Fits when the openings and pauses leave every routed day at least FILM_MIN_DAY_MS to draw.
+  const fits = (p: { fixed: number }) => p.fixed + routedDays * FILM_MIN_DAY_MS <= FILM_BUDGET_MS;
+  let chosen = plan(FILM_STOPS_PER_DAY, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS);
+  for (const step of [
+    () => plan(3, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
+    () => plan(2, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
+    () => plan(1, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
+    () => plan(1, 600, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
+    () => plan(1, 600, 600, 1000),
+  ]) {
+    if (fits(chosen)) break;
+    chosen = step();
+  }
+  // Very long trips (40+ days): no plain pauses, photos 1 s, and openings share what's left of half the budget.
+  if (!fits(chosen)) {
+    const bare = plan(1, 600, 0, 1000);
+    const photoMs = bare.fixed - days * 600;
+    chosen = plan(1, Math.max(1, Math.floor((FILM_BUDGET_MS / 2 - photoMs) / Math.max(1, days))), 0, 1000);
+  }
+  const { dwells, fixed, introMs, stopMs } = chosen;
+  const timing: FlyoverTiming = { introMs, dwellMs: stopMs, dwells };
   const routed = durations.filter((d) => d > 0);
   const drawBudget = Math.max(0, FILM_BUDGET_MS - fixed);
   const wanted = routed.reduce((a, b) => a + b, 0);
