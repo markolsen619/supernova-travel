@@ -54,18 +54,18 @@ import { pastTripsSupported } from '@/utils/pastTrip';
 const canAddPast = pastTripsSupported(Platform.OS);
 
 type ProfileTab = 'Trips' | 'Posts' | 'Saved';
-type TripFilter = 'Upcoming' | 'Current' | 'Been there';
+type TripFilter = 'Upcoming' | 'Current' | 'Past';
 
 const TRIP_STATUS_MAP: Record<TripFilter, TripStatus> = {
   Upcoming: 'planning',
   Current: 'active',
-  'Been there': 'completed',
+  Past: 'completed',
 };
 
 const EMPTY_COPY: Record<TripFilter, { title: string; description: string }> = {
   Upcoming: { title: 'No upcoming trips', description: 'Plan your next adventure.' },
   Current: { title: 'No active trips', description: "Trips you're on now will show up here." },
-  'Been there': pastTripsSupported(Platform.OS)
+  Past: pastTripsSupported(Platform.OS)
     ? { title: "Add a trip you've taken", description: 'Turn your photos into a trip' }
     : { title: 'No completed trips yet', description: 'Your travel history will appear here.' },
 };
@@ -337,7 +337,7 @@ function ProfileScreenContent() {
       {/* Trips sub-filter */}
       {activeTab === 'Trips' && (
         <View style={styles.filterRow}>
-          {(['Upcoming', 'Current', 'Been there'] as TripFilter[]).map((f) => (
+          {(['Upcoming', 'Current', 'Past'] as TripFilter[]).map((f) => (
             <TouchableOpacity
               key={f}
               onPress={() => handleFilterPress(f)}
@@ -363,8 +363,8 @@ function ProfileScreenContent() {
           ))}
         </View>
       )}
-      {/* Been there: how many trips and countries, and a way to add one from photos (past trips, 2026-10-25). */}
-      {activeTab === 'Trips' && tripFilter === 'Been there' && filteredTrips.length > 0 && canAddPast && (
+      {/* Past: how many trips and countries, and a way to add one from photos (past trips, 2026-10-25). */}
+      {activeTab === 'Trips' && tripFilter === 'Past' && filteredTrips.length > 0 && canAddPast && (
         <View style={styles.beenThereRow}>
           <Text style={[styles.beenThereText, { color: colors.text.tertiary }]}>{beenThereSummary(filteredTrips).toUpperCase()}</Text>
           <TouchableOpacity onPress={() => router.push('/trip/past')} style={styles.beenThereAdd} accessibilityRole="button" accessibilityLabel="Add a trip you've taken">
@@ -406,8 +406,8 @@ function ProfileScreenContent() {
               icon={MapTrifold}
               title={EMPTY_COPY[tripFilter].title}
               description={EMPTY_COPY[tripFilter].description}
-              actionLabel={tripFilter === 'Been there' && canAddPast ? 'Add a trip' : 'Create a trip'}
-              onAction={() => router.push(tripFilter === 'Been there' && canAddPast ? '/trip/past' : '/trip/new')}
+              actionLabel={tripFilter === 'Past' && canAddPast ? 'Add a trip' : 'Create a trip'}
+              onAction={() => router.push(tripFilter === 'Past' && canAddPast ? '/trip/past' : '/trip/new')}
               actionHaptic="light"
             />
           }
