@@ -166,7 +166,7 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['visibility']) || request.resource.data.visibility in ['public', 'followers'])
         // A video clip is at most 30 s (utils/videoPost; a second of slack for rounding).
         && (request.resource.data.get('mediaType', '') != 'video'
-            || (request.resource.data.get('durationSec', null) is number && request.resource.data.durationSec <= 31));
+            || (request.resource.data.get('durationSec', null) is number && request.resource.data.durationSec <= 61));
       // Authors may update anything except the moderation flag; anyone signed in may bump ONLY the
       // denormalized like counter, and only by exactly +1/-1 per write (the
       // like transaction maintains it) — hasOnly() alone would let any

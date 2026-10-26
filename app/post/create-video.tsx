@@ -33,7 +33,7 @@ function ClipPreview({ uri }: { uri: string }) {
 
 /**
  * Post a video (docs/superpowers/specs/2026-10-10-video-posts-design.md): iOS's picker trims to
- * 30 s, then caption and place; createVideoPost compresses, takes a cover and uploads.
+ * 60 s, then caption and place; createVideoPost compresses, takes a cover and uploads.
  */
 export default function CreateVideoScreen() {
   const { colors } = useTheme();
