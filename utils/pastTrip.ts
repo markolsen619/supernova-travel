@@ -130,3 +130,11 @@ export function pastTripEyebrow(days: string[]): string {
   if (m1 !== m2) return `${MON[m1 - 1]} ${d1} – ${MON[m2 - 1]} ${d2}, ${y1} · ${n}`;
   return `${MON[m1 - 1]} ${d1} – ${d2}, ${y1} · ${n}`;
 }
+
+/**
+ * iPhone only for now (final review C2): Android's photo picker hands over photos without their location (and
+ * expo-image-picker reads EXIF without MediaStore.setRequireOriginal), so every photo would be unplaced.
+ */
+export function pastTripsSupported(os: string): boolean {
+  return os === 'ios';
+}

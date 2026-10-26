@@ -3,7 +3,7 @@
  * for its neighbourhood and per city for its name. A failed lookup names the stop after its area, else "Stop n".
  */
 import type { PastTripDraft } from '@/utils/pastTrip';
-import { areaFromGeocode, poiFromSearchBox, stopFallbackName } from '@/utils/pastTripPlaces';
+import { areaFromGeocode, poiFromSearchBox, publicPosition, stopFallbackName } from '@/utils/pastTripPlaces';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 
@@ -21,7 +21,8 @@ const areaUrl = (lat: number, lng: number, types: string) => `https://api.mapbox
 export async function nameDraft(d: PastTripDraft, onStop?: (done: number, total: number) => void): Promise<PastTripDraft> {
   const cities = await Promise.all(d.cities.map(async (c) => {
     const area = areaFromGeocode(await getJson(areaUrl(c.lat, c.lng, 'place')));
-    return { ...c, name: area.city ?? c.name, countryCode: area.countryCode ?? c.countryCode };
+    // The city's own centre, never the photos' position (final review C1).
+    return { ...c, ...publicPosition(null, area.center, c), name: area.city ?? c.name, countryCode: area.countryCode ?? c.countryCode };
   }));
   const total = d.days.reduce((n, day) => n + day.stops.length, 0);
   let done = 0;
@@ -36,7 +37,7 @@ export async function nameDraft(d: PastTripDraft, onStop?: (done: number, total:
         getJson(areaUrl(s.lat, s.lng, 'neighborhood,locality')).then(areaFromGeocode),
       ]);
       const name = poi?.name ?? area.neighbourhood ?? stopFallbackName(i);
-      stops.push({ ...s, name, placeName: poi?.name ?? null, type: poi?.type ?? 'activity' });
+      stops.push({ ...s, ...publicPosition(poi, area.center, s), name, placeName: poi?.name ?? null, type: poi?.type ?? 'activity' });
       onStop?.(++done, total);
     }
     days.push({ ...day, stops });

@@ -94,3 +94,10 @@ it('eyebrow', () => {
   expect(pastTripEyebrow(['2025-12-31', '2026-01-01'])).toBe('DEC 31, 2025 – JAN 1, 2026 · 2 DAYS');
   expect(pastTripEyebrow(['2025-05-03'])).toBe('MAY 3, 2025 · 1 DAY');
 });
+
+import { pastTripsSupported } from '@/utils/pastTrip';
+it('final review C2: iPhone only until Android can read photo locations', () => {
+  expect(pastTripsSupported('ios')).toBe(true);
+  expect(pastTripsSupported('android')).toBe(false);
+  expect(pastTripsSupported('web')).toBe(false);
+});

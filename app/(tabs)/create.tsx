@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Platform, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CalendarPlus, Sparkle, Compass, Images } from 'phosphor-react-native';
+import { pastTripsSupported } from '@/utils/pastTrip';
 import type { PhosphorIcon } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -43,13 +44,14 @@ export default function CreateScreen() {
       description: 'Build your own itinerary day by day',
       onPress: () => router.push('/trip/new'),
     },
-    {
+    // iPhone only for now (utils/pastTrip pastTripsSupported).
+    ...(pastTripsSupported(Platform.OS) ? [{
       Icon: Images,
       iconColor: colors.brand.pink,
       title: "Add a trip you've taken",
       description: 'Turn your photos into a trip',
       onPress: () => router.push('/trip/past'),
-    },
+    }] : []),
     {
       Icon: Compass,
       iconColor: colors.accent.amber,

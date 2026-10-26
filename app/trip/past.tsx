@@ -4,7 +4,7 @@
  * an always-dark immersive moment, like AI generation (Architecture Rule 3).
  */
 import { useCallback } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from 'expo-router';
 import { usePreventRemove } from '@react-navigation/native';
 import { Images } from 'phosphor-react-native';
@@ -19,7 +19,7 @@ import { PastTripFinish } from '@/components/pastTrip/PastTripFinish';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
-import { MAX_PICK } from '@/utils/pastTrip';
+import { MAX_PICK, pastTripsSupported } from '@/utils/pastTrip';
 
 const STEPS = ['Reading your photos', 'Finding places', 'Writing your story'];
 
@@ -72,13 +72,17 @@ export default function PastTripScreen() {
         <Images size={44} weight="duotone" color={colors.brand.purple} />
         <Text style={[styles.title, { color: colors.text.primary }]}>{"Add a trip you've taken"}</Text>
         <Text style={[styles.body, { color: colors.text.secondary }]}>
-          {"Pick the trip's best photos. We use when and where they were taken to build it — locations never leave your phone."}
+          {"Pick the trip's best photos. We use when and where they were taken to find the places. Each stop is saved at the place itself, never where a photo was taken."}
         </Text>
         {b.error ? <Text style={[styles.body, { color: colors.semantic.error }]}>{b.error}</Text> : null}
-        <View style={styles.action}>
-          <Button label="Pick photos" onPress={b.pick} fullWidth />
-          <Text style={[styles.caption, { color: colors.text.tertiary }]}>Up to {MAX_PICK} photos</Text>
-        </View>
+        {pastTripsSupported(Platform.OS) ? (
+          <View style={styles.action}>
+            <Button label="Pick photos" onPress={b.pick} fullWidth />
+            <Text style={[styles.caption, { color: colors.text.tertiary }]}>Up to {MAX_PICK} photos</Text>
+          </View>
+        ) : (
+          <Text style={[styles.body, { color: colors.text.tertiary }]}>Coming to Android soon.</Text>
+        )}
         {consentSheet}
       </View>
     </ScreenEntrance>
