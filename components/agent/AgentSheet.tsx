@@ -10,7 +10,8 @@ import { ProposalCard } from '@/components/agent/ProposalCard';
 import { NovaAvatar } from '@/components/agent/NovaAvatar';
 import { agentSuggestions, quotaLine } from '@/utils/agentCard';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
-import { checkBookings, findingText, greeting, tripCheck } from '@/utils/tripCheck';
+import { checkBookings, findingText, greeting, shouldRunTripCheck, tripCheck } from '@/utils/tripCheck';
+import { toDateOrNull } from '@/utils/tripStatus';
 import { tripStart } from '@/utils/agentApply';
 import { useTripBookings } from '@/hooks/useTripBookings';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -91,7 +92,12 @@ export function AgentSheet({ visible, trip, onClose }: { visible: boolean; trip:
 
   // The trip check runs on the phone when the sheet opens: free, no message used (spec §2).
   const { bookings } = useTripBookings(visible ? trip.id : null);
-  const findings = useMemo(() => (visible ? tripCheck(trip, checkBookings(bookings), tripStart(trip)) : []), [visible, trip, bookings]);
+  // Past trips skip the check: nothing to fix in a trip that has happened (spec 2026-10-25-past-trips-from-photos).
+  const findings = useMemo(() => (
+    visible && shouldRunTripCheck({ status: trip.status, startDate: toDateOrNull(trip.startDate), endDate: toDateOrNull(trip.endDate) }, new Date())
+      ? tripCheck(trip, checkBookings(bookings), tripStart(trip))
+      : []
+  ), [visible, trip, bookings]);
   const paid = useAuthStore((st) => st.tier !== 'free');
   // Booking titles for the card ("Put Catamaran Resort on this trip").
   const cardExtra = useMemo(() => ({

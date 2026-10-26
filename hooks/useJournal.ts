@@ -5,10 +5,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { db, storage } from '@/services/firebase';
 
-/** "A few photos" per TM-3's brief — deliberately smaller than a feed
- * post's 10-photo cap (app/post/create-photo.tsx), since this is a quick
- * per-stop note, not a curated post. */
-export const MAX_JOURNAL_PHOTOS = 5;
+/** Photos per stop. 10 since past trips from photos (2026-10-25): one museum or dinner easily has a dozen.
+ * Still under a feed post's own cap (app/post/create-photo.tsx). */
+export const MAX_JOURNAL_PHOTOS = 10;
 
 export interface JournalEntry {
   note: string;
