@@ -116,3 +116,17 @@ export function buildPastTrip(input: PickedPhoto[]): PastTripDraft {
   }
   return { title: '', description: '', days, cities, unplaced, coverId: coverPhoto(days), photos: byId };
 }
+
+const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** The review screen's eyebrow: `MAY 3 – 7, 2025 · 5 DAYS`. */
+export function pastTripEyebrow(days: string[]): string {
+  if (!days.length) return '';
+  const [y1, m1, d1] = days[0].split('-').map(Number);
+  const [y2, m2, d2] = days[days.length - 1].split('-').map(Number);
+  const n = days.length === 1 ? '1 DAY' : `${days.length} DAYS`;
+  if (days.length === 1) return `${MON[m1 - 1]} ${d1}, ${y1} · ${n}`;
+  if (y1 !== y2) return `${MON[m1 - 1]} ${d1}, ${y1} – ${MON[m2 - 1]} ${d2}, ${y2} · ${n}`;
+  if (m1 !== m2) return `${MON[m1 - 1]} ${d1} – ${MON[m2 - 1]} ${d2}, ${y1} · ${n}`;
+  return `${MON[m1 - 1]} ${d1} – ${d2}, ${y1} · ${n}`;
+}

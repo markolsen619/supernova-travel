@@ -177,6 +177,8 @@ interface TripMapViewProps {
   tripStartDate?: Date | null;
   /** Day id → its city, for the trip video's day captions. */
   dayCities?: Record<string, string | null>;
+  /** Open straight on the trip video sheet (the past-trip finish screen's "Make the video"). */
+  startWithVideo?: boolean;
 }
 
 export function TripMapView({
@@ -202,6 +204,7 @@ export function TripMapView({
   organizerUid,
   tripStartDate = null,
   dayCities = {},
+  startWithVideo = false,
 }: TripMapViewProps) {
   // Always-dark immersive screen (Architecture Rule 3) — the trip map is
   // atmosphere, not app chrome, so this hardcodes DarkColors rather than
@@ -796,6 +799,14 @@ export function TripMapView({
   }, []);
 
   const closeVideo = useCallback(() => setFilm('idle'), []);
+
+  // Once, as soon as the trip can be filmed (its stops load after mount).
+  const startedWithVideo = useRef(false);
+  useEffect(() => {
+    if (!startWithVideo || startedWithVideo.current || !canRecord) return;
+    startedWithVideo.current = true;
+    setFilm('confirm');
+  }, [startWithVideo, canRecord]);
 
   const recordVideo = useCallback(async () => {
     if (!ScreenRecorder) return;

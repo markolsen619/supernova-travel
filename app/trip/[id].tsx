@@ -169,7 +169,7 @@ function AnimatedDaySection({
 const HEADER_ICON = LightColors.text.primary;
 
 export default function TripDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, video } = useLocalSearchParams<{ id: string; video?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -240,7 +240,8 @@ export default function TripDetailScreen() {
   const [addStopDay, setAddStopDay] = useState<TripDay | null>(null);
 
   // Map view state — Phase 4 Part C
-  const [viewMode, setViewMode] = useState<'timeline' | 'map'>('timeline');
+  // ?video=1 (past-trip finish screen): open on the map with the video sheet.
+  const [viewMode, setViewMode] = useState<'timeline' | 'map'>(video === '1' ? 'map' : 'timeline');
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
 
   // Map → timeline bridge (TM-1c): "View in timeline" on a map pin scrolls
@@ -1159,6 +1160,7 @@ export default function TripDetailScreen() {
           tripEndDate={trip.endDate ? trip.endDate.toDate() : null}
           tripStartDate={trip.startDate ? trip.startDate.toDate() : null}
           dayCities={dayCities}
+          startWithVideo={video === '1'}
           bookings={tripBookings}
           memberUids={memberUids}
           organizerUid={trip.authorUid}

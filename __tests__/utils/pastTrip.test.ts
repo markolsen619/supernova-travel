@@ -86,3 +86,11 @@ describe('coverPhoto, spanDays, pastTripNights', () => {
     expect(pastTripNights([0, 0, 1], 2)).toEqual([2, 0]);
   });
 });
+
+import { pastTripEyebrow } from '@/utils/pastTrip';
+it('eyebrow', () => {
+  expect(pastTripEyebrow(['2025-05-03', '2025-05-04', '2025-05-05', '2025-05-06', '2025-05-07'])).toBe('MAY 3 – 7, 2025 · 5 DAYS');
+  expect(pastTripEyebrow(['2025-05-31', '2025-06-01'])).toBe('MAY 31 – JUN 1, 2025 · 2 DAYS');
+  expect(pastTripEyebrow(['2025-12-31', '2026-01-01'])).toBe('DEC 31, 2025 – JAN 1, 2026 · 2 DAYS');
+  expect(pastTripEyebrow(['2025-05-03'])).toBe('MAY 3, 2025 · 1 DAY');
+});

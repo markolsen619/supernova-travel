@@ -65,7 +65,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "android.permission.ACCESS_MEDIA_LOCATION"
       ],
       "googleServicesFile": "./google-services.json",
       "blockedPermissions": [

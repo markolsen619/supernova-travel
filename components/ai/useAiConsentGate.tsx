@@ -17,13 +17,16 @@ export function useAiConsentGate() {
   const uid = useAuthStore((s) => s.user?.uid ?? '');
   const [purpose, setPurpose] = useState<AiPurpose | null>(null);
   const pending = useRef<(() => void) | null>(null);
+  const dismissed = useRef<(() => void) | null>(null);
 
-  const requireConsent = useCallback((forPurpose: AiPurpose, action: () => void) => {
+  /** `onDismiss`: the sheet was closed without allowing (the past-trip flow carries on without Nova). */
+  const requireConsent = useCallback((forPurpose: AiPurpose, action: () => void, onDismiss?: () => void) => {
     if (hasAiConsent(useAiConsentStore.getState().version, forPurpose)) {
       action();
       return;
     }
     pending.current = action;
+    dismissed.current = onDismiss ?? null;
     setPurpose(forPurpose);
   }, []);
 
@@ -33,13 +36,17 @@ export function useAiConsentGate() {
     await grantAiConsent(uid);
     const action = pending.current;
     pending.current = null;
+    dismissed.current = null;
     setPurpose(null);
     action?.();
   }, [uid]);
 
   const handleClose = useCallback(() => {
+    const onDismiss = dismissed.current;
     pending.current = null;
+    dismissed.current = null;
     setPurpose(null);
+    onDismiss?.();
   }, []);
 
   const consentSheet = <AiConsentSheet purpose={purpose} onAllow={handleAllow} onClose={handleClose} />;
