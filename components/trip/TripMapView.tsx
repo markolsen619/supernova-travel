@@ -53,7 +53,7 @@ import { arrivalHints, playbackPlan, travelLabel } from '@/utils/playback';
 import type { TripBooking } from '@/utils/bookingDays';
 import { useStopPhotos } from '@/hooks/useStopPhotos';
 import { Avatar } from '@/components/ui/Avatar';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, filmTiming, FILM_OPENING_MS, FILM_END_MS, DEFAULT_TIMING, stopShot, introShot, followStepMs } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, filmTiming, FILM_OPENING_MS, FILM_END_MS, DEFAULT_TIMING, stopShot, introShot, followStepMs, legSpeed } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -494,7 +494,10 @@ export function TripMapView({
       const span = leg.endFraction - leg.startFraction || 1;
       // Aim where the drawing head will be when this glide ends, so the camera leads the line, not trails it.
       const dayMs = tickDurations[flyover.dayIndex] || 1;
-      const ahead = Math.min(leg.endFraction, progress + durationMs / dayMs);
+      // The line's real pace on this leg (a short leg is slowed to ≥ 3 s — utils/flyover legSpeed), so the camera
+      // glides with it instead of racing to the next stop and waiting there.
+      const speed = legSpeed(stopFractions[flyover.dayIndex] ?? [], flyoverRef.current.stopIndex, dayMs, (tickTiming ?? DEFAULT_TIMING).legMinMs ?? 0);
+      const ahead = Math.min(leg.endFraction, progress + durationMs * speed);
       const t = Math.min(1, Math.max(0, (ahead - leg.startFraction) / span));
       const { point } = pointAlongPath(legCoords, t);
       const airborne = leg.travel === 'flight';
@@ -518,7 +521,7 @@ export function TripMapView({
     const step = followStepMs(tickDurations[flyover.dayIndex] ?? 0);
     const id = setInterval(() => move(step), step);
     return () => clearInterval(id);
-  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, tickDurations, filming]);
+  }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, tickDurations, stopFractions, tickTiming]);
 
   // The leg being drawn, and how far along it the head is.
   const flyPath = flightPaths[flyover.dayIndex]?.path;
