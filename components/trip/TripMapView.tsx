@@ -53,7 +53,7 @@ import { arrivalHints, playbackPlan, travelLabel } from '@/utils/playback';
 import type { TripBooking } from '@/utils/bookingDays';
 import { useStopPhotos } from '@/hooks/useStopPhotos';
 import { Avatar } from '@/components/ui/Avatar';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, STOP_DWELL_MS, DAY_INTRO_MS, filmTiming, FILM_OPENING_MS, FILM_END_MS } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, filmTiming, FILM_OPENING_MS, FILM_END_MS, DEFAULT_TIMING, stopShot, introShot, followStepMs } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -511,8 +511,8 @@ export function TripMapView({
         animationMode: 'linearTo',
       });
     };
-    // The trip video's days last ~1–3 s: glide more often so the camera keeps up with the line.
-    const step = filming ? 500 : 1000;
+    // A squeezed video day lasts ~1–3 s: glide more often so the camera keeps up with the line.
+    const step = followStepMs(tickDurations[flyover.dayIndex] ?? 0);
     const id = setInterval(() => move(step), step);
     return () => clearInterval(id);
   }, [flyover.status, flyover.dayIndex, flightPaths, cameraRef, tickDurations, filming]);
@@ -645,34 +645,41 @@ export function TripMapView({
       animationDuration: 1200,
       animationMode: 'flyTo',
     });
-    const circle = () => cameraRef.current?.setCamera({
+    const circle = (durationMs: number) => cameraRef.current?.setCamera({
       centerCoordinate: [flyStop.lng, flyStop.lat],
       heading: cam.orbitTo,
-      animationDuration: Math.max(600, STOP_DWELL_MS - 1300),
+      animationDuration: durationMs,
       animationMode: 'easeTo',
     });
+    // One rule for playback and video: the shot follows how long the flyover rests (utils/flyover stopShot,
+    // introShot), so a video with the time looks just like the playback (owner, 2026-10-25).
+    const timing = tickTiming ?? DEFAULT_TIMING;
     const timers: ReturnType<typeof setTimeout>[] = [];
     // A day opens like a chapter: its whole route from above first, then down to its first stop.
     const coords = flightPaths[flyover.dayIndex]?.path.coordinates ?? [];
     if (flyover.stopIndex === 0 && coords.length > 1) {
       const lngs = coords.map((c) => c[0]);
       const lats = coords.map((c) => c[1]);
+      const shot = introShot(timing.introMs);
       cameraRef.current?.setCamera({
         bounds: { ne: [Math.max(...lngs), Math.max(...lats)], sw: [Math.min(...lngs), Math.min(...lats)] },
         padding: { paddingTop: 140, paddingBottom: 260, paddingLeft: 40, paddingRight: 40 },
         pitch: 40,
         heading: 0,
-        animationDuration: filming ? Math.min(1100, Math.round(filmPlan.timing.introMs * 0.8)) : 1100,
+        animationDuration: shot.overviewMs,
         animationMode: 'flyTo',
       });
-      // The trip video's day opening is too short for the fly-in and orbit; the follow camera takes it from here.
-      if (!filming) timers.push(setTimeout(arrive, DAY_INTRO_MS - STOP_DWELL_MS), setTimeout(circle, DAY_INTRO_MS - STOP_DWELL_MS + 1250));
-    } else if (filming) {
-      // Film pauses are 0.6 s: a quick move onto the stop, no orbit (it would still be turning when the line moves on).
-      cameraRef.current?.setCamera({ centerCoordinate: [flyStop.lng, flyStop.lat], zoomLevel: cam.zoom, pitch: cam.pitch, animationDuration: 500, animationMode: 'easeTo' });
+      // A short video opening has no time for the fly-in and orbit; the follow camera takes it from here.
+      if (shot.arriveAt !== undefined) timers.push(setTimeout(arrive, shot.arriveAt), setTimeout(() => circle(shot.circleMs ?? 600), shot.circleAt));
     } else {
-      arrive();
-      timers.push(setTimeout(circle, 1250));
+      const shot = stopShot(flyoverRef.current.hold);
+      if (shot.style === 'closeup') {
+        arrive();
+        timers.push(setTimeout(() => circle(shot.circleMs), 1250));
+      } else {
+        // A quick pause: a short move onto the stop, no orbit (it would still be turning when the line moves on).
+        cameraRef.current?.setCamera({ centerCoordinate: [flyStop.lng, flyStop.lat], zoomLevel: cam.zoom, pitch: cam.pitch, animationDuration: 500, animationMode: 'easeTo' });
+      }
     }
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per stop reached, not per tick

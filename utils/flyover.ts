@@ -109,6 +109,8 @@ const FILM_MIN_DAY_MS = 1200;
 export const FILM_PHOTO_DWELL_MS = 1500;
 export const FILM_STOP_DWELL_MS = 1000;
 export const FILM_STOPS_PER_DAY = 4;
+/** How long the video holds a stop with a photo when it plays like the playback — long enough to see it. */
+export const FILM_PHOTO_HOLD_MS = 3500;
 
 /**
  * Which stops of a day get a real pause in the trip video: its photo stops first, then spread across the day
@@ -126,15 +128,19 @@ export function featuredStops(n: number, photos: number[], k: number): Set<numbe
 }
 
 /**
- * The trip video's timing: the whole flyover in ≤ 54 s, about a minute with the opening and end card (owner,
- * 2026-10-25: 26 s rushed through an 8-day trip without stopping). Every stop gets a real pause (1 s, 1.5 s with a
- * photo) when the trip fits; otherwise up to 4 stops a day, then fewer, then shorter openings and pauses.
+ * The trip video's timing, in ≤ 54 s (about a minute with the opening and end card). When the trip fits it plays
+ * exactly like the playback — 4 s day openings, 2.5 s close-ups at every stop (3.5 s with a photo), the route at
+ * full speed (owner, 2026-10-25: the squeezed version felt rushed). Otherwise it gives up only as much as it must:
+ * slightly shorter close-ups with the route slowed no more than 40 %, then 4 close-ups a day, then quick 1 s
+ * pauses at every stop, then fewer per day and shorter openings (an 8-day trip once rushed through without stopping).
  * `photoStops` lists, per day, the stop indices that show a photo.
  */
 export function filmTiming(durations: number[], stopCounts: number[], photoStops: number[][] = []): { durations: number[]; timing: FlyoverTiming; totalMs: number } {
   const flown = durations.map((d, i) => d > 0 || (stopCounts[i] ?? 0) > 0);
   const days = flown.filter(Boolean).length;
   const routedDays = durations.filter((d) => d > 0).length;
+  const wanted = durations.reduce((a, d) => a + (d > 0 ? d : 0), 0);
+  const everyStop = Math.max(0, ...stopCounts);
   const plan = (perDay: number, introMs: number, stopMs: number, photoMs: number) => {
     const dwells = stopCounts.map((n, i) => {
       if (!flown[i]) return Array(n).fill(0);
@@ -145,38 +151,66 @@ export function filmTiming(durations: number[], stopCounts: number[], photoStops
     const fixed = days * introMs + dwells.flat().reduce((a, b) => a + b, 0);
     return { dwells, fixed, introMs, stopMs };
   };
-  // Fits when the openings and pauses leave every routed day at least FILM_MIN_DAY_MS to draw.
-  const fits = (p: { fixed: number }) => p.fixed + routedDays * FILM_MIN_DAY_MS <= FILM_BUDGET_MS;
-  // Every stop first: a short trip has the time (London, 6 stops in a day, stopped pausing after 4 — 2026-10-25).
-  let chosen = plan(Math.max(0, ...stopCounts), 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS);
-  for (const step of [
-    () => plan(FILM_STOPS_PER_DAY, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
-    () => plan(3, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
-    () => plan(2, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
-    () => plan(1, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
-    () => plan(1, 600, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
-    () => plan(1, 600, 600, 1000),
-  ]) {
-    if (fits(chosen)) break;
-    chosen = step();
+  // A playback-like plan fits only when the route keeps at least `drawShare` of its normal speed.
+  const fitsDrawing = (drawShare: number) => (p: { fixed: number }) => p.fixed + wanted * drawShare <= FILM_BUDGET_MS;
+  // The quick plans fit when the openings and pauses leave every routed day at least FILM_MIN_DAY_MS to draw.
+  const fitsQuick = (p: { fixed: number }) => p.fixed + routedDays * FILM_MIN_DAY_MS <= FILM_BUDGET_MS;
+  const steps: [() => ReturnType<typeof plan>, (p: { fixed: number }) => boolean][] = [
+    [() => plan(everyStop, DAY_INTRO_MS, STOP_DWELL_MS, FILM_PHOTO_HOLD_MS), fitsDrawing(1)],
+    [() => plan(everyStop, 3000, 2000, 3000), fitsDrawing(0.6)],
+    [() => plan(FILM_STOPS_PER_DAY, 3000, 2000, 3000), fitsDrawing(0.6)],
+    [() => plan(everyStop, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS), fitsQuick],
+    [() => plan(FILM_STOPS_PER_DAY, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS), fitsQuick],
+    [() => plan(3, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS), fitsQuick],
+    [() => plan(2, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS), fitsQuick],
+    [() => plan(1, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS), fitsQuick],
+    [() => plan(1, 600, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS), fitsQuick],
+    [() => plan(1, 600, 600, 1000), fitsQuick],
+  ];
+  let chosen: ReturnType<typeof plan> | null = null;
+  for (const [make, fits] of steps) {
+    const p = make();
+    if (fits(p)) { chosen = p; break; }
   }
   // Very long trips (40+ days): no plain pauses, photos 1 s, and openings share what's left of half the budget.
-  if (!fits(chosen)) {
+  if (!chosen) {
     const bare = plan(1, 600, 0, 1000);
     const photoMs = bare.fixed - days * 600;
     chosen = plan(1, Math.max(1, Math.floor((FILM_BUDGET_MS / 2 - photoMs) / Math.max(1, days))), 0, 1000);
   }
   const { dwells, fixed, introMs, stopMs } = chosen;
   const timing: FlyoverTiming = { introMs, dwellMs: stopMs, dwells };
-  const routed = durations.filter((d) => d > 0);
   const drawBudget = Math.max(0, FILM_BUDGET_MS - fixed);
-  const wanted = routed.reduce((a, b) => a + b, 0);
   const scale = wanted > 0 ? Math.min(1, drawBudget / wanted) : 0;
   let out = durations.map((d) => (d > 0 ? Math.max(FILM_MIN_DAY_MS, Math.round(d * scale)) : 0));
   // The per-day minimum can push a very long trip over: shrink every routed day evenly to fit.
   const drawn = out.reduce((a, b) => a + b, 0);
   if (drawn > drawBudget && drawn > 0) out = out.map((d) => (d > 0 ? Math.max(1, Math.floor((d * drawBudget) / drawn)) : 0));
   return { durations: out, timing, totalMs: fixed + out.reduce((a, b) => a + b, 0) };
+}
+
+/**
+ * The camera at a stop, from how long the flyover rests there: a long rest is the playback's close-up — fly in,
+ * then a slow circle — and a short one (the squeezed video) a quick move onto it. One rule for playback and video,
+ * so a video that has the time looks like the playback.
+ */
+export function stopShot(holdMs: number): { style: 'closeup'; circleMs: number } | { style: 'quick' } {
+  return holdMs >= 1800 ? { style: 'closeup', circleMs: Math.max(600, holdMs - 1300) } : { style: 'quick' };
+}
+
+/**
+ * A day's opening: the whole route from above, then — when there's time — down to the first stop and a slow circle
+ * (the playback's 4 s opening: fly down at 1.5 s, circle at 2.75 s). A short opening is the overview only.
+ */
+export function introShot(introMs: number): { overviewMs: number; arriveAt?: number; circleAt?: number; circleMs?: number } {
+  if (introMs < 3000) return { overviewMs: Math.min(1100, Math.round(introMs * 0.8)) };
+  const arriveAt = Math.max(1200, introMs - STOP_DWELL_MS);
+  return { overviewMs: 1100, arriveAt, circleAt: arriveAt + 1250, circleMs: Math.max(600, introMs - arriveAt - 1300) };
+}
+
+/** How often the follow camera glides: once a second, twice on a squeezed day so it keeps up with the line. */
+export function followStepMs(dayMs: number): number {
+  return dayMs < 4000 ? 500 : 1000;
 }
 
 /** Whether the flyover owns the map: drawing, camera, bottom card. A finished one doesn't. */

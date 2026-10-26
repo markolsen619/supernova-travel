@@ -1,6 +1,6 @@
 import {
   flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, STOP_DWELL_MS, DAY_INTRO_MS, stopEyebrow,
-  filmTiming, DEFAULT_TIMING, FILM_BUDGET_MS,
+  filmTiming, DEFAULT_TIMING, FILM_BUDGET_MS, FILM_PHOTO_HOLD_MS, stopShot, introShot, followStepMs,
   type FlyoverState, type FlyoverAction,
 } from '@/utils/flyover';
 
@@ -163,7 +163,7 @@ describe('filmTiming (trip video, up to ~60 s — owner 2026-10-25)', () => {
   });
   it('a short trip stops at every stop for a real pause', () => {
     const f = filmTiming([9000, 9000], [3, 3]);
-    expect(f.timing.dwells).toEqual([[1000, 1000, 1000], [1000, 1000, 1000]]);
+    expect(f.timing.dwells).toEqual([[STOP_DWELL_MS, STOP_DWELL_MS, STOP_DWELL_MS], [STOP_DWELL_MS, STOP_DWELL_MS, STOP_DWELL_MS]]);
   });
   it('the Tokyo trip (8 days, 4 stops a day) stops at every stop', () => {
     const f = filmTiming(Array(8).fill(14000), Array(8).fill(4));
@@ -171,8 +171,8 @@ describe('filmTiming (trip video, up to ~60 s — owner 2026-10-25)', () => {
     expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
   });
   it('a trip that fits pauses at every stop, however many a day has (London, 6 stops in a day — owner 2026-10-25)', () => {
-    expect(filmTiming([12000], [6]).timing.dwells).toEqual([[1000, 1000, 1000, 1000, 1000, 1000]]);
-    expect(filmTiming([12000], [9]).timing.dwells![0].every((d) => d === 1000)).toBe(true);
+    expect(filmTiming([12000], [6]).timing.dwells).toEqual([Array(6).fill(STOP_DWELL_MS)]);
+    expect(filmTiming([12000], [9]).timing.dwells![0].every((d) => d === STOP_DWELL_MS)).toBe(true);
   });
   it('on a trip too long for every stop, a busy day features at most 4: first, last and spread between', () => {
     const f = filmTiming(Array(7).fill(12000), Array(7).fill(9));
@@ -217,7 +217,7 @@ describe('filmTiming — very long trips (final review)', () => {
 describe('filmTiming — photo stops', () => {
   it('a photo stop rests longer and is always featured', () => {
     const f = filmTiming([9000, 9000], [3, 3], [[1], []]);
-    expect(f.timing.dwells?.[0]).toEqual([1000, 1500, 1000]);
+    expect(f.timing.dwells?.[0]).toEqual([STOP_DWELL_MS, FILM_PHOTO_HOLD_MS, STOP_DWELL_MS]);
   });
   it('photo stops are featured first on a busy day', () => {
     const f = filmTiming(Array(7).fill(12000), Array(7).fill(9), [[4]]);
@@ -232,5 +232,49 @@ describe('filmTiming — photo stops', () => {
     const playing = { status: 'playing' as const, dayIndex: 0, progress: 0.4, hold: 0, stopIndex: 0 };
     const s = flyoverReducer(playing, { type: 'tick', dt: 100, durations: [1000], stopFractions: [[0, 0.45]], timing: { introMs: 1200, dwellMs: 600, dwells: [[600, 1500]] } });
     expect(s.hold).toBe(1500);
+  });
+});
+
+describe('filmTiming — plays like the playback when the trip fits (owner 2026-10-25: "rushed")', () => {
+  it('London (one day, 6 stops, 3 with photos) gets the playback opening, pauses and full-speed route', () => {
+    const f = filmTiming([6600], [6], [[0, 2, 5]]);
+    expect(f.timing.introMs).toBe(DAY_INTRO_MS);
+    expect(f.timing.dwells).toEqual([[FILM_PHOTO_HOLD_MS, STOP_DWELL_MS, FILM_PHOTO_HOLD_MS, STOP_DWELL_MS, STOP_DWELL_MS, FILM_PHOTO_HOLD_MS]]);
+    expect(f.durations).toEqual([6600]);
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
+  });
+  it('a photo is held long enough to see (≥ 3 s)', () => {
+    expect(FILM_PHOTO_HOLD_MS).toBeGreaterThanOrEqual(3000);
+  });
+  it('a 3-day trip that cannot play in full keeps close-up pauses at 4 stops a day before going quick', () => {
+    const f = filmTiming([10000, 10000, 10000], [5, 5, 5]);
+    const paused = f.timing.dwells!.flat().filter((d) => d > 0);
+    expect(paused.every((d) => d >= 2000)).toBe(true);
+    expect(f.timing.dwells!.map((d) => d.filter((x) => x > 0).length)).toEqual([4, 4, 4]);
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
+  });
+  it('an 8-day trip still fits about a minute', () => {
+    const f = filmTiming(Array(8).fill(10000), Array(8).fill(4));
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
+  });
+});
+
+describe('flyover camera shots', () => {
+  it('a pause of playback length is a close-up with a circle, as in playback', () => {
+    expect(stopShot(STOP_DWELL_MS)).toEqual({ style: 'closeup', circleMs: 1200 });
+    expect(stopShot(FILM_PHOTO_HOLD_MS).style).toBe('closeup');
+  });
+  it('a short pause is a quick move', () => {
+    expect(stopShot(1000)).toEqual({ style: 'quick' });
+  });
+  it('the playback day opening: overview, fly down at 1.5 s, circle at 2.75 s (unchanged)', () => {
+    expect(introShot(DAY_INTRO_MS)).toEqual({ overviewMs: 1100, arriveAt: 1500, circleAt: 2750, circleMs: 1200 });
+  });
+  it('a short opening is the overview only', () => {
+    expect(introShot(1200)).toEqual({ overviewMs: 960 });
+  });
+  it('the follow camera glides every second, twice a second on a squeezed day', () => {
+    expect(followStepMs(6600)).toBe(1000);
+    expect(followStepMs(1500)).toBe(500);
   });
 });
