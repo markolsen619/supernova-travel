@@ -35,10 +35,9 @@ export const PastStopCard = memo(function PastStopCard({ stop, photos, onOpen, o
 
   return (
     <View style={[styles.card, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}>
-      <Pressable onPress={open} style={styles.head} accessibilityRole="button" accessibilityLabel={`${stop.name}, ${stop.time}. Edit this stop`}>
+      <Pressable onPress={open} style={styles.head} accessibilityRole="button" accessibilityLabel={`${stop.name}. Edit this stop`}>
         <TypeIconBubble Icon={Icon} color={color} />
         <View style={styles.headText}>
-          <Text style={[styles.time, { color: colors.text.tertiary }]}>{stop.time}</Text>
           <Text style={[styles.name, { color: colors.text.primary }]} numberOfLines={2}>{stop.name}</Text>
         </View>
       </Pressable>
@@ -76,7 +75,6 @@ const styles = StyleSheet.create({
   card: { borderRadius: BorderRadius.xl, borderWidth: StyleSheet.hairlineWidth, padding: Spacing['3'], gap: Spacing['3'], marginTop: Spacing['3'] },
   head: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], minHeight: 44 },
   headText: { flex: 1 },
-  time: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   name: { fontSize: FontSize.base, fontWeight: FontWeight.medium },
   strip: { gap: Spacing['2'] },
   thumbHit: { borderRadius: 12 },

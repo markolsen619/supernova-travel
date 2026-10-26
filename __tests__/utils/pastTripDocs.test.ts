@@ -17,13 +17,13 @@ describe('pastTripDocs', () => {
     expect(docs.trip.additionalDestinations).toEqual([]);
     expect(docs.trip.visibility).toBe('followers');
   });
-  it('two cities: nights on each, days numbered with their city, stops ordered with their times', () => {
+  it('two cities: nights on each, days numbered with their city, stops in order (no times)', () => {
     const d = named(buildPastTrip([p('a', '2025-05-03', '10:00', 38.7115, -9.13), p('b', '2025-05-03', '12:00', 38.71, -9.145), p('c', '2025-05-05', '10:00', 41.1496, -8.611)]));
     const docs = pastTripDocs(d, 'public');
     expect(docs.trip.destination).toMatchObject({ name: 'Lisbon', countryCode: 'PT', nights: 2, placeId: '' });
     expect(docs.trip.additionalDestinations).toEqual([expect.objectContaining({ name: 'Porto', nights: 0 })]);
     expect(docs.days.map((x) => [x.dayNumber, x.destinationIndex, x.notes])).toEqual([[1, 0, 'A good day'], [2, 0, ''], [3, 1, 'A good day']]);
-    expect(docs.stops.map((s) => [s.dayKey, s.order, s.startTime])).toEqual([['d1', 0, '10:00'], ['d1', 1000, '12:00'], ['d3', 0, '10:00']]);
+    expect(docs.stops.map((s) => [s.dayKey, s.order, s.startTime])).toEqual([['d1', 0, null], ['d1', 1000, null], ['d3', 0, null]]);
   });
   it('a stop uploads only its shown photos (≤ 10)', () => {
     const d = named(buildPastTrip(Array.from({ length: 12 }, (_, i) => p(`x${i}`, '2025-05-03', `10:${String(i).padStart(2, '0')}`, 38.7115, -9.13))));
@@ -81,4 +81,11 @@ it('final review I3: Make the video leads only when the trip can be filmed (≥ 
   expect(finishPrimary(1, true)).toBe('view');
   expect(finishPrimary(0, true)).toBe('view');
   expect(finishPrimary(6, false)).toBe('view');
+});
+
+it('a past trip saves no stop times (owner 2026-10-26: people want to see where someone went, not when)', () => {
+  const d = named(buildPastTrip([p('a', '2025-05-03', '10:00', 38.7115, -9.13), p('b', '2025-05-03', '12:00', 38.71, -9.145)]));
+  const docs = pastTripDocs(d, 'public');
+  expect(docs.stops.map((s) => s.startTime)).toEqual([null, null]);
+  expect(docs.stops.map((s) => s.order)).toEqual([0, 1000]);
 });

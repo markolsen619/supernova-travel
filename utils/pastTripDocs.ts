@@ -6,7 +6,7 @@ import { stopFallbackName } from '@/utils/pastTripPlaces';
 export interface PastTripDocs {
   trip: { title: string; description: string; destination: Record<string, unknown>; additionalDestinations: Record<string, unknown>[]; startDay: string; endDay: string; visibility: TripVisibility };
   days: { key: string; dayNumber: number; destinationIndex: number; title: string; notes: string }[];
-  stops: { key: string; dayKey: string; order: number; title: string; placeName: string | null; type: string; lat: number; lng: number; startTime: string; photoIds: string[] }[];
+  stops: { key: string; dayKey: string; order: number; title: string; placeName: string | null; type: string; lat: number; lng: number; startTime: null; photoIds: string[] }[];
 }
 
 export function pastTripDocs(d: PastTripDraft, visibility: TripVisibility): PastTripDocs {
@@ -24,7 +24,8 @@ export function pastTripDocs(d: PastTripDraft, visibility: TripVisibility): Past
     day.stops.forEach((s, j) => {
       stops.push({
         key: s.id, dayKey: key, order: j * 1000, title: s.name.trim() || stopFallbackName(n), placeName: s.placeName,
-        type: s.type, lat: s.lat, lng: s.lng, startTime: s.time, photoIds: s.shownIds,
+        // No times: people want to see where someone went, not when (owner, 2026-10-26); `order` keeps the sequence.
+        type: s.type, lat: s.lat, lng: s.lng, startTime: null, photoIds: s.shownIds,
       });
       n++;
     });

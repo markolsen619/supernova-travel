@@ -121,7 +121,7 @@ export function MoveToStopSheet({ visible, stops, onPick, onClose }: {
     <Sheet visible={visible} onClose={onClose} title="Move to…">
       <ScrollView style={styles.list}>
         {stops.map((s) => (
-          <Row key={s.id} label={`Day ${s.dayIndex + 1} · ${s.time} · ${s.name}`} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPick(s.id); }} />
+          <Row key={s.id} label={`Day ${s.dayIndex + 1} · ${s.name}`} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPick(s.id); }} />
         ))}
       </ScrollView>
     </Sheet>
