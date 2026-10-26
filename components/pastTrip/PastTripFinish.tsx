@@ -13,15 +13,21 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import type { PastTripDraft } from '@/utils/pastTrip';
 import type { SavedPastTrip } from '@/services/pastTrip';
+import { finishPrimary, unfinishedPhotos, type PastTripDocs } from '@/utils/pastTripDocs';
+import { ScreenRecorder } from '@/modules/screen-recorder';
 
-export function PastTripFinish({ draft, saved, onRetry }: { draft: PastTripDraft; saved: SavedPastTrip; onRetry: () => Promise<void> }) {
+const recorderAvailable = (() => { try { return !!ScreenRecorder?.isAvailable(); } catch { return false; } })();
+
+export function PastTripFinish({ draft, saved, docs, onRetry }: { draft: PastTripDraft; saved: SavedPastTrip; docs: PastTripDocs; onRetry: () => Promise<void> }) {
   const { colors } = useTheme();
   const [retrying, setRetrying] = useState(false);
   const scale = useRef(new Animated.Value(0.6)).current;
   useEffect(() => { Animated.spring(scale, { toValue: 1, ...SPRING, useNativeDriver: true }).start(); }, [scale]);
 
   const city = draft.cities[0]?.name;
-  const failed = saved.failed.length;
+  const failed = unfinishedPhotos(saved, docs);
+  const primary = finishPrimary(docs.stops.length, recorderAvailable);
+  const hasPhotos = Object.keys(saved.urls).length > 0;
   // Finish the modal flow first (Architecture Rule 15), then open where they chose.
   const open = useCallback((path: string) => {
     if (router.canDismiss()) router.dismissAll();
@@ -35,7 +41,7 @@ export function PastTripFinish({ draft, saved, onRetry }: { draft: PastTripDraft
         <CheckCircle size={44} weight="duotone" color={colors.accent.teal} />
       </Animated.View>
       <Text style={[styles.title, { color: colors.text.primary }]}>{city ? `Your ${city} trip is saved.` : 'Your trip is saved.'}</Text>
-      <Text style={[styles.body, { color: colors.text.secondary }]}>Your photos are on their stops, ready for the playback and the video.</Text>
+      {hasPhotos ? <Text style={[styles.body, { color: colors.text.secondary }]}>Your photos are on their stops, ready for the playback and the video.</Text> : null}
       {failed > 0 && (
         <Pressable onPress={retry} disabled={retrying} style={styles.retry} accessibilityRole="button" accessibilityLabel="Try uploading the photos again">
           <Text style={[styles.body, { color: colors.semantic.error }]}>
@@ -44,11 +50,20 @@ export function PastTripFinish({ draft, saved, onRetry }: { draft: PastTripDraft
         </Pressable>
       )}
       <View style={styles.actions}>
-        <Button label="Make the video" onPress={() => open(`/trip/${saved.tripId}?video=1`)} fullWidth />
-        <Button label="Post to the feed" variant="secondary" onPress={() => open('/post/create-photo')} fullWidth />
-        <Pressable onPress={() => open(`/trip/${saved.tripId}`)} style={styles.link} accessibilityRole="link" accessibilityLabel="View trip">
-          <Text style={[styles.linkText, { color: colors.text.secondary }]}>View trip</Text>
-        </Pressable>
+        {primary === 'video' ? (
+          <>
+            <Button label="Make the video" onPress={() => open(`/trip/${saved.tripId}?video=1`)} fullWidth />
+            <Button label="Post to the feed" variant="secondary" onPress={() => open('/post/create-photo')} fullWidth />
+            <Pressable onPress={() => open(`/trip/${saved.tripId}`)} style={styles.link} accessibilityRole="link" accessibilityLabel="View trip">
+              <Text style={[styles.linkText, { color: colors.text.secondary }]}>View trip</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Button label="View trip" onPress={() => open(`/trip/${saved.tripId}`)} fullWidth />
+            <Button label="Post to the feed" variant="secondary" onPress={() => open('/post/create-photo')} fullWidth />
+          </>
+        )}
       </View>
     </View>
   );

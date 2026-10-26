@@ -9,10 +9,16 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { auth, db, storage } from '@/services/firebase';
 import type { TripVisibility } from '@/types';
 import type { PastTripDraft } from '@/utils/pastTrip';
-import { pastTripDocs, uploadQueue, type PastTripDocs } from '@/utils/pastTripDocs';
+import { pastTripDocs, stopUploads, type PastTripDocs } from '@/utils/pastTripDocs';
 import { PHOTO_QUALITY, uploadResize } from '@/utils/photoUpload';
 
-export interface SavedPastTrip { tripId: string; dayIds: Record<string, string>; stopIds: Record<string, string>; failed: { stopKey: string; photoId: string }[]; urls: Record<string, string> }
+export interface SavedPastTrip {
+  tripId: string; dayIds: Record<string, string>; stopIds: Record<string, string>;
+  failed: { stopKey: string; photoId: string }[];
+  urls: Record<string, string>;
+  /** Stops whose journal entry couldn't be written yet (retried with the photos). */
+  journalPending: string[];
+}
 
 const localDate = (day: string) => { const [y, m, d] = day.split('-').map(Number); return new Date(y, m - 1, d); };
 
@@ -68,38 +74,51 @@ export async function savePastTrip(d: PastTripDraft, visibility: TripVisibility,
     throw e;
   }
   onProgress?.(0.1);
-  const saved = await uploadPastTripPhotos(d, { tripId: tripRef.id, dayIds, stopIds, failed: [], urls: {} }, docs, (f) => onProgress?.(0.1 + f * 0.9));
+  const saved = await uploadPastTripPhotos(d, { tripId: tripRef.id, dayIds, stopIds, failed: [], urls: {}, journalPending: [] }, docs, (f) => onProgress?.(0.1 + f * 0.9));
   return { saved, docs };
 }
 
-/** Uploads every photo not yet uploaded (a retry passes the previous result), writes each stop's journal and the cover. */
+/** A write that hangs offline (the web SDK waits for the network) counts as failed after this long. */
+const WRITE_TIMEOUT_MS = 20_000;
+const withTimeout = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), WRITE_TIMEOUT_MS))]);
+
+/**
+ * Uploads every photo not yet uploaded (a retry passes the previous result), stop by stop, writing each stop's
+ * journal as soon as its photos are up, then the cover. Never throws: once the trip exists, a failure is reported
+ * on the finish screen and retried from there, never as "Couldn't save" (final review I1 — that invited a second trip).
+ */
 export async function uploadPastTripPhotos(d: PastTripDraft, saved: SavedPastTrip, docs: PastTripDocs, onProgress?: (f: number) => void): Promise<SavedPastTrip> {
   const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Not authenticated');
   const urls = { ...saved.urls };
-  const queue = uploadQueue(docs, new Set(Object.keys(urls)));
+  const pending = new Set(saved.journalPending);
   const failed: SavedPastTrip['failed'] = [];
+  const work = stopUploads(docs, new Set(Object.keys(urls)), pending);
+  const total = Math.max(1, work.reduce((n, w) => n + w.photoIds.length, 0));
   let done = 0;
-  const work = async (item: { stopKey: string; photoId: string }) => {
-    const path = `journal_photos/${uid}/${saved.tripId}/${saved.stopIds[item.stopKey]}/${item.photoId.replace(/[^A-Za-z0-9_-]/g, '_')}.jpg`;
-    const uri = d.photos[item.photoId]?.uri;
+  for (const w of work) {
+    const stopId = saved.stopIds[w.stopKey];
+    const one = async (photoId: string) => {
+      const path = `journal_photos/${uid}/${saved.tripId}/${stopId}/${photoId.replace(/[^A-Za-z0-9_-]/g, '_')}.jpg`;
+      const uri = d.photos[photoId]?.uri;
+      try {
+        urls[photoId] = await uploadOne(path, uri);
+      } catch {
+        try { urls[photoId] = await uploadOne(path, uri); } catch { failed.push({ stopKey: w.stopKey, photoId }); }
+      }
+      onProgress?.(++done / total);
+    };
+    for (let i = 0; i < w.photoIds.length; i += 3) await Promise.all(w.photoIds.slice(i, i + 3).map(one));
+    const stop = docs.stops.find((s) => s.key === w.stopKey);
+    const photoUrls = (stop?.photoIds ?? []).map((id) => urls[id]).filter((u): u is string => !!u);
+    if (!uid || !stop || !photoUrls.length) { pending.delete(w.stopKey); continue; }
     try {
-      urls[item.photoId] = await uploadOne(path, uri);
+      await withTimeout(setDoc(doc(db, 'trips', saved.tripId, 'days', saved.dayIds[stop.dayKey], 'activities', stopId, 'journal', 'entry'), { note: '', photoUrls }));
+      pending.delete(w.stopKey);
     } catch {
-      try { urls[item.photoId] = await uploadOne(path, uri); } catch { failed.push(item); }
+      pending.add(w.stopKey);
     }
-    onProgress?.(++done / Math.max(1, queue.length));
-  };
-  for (let i = 0; i < queue.length; i += 3) await Promise.all(queue.slice(i, i + 3).map(work));
-
-  const batch = writeBatch(db);
-  for (const s of docs.stops) {
-    const photoUrls = s.photoIds.map((id) => urls[id]).filter((u): u is string => !!u);
-    if (!photoUrls.length) continue;
-    batch.set(doc(db, 'trips', saved.tripId, 'days', saved.dayIds[s.dayKey], 'activities', saved.stopIds[s.key], 'journal', 'entry'), { note: '', photoUrls });
   }
-  await batch.commit();
   const coverUrl = d.coverId ? urls[d.coverId] : undefined;
-  if (coverUrl) await updateDoc(doc(db, 'trips', saved.tripId), { coverImageUrl: coverUrl, updatedAt: serverTimestamp() });
-  return { ...saved, urls, failed };
+  if (coverUrl) await withTimeout(updateDoc(doc(db, 'trips', saved.tripId), { coverImageUrl: coverUrl, updatedAt: serverTimestamp() })).catch(() => {});
+  return { ...saved, urls, failed, journalPending: [...pending] };
 }

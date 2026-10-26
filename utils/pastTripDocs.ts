@@ -48,3 +48,26 @@ export function pastTripDocs(d: PastTripDraft, visibility: TripVisibility): Past
 export function uploadQueue(docs: PastTripDocs, done: Set<string>): { stopKey: string; photoId: string }[] {
   return docs.stops.flatMap((s) => s.photoIds.filter((id) => !done.has(id)).map((photoId) => ({ stopKey: s.key, photoId })));
 }
+
+/**
+ * The work left per stop, in stop order (final review I1): photos not yet uploaded, and stops whose journal entry
+ * still has to be written. Each stop's journal is written as soon as its photos are up, so a phone that dies at 95 %
+ * leaves every finished stop with its photos.
+ */
+export function stopUploads(docs: PastTripDocs, uploaded: Set<string>, journalPending: Set<string>): { stopKey: string; photoIds: string[] }[] {
+  return docs.stops
+    .map((s) => ({ stopKey: s.key, photoIds: s.photoIds.filter((id) => !uploaded.has(id)) }))
+    .filter((s) => s.photoIds.length > 0 || journalPending.has(s.stopKey));
+}
+
+/** What the finish screen reports as "didn't upload": failed photos plus the photos of stops not yet written. */
+export function unfinishedPhotos(s: { failed: { stopKey: string; photoId: string }[]; journalPending: string[] }, docs: PastTripDocs): number {
+  const ids = new Set(s.failed.map((f) => f.photoId));
+  for (const key of s.journalPending) for (const id of docs.stops.find((x) => x.key === key)?.photoIds ?? []) ids.add(id);
+  return ids.size;
+}
+
+/** The finish screen's primary action: the video needs ≥ 2 placed stops and the recorder (TripMapView canRecord). */
+export function finishPrimary(placedStops: number, recorderAvailable: boolean): 'video' | 'view' {
+  return recorderAvailable && placedStops >= 2 ? 'video' : 'view';
+}

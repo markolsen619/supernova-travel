@@ -40,3 +40,45 @@ describe('pastTripDocs', () => {
     expect(pastTripDocs(d, 'private').stops[0].title).toBe('Stop 1');
   });
 });
+
+import { stopUploads } from '@/utils/pastTripDocs';
+
+describe('stopUploads (final review I1: each stop written as soon as its photos are up)', () => {
+  const d = named(buildPastTrip([
+    p('a', '2025-05-03', '10:00', 38.7115, -9.13), p('b', '2025-05-03', '10:05', 38.7115, -9.13),
+    p('c', '2025-05-03', '12:00', 38.71, -9.145),
+  ]));
+  const docs = pastTripDocs(d, 'private');
+  it('groups the photos still to upload by stop, in stop order', () => {
+    expect(stopUploads(docs, new Set(), new Set())).toEqual([
+      { stopKey: 's1', photoIds: ['a', 'b'] }, { stopKey: 's2', photoIds: ['c'] },
+    ]);
+  });
+  it('a retry: stops with nothing left to upload are skipped…', () => {
+    expect(stopUploads(docs, new Set(['a', 'b']), new Set())).toEqual([{ stopKey: 's2', photoIds: ['c'] }]);
+  });
+  it('…unless their journal still has to be written', () => {
+    expect(stopUploads(docs, new Set(['a', 'b', 'c']), new Set(['s1']))).toEqual([{ stopKey: 's1', photoIds: [] }]);
+  });
+});
+
+import { unfinishedPhotos } from '@/utils/pastTripDocs';
+
+it('unfinished photos = failed uploads + photos of stops whose journal is still pending', () => {
+  const d = named(buildPastTrip([
+    p('a', '2025-05-03', '10:00', 38.7115, -9.13), p('b', '2025-05-03', '10:05', 38.7115, -9.13),
+    p('c', '2025-05-03', '12:00', 38.71, -9.145),
+  ]));
+  const docs = pastTripDocs(d, 'private');
+  expect(unfinishedPhotos({ failed: [{ stopKey: 's2', photoId: 'c' }], journalPending: ['s1'] }, docs)).toBe(3);
+  expect(unfinishedPhotos({ failed: [], journalPending: [] }, docs)).toBe(0);
+});
+
+import { finishPrimary } from '@/utils/pastTripDocs';
+
+it('final review I3: Make the video leads only when the trip can be filmed (≥ 2 placed stops, recorder present)', () => {
+  expect(finishPrimary(6, true)).toBe('video');
+  expect(finishPrimary(1, true)).toBe('view');
+  expect(finishPrimary(0, true)).toBe('view');
+  expect(finishPrimary(6, false)).toBe('view');
+});

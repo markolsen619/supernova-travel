@@ -63,7 +63,7 @@ export default function PastTripScreen() {
   }
 
   if (b.phase === 'done' && b.result && b.draft) {
-    return <PastTripFinish draft={b.draft} saved={b.result.saved} onRetry={b.retryUploads} />;
+    return <PastTripFinish draft={b.draft} saved={b.result.saved} docs={b.result.docs} onRetry={b.retryUploads} />;
   }
 
   return (
