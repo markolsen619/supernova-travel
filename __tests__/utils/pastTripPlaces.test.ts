@@ -91,3 +91,8 @@ it('areaFromGeocode reads the country name too', () => {
   const json = { features: [{ properties: { feature_type: 'neighborhood', name: 'Montmartre', context: { place: { name: 'Paris' }, country: { country_code: 'FR', name: 'France' } } } }] };
   expect(areaFromGeocode(json).country).toBe('France');
 });
+
+it('an area whose name already holds the city is just "City, Country" (owner trip: "Athlone and Bigmeadow, Athlone")', () => {
+  expect(stopNameFor({ neighbourhood: 'Athlone and Bigmeadow', city: 'Athlone', country: 'Ireland' })).toBe('Athlone, Ireland');
+  expect(stopNameFor({ neighbourhood: 'Montmartre', city: 'Paris', country: 'France' })).toBe('Montmartre, Paris');
+});

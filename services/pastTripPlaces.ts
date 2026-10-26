@@ -2,7 +2,7 @@
  * Names a past trip's stops and cities with Geocoding v6 reverse: a stop is "Neighbourhood, City" (else "City,
  * Country", else "Stop n") at its neighbourhood's centre; never the nearest business (owner, 2026-10-26).
  */
-import type { PastTripDraft } from '@/utils/pastTrip';
+import { mergeSameArea, type PastTripDraft } from '@/utils/pastTrip';
 import { areaFromGeocode, publicPosition, stopFallbackName, stopNameFor } from '@/utils/pastTripPlaces';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
@@ -44,5 +44,6 @@ export async function nameDraft(d: PastTripDraft, onStop?: (done: number, total:
     }
     days.push({ ...day, stops });
   }
-  return { ...d, cities, days };
+  // Back-to-back stops in the same area are one stop now that stops are named and placed by area.
+  return mergeSameArea({ ...d, cities, days });
 }

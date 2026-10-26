@@ -69,7 +69,9 @@ export function publicPosition(
  */
 export function stopNameFor(a: { neighbourhood: string | null; city: string | null; country: string | null }): string | null {
   const same = (x: string | null, y: string | null) => !!x && !!y && x.trim().toLowerCase() === y.trim().toLowerCase();
-  if (a.neighbourhood && a.city && !same(a.neighbourhood, a.city)) return `${a.neighbourhood}, ${a.city}`;
+  // An area named after its town ("Athlone and Bigmeadow") would repeat it: use "City, Country" instead.
+  const holdsCity = !!a.neighbourhood && !!a.city && a.neighbourhood.toLowerCase().includes(a.city.trim().toLowerCase());
+  if (a.neighbourhood && a.city && !same(a.neighbourhood, a.city) && !holdsCity) return `${a.neighbourhood}, ${a.city}`;
   if (a.city) return a.country ? `${a.city}, ${a.country}` : a.city;
   if (a.neighbourhood) return a.country ? `${a.neighbourhood}, ${a.country}` : a.neighbourhood;
   return a.country ?? null;

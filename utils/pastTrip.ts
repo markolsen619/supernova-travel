@@ -138,3 +138,24 @@ export function pastTripEyebrow(days: string[]): string {
 export function pastTripsSupported(os: string): boolean {
   return os === 'ios';
 }
+
+/**
+ * Back-to-back stops of a day in the same area (same name, same spot) become one, with all their photos (owner
+ * trip, 2026-10-26: "Grote Markt, Brussels" twice at one position drew a zero-length leg). Run after naming.
+ */
+export function mergeSameArea(d: PastTripDraft): PastTripDraft {
+  const days = d.days.map((day) => {
+    const stops: DraftStop[] = [];
+    for (const s of day.stops) {
+      const prev = stops[stops.length - 1];
+      if (prev && prev.name === s.name && prev.lat === s.lat && prev.lng === s.lng) {
+        const photoIds = [...prev.photoIds, ...s.photoIds];
+        stops[stops.length - 1] = { ...prev, photoIds, shownIds: shownPhotos(photoIds, d.photos) };
+      } else {
+        stops.push(s);
+      }
+    }
+    return { ...day, stops };
+  });
+  return { ...d, days, coverId: d.coverId };
+}

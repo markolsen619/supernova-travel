@@ -101,3 +101,24 @@ it('final review C2: iPhone only until Android can read photo locations', () => 
   expect(pastTripsSupported('android')).toBe(false);
   expect(pastTripsSupported('web')).toBe(false);
 });
+
+import { mergeSameArea } from '@/utils/pastTrip';
+
+describe('mergeSameArea (owner trip: "Grote Markt, Brussels" twice in a row at the same spot)', () => {
+  const stop = (id: string, name: string, lat: number, photoIds: string[]) => ({ id, name, lat, lng: 4.35, time: '10:00', photoIds, shownIds: photoIds, placeName: null, type: 'activity' as const });
+  const draft = (stops: ReturnType<typeof stop>[]) => ({ title: '', description: '', cities: [], unplaced: [], coverId: null, photos: {}, days: [{ day: '2024-11-22', city: 0, caption: '', stops }] });
+  it('merges back-to-back stops with the same name and spot, keeping every photo', () => {
+    const d = mergeSameArea(draft([stop('s1', 'Grote Markt, Brussels', 50.848, ['a']), stop('s2', 'Grote Markt, Brussels', 50.848, ['b']), stop('s3', 'Sablon, Brussels', 50.84, ['c'])]));
+    expect(d.days[0].stops.map((s) => [s.id, s.photoIds])).toEqual([['s1', ['a', 'b']], ['s3', ['c']]]);
+  });
+  it('the same area later in the day (after somewhere else) stays a separate stop', () => {
+    const d = mergeSameArea(draft([stop('s1', 'A', 50.848, ['a']), stop('s2', 'B', 50.84, ['b']), stop('s3', 'A', 50.848, ['c'])]));
+    expect(d.days[0].stops).toHaveLength(3);
+  });
+  it('keeps at most 10 shown photos', () => {
+    const many = (p: string) => Array.from({ length: 7 }, (_, i) => `${p}${i}`);
+    const d = mergeSameArea(draft([stop('s1', 'A', 50.848, many('a')), stop('s2', 'A', 50.848, many('b'))]));
+    expect(d.days[0].stops[0].photoIds).toHaveLength(14);
+    expect(d.days[0].stops[0].shownIds).toHaveLength(10);
+  });
+});
