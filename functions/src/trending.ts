@@ -87,3 +87,15 @@ export function heatWrite(s: { hasCommunity: boolean; current: number[] | undefi
   if (!s.hasCommunity) return 'skip';
   return JSON.stringify(s.current ?? []) === JSON.stringify(s.next) ? 'skip' : 'write';
 }
+const millis = (v: unknown): number | null =>
+  v && typeof (v as { toMillis?: unknown }).toMillis === 'function' ? (v as { toMillis: () => number }).toMillis() : null;
+
+/**
+ * A trip that had ended over a day before it was created — a past trip someone added (from photos or by hand).
+ * Trending shows where people are heading; last year's Lisbon trip shouldn't make Lisbon trend.
+ */
+export function endedBeforeCreated(trip: { endDate?: unknown; createdAt?: unknown }): boolean {
+  const end = millis(trip.endDate);
+  const created = millis(trip.createdAt);
+  return end !== null && created !== null && end + 86_400_000 < created;
+}

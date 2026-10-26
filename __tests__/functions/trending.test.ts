@@ -1,3 +1,4 @@
+import { endedBeforeCreated } from '../../functions/src/trending';
 import {
   TREND_MIN, capCommunity, composeHeat, destinationPoints, heatWrite, pruneTrendDays, sameDestinationPoints,
   trendDayKey, trendNewSlugs, trendPoints, trendTotal, trendWeight,
@@ -112,5 +113,21 @@ describe('capCommunity', () => {
   // refuse it and take the whole daily batch down. Only the heaviest 4000 are ever drawn.
   it('keeps only the heaviest points the heat can draw', () => {
     expect(capCommunity([[1, 1, 1], [2, 2, 9], [3, 3, 5]], 2)).toEqual([[2, 2, 9], [3, 3, 5]]);
+  });
+});
+
+
+const ts = (iso: string) => ({ toMillis: () => Date.parse(iso) });
+describe('endedBeforeCreated', () => {
+  it('a trip added after it ended is not trending', () => {
+    expect(endedBeforeCreated({ endDate: ts('2025-05-07T00:00:00Z'), createdAt: ts('2026-10-25T00:00:00Z') })).toBe(true);
+  });
+  it('a trip still to come, under way, or ending today counts', () => {
+    expect(endedBeforeCreated({ endDate: ts('2026-11-01T00:00:00Z'), createdAt: ts('2026-10-25T00:00:00Z') })).toBe(false);
+    expect(endedBeforeCreated({ endDate: ts('2026-10-25T00:00:00Z'), createdAt: ts('2026-10-25T20:00:00Z') })).toBe(false);
+  });
+  it('no dates (or no createdAt yet) counts', () => {
+    expect(endedBeforeCreated({ endDate: null, createdAt: ts('2026-10-25T00:00:00Z') })).toBe(false);
+    expect(endedBeforeCreated({ endDate: ts('2025-05-07T00:00:00Z') })).toBe(false);
   });
 });

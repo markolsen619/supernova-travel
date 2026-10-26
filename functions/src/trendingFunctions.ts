@@ -5,7 +5,7 @@ import { baselinePoints, destinationKeysFor, isEditorialTrip, type GeoBox } from
 import { editorialUid, loadCatalog } from './discoveryFunctions';
 import {
   composeHeat, destinationPoints, heatWrite, pruneTrendDays, sameDestinationPoints, trendDayKey,
-  trendNewSlugs, trendPoints, trendTotal, trendWeight, type Triple,
+  trendNewSlugs, trendPoints, trendTotal, trendWeight, type Triple, endedBeforeCreated,
 } from './trending';
 
 const db = () => admin.firestore();
@@ -17,6 +17,7 @@ export const onTripWrittenTrend = onDocumentWritten('trips/{tripId}', async (eve
   if (!after) return; // deletions subtract nothing
   if (sameDestinationPoints(before, after)) return; // trips are written constantly
   if (isEditorialTrip(after, editorialUid())) return;
+  if (endedBeforeCreated(after)) return; // a past trip someone added isn't where anyone is heading
   const catalog = await loadCatalog();
   const now = destinationKeysFor(destinationPoints(after), catalog);
   if (now.length === 0) return;
