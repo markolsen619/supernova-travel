@@ -127,8 +127,8 @@ export function featuredStops(n: number, photos: number[], k: number): Set<numbe
 
 /**
  * The trip video's timing: the whole flyover in ≤ 54 s, about a minute with the opening and end card (owner,
- * 2026-10-25: 26 s rushed through an 8-day trip without stopping). Every day features up to 4 stops with a real
- * pause (1 s, 1.5 s with a photo) — fewer per day, then shorter openings and pauses, only when the trip doesn't fit.
+ * 2026-10-25: 26 s rushed through an 8-day trip without stopping). Every stop gets a real pause (1 s, 1.5 s with a
+ * photo) when the trip fits; otherwise up to 4 stops a day, then fewer, then shorter openings and pauses.
  * `photoStops` lists, per day, the stop indices that show a photo.
  */
 export function filmTiming(durations: number[], stopCounts: number[], photoStops: number[][] = []): { durations: number[]; timing: FlyoverTiming; totalMs: number } {
@@ -147,8 +147,10 @@ export function filmTiming(durations: number[], stopCounts: number[], photoStops
   };
   // Fits when the openings and pauses leave every routed day at least FILM_MIN_DAY_MS to draw.
   const fits = (p: { fixed: number }) => p.fixed + routedDays * FILM_MIN_DAY_MS <= FILM_BUDGET_MS;
-  let chosen = plan(FILM_STOPS_PER_DAY, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS);
+  // Every stop first: a short trip has the time (London, 6 stops in a day, stopped pausing after 4 — 2026-10-25).
+  let chosen = plan(Math.max(0, ...stopCounts), 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS);
   for (const step of [
+    () => plan(FILM_STOPS_PER_DAY, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
     () => plan(3, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
     () => plan(2, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),
     () => plan(1, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS),

@@ -170,10 +170,14 @@ describe('filmTiming (trip video, up to ~60 s — owner 2026-10-25)', () => {
     expect(f.timing.dwells!.flat().every((d) => d >= 1000)).toBe(true);
     expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
   });
-  it('a busy day features at most 4 stops: first, last and spread between', () => {
-    const f = filmTiming([12000], [9]);
-    const paused = f.timing.dwells![0].flatMap((d, i) => (d > 0 ? [i] : []));
-    expect(paused).toEqual([0, 3, 5, 8]);
+  it('a trip that fits pauses at every stop, however many a day has (London, 6 stops in a day — owner 2026-10-25)', () => {
+    expect(filmTiming([12000], [6]).timing.dwells).toEqual([[1000, 1000, 1000, 1000, 1000, 1000]]);
+    expect(filmTiming([12000], [9]).timing.dwells![0].every((d) => d === 1000)).toBe(true);
+  });
+  it('on a trip too long for every stop, a busy day features at most 4: first, last and spread between', () => {
+    const f = filmTiming(Array(7).fill(12000), Array(7).fill(9));
+    for (const day of f.timing.dwells!) expect(day.flatMap((d, i) => (d > 0 ? [i] : []))).toEqual([0, 3, 5, 8]);
+    expect(f.totalMs).toBeLessThanOrEqual(FILM_BUDGET_MS);
   });
   it('a long trip features fewer stops per day, but every day keeps at least one real stop', () => {
     const f = filmTiming(Array(21).fill(12000), Array(21).fill(6));
@@ -216,7 +220,7 @@ describe('filmTiming — photo stops', () => {
     expect(f.timing.dwells?.[0]).toEqual([1000, 1500, 1000]);
   });
   it('photo stops are featured first on a busy day', () => {
-    const f = filmTiming([12000], [9], [[4]]);
+    const f = filmTiming(Array(7).fill(12000), Array(7).fill(9), [[4]]);
     expect(f.timing.dwells![0][4]).toBe(1500);
     expect(f.timing.dwells![0].filter((x) => x > 0).length).toBeLessThanOrEqual(4);
   });
