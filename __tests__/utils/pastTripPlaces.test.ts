@@ -65,3 +65,29 @@ describe('Mapbox answers carry their own positions', () => {
     expect(areaFromGeocode(json).center).toEqual({ lat: 38.711, lng: -9.13 });
   });
 });
+
+import { stopNameFor } from '@/utils/pastTripPlaces';
+
+describe('stopNameFor (owner 2026-10-26: never a random business — "Neighbourhood, City")', () => {
+  it('neighbourhood and city', () => {
+    expect(stopNameFor({ neighbourhood: 'Montmartre', city: 'Paris', country: 'France' })).toBe('Montmartre, Paris');
+  });
+  it('no neighbourhood: city and country', () => {
+    expect(stopNameFor({ neighbourhood: null, city: 'Athlone', country: 'Ireland' })).toBe('Athlone, Ireland');
+  });
+  it('a neighbourhood named like its city is not repeated', () => {
+    expect(stopNameFor({ neighbourhood: 'Paris', city: 'Paris', country: 'France' })).toBe('Paris, France');
+  });
+  it('neighbourhood but no city: with the country', () => {
+    expect(stopNameFor({ neighbourhood: 'Alfama', city: null, country: 'Portugal' })).toBe('Alfama, Portugal');
+  });
+  it('nothing known: null (the caller falls back to "Stop n")', () => {
+    expect(stopNameFor({ neighbourhood: null, city: null, country: null })).toBeNull();
+    expect(stopNameFor({ neighbourhood: null, city: null, country: 'France' })).toBe('France');
+  });
+});
+
+it('areaFromGeocode reads the country name too', () => {
+  const json = { features: [{ properties: { feature_type: 'neighborhood', name: 'Montmartre', context: { place: { name: 'Paris' }, country: { country_code: 'FR', name: 'France' } } } }] };
+  expect(areaFromGeocode(json).country).toBe('France');
+});

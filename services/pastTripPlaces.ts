@@ -1,9 +1,9 @@
 /**
- * Names a past trip's stops and cities: one Search Box reverse (POIs) per stop, one Geocoding v6 reverse per stop
- * for its neighbourhood and per city for its name. A failed lookup names the stop after its area, else "Stop n".
+ * Names a past trip's stops and cities with Geocoding v6 reverse: a stop is "Neighbourhood, City" (else "City,
+ * Country", else "Stop n") at its neighbourhood's centre; never the nearest business (owner, 2026-10-26).
  */
 import type { PastTripDraft } from '@/utils/pastTrip';
-import { areaFromGeocode, poiFromSearchBox, publicPosition, stopFallbackName } from '@/utils/pastTripPlaces';
+import { areaFromGeocode, publicPosition, stopFallbackName, stopNameFor } from '@/utils/pastTripPlaces';
 
 const TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '';
 
@@ -15,7 +15,6 @@ async function getJson(url: string): Promise<unknown> {
     return null;
   }
 }
-const poiUrl = (lat: number, lng: number) => `https://api.mapbox.com/search/searchbox/v1/reverse?longitude=${lng}&latitude=${lat}&types=poi&limit=5&access_token=${TOKEN}`;
 const areaUrl = (lat: number, lng: number, types: string) => `https://api.mapbox.com/search/geocode/v6/reverse?longitude=${lng}&latitude=${lat}&types=${types}&access_token=${TOKEN}`;
 
 export async function nameDraft(d: PastTripDraft, onStop?: (done: number, total: number) => void): Promise<PastTripDraft> {
@@ -32,12 +31,15 @@ export async function nameDraft(d: PastTripDraft, onStop?: (done: number, total:
     const stops = [];
     for (const s of day.stops) {
       const i = index++;
-      const [poi, area] = await Promise.all([
-        getJson(poiUrl(s.lat, s.lng)).then((j) => poiFromSearchBox(j, s)),
-        getJson(areaUrl(s.lat, s.lng, 'neighborhood,locality')).then(areaFromGeocode),
-      ]);
-      const name = poi?.name ?? area.neighbourhood ?? stopFallbackName(i);
-      stops.push({ ...s, ...publicPosition(poi, area.center, s), name, placeName: poi?.name ?? null, type: poi?.type ?? 'activity' });
+      // Named after its neighbourhood and city, never the nearest business (owner, 2026-10-26).
+      const area = areaFromGeocode(await getJson(areaUrl(s.lat, s.lng, 'neighborhood,locality')));
+      const place = area.city && area.country && area.center ? null : areaFromGeocode(await getJson(areaUrl(s.lat, s.lng, 'place')));
+      const name = stopNameFor({
+        neighbourhood: area.neighbourhood,
+        city: area.city ?? place?.city ?? null,
+        country: area.country ?? place?.country ?? null,
+      }) ?? stopFallbackName(i);
+      stops.push({ ...s, ...publicPosition(null, area.center ?? place?.center ?? null, s), name, placeName: null, type: 'activity' as const });
       onStop?.(++done, total);
     }
     days.push({ ...day, stops });

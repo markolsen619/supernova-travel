@@ -26,9 +26,9 @@ export function poiFromSearchBox(json: unknown, at: { lat: number; lng: number }
   return { name: best.name, type: has(STAY) ? 'hotel' : has(FOOD) ? 'restaurant' : 'activity', lat: best.lat, lng: best.lng };
 }
 
-type GeoFeat = { geometry?: { coordinates?: unknown }; properties?: { feature_type?: unknown; name?: unknown; context?: { place?: { name?: unknown }; country?: { country_code?: unknown } } } };
+type GeoFeat = { geometry?: { coordinates?: unknown }; properties?: { feature_type?: unknown; name?: unknown; context?: { place?: { name?: unknown }; country?: { country_code?: unknown; name?: unknown } } } };
 
-type Area = { neighbourhood: string | null; city: string | null; countryCode: string | null; center: { lat: number; lng: number } | null };
+type Area = { neighbourhood: string | null; city: string | null; countryCode: string | null; country?: string | null; center: { lat: number; lng: number } | null };
 
 export function areaFromGeocode(json: unknown): Area {
   const feat = ((json as { features?: GeoFeat[] } | null)?.features ?? [])[0];
@@ -41,7 +41,8 @@ export function areaFromGeocode(json: unknown): Area {
   const neighbourhood = type === 'neighborhood' || type === 'locality' ? name : null;
   const city = type === 'place' ? name : typeof f.context?.place?.name === 'string' ? f.context.place.name : null;
   const cc = f.context?.country?.country_code;
-  return { neighbourhood, city, countryCode: typeof cc === 'string' ? cc.toUpperCase() : null, center };
+  const country = typeof f.context?.country?.name === 'string' ? f.context.country.name : type === 'country' ? name : null;
+  return { neighbourhood, city, countryCode: typeof cc === 'string' ? cc.toUpperCase() : null, ...(country ? { country } : {}), center };
 }
 
 export function stopFallbackName(index: number): string {
@@ -60,4 +61,16 @@ export function publicPosition(
   if (poi) return { lat: poi.lat, lng: poi.lng };
   if (areaCenter) return { lat: areaCenter.lat, lng: areaCenter.lng };
   return { lat: Math.round(raw.lat * 100) / 100, lng: Math.round(raw.lng * 100) / 100 };
+}
+
+/**
+ * A photo stop's name (owner, 2026-10-26): "Neighbourhood, City", else "City, Country" — never the nearest business,
+ * which was nearly always a random shop ("Draijer Makelaardij", a rental flat's listing). Null when nothing is known.
+ */
+export function stopNameFor(a: { neighbourhood: string | null; city: string | null; country: string | null }): string | null {
+  const same = (x: string | null, y: string | null) => !!x && !!y && x.trim().toLowerCase() === y.trim().toLowerCase();
+  if (a.neighbourhood && a.city && !same(a.neighbourhood, a.city)) return `${a.neighbourhood}, ${a.city}`;
+  if (a.city) return a.country ? `${a.city}, ${a.country}` : a.city;
+  if (a.neighbourhood) return a.country ? `${a.neighbourhood}, ${a.country}` : a.neighbourhood;
+  return a.country ?? null;
 }
