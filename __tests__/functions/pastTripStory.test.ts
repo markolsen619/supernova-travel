@@ -35,3 +35,20 @@ describe('pastTripStory', () => {
     expect(fallbackStory(req)).toEqual({ title: 'Trip to Lisbon', description: '', dayCaptions: ['', ''] });
   });
 });
+
+import { storyClaim } from '../../functions/src/pastTripStory';
+
+describe('storyClaim (final review I2: claimed before Gemini, like agent)', () => {
+  const policy = { quotaKey: 'agent_2026-10-01', limit: 10 };
+  const now = 1_000_000;
+  it('claims the hour and the in-flight lock', () => {
+    expect(storyClaim({}, policy, 'agent_hour_x', now)).toEqual({ ok: true, patch: { agent_hour_x: 1, agentInflightUntil: now + 90_000 } });
+  });
+  it('refuses while another Nova call is in flight (200 concurrent calls get one through)', () => {
+    expect(storyClaim({ agentInflightUntil: now + 5_000 }, policy, 'agent_hour_x', now)).toEqual({ ok: false, gate: 'busy' });
+  });
+  it('refuses over the month and over the hour', () => {
+    expect(storyClaim({ 'agent_2026-10-01': 10 }, policy, 'agent_hour_x', now)).toEqual({ ok: false, gate: 'monthly' });
+    expect(storyClaim({ agent_hour_x: 20 }, policy, 'agent_hour_x', now)).toEqual({ ok: false, gate: 'hourly' });
+  });
+});

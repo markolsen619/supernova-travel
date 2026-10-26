@@ -2,9 +2,9 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
-import { agentGate, agentHourKey, agentQuotaPolicy } from './quotaUtils';
+import { agentHourKey, agentQuotaPolicy } from './quotaUtils';
 import { generateJson } from './agentModel';
-import { STORY_SCHEMA, STORY_SYSTEM, fallbackStory, parseStory, storyPrompt, validateStoryRequest, type Story } from './pastTripStory';
+import { STORY_SCHEMA, STORY_SYSTEM, fallbackStory, parseStory, storyClaim, storyPrompt, validateStoryRequest, type Story } from './pastTripStory';
 
 const db = () => admin.firestore();
 
@@ -24,26 +24,34 @@ export const pastTripStory = onCall({ region: 'us-central1', timeoutSeconds: 45 
   const done = await doneRef.get();
   if (done.exists) return { ...(done.data() as Story), fromNova: true };
 
-  const q = (await quotaRef.get()).data() ?? {};
-  const gate = agentGate({ used: q[policy.quotaKey] ?? 0, limit: policy.limit, hourCount: q[hourKey] ?? 0, inflightUntil: null, now: Date.now() });
-  if (gate === 'monthly') throw new HttpsError('resource-exhausted', policy.fairUse ? 'That\'s a lot of Nova this month. It resets on the 1st.' : 'Free accounts get 10 Nova messages a month. Pro gives you plenty more.', { reason: 'monthly', fairUse: policy.fairUse });
-  if (gate === 'hourly') throw new HttpsError('resource-exhausted', 'Give it a few minutes and try again.', { reason: 'hourly' });
+  // Claimed before Gemini, in a transaction (final review I2): concurrent calls can't all pass a plain read.
+  await db().runTransaction(async (tx) => {
+    const claim = storyClaim((await tx.get(quotaRef)).data() ?? {}, policy, hourKey, Date.now());
+    if (!claim.ok) {
+      if (claim.gate === 'monthly') throw new HttpsError('resource-exhausted', policy.fairUse ? 'That\'s a lot of Nova this month. It resets on the 1st.' : 'Free accounts get 10 Nova messages a month. Pro gives you plenty more.', { reason: 'monthly', fairUse: policy.fairUse });
+      if (claim.gate === 'hourly') throw new HttpsError('resource-exhausted', 'Give it a few minutes and try again.', { reason: 'hourly' });
+      throw new HttpsError('aborted', 'Nova is still answering your last message.');
+    }
+    tx.set(quotaRef, claim.patch, { merge: true });
+  });
+  const release = () => quotaRef.set({ agentInflightUntil: null }, { merge: true }).catch(() => {});
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { ...fallbackStory(r), fromNova: false };
+  if (!apiKey) { await release(); return { ...fallbackStory(r), fromNova: false }; }
   try {
     const result = await generateJson({
       system: STORY_SYSTEM, turns: [{ role: 'user', text: storyPrompt(r) }], schema: STORY_SCHEMA, apiKey,
       parse: (t) => parseStory(t, r.days.length),
     });
     const batch = db().batch();
-    batch.set(quotaRef, { [policy.quotaKey]: admin.firestore.FieldValue.increment(1), [hourKey]: admin.firestore.FieldValue.increment(1) }, { merge: true });
+    batch.set(quotaRef, { [policy.quotaKey]: admin.firestore.FieldValue.increment(1), agentInflightUntil: null }, { merge: true });
     batch.set(doneRef, { ...result.json, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     await batch.commit();
     console.log('pastTripStory', { uid, days: r.days.length, inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: result.latencyMs });
     return { ...result.json, fromNova: true };
   } catch (err) {
     console.error('pastTripStory failed', { uid, err: String(err) });
+    await release();
     return { ...fallbackStory(r), fromNova: false };
   }
 });

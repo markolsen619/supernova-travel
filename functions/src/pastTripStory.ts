@@ -3,6 +3,7 @@
  * a two-sentence description. It sees city and stop names and times only — never photos or coordinates.
  */
 import { isValidRequestId } from './generationRequest';
+import { agentGate, AGENT_INFLIGHT_MS } from './quotaUtils';
 
 export interface StoryRequest { requestId: string; cities: string[]; days: { day: string; city: number; stops: { name: string; time: string }[] }[] }
 export interface Story { title: string; description: string; dayCaptions: string[] }
@@ -62,4 +63,23 @@ export function parseStory(text: unknown, dayCount: number): Story | null {
 
 export function fallbackStory(r: StoryRequest): Story {
   return { title: `Trip to ${r.cities[0]}`, description: '', dayCaptions: r.days.map(() => '') };
+}
+
+/**
+ * The Nova allowance, claimed before Gemini is called (final review I2): the hour count and the shared in-flight
+ * lock, as `agent` does, so concurrent calls can't all pass a plain read. The month is charged only on success.
+ */
+export function storyClaim(
+  q: Record<string, unknown>,
+  policy: { quotaKey: string; limit: number },
+  hourKey: string,
+  now: number,
+): { ok: true; patch: Record<string, number> } | { ok: false; gate: 'monthly' | 'hourly' | 'busy' } {
+  const num = (v: unknown) => (typeof v === 'number' ? v : 0);
+  const gate = agentGate({
+    used: num(q[policy.quotaKey]), limit: policy.limit, hourCount: num(q[hourKey]),
+    inflightUntil: typeof q.agentInflightUntil === 'number' ? q.agentInflightUntil : null, now,
+  });
+  if (gate !== 'ok') return { ok: false, gate };
+  return { ok: true, patch: { [hourKey]: num(q[hourKey]) + 1, agentInflightUntil: now + AGENT_INFLIGHT_MS } };
 }
