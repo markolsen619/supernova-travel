@@ -172,7 +172,8 @@ describe('filmTiming (trip video, up to ~60 s — owner 2026-10-25)', () => {
   });
   it('a trip that fits pauses at every stop, however many a day has (London, 6 stops in a day — owner 2026-10-25)', () => {
     expect(filmTiming([12000], [6]).timing.dwells).toEqual([Array(6).fill(STOP_DWELL_MS)]);
-    expect(filmTiming([12000], [9]).timing.dwells![0].every((d) => d === STOP_DWELL_MS)).toBe(true);
+    // 9 stops: the full playback pace (with 3 s legs) runs over a minute, so it steps down — still a pause at every stop.
+    expect(filmTiming([12000], [9]).timing.dwells![0].every((d) => d >= 2000)).toBe(true);
   });
   it('on a trip too long for every stop, a busy day features at most 4: first, last and spread between', () => {
     const f = filmTiming(Array(7).fill(12000), Array(7).fill(9));
@@ -194,7 +195,7 @@ describe('filmTiming (trip video, up to ~60 s — owner 2026-10-25)', () => {
     expect(filmTiming([], []).totalMs).toBe(0);
   });
   it('the normal flyover is unchanged (defaults)', () => {
-    expect(DEFAULT_TIMING).toEqual({ introMs: DAY_INTRO_MS, dwellMs: STOP_DWELL_MS });
+    expect(DEFAULT_TIMING).toEqual({ introMs: DAY_INTRO_MS, dwellMs: STOP_DWELL_MS, legMinMs: 3000 });
     expect(flyoverReducer(initialFlyover, { type: 'play' }).hold).toBe(DAY_INTRO_MS);
     expect(flyoverReducer(initialFlyover, { type: 'play', timing: { introMs: 1200, dwellMs: 600 } }).hold).toBe(1200);
   });
@@ -276,5 +277,33 @@ describe('flyover camera shots', () => {
   it('the follow camera glides every second, twice a second on a squeezed day', () => {
     expect(followStepMs(6600)).toBe(1000);
     expect(followStepMs(1500)).toBe(500);
+  });
+});
+
+import { legSpeed, LEG_MIN_MS } from '@/utils/flyover';
+
+describe('every leg gets at least 3 s of drawing (owner 2026-10-26: playback "jumps" from stop to stop)', () => {
+  // London: 400–500 m legs then a 4.8 km leg — proportional time gave the short legs ~0.35 s each.
+  const stops = [0, 0.06, 0.12, 0.18, 0.33, 1];
+  it('a short leg is slowed so it lasts at least LEG_MIN_MS', () => {
+    expect(LEG_MIN_MS).toBe(3000);
+    const v = legSpeed(stops, 0, 6600, LEG_MIN_MS);
+    expect(0.06 / v).toBeCloseTo(3000, 0);
+  });
+  it('a long leg keeps its distance-based pace', () => {
+    const v = legSpeed(stops, 4, 6600, LEG_MIN_MS);
+    expect(v).toBeCloseTo(1 / 6600, 8);
+  });
+  it('no minimum (squeezed video): the old even pace', () => {
+    expect(legSpeed(stops, 0, 6600, 0)).toBeCloseTo(1 / 6600, 8);
+  });
+  it('the reducer draws a short leg at the slowed pace', () => {
+    const playing = { status: 'playing' as const, dayIndex: 0, progress: 0, hold: 0, stopIndex: 0 };
+    const s = flyoverReducer(playing, { type: 'tick', dt: 100, durations: [6600], stopFractions: [stops] });
+    expect(s.progress).toBeCloseTo(0.06 * 100 / 3000, 5);
+  });
+  it('the video keeps the minimum only when it plays like the playback', () => {
+    expect(filmTiming([6600], [6]).timing.legMinMs).toBe(LEG_MIN_MS);
+    expect(filmTiming(Array(8).fill(10000), Array(8).fill(4)).timing.legMinMs ?? 0).toBe(0);
   });
 });

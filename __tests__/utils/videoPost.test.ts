@@ -12,11 +12,12 @@ describe('clipDurationSec', () => {
 });
 
 describe('videoProblem', () => {
-  it('accepts a 30 s clip, allowing the picker a little rounding', () => {
-    expect(videoProblem({ durationSec: 30.4, bytes: 9_000_000 })).toBeNull();
+  it('accepts a full trip recap, up to 60 s (owner 2026-10-26), allowing the picker a little rounding', () => {
+    expect(videoProblem({ durationSec: 36, bytes: 12_000_000 })).toBeNull();
+    expect(videoProblem({ durationSec: 60.4, bytes: 19_000_000 })).toBeNull();
   });
   it('refuses a longer clip, an unknown length and an oversized file', () => {
-    expect(videoProblem({ durationSec: 31, bytes: 1 })).toBe('Clips can be up to 30 seconds. Trim it and try again.');
+    expect(videoProblem({ durationSec: 61, bytes: 1 })).toBe('Clips can be up to a minute. Trim it and try again.');
     expect(videoProblem({ durationSec: null, bytes: 1 })).toBe("That clip couldn't be read. Try another one.");
     expect(videoProblem({ durationSec: 20, bytes: MAX_VIDEO_BYTES + 1 })).toBe('That clip is too large to post. Try a shorter one.');
   });

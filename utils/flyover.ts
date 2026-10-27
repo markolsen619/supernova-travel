@@ -40,8 +40,30 @@ export type FlyoverTiming = {
   dwellMs: number;
   /** Per day, per stop: a pause that overrides `dwellMs` (the trip video rests longer on stops with a photo). */
   dwells?: number[][];
+  /** The shortest time a leg between two stops is drawn (0: by distance only — the squeezed video). */
+  legMinMs?: number;
 };
-export const DEFAULT_TIMING: FlyoverTiming = { introMs: DAY_INTRO_MS, dwellMs: STOP_DWELL_MS };
+
+/**
+ * Every leg between two stops is drawn for at least this long (owner, 2026-10-26): by distance alone, London's
+ * 400 m legs got ~0.35 s each beside a 4.8 km one, and the playback seemed to jump from stop to stop.
+ */
+export const LEG_MIN_MS = 3000;
+export const DEFAULT_TIMING: FlyoverTiming = { introMs: DAY_INTRO_MS, dwellMs: STOP_DWELL_MS, legMinMs: LEG_MIN_MS };
+
+/**
+ * Drawing speed (path fraction per ms) on the leg after stop `stopIndex`: the day's pace, slowed on a short leg so
+ * it lasts at least `legMinMs`. After the last stop (or with no stops), the day's pace.
+ */
+export function legSpeed(stopFractions: number[], stopIndex: number, durationMs: number, legMinMs: number): number {
+  const base = durationMs > 0 ? 1 / durationMs : 0;
+  const from = stopFractions[stopIndex] ?? 0;
+  const to = stopFractions[stopIndex + 1];
+  if (to === undefined || legMinMs <= 0 || durationMs <= 0) return base;
+  const frac = to - from;
+  if (frac <= 0) return base;
+  return frac / Math.max(frac * durationMs, legMinMs);
+}
 
 export const initialFlyover: FlyoverState = { status: 'idle', dayIndex: 0, progress: 0, hold: 0, stopIndex: -1 };
 
@@ -89,7 +111,8 @@ export function flyoverReducer(state: FlyoverState, action: FlyoverAction): Flyo
         if (hold > 0 || dt <= 0) return { ...state, hold };
       }
       if (state.progress >= 1) return nextDay(state, action.durations, timing);
-      const progress = Math.min(1, state.progress + dt / duration);
+      const speed = legSpeed(action.stopFractions[state.dayIndex] ?? [], state.stopIndex, duration, timing.legMinMs ?? 0);
+      const progress = Math.min(1, state.progress + dt * speed);
       // The next stop on the line: stop the head there and dwell. One stop per
       // tick, so two stops at the same spot each get their own pause.
       const next = state.stopIndex + 1;
@@ -141,6 +164,8 @@ export function filmTiming(durations: number[], stopCounts: number[], photoStops
   const routedDays = durations.filter((d) => d > 0).length;
   const wanted = durations.reduce((a, d) => a + (d > 0 ? d : 0), 0);
   const everyStop = Math.max(0, ...stopCounts);
+  // Upper bound on what the 3 s leg minimum adds on top of the day's pace (only the playback-like plan has it).
+  const legReserve = durations.reduce((a, d, i) => a + (d > 0 ? Math.max(0, (stopCounts[i] ?? 0) - 1) * LEG_MIN_MS : 0), 0);
   const plan = (perDay: number, introMs: number, stopMs: number, photoMs: number) => {
     const dwells = stopCounts.map((n, i) => {
       if (!flown[i]) return Array(n).fill(0);
@@ -149,14 +174,14 @@ export function filmTiming(durations: number[], stopCounts: number[], photoStops
       return Array.from({ length: n }, (_, s) => (!featured.has(s) ? 0 : photos.includes(s) ? photoMs : stopMs));
     });
     const fixed = days * introMs + dwells.flat().reduce((a, b) => a + b, 0);
-    return { dwells, fixed, introMs, stopMs };
+    return { dwells, fixed, introMs, stopMs, legMin: false };
   };
   // A playback-like plan fits only when the route keeps at least `drawShare` of its normal speed.
   const fitsDrawing = (drawShare: number) => (p: { fixed: number }) => p.fixed + wanted * drawShare <= FILM_BUDGET_MS;
   // The quick plans fit when the openings and pauses leave every routed day at least FILM_MIN_DAY_MS to draw.
   const fitsQuick = (p: { fixed: number }) => p.fixed + routedDays * FILM_MIN_DAY_MS <= FILM_BUDGET_MS;
   const steps: [() => ReturnType<typeof plan>, (p: { fixed: number }) => boolean][] = [
-    [() => plan(everyStop, DAY_INTRO_MS, STOP_DWELL_MS, FILM_PHOTO_HOLD_MS), fitsDrawing(1)],
+    [() => ({ ...plan(everyStop, DAY_INTRO_MS, STOP_DWELL_MS, FILM_PHOTO_HOLD_MS), legMin: true }), (p) => fitsDrawing(1)({ fixed: p.fixed + legReserve })],
     [() => plan(everyStop, 3000, 2000, 3000), fitsDrawing(0.6)],
     [() => plan(FILM_STOPS_PER_DAY, 3000, 2000, 3000), fitsDrawing(0.6)],
     [() => plan(everyStop, 1200, FILM_STOP_DWELL_MS, FILM_PHOTO_DWELL_MS), fitsQuick],
@@ -178,8 +203,8 @@ export function filmTiming(durations: number[], stopCounts: number[], photoStops
     const photoMs = bare.fixed - days * 600;
     chosen = plan(1, Math.max(1, Math.floor((FILM_BUDGET_MS / 2 - photoMs) / Math.max(1, days))), 0, 1000);
   }
-  const { dwells, fixed, introMs, stopMs } = chosen;
-  const timing: FlyoverTiming = { introMs, dwellMs: stopMs, dwells };
+  const { dwells, fixed, introMs, stopMs, legMin } = chosen;
+  const timing: FlyoverTiming = { introMs, dwellMs: stopMs, dwells, legMinMs: legMin ? LEG_MIN_MS : 0 };
   const drawBudget = Math.max(0, FILM_BUDGET_MS - fixed);
   const scale = wanted > 0 ? Math.min(1, drawBudget / wanted) : 0;
   let out = durations.map((d) => (d > 0 ? Math.max(FILM_MIN_DAY_MS, Math.round(d * scale)) : 0));

@@ -5,9 +5,10 @@
 import { optimizeDay, routeKm, type PlaceStop } from '@/utils/routePlacement';
 import { destinationAt } from '@/utils/groundingContext';
 import { haversineMeters } from '@/utils/tripRoutes';
-import type { TripActivity, TripWithDays } from '@/types';
+import type { TripActivity, TripStatus, TripWithDays } from '@/types';
 import type { TripBooking } from '@/utils/bookingDays';
 import type { AgentOp } from '@/types/agent';
+import { displayStatus } from '@/utils/tripStatus';
 
 export type Finding =
   | { kind: 'zigzag'; dayId: string; dayNumber: number; savedKm: number }
@@ -115,3 +116,9 @@ export function checkBookings(list: TripBooking[]): CheckBooking[] {
   }
   return out;
 }
+
+/** The free trip check fixes plans; a trip that has ended has nothing to fix (spec 2026-10-25-past-trips-from-photos). */
+export function shouldRunTripCheck(trip: { status: TripStatus; startDate: Date | null; endDate: Date | null }, now: Date): boolean {
+  return displayStatus(trip, now) !== 'completed';
+}
+

@@ -1,6 +1,7 @@
 /** Video posts' rules (docs/superpowers/specs/2026-10-10-video-posts-design.md). */
 
-export const MAX_VIDEO_SECONDS = 30;
+/** Up to a minute since 2026-10-26 (owner): a full trip recap video posts without trimming. */
+export const MAX_VIDEO_SECONDS = 60;
 /** The picker rounds; a "30 s" trim can come back as 30.2. */
 const DURATION_SLACK_SEC = 0.5;
 export const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
@@ -18,7 +19,7 @@ export function clipDurationSec(pickerMs: number | null | undefined, metaSec: nu
 
 export function videoProblem(p: { durationSec: number | null; bytes: number | null }): string | null {
   if (p.durationSec == null) return "That clip couldn't be read. Try another one.";
-  if (p.durationSec > MAX_VIDEO_SECONDS + DURATION_SLACK_SEC) return 'Clips can be up to 30 seconds. Trim it and try again.';
+  if (p.durationSec > MAX_VIDEO_SECONDS + DURATION_SLACK_SEC) return 'Clips can be up to a minute. Trim it and try again.';
   if (p.bytes != null && p.bytes > MAX_VIDEO_BYTES) return 'That clip is too large to post. Try a shorter one.';
   return null;
 }

@@ -148,13 +148,13 @@ async function removeOwnContent(db: Db, uid: string): Promise<void> {
   const comments = await db.collectionGroup('comments').where('authorUid', '==', uid).get();
   await deleteDocs(db, comments.docs.map((d) => d.ref));
 
-  await recursiveDeleteAll(db, [...posts.docs, ...trips.docs].map((d) => d.ref));
+  // usage_quotas/{uid} recursively: pastTripStories/ (pastTripStoryFunctions.ts) lives under it.
+  await recursiveDeleteAll(db, [...posts.docs, ...trips.docs].map((d) => d.ref).concat(db.doc(`usage_quotas/${uid}`)));
   await deleteDocs(db, [
     ...usernames.docs.map((d) => d.ref),
     ...requestsSent.docs.map((d) => d.ref),
     ...requestsReceived.docs.map((d) => d.ref),
     ...owned.flatMap((snap) => snap.docs.map((d) => d.ref)),
-    db.doc(`usage_quotas/${uid}`),
     // Android welcome gift record (androidGiftFunctions.ts); the place it used stays counted.
     db.doc(`androidGifts/${uid}`),
   ]);

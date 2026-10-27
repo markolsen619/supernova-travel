@@ -6,6 +6,7 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +48,10 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Trip, TripStatus } from '@/types';
 import { displayStatus, toDateOrNull } from '@/utils/tripStatus';
+import { beenThereSummary } from '@/utils/beenThere';
+import { pastTripsSupported } from '@/utils/pastTrip';
+
+const canAddPast = pastTripsSupported(Platform.OS);
 
 type ProfileTab = 'Trips' | 'Posts' | 'Saved';
 type TripFilter = 'Upcoming' | 'Current' | 'Past';
@@ -60,7 +65,9 @@ const TRIP_STATUS_MAP: Record<TripFilter, TripStatus> = {
 const EMPTY_COPY: Record<TripFilter, { title: string; description: string }> = {
   Upcoming: { title: 'No upcoming trips', description: 'Plan your next adventure.' },
   Current: { title: 'No active trips', description: "Trips you're on now will show up here." },
-  Past: { title: 'No completed trips yet', description: 'Your travel history will appear here.' },
+  Past: pastTripsSupported(Platform.OS)
+    ? { title: "Add a trip you've taken", description: 'Turn your photos into a trip' }
+    : { title: 'No completed trips yet', description: 'Your travel history will appear here.' },
 };
 
 interface PostDoc {
@@ -356,6 +363,15 @@ function ProfileScreenContent() {
           ))}
         </View>
       )}
+      {/* Past: how many trips and countries, and a way to add one from photos (past trips, 2026-10-25). */}
+      {activeTab === 'Trips' && tripFilter === 'Past' && filteredTrips.length > 0 && canAddPast && (
+        <View style={styles.beenThereRow}>
+          <Text style={[styles.beenThereText, { color: colors.text.tertiary }]}>{beenThereSummary(filteredTrips).toUpperCase()}</Text>
+          <TouchableOpacity onPress={() => router.push('/trip/past')} style={styles.beenThereAdd} accessibilityRole="button" accessibilityLabel="Add a trip you've taken">
+            <Text style={[styles.beenThereAddText, { color: colors.brand.purple }]}>Add a trip</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 
@@ -390,8 +406,8 @@ function ProfileScreenContent() {
               icon={MapTrifold}
               title={EMPTY_COPY[tripFilter].title}
               description={EMPTY_COPY[tripFilter].description}
-              actionLabel="Create a trip"
-              onAction={() => router.push('/trip/new')}
+              actionLabel={tripFilter === 'Past' && canAddPast ? 'Add a trip' : 'Create a trip'}
+              onAction={() => router.push(tripFilter === 'Past' && canAddPast ? '/trip/past' : '/trip/new')}
               actionHaptic="light"
             />
           }
@@ -535,6 +551,10 @@ function ProfileScreenContent() {
 }
 
 const styles = StyleSheet.create({
+  beenThereRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing['1'], paddingBottom: Spacing['2'] },
+  beenThereText: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9 },
+  beenThereAdd: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing['2'] },
+  beenThereAddText: { fontSize: 13, fontWeight: '500' },
   // Gutter between trip cards when the list has more than one column (iPad).
   cardCell: {
     flex: 1,

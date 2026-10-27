@@ -2,7 +2,7 @@
   "expo": {
     "name": "Supernova",
     "slug": "supernova-travel",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/SupernovaStar.png",
     "scheme": "supernova",
@@ -65,7 +65,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "android.permission.ACCESS_MEDIA_LOCATION"
       ],
       "googleServicesFile": "./google-services.json",
       "blockedPermissions": [

@@ -71,3 +71,17 @@ describe('tripCheck clash', () => {
     expect(f[0]).toMatchObject({ kind: 'clash', stopTitle: 'Kayaking', booking: 'Alaska AS 512' });
   });
 });
+
+import { shouldRunTripCheck } from '@/utils/tripCheck';
+
+describe('shouldRunTripCheck (past trips, 2026-10-25)', () => {
+  const now = new Date(2026, 9, 25, 12);
+  it('runs on upcoming, current and undated trips', () => {
+    expect(shouldRunTripCheck({ status: 'planning', startDate: new Date(2026, 10, 1), endDate: new Date(2026, 10, 5) }, now)).toBe(true);
+    expect(shouldRunTripCheck({ status: 'planning', startDate: new Date(2026, 9, 24), endDate: new Date(2026, 9, 27) }, now)).toBe(true);
+    expect(shouldRunTripCheck({ status: 'planning', startDate: null, endDate: null }, now)).toBe(true);
+  });
+  it('skips a trip that has ended (nothing to fix in the past)', () => {
+    expect(shouldRunTripCheck({ status: 'planning', startDate: new Date(2025, 4, 3), endDate: new Date(2025, 4, 7) }, now)).toBe(false);
+  });
+});

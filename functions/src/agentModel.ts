@@ -42,6 +42,13 @@ type GenerateArgs = {
 
 /** One call, retried once when the answer can't be read (~1 in 33 in the 2026-10-17 eval); HTTP errors aren't retried. */
 export async function generate(a: GenerateArgs): Promise<ModelResult> {
+  return generateJson({ ...a, parse: parseModelText });
+}
+
+type JsonResult<T> = { json: T; inputTokens: number; outputTokens: number; latencyMs: number };
+
+/** Like `generate`, with the caller's own parser (pastTripStory's answer has no `reply`). Retried once when unreadable. */
+export async function generateJson<T>(a: GenerateArgs & { parse: (text: unknown) => T | null }): Promise<JsonResult<T>> {
   try {
     return await generateOnce(a);
   } catch (e) {
@@ -50,7 +57,7 @@ export async function generate(a: GenerateArgs): Promise<ModelResult> {
   }
 }
 
-async function generateOnce(a: GenerateArgs): Promise<ModelResult> {
+async function generateOnce<T>(a: GenerateArgs & { parse: (text: unknown) => T | null }): Promise<JsonResult<T>> {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), a.timeoutMs ?? 30_000);
@@ -69,7 +76,7 @@ async function generateOnce(a: GenerateArgs): Promise<ModelResult> {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
       usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
     };
-    const json = parseModelText(body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join(''));
+    const json = a.parse(body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join(''));
     if (!json) throw new Error('gemini: unreadable response');
     return {
       json,

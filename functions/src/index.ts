@@ -39,3 +39,4 @@ export {
   onBlockCreatedFriends, refreshFriendsTraveling,
 } from './friendsTravelingFunctions';
 export { agent, getAgentQuota, onTripDeletedAgentThreads } from './agentFunctions';
+export { pastTripStory } from './pastTripStoryFunctions';
