@@ -65,8 +65,8 @@ app/
 │   ├── complete-profile.tsx       # Gate: authenticated but no users/{uid} doc
 │   └── onboarding.tsx             # 6-slide showcase after sign-up (useOnboardingShowcase); sets users/{uid}.hasSeenOnboarding
 ├── (tabs)/
-│   ├── _layout.tsx                # Tab bar: Feed, Explore, Create, Search, Profile
-│   ├── index.tsx                  # Feed
+│   ├── _layout.tsx                # Tab bar: Home, Explore, Create, Search (globe), Profile
+│   ├── index.tsx                  # Home landing page (header, Today card, coming up, Get inspired)
 │   ├── explore.tsx
 │   ├── create.tsx
 │   ├── search.tsx
@@ -99,6 +99,8 @@ app/
 `_layout.tsx` also mounts `useNotificationRouting()`, which sends a tapped notification to its screen. That listener must wait for the auth listener above: the `router.replace('/(tabs)')` on sign-in discards any navigation made before it, so a cold-start tap is **held** until the root navigator is mounted and auth has settled.
 
 Path alias `@/` maps to the project root (see `tsconfig.json`).
+
+**Home landing page** (spec `docs/superpowers/specs/2026-10-29-home-landing-design.md`): the Home tab (`app/(tabs)/index.tsx`) is a landing page — `components/home/HomeHeader` (splash star + wordmark, Wallet, Inbox with one badge from `useInboxBadge` / `utils/inboxBadge.ts`, opening `/notifications?tab=messages` when a conversation is unread), a greeting (`utils/greeting.ts`: bands 5–11/12–16/17–21/22–4, daily-stable variants, the trip city's language about one day in three), then by state (`utils/homeState.ts` `homeTrips`): Today card (`utils/todayCard.ts`: day N of M, city by `destinationIndex`, ≤ 4 stops with the next unvisited, "Nothing planned today · Add a stop", today's booking via `bookingsByDay`), the next trip with a countdown, Coming up (undated last, `homeEyebrow`), Get inspired when ≤ 1 trip ahead, Plan card when none. The feed moved to `app/feed.tsx` (pushed; `?start={postId}`, `feedStartIndex`), opened from Explore's **From travelers** row (`components/explore/FromTravelersRow`, 10 newest moderation-filtered posts); posting is that row's Share link and the Create tab's "Share a photo or video". No server changes.
 
 **Onboarding showcase** (2026-10-11; `hooks/useOnboardingShowcase.ts`, rules in `utils/onboardingShowcase.ts`): Discover (Supernova's **editorial** trips — never real users' trips, which showed dates, "Upcoming" and someone's actual plans), AI itinerary (Day 1 of an editorial trip, stops written in one by one), trip flyover (`assets/onboarding/flyover.mp4`: an iPhone screen recording of the Lisbon editorial trip, status bar cropped, 600×1208 HEVC ~1.3 Mbps, 3.3 MB — re-record from a real phone, the simulator can't draw it smoothly), wallet, community (`pickCommunityFaces`: a random 6 from the most-followed + newest 30 each, photo required; never private, editorial, moderation-hidden, the App Review demo account or yourself), Pro. Then, when anyone is eligible, a 7th step **Travelers to follow** (`OnboardingFollowSlide`, `rankSuggestions`: same rules + not blocked/followed, recent posters first, up to 6; "See plans" stays on the Pro slide).
 
