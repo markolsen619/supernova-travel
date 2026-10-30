@@ -7,12 +7,11 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
-import { useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
-import { useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, Heart, AirplaneTilt } from 'phosphor-react-native';
+import { Plus, CaretLeft, AirplaneTilt } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { FeedCard } from '@/components/feed/FeedCard';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -23,7 +22,6 @@ import { useModeration } from '@/hooks/useModeration';
 import { useContentActions } from '@/components/moderation/useContentActions';
 import { contentKey, filterVisible } from '@/utils/moderation';
 import { useTheme } from '@/hooks/useTheme';
-import { useHasUnreadActivity } from '@/hooks/useUnreadActivity';
 import { useLayout } from '@/hooks/useLayout';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { useDimensionChange } from '@/hooks/useDimensionChange';
@@ -32,12 +30,11 @@ import { FeedTripCard } from '@/components/feed/FeedTripCard';
 import { TravelerSuggestionsPage } from '@/components/feed/TravelerSuggestionsPage';
 import { useFeedTrips } from '@/hooks/useFeedTrips';
 import { useTravelerSuggestions } from '@/hooks/useTravelerSuggestions';
-import { mixFeed, type FeedItem } from '@/utils/feedMix';
+import { feedItemKey, feedStartIndex, mixFeed, type FeedItem } from '@/utils/feedMix';
 import { shouldSuggest } from '@/utils/travelerSuggestions';
 import { Spacing } from '@/constants/spacing';
 import { useIsOnline } from '@/services/offline';
 import { OfflineEmptyState } from '@/components/ui/OfflineEmptyState';
-const feedItemKey = (item: FeedItem<Post>) => (item.kind === 'post' ? `post:${item.post.id}` : item.kind === 'trip' ? `trip:${item.trip.id}` : 'suggestions');
 
 export default function FeedScreen() {
   const online = useIsOnline();
@@ -55,23 +52,6 @@ export default function FeedScreen() {
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useFeed('forYou');
 
-  // Tapping Feed while already on it: back to the top, with the newest posts.
-  // resetQueries drops the loaded pages so the first page is fetched fresh
-  // (a plain refetch would re-run every page the list has scrolled through).
-  const navigation = useNavigation();
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    return navigation.addListener('tabPress' as never, () => {
-      if (!navigation.isFocused()) return;
-      listRef.current?.scrollToOffset({ offset: 0, animated: true });
-      setActiveIndex(0);
-      setActiveKey(null);
-      queryClient.resetQueries({ queryKey: ['feed'] });
-      // A tap on Feed is the "next feed load" the suggestions page waits for (spec 2026-10-24).
-      queryClient.invalidateQueries({ queryKey: ['travelerSuggestions'] });
-    });
-  }, [navigation, queryClient]);
-  const { data: hasUnread = false } = useHasUnreadActivity();
 
   const moderation = useModeration();
   const { openActions, reportSheet } = useContentActions();
@@ -98,6 +78,16 @@ export default function FeedScreen() {
     () => mixFeed(posts, feedTrips, { postsExhausted: !hasNextPage, showSuggestions: !suggestionsLoading && shouldSuggest(followingCount, suggestions.length) }),
     [posts, feedTrips, hasNextPage, followingCount, suggestions.length, suggestionsLoading],
   );
+
+  // Opened from Explore at a post (spec 2026-10-29): scroll there once, or stay at the top when it isn't loaded.
+  const { start } = useLocalSearchParams<{ start?: string }>();
+  const startedAt = useRef(false);
+  useEffect(() => {
+    if (startedAt.current || isLoading || items.length === 0) return;
+    startedAt.current = true;
+    const index = feedStartIndex(items, start);
+    if (index > 0) requestAnimationFrame(() => listRef.current?.scrollToIndex({ index, animated: false }));
+  }, [isLoading, items, start]);
 
   const authorUids = useMemo(
     () => [...posts.map((p) => p.authorUid), ...feedTrips.filter((t) => !t.isEditorial).map((t) => t.authorUid)],
@@ -175,9 +165,9 @@ export default function FeedScreen() {
     router.push('/add-to-feed');
   }, [router]);
 
-  const handleNotificationsPress = useCallback(() => {
+  const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/notifications');
+    router.back();
   }, [router]);
 
   // Offline (spec 2026-10-19 §3): nothing saved for this screen, so say so instead of spinning.
@@ -209,12 +199,12 @@ export default function FeedScreen() {
 
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={handleAddPress}
+          onPress={handleBack}
           activeOpacity={0.7}
           hitSlop={6}
-          accessibilityLabel="Share a moment"
+          accessibilityLabel="Back"
         >
-          <Plus size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
+          <CaretLeft size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
@@ -227,15 +217,12 @@ export default function FeedScreen() {
 
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={handleNotificationsPress}
+          onPress={handleAddPress}
           activeOpacity={0.7}
           hitSlop={6}
-          accessibilityLabel="Notifications"
+          accessibilityLabel="Share a photo or video"
         >
-          <View>
-            <Heart size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
-            {hasUnread && <View style={styles.unreadBadge} />}
-          </View>
+          <Plus size={24} color={hasContent ? '#fff' : colors.text.primary} weight="bold" />
         </TouchableOpacity>
       </View>
 
@@ -345,16 +332,5 @@ const styles = StyleSheet.create({
   footerLoader: {
     padding: Spacing['5'],
     alignItems: 'center',
-  },
-  unreadBadge: {
-    position: 'absolute',
-    top: -1,
-    right: -1,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: '#f472b6',
-    borderWidth: 1.5,
-    borderColor: 'rgba(0,0,0,0.3)',
   },
 });

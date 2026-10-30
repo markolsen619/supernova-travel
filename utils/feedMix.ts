@@ -60,3 +60,14 @@ export function tripTitle(trip: FeedTrip): string {
   if (trip.title.trim()) return trip.title.trim();
   return trip.destinationName.trim() ? `Trip to ${trip.destinationName.trim()}` : 'A trip';
 }
+
+/** A feed page's stable key (shared by the feed screen and Explore's links). */
+export const feedItemKey = (item: FeedItem<{ id: string }>): string =>
+  item.kind === 'post' ? `post:${item.post.id}` : item.kind === 'trip' ? `trip:${item.trip.id}` : 'suggestions';
+
+/** Where the feed opens from Explore: the tapped post, or the top when it isn't loaded (deleted, hidden, older). */
+export function feedStartIndex(items: FeedItem<{ id: string }>[], postId: string | null | undefined): number {
+  if (!postId) return 0;
+  const i = items.findIndex((it) => it.kind === 'post' && it.post.id === postId);
+  return i < 0 ? 0 : i;
+}

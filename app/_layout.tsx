@@ -84,6 +84,7 @@ function AppStack() {
         <Stack.Screen name="trip/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/past" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="feed" />
         <Stack.Screen name="trip/ai-generate" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/budget" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/packing" options={{ presentation: 'modal' }} />
