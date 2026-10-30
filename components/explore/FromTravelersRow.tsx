@@ -4,7 +4,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Play } from 'phosphor-react-native';
+import { Camera, Play } from 'phosphor-react-native';
+import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useFeed } from '@/hooks/useFeed';
 import { useModeration } from '@/hooks/useModeration';
@@ -25,15 +26,12 @@ export const FromTravelersRow = memo(function FromTravelersRow() {
   }))), [data, moderation]);
   const open = useCallback((id: string) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/feed?start=${encodeURIComponent(id)}` as never); }, []);
   const share = useCallback(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/add-to-feed'); }, []);
-  if (posts.length === 0) return null;
   return (
     <View style={styles.section}>
       <View style={styles.head}>
-        <Text style={[styles.title, { color: colors.text.primary }]}>From travelers</Text>
-        <Pressable onPress={share} hitSlop={10} style={styles.link} accessibilityRole="button" accessibilityLabel="Share a photo or video">
-          <Text style={[styles.linkText, { color: colors.brand.purple }]}>Share</Text>
-        </Pressable>
+        <Text style={[styles.title, { color: colors.text.primary }]}>{posts.length ? 'From travelers' : 'Share your trip'}</Text>
       </View>
+      {posts.length > 0 && (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         {posts.map((p) => (
           <Pressable key={p.id} onPress={() => open(p.id)} accessibilityRole="button" accessibilityLabel={`${p.mediaType === 'video' ? 'Video' : 'Photo'} by ${postTileLabel(p)}`}>
@@ -43,16 +41,20 @@ export const FromTravelersRow = memo(function FromTravelersRow() {
           </Pressable>
         ))}
       </ScrollView>
+      )}
+      {/* A real button, not a link (owner, 2026-10-30): sharing is how this row fills up. */}
+      <View style={styles.shareWrap}>
+        <Button label="Share a photo or video" icon={Camera} variant="secondary" onPress={share} fullWidth haptic="none" />
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  section: { gap: Spacing['2'], marginTop: Spacing['4'] },
+  section: { gap: Spacing['3'], marginTop: Spacing['4'], marginBottom: Spacing['6'] },
+  shareWrap: { paddingHorizontal: Spacing['5'] },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing['5'] },
   title: { fontSize: FontSize.md, fontWeight: FontWeight.semiBold },
-  link: { minHeight: 44, justifyContent: 'center' },
-  linkText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   row: { gap: Spacing['2'], paddingHorizontal: Spacing['5'] },
   tile: { width: 112, height: 168, borderRadius: 14 },
   play: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
