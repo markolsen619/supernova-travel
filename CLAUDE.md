@@ -88,6 +88,7 @@ app/
 │   ├── ai-generate.tsx            # AI generation form (modal)
 │   └── ai-generating.tsx          # Generation loading screen → routes to trip/[id]
 ├── destination/[slug].tsx         # Destination page (full-screen push): picks, travelers' trips, places to go, plan with AI
+├── feed.tsx                       # Full-screen feed (pushed from Explore's From travelers; ?start={postId})
 ├── post/[id].tsx                  # Post detail (modal)
 ├── user/[uid].tsx                 # Public profile (full-screen push)
 ├── settings.tsx                   # Theme toggle, account, sign out (modal)
