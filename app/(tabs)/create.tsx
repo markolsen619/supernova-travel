@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CalendarPlus, Sparkle, Compass, Images } from 'phosphor-react-native';
+import { CalendarPlus, Sparkle, Compass, Images, Camera } from 'phosphor-react-native';
 import { pastTripsSupported } from '@/utils/pastTrip';
 import type { PhosphorIcon } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -52,6 +52,13 @@ export default function CreateScreen() {
       description: 'Turn your photos into a trip',
       onPress: () => router.push('/trip/past'),
     }] : []),
+    {
+      Icon: Camera,
+      iconColor: colors.accent.teal,
+      title: 'Share a photo or video',
+      description: 'Post a moment to Explore',
+      onPress: () => router.push('/add-to-feed'),
+    },
     {
       Icon: Compass,
       iconColor: colors.accent.amber,
