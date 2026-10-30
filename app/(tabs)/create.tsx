@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
-import { Platform, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Platform, ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CalendarPlus, Sparkle, Compass, Images, Camera } from 'phosphor-react-native';
+import { CalendarPlus, Sparkle, Compass, Images, Camera, CaretRight } from 'phosphor-react-native';
 import { pastTripsSupported } from '@/utils/pastTrip';
 import type { PhosphorIcon } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -40,7 +40,7 @@ export default function CreateScreen() {
     {
       Icon: CalendarPlus,
       iconColor: colors.brand.blue,
-      title: 'Manual trip',
+      title: 'Plan it yourself',
       description: 'Build your own itinerary day by day',
       onPress: () => router.push('/trip/new'),
     },
@@ -80,7 +80,7 @@ export default function CreateScreen() {
         <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Plan it with AI or build it yourself</Text>
       </View>
 
-      <View style={styles.cardsWrapper}>
+      <ScrollView contentContainerStyle={styles.cardsWrapper} showsVerticalScrollIndicator={false}>
         {/* ── Hero: AI Generate ── */}
         <TouchableOpacity
           onPress={() => handleOptionPress(() => router.push('/trip/ai-generate'))}
@@ -103,25 +103,27 @@ export default function CreateScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* ── Secondary options ── */}
-        <View style={styles.secondaryRow}>
-          {secondaryOptions.map((opt) => (
-            <TouchableOpacity
-              key={opt.title}
-              style={[styles.optionCard, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
-              onPress={() => handleOptionPress(opt.onPress)}
-              activeOpacity={0.75}
-              accessibilityLabel={opt.title}
-            >
-              <View style={[styles.optionIconBubble, { backgroundColor: `${opt.iconColor}1A` }]}>
-                <opt.Icon size={22} color={opt.iconColor} weight="duotone" />
-              </View>
+        {/* ── The other ways in: full width like the hero, stacked (owner, 2026-10-30) ── */}
+        {secondaryOptions.map((opt) => (
+          <TouchableOpacity
+            key={opt.title}
+            style={[styles.optionCard, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
+            onPress={() => handleOptionPress(opt.onPress)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`${opt.title}. ${opt.description}`}
+          >
+            <View style={[styles.optionIconBubble, { backgroundColor: `${opt.iconColor}1A` }]}>
+              <opt.Icon size={24} color={opt.iconColor} weight="duotone" />
+            </View>
+            <View style={styles.optionText}>
               <Text style={[styles.optionTitle, { color: colors.text.primary }]}>{opt.title}</Text>
               <Text style={[styles.optionDesc, { color: colors.text.secondary }]}>{opt.description}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+            </View>
+            <CaretRight size={18} color={colors.text.tertiary} weight="bold" />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
     </View>
     </ScreenEntrance>
   );
@@ -151,11 +153,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.02 * FontSize['2xl'],
   },
   cardsWrapper: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing['6'],
+    paddingTop: Spacing['4'],
     paddingBottom: 120,
-    gap: Spacing['4'],
+    gap: Spacing['3'],
   },
 
   // ── Hero card ──
@@ -183,32 +186,34 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
   },
 
-  // ── Secondary options ──
-  secondaryRow: {
-    flexDirection: 'row',
-    gap: Spacing['3'],
-  },
+  // ── The other options: full width, stacked ──
   optionCard: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['4'],
     borderRadius: BorderRadius.xl,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing['4'],
+    paddingHorizontal: Spacing['5'],
+    paddingVertical: Spacing['4'],
+    minHeight: 76,
   },
   optionIconBubble: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing['3'],
+  },
+  optionText: {
+    flex: 1,
+    gap: 2,
   },
   optionTitle: {
-    fontSize: FontSize.base,
+    fontSize: FontSize.md,
     fontWeight: FontWeight.semiBold,
-    marginBottom: 2,
   },
   optionDesc: {
-    fontSize: FontSize.xs,
-    lineHeight: FontSize.xs * 1.4,
+    fontSize: FontSize.sm,
+    lineHeight: FontSize.sm * 1.4,
   },
 });
