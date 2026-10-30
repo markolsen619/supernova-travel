@@ -43,3 +43,14 @@ it('firstName', () => {
   expect(firstName('  ')).toBeNull();
   expect(firstName(null)).toBeNull();
 });
+
+import { msUntilNextChange } from '@/utils/greeting';
+
+describe('msUntilNextChange (final review: Home must not stay on yesterday)', () => {
+  it('to the next band edge or midnight, whichever is first', () => {
+    expect(msUntilNextChange(new Date(2026, 9, 29, 22, 30))).toBe(90 * 60_000);       // → midnight
+    expect(msUntilNextChange(new Date(2026, 9, 29, 4, 59))).toBe(60_000);             // → 05:00 morning
+    expect(msUntilNextChange(new Date(2026, 9, 29, 11, 0, 30))).toBe(59.5 * 60_000);    // → 12:00 afternoon
+    expect(msUntilNextChange(new Date(2026, 9, 29, 17, 0))).toBe(5 * 3_600_000);       // → 22:00 night
+  });
+});

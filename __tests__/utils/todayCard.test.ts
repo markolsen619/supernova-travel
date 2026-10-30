@@ -30,9 +30,10 @@ describe('todayInfo', () => {
     const t = todayInfo(europe, '2026-11-19')!;
     expect([t.dayNumber, t.city, t.nothingPlanned, t.stops]).toEqual([2, 'Prague', true, []]);
   });
-  it('a date with no day document (deleted day): nothing planned, the trip city', () => {
+  it('a date with no day document (deleted day): nothing planned, the city the route puts that day in', () => {
     const t = todayInfo(europe, '2026-11-20')!;
-    expect([t.dayNumber, t.dayId, t.city, t.nothingPlanned]).toEqual([3, null, 'Prague', true]);
+    // days per city [Prague 1–2, Budapest 3, Vienna 4–5] from the day documents (utils/tripRoute)
+    expect([t.dayNumber, t.dayId, t.city, t.nothingPlanned]).toEqual([3, null, 'Budapest', true]);
   });
   it('more than 4 stops: a window of 4 around the next one', () => {
     const many = { ...europe, days: [{ id: 'x', dayNumber: 1, destinationIndex: 0, activities: [0, 1, 2, 3, 4, 5, 6].map((i) => act(`s${i}`, i, i < 5)) }] };
@@ -62,5 +63,25 @@ describe('todaysBooking', () => {
   it('else the stay, else null', () => {
     expect(todaysBooking([hotel] as never, '2026-10-29')?.role).toBe('staying');
     expect(todaysBooking([] as never, '2026-10-29')).toBeNull();
+  });
+});
+
+describe("today's city follows the route's nights (final review)", () => {
+  it('an AI trip (days without destinationIndex, no saved nights): the dates split evenly — day 6 of 7 is Porto', () => {
+    const ai = {
+      destination: { name: 'Lisbon' }, additionalDestinations: [{ name: 'Porto' }],
+      startDay: '2026-11-01', startDate: ts('2026-11-01'), endDate: ts('2026-11-07'),
+      days: Array.from({ length: 7 }, (_, i) => ({ id: `d${i + 1}`, dayNumber: i + 1, destinationIndex: null, activities: [] })),
+    };
+    expect(todayInfo(ai, '2026-11-06')!.city).toBe('Porto');
+    expect(todayInfo(ai, '2026-11-02')!.city).toBe('Lisbon');
+  });
+  it('saved nights win', () => {
+    const t = { ...europe, destination: { name: 'Prague', nights: 1 }, additionalDestinations: [{ name: 'Budapest', nights: 1 }, { name: 'Vienna', nights: 5 }] };
+    expect(todayInfo(t, '2026-11-20')!.city).toBe('Vienna');
+  });
+  it('past the last day document: the last city of the route', () => {
+    const short = { ...europe, days: europe.days.slice(0, 2) };
+    expect(todayInfo(short, '2026-11-25')!.city).toBe('Vienna');
   });
 });

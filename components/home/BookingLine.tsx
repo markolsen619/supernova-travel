@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import type { DayBooking } from '@/utils/bookingDays';
+import { bookingRoute } from '@/utils/sharedBookings';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 
@@ -12,8 +13,8 @@ export const BookingLine = memo(function BookingLine({ booking, lines }: { booki
   const { colors } = useTheme();
   const open = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const id = booking.booking.item.id;
-    router.push(booking.booking.kind === 'boarding_pass' ? `/(wallet)/boarding-pass/${id}` : `/(wallet)/reservation/${id}`);
+    // A trip-mate's shared booking opens the read-only shared view (their wallet doc is owner-only).
+    router.push(bookingRoute(booking.booking) as never);
   }, [booking]);
   return (
     <Pressable onPress={open} style={[styles.row, { backgroundColor: colors.background.sunken }]} accessibilityRole="button" accessibilityLabel={`${lines.title}. Open in your wallet`}>

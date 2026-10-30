@@ -52,3 +52,12 @@ export function greeting(o: { name: string | null; now: Date; countryCode?: stri
   const options = EN[b];
   return options[hash(`${day}:${b}`) % options.length].replace('{n}', o.name);
 }
+
+const EDGES = [0, 5, 12, 17, 22, 24];
+
+/** Milliseconds until the greeting band or the date next changes (05, 12, 17, 22, midnight), so Home can refresh. */
+export function msUntilNextChange(now: Date): number {
+  const next = EDGES.find((h) => h > now.getHours()) ?? 24;
+  const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), next, 0, 0, 0);
+  return at.getTime() - now.getTime();
+}

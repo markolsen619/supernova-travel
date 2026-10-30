@@ -1,5 +1,5 @@
 /** Home (spec docs/superpowers/specs/2026-10-29-home-landing-design.md): everything at a glance. */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { useOwnAndJoinedTrips } from '@/hooks/useTripList';
 import { useTrip } from '@/hooks/useTrip';
 import { useTripBookings } from '@/hooks/useTripBookings';
 import { useDestinations } from '@/hooks/useDestinations';
+import { useNow } from '@/hooks/useNow';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { TodayCard } from '@/components/home/TodayCard';
@@ -18,7 +19,7 @@ import { TripRow } from '@/components/home/TripRow';
 import { InspiredStrip } from '@/components/home/InspiredStrip';
 import { PlanCard } from '@/components/home/PlanCard';
 import { homeEyebrow, homeTrips, tripSpan } from '@/utils/homeState';
-import { countdownLabel, todayInfo, todaysBooking } from '@/utils/todayCard';
+import { countdownLabel, todayCityIndex, todayInfo, todaysBooking } from '@/utils/todayCard';
 import { firstName, greeting } from '@/utils/greeting';
 import { toCalendarDate } from '@/utils/calendarDate';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -32,18 +33,22 @@ export default function HomeScreen() {
   const profile = useUserStore((s) => s.profile);
   const { data: trips = [], refetch } = useOwnAndJoinedTrips(uid);
   const { destinations } = useDestinations();
-  const now = new Date();
+  const now = useNow();
   const today = toCalendarDate(now);
+  // A fresh day or a return to the app: the badge may be stale too.
+  useEffect(() => { queryClient.invalidateQueries({ queryKey: ['inboxBadge'] }); }, [now, queryClient]);
   const h = useMemo(() => homeTrips(trips, today), [trips, today]);
   const lead = h.today ?? h.next;
-  const { data: leadTrip } = useTrip(lead?.id ?? null);
+  // The full itinerary only for a trip under way (the next trip's card needs none of it — reads cost).
+  const { data: leadTrip } = useTrip(h.today?.id ?? null);
   const { bookings } = useTripBookings(lead?.id ?? null);
   const info = h.today && leadTrip ? todayInfo(leadTrip, today) : null;
   const leadStart = lead ? tripSpan(lead).start : null;
   // Today: today's booking; a trip ahead: the booking on its first day (usually the flight out).
   const booking = h.today ? todaysBooking(bookings, today) : leadStart ? todaysBooking(bookings, leadStart) : null;
-  const todayCity = info && leadTrip
-    ? [leadTrip.destination, ...(leadTrip.additionalDestinations ?? [])][leadTrip.days.find((d) => d.id === info.dayId)?.destinationIndex ?? 0] ?? leadTrip.destination
+  const todaySpan = h.today ? tripSpan(h.today) : null;
+  const todayCity = info && leadTrip && todaySpan?.start && todaySpan.end
+    ? [leadTrip.destination, ...(leadTrip.additionalDestinations ?? [])][todayCityIndex(leadTrip, info.dayNumber, todaySpan.start, todaySpan.end)] ?? leadTrip.destination
     : null;
   const hello = greeting({ name: firstName(profile?.fullName), now, countryCode: todayCity?.countryCode ?? null });
   const dateLine = now.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase();

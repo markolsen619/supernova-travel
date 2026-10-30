@@ -9,3 +9,8 @@ it('postTileLabel: first name · place, either alone, never empty', () => {
 it('fromTravelers: the 10 newest', () => {
   expect(fromTravelers(Array.from({ length: 14 }, (_, i) => i))).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 });
+
+import { AFTER_POST_ROUTE } from '@/utils/postTile';
+it('after posting, people land on Explore, where From travelers shows the post (final review)', () => {
+  expect(AFTER_POST_ROUTE).toBe('/(tabs)/explore');
+});

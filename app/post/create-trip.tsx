@@ -26,6 +26,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { tripPlaceLabel } from '@/utils/tripRegion';
 import { requireOnline } from '@/services/offline';
+import { AFTER_POST_ROUTE } from '@/utils/postTile';
 
 function formatDateRange(trip: Trip): string | null {
   if (!trip.startDate) return null;
@@ -100,7 +101,7 @@ export default function CreateTripPostScreen() {
       // Two modals deep (feed -> /add-to-feed -> here), so navigate('/') alone
       // leaves both cards stacked over the feed — see create-photo.tsx.
       if (router.canDismiss()) router.dismissAll();
-      router.navigate('/');
+      router.navigate(AFTER_POST_ROUTE); // Explore: its From travelers row shows the new post (Home has no feed now)
     } catch (e: unknown) {
       Alert.alert('Share failed', e instanceof Error ? e.message : 'Check your connection and try again.');
     }

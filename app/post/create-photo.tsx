@@ -20,6 +20,7 @@ import { useCreatePost } from '@/hooks/useCreatePost';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { requireOnline } from '@/services/offline';
+import { AFTER_POST_ROUTE } from '@/utils/postTile';
 
 const MAX_PHOTOS = 10;
 
@@ -69,10 +70,10 @@ export default function CreatePhotoScreen() {
       // stack. navigate('/') alone switches the underlying tab but leaves both
       // modal cards on screen, so the user had to dismiss each one by hand to
       // see the post they just made. dismissAll() drops the whole modal stack
-      // back to the tabs; navigate('/') then guarantees the FEED tab
+      // back to the tabs; navigate(AFTER_POST_ROUTE) then lands on Explore
       // specifically, since /add-to-feed can be opened from any tab.
       if (router.canDismiss()) router.dismissAll();
-      router.navigate('/');
+      router.navigate(AFTER_POST_ROUTE); // Explore: its From travelers row shows the new post (Home has no feed now)
     } catch (e: unknown) {
       Alert.alert('Upload failed', e instanceof Error ? e.message : 'Check your connection and try again.');
     }
