@@ -1,7 +1,6 @@
 /** The Today card on Home (spec 2026-10-29): day N of M, today's city, up to 4 stops with the next unvisited, today's booking. */
-import { bookingsByDay, type DayBooking } from '@/utils/bookingDays';
+import { bookingsByDay, type DayBooking, type TripBooking } from '@/utils/bookingDays';
 import { daysBetween, tripSpan, type SpanTrip } from '@/utils/homeState';
-import type { TripBooking } from '@/utils/bookingDays';
 
 export interface TodayStop { id: string; title: string; visited: boolean; next: boolean }
 export interface TodayInfo { dayNumber: number; totalDays: number; dayId: string | null; city: string | null; stops: TodayStop[]; nothingPlanned: boolean }
