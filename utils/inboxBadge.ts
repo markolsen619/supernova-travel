@@ -7,3 +7,8 @@ export function badgeLabel(count: number): string | null {
 export function inboxTab(unreadMessages: number): 'messages' | 'activity' {
   return unreadMessages > 0 ? 'messages' : 'activity';
 }
+
+/** Home's "Get Pro" pill (owner, 2026-10-30): free accounts only; hidden while the tier isn't known. */
+export function showGetPro(tier: string | null | undefined): boolean {
+  return tier === 'free';
+}

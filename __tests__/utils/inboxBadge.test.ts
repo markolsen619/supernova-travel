@@ -7,3 +7,11 @@ it('inboxTab: Messages when a conversation is unread', () => {
   expect(inboxTab(2)).toBe('messages');
   expect(inboxTab(0)).toBe('activity');
 });
+
+import { showGetPro } from '@/utils/inboxBadge';
+it('Get Pro shows for free accounts only (owner 2026-10-30)', () => {
+  expect(showGetPro('free')).toBe(true);
+  expect(showGetPro('pro')).toBe(false);
+  expect(showGetPro('business')).toBe(false);
+  expect(showGetPro(null)).toBe(false); // not known yet: don't flash it at a Pro user
+});
