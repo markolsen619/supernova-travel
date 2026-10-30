@@ -35,3 +35,19 @@ export function homeTrips<T extends SpanTrip>(trips: T[], today: string): HomeTr
   const ahead = (todayTrip ? 1 : 0) + (next ? 1 : 0) + comingUp.length;
   return { today: todayTrip, next, comingUp, showInspired: ahead <= 1, isEmpty: ahead === 0 };
 }
+
+const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** A trip's eyebrow on Home: `NOV 18 – 24 · 7 DAYS`; the year only when it isn't this year; `DATES NOT SET`. */
+export function homeEyebrow(span: { start: string | null; end: string | null }, today: string): string {
+  if (!span.start) return 'DATES NOT SET';
+  const end = span.end ?? span.start;
+  const [y1, m1, d1] = span.start.split('-').map(Number);
+  const [y2, m2, d2] = end.split('-').map(Number);
+  const n = daysBetween(span.start, end) + 1;
+  const len = `${n} ${n === 1 ? 'DAY' : 'DAYS'}`;
+  const year = y1 !== Number(today.slice(0, 4)) || y2 !== y1 ? `, ${y2}` : '';
+  if (n === 1) return `${MON[m1 - 1]} ${d1}${year} · ${len}`;
+  const right = m1 === m2 && y1 === y2 ? `${d2}` : `${MON[m2 - 1]} ${d2}`;
+  return `${MON[m1 - 1]} ${d1} – ${right}${year} · ${len}`;
+}

@@ -63,3 +63,16 @@ it('daysBetween', () => {
   expect(daysBetween('2026-10-27', '2026-10-29')).toBe(2);
   expect(daysBetween('2026-03-28', '2026-03-30')).toBe(2); // across a daylight-saving change
 });
+
+import { homeEyebrow } from '@/utils/homeState';
+
+describe('homeEyebrow', () => {
+  it('dates and length, the year only when it is not this year', () => {
+    expect(homeEyebrow({ start: '2026-11-18', end: '2026-11-24' }, TODAY)).toBe('NOV 18 – 24 · 7 DAYS');
+    expect(homeEyebrow({ start: '2026-11-30', end: '2026-12-02' }, TODAY)).toBe('NOV 30 – DEC 2 · 3 DAYS');
+    expect(homeEyebrow({ start: '2027-02-01', end: '2027-02-01' }, TODAY)).toBe('FEB 1, 2027 · 1 DAY');
+  });
+  it('undated', () => {
+    expect(homeEyebrow({ start: null, end: null }, TODAY)).toBe('DATES NOT SET');
+  });
+});
