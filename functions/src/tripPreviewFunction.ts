@@ -13,7 +13,7 @@ const db = admin.firestore();
  * address once a week per trip (`tripPreviewCovers/{tripId}`, server-only),
  * since every lookup is a billed Places Photo call.
  */
-async function publishableCover(tripId: string, stored: unknown): Promise<{ url: string; credit: string | null } | null> {
+export async function publishableCover(tripId: string, stored: unknown): Promise<{ url: string; credit: string | null } | null> {
   const source = typeof stored === 'string' ? stored : null;
   const lookup = coverLookup(source);
   if (lookup.kind === 'none' || !source) return null;
