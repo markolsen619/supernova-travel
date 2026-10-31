@@ -1,4 +1,4 @@
-import { parseInviteToken, parseInstallReferrer, showPasteInviteCard, claimMode, inviteErrorCopy } from '@/utils/inviteLinks';
+import { parseInviteToken, parseInstallReferrer, showPasteInviteCard, claimMode, inviteErrorCopy, shouldClearPending } from '@/utils/inviteLinks';
 
 const T = 'abcdefgh12345678';
 const DAY = 86_400_000;
@@ -54,5 +54,20 @@ describe('inviteErrorCopy', () => {
     expect(inviteErrorCopy('permission-denied')).toBe("You can't join this trip.");
     expect(inviteErrorCopy('unavailable')).toBe("Couldn't reach Supernova. Check your connection and try again.");
     expect(inviteErrorCopy(undefined)).toBe('Something went wrong joining this trip. Try again.');
+  });
+});
+
+describe('shouldClearPending (review fix: keep the invite until a final answer)', () => {
+  it('clears after a join or a final refusal', () => {
+    expect(shouldClearPending('joined')).toBe(true);
+    expect(shouldClearPending('failed-precondition')).toBe(true);
+    expect(shouldClearPending('functions/permission-denied')).toBe(true);
+    expect(shouldClearPending('invalid-argument')).toBe(true);
+  });
+  it('keeps it when the phone could not reach us', () => {
+    expect(shouldClearPending('unavailable')).toBe(false);
+    expect(shouldClearPending('deadline-exceeded')).toBe(false);
+    expect(shouldClearPending('internal')).toBe(false);
+    expect(shouldClearPending('')).toBe(false);
   });
 });

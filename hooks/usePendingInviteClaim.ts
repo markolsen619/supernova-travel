@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { checkInstallReferrerOnce, clearPendingInvite, readPendingInvite } from '@/services/pendingInvite';
+import { checkInstallReferrerOnce, readPendingInvite } from '@/services/pendingInvite';
 import { claimMode } from '@/utils/inviteLinks';
 
 export function usePendingInviteClaim(): void {
@@ -15,7 +15,7 @@ export function usePendingInviteClaim(): void {
       await checkInstallReferrerOnce();
       const token = await readPendingInvite();
       if (!token) return;
-      await clearPendingInvite();
+      // Not cleared here: the join screen clears it on a final answer, so a join that fails offline is tried next start.
       const created = Date.parse(user.metadata?.creationTime ?? '');
       const mode = claimMode({ createdAtMs: Number.isNaN(created) ? null : created, nowMs: Date.now() });
       router.push(`/join/${token}${mode === 'auto' ? '?auto=1' : ''}` as never);

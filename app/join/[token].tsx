@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { acceptInvite, previewInvite, type AcceptResult } from '@/services/inviteLinks';
 import { clearPendingInvite, readPendingInvite, savePendingInvite } from '@/services/pendingInvite';
-import { inviteErrorCopy } from '@/utils/inviteLinks';
+import { inviteErrorCopy, shouldClearPending } from '@/utils/inviteLinks';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
 import { SPRING } from '@/constants/motion';
@@ -53,8 +53,13 @@ export default function JoinTripScreen() {
       savePendingInvite(token).then(() => router.replace('/(auth)/welcome'));
       return;
     }
-    readPendingInvite().then((t) => { if (t === token) clearPendingInvite(); });
   }, [token, initialized, user]);
+
+  // A waiting invite is finished with only on a final answer (utils/inviteLinks shouldClearPending).
+  const settle = useCallback((outcome: string) => {
+    if (!shouldClearPending(outcome)) return;
+    readPendingInvite().then((t) => { if (t === token) clearPendingInvite(); });
+  }, [token]);
 
   const preview = useQuery({
     queryKey: ['invitePreview', token],
@@ -73,12 +78,14 @@ export default function JoinTripScreen() {
       queryClient.invalidateQueries({ queryKey: ['trip', r.tripId] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setJoined(r);
+      settle('joined');
     } catch (e) {
       setError({ code: codeOf(e) });
+      settle(codeOf(e));
     } finally {
       setJoining(false);
     }
-  }, [token, queryClient]);
+  }, [token, queryClient, settle]);
 
   const autoRan = useRef(false);
   useEffect(() => {
@@ -91,6 +98,12 @@ export default function JoinTripScreen() {
   }, []);
 
   const p = preview.data;
+  useEffect(() => {
+    if (p?.status === 'expired') settle('failed-precondition');
+    if (p?.status === 'member') settle('member');
+  }, [p, settle]);
+  // Closing or Not now is a choice too: the invite isn't offered again at the next start.
+  const decline = useCallback(() => { settle('joined'); leave(); }, [settle]);
   const inviterFirst = p && p.status !== 'member' ? p.inviterFirst : joined?.inviterFirst ?? null;
   const ready = signedIn && (joined || error || (auto !== '1' && (p || preview.isError)));
   useEffect(() => {
@@ -136,13 +149,14 @@ export default function JoinTripScreen() {
         <View style={[styles.cover, { backgroundColor: colors.background.sunken }]}>
           {p.coverUrl ? <Image source={{ uri: p.coverUrl }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
         </View>
+        {p.coverUrl && p.coverCredit ? <Text style={[styles.credit, { color: colors.text.tertiary }]}>{`Photo: ${p.coverCredit}`}</Text> : null}
         <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{p.dates ?? 'TRIP INVITE'}</Text>
         <Text style={[styles.title, { color: colors.text.primary }]}>{`${p.inviterFirst} invited you to ${p.tripTitle}`}</Text>
         <Text style={[styles.lede, { color: colors.text.secondary }]}>
           Join the trip to plan it together: stops, packing and bookings in one place.
         </Text>
         <Button label="Join trip" onPress={join} loading={joining} fullWidth style={styles.cta} />
-        <Pressable onPress={leave} style={styles.notNow} accessibilityRole="button" hitSlop={8}>
+        <Pressable onPress={decline} style={styles.notNow} accessibilityRole="button" hitSlop={8}>
           <Text style={[styles.notNowText, { color: colors.text.secondary }]}>Not now</Text>
         </Pressable>
       </View>
@@ -152,7 +166,7 @@ export default function JoinTripScreen() {
   return (
     <View style={[styles.fill, { backgroundColor: colors.background.primary, paddingTop: insets.top > 20 ? Spacing['3'] : insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={leave} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
+        <Pressable onPress={decline} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
           <X size={20} weight="bold" color={colors.text.secondary} />
         </Pressable>
       </View>
@@ -171,6 +185,7 @@ const styles = StyleSheet.create({
   spinner: { marginTop: Spacing['16'] },
   invite: { paddingTop: Spacing['2'] },
   cover: { width: '100%', aspectRatio: 4 / 3, borderRadius: 20, overflow: 'hidden' },
+  credit: { marginTop: 6, fontSize: 11, textAlign: 'right' },
   eyebrow: { marginTop: Spacing['5'], fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   title: { marginTop: Spacing['2'], fontSize: 28, lineHeight: 32, fontWeight: FontWeight.semiBold, letterSpacing: -0.5 },
   lede: { marginTop: Spacing['2'], fontSize: FontSize.base, lineHeight: 22 },

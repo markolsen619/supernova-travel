@@ -75,6 +75,7 @@ const STYLES = `
   main { max-width:560px; margin:0 auto; padding:24px 20px 48px; }
   .brand { font-size:13px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:0 0 20px; }
   .cover { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:20px; display:block; background:#F0EAE0; }
+  .credit { margin:6px 0 0; font-size:11px; color:var(--muted); text-align:right; }
   .eyebrow { margin:20px 0 6px; font-size:11px; font-weight:500; letter-spacing:0.08em; color:var(--muted); }
   h1 { margin:0; font-size:28px; line-height:1.15; font-weight:600; letter-spacing:-0.02em; }
   .lede { color:var(--secondary); margin:8px 0 0; }
@@ -101,9 +102,30 @@ ${body}
 </html>`;
 }
 
+export type PagePlatform = 'ios' | 'android' | 'other';
+
+export function platformFromUserAgent(ua: string | null | undefined): PagePlatform {
+  if (!ua) return 'other';
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return 'other';
+}
+
+/**
+ * The page's Open in Supernova. Not the page's own https address: iOS opens a universal link tapped on the same
+ * site in Safari, so it would only reload the page (review, 2026-10-30). iPhone gets the app's scheme; Android an
+ * intent link that falls back to Play (with the invite as referrer) when the app isn't installed.
+ */
+export function openAppHref(token: string, platform: PagePlatform): string {
+  if (platform === 'android') {
+    return `intent://join/${token}#Intent;scheme=supernova;package=com.supernovatravel.app;S.browser_fallback_url=${encodeURIComponent(playStoreUrl(token))};end`;
+  }
+  return `supernova://join/${token}`;
+}
+
 export function renderJoinPage(
-  invite: { token: string; inviterFirst: string; tripTitle: string; dates: string | null; coverUrl: string | null } | null,
-  opts: { inviterFirst?: string | null },
+  invite: { token: string; inviterFirst: string; tripTitle: string; dates: string | null; coverUrl: string | null; coverCredit?: string | null } | null,
+  opts: { inviterFirst?: string | null; platform?: PagePlatform },
 ): string {
   if (!invite) {
     const who = opts.inviterFirst ? escapeHtml(opts.inviterFirst) : 'your friend';
@@ -115,14 +137,16 @@ export function renderJoinPage(
   }
   const who = escapeHtml(invite.inviterFirst);
   const title = escapeHtml(invite.tripTitle);
-  const cover = invite.coverUrl ? `<img class="cover" src="${escapeHtml(invite.coverUrl)}" alt="">` : '';
+  const cover = invite.coverUrl
+    ? `<img class="cover" src="${escapeHtml(invite.coverUrl)}" alt="">${invite.coverCredit ? `<p class="credit">Photo: ${escapeHtml(invite.coverCredit)}</p>` : ''}`
+    : '';
   const dates = invite.dates ? `<p class="eyebrow">${escapeHtml(invite.dates)}</p>` : '<p class="eyebrow">TRIP INVITE</p>';
   return page(`${who} invited you to ${title} · Supernova`, `
 ${cover}
 ${dates}
 <h1>${who} invited you to ${title}</h1>
 <p class="lede">Join the trip on Supernova to plan it together.</p>
-<a class="cta" href="${escapeHtml(inviteUrl(invite.token))}">Open in Supernova</a>
+<a class="cta" href="${escapeHtml(openAppHref(invite.token, opts.platform ?? 'other'))}">Open in Supernova</a>
 <a class="store" href="${APP_STORE_URL}">Download on the App Store</a>
 <a class="store" href="${escapeHtml(playStoreUrl(invite.token))}">Get it on Google Play</a>
 <p class="note">On iPhone? After installing, come back and tap Open in Supernova.</p>`);

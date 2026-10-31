@@ -1,6 +1,6 @@
 import {
   makeToken, isToken, inviteUrl, playStoreUrl, firstName, inviteMessage, linkDecision, canCreateLink,
-  utcDay, tokenFromJoinPath, renderJoinPage, formatTripDates, INVITE_TTL_MS,
+  utcDay, tokenFromJoinPath, renderJoinPage, formatTripDates, INVITE_TTL_MS, platformFromUserAgent,
 } from '../../functions/src/tripInviteLinks';
 
 const link = (o: Partial<{ status: 'open' | 'used' | 'cancelled'; expiresAtMs: number }> = {}) =>
@@ -95,7 +95,7 @@ describe('renderJoinPage', () => {
     expect(html).toContain('Lisbon &amp; &quot;Porto&quot;');
     expect(html).toContain('referrer=invite%3Dabcdefgh12345678');
     expect(html).toContain('https://apps.apple.com/app/id6810490710');
-    expect(html).toContain('href="https://supernova-a2125.web.app/join/abcdefgh12345678"');
+    expect(html).toContain('href="supernova://join/abcdefgh12345678"');
     expect(html).toContain('After installing, come back and tap Open in Supernova');
     expect(html).not.toContain('<b>Mark');
   });
@@ -104,5 +104,27 @@ describe('renderJoinPage', () => {
     expect(html).toContain('This invite has expired. Ask Mark for a new one.');
     expect(html).not.toContain('/join/');
     expect(renderJoinPage(null, {})).toContain('Ask your friend for a new one.');
+  });
+});
+
+describe('review fixes: opening the app from the page, photo credit', () => {
+  const inv = { token: 'abcdefgh12345678', inviterFirst: 'Mark', tripTitle: 'Lisbon', dates: null, coverUrl: 'https://img/x.jpg', coverCredit: 'Google' };
+  it('iPhone opens the app by its scheme (a same-site universal link stays in Safari)', () => {
+    expect(renderJoinPage(inv, { platform: 'ios' })).toContain('class="cta" href="supernova://join/abcdefgh12345678"');
+  });
+  it('Android opens the app by an intent link that falls back to Play', () => {
+    const html = renderJoinPage(inv, { platform: 'android' });
+    expect(html).toContain('href="intent://join/abcdefgh12345678#Intent;scheme=supernova;package=com.supernovatravel.app;');
+    expect(html).toContain('S.browser_fallback_url=https%3A%2F%2Fplay.google.com');
+  });
+  it('credits a Google photo', () => {
+    expect(renderJoinPage(inv, { platform: 'other' })).toContain('Photo: Google');
+    expect(renderJoinPage({ ...inv, coverCredit: null }, {})).not.toContain('Photo:');
+  });
+  it('reads the platform from the user agent', () => {
+    expect(platformFromUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')).toBe('ios');
+    expect(platformFromUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8)')).toBe('android');
+    expect(platformFromUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBe('other');
+    expect(platformFromUserAgent(undefined)).toBe('other');
   });
 });

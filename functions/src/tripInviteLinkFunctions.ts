@@ -6,7 +6,7 @@ import { isBlockedBetween } from './moderationEvents';
 import { publishableCover } from './tripPreviewFunction';
 import {
   INVITE_TTL_MS, canCreateLink, firstName, formatTripDates, inviteMessage, inviteUrl, isToken, linkDecision,
-  makeToken, renderJoinPage, tokenFromJoinPath, utcDay, type InviteLink,
+  makeToken, platformFromUserAgent, renderJoinPage, tokenFromJoinPath, utcDay, type InviteLink,
 } from './tripInviteLinks';
 
 const db = admin.firestore();
@@ -98,6 +98,7 @@ export const previewTripInviteLink = onCall({ region: 'us-central1' }, async (re
   return {
     status: 'open', inviterFirst: inviterFirst ?? 'A friend', tripTitle: String(trip!.title ?? 'a trip'),
     dates: formatTripDates(toDate(trip!.startDate), toDate(trip!.endDate)), coverUrl: cover?.url ?? null,
+    coverCredit: cover?.credit ?? null,
   };
 });
 
@@ -161,7 +162,8 @@ export const joinPage = onRequest({ region: 'us-central1', memory: '256MiB', max
     res.status(200).send(renderJoinPage({
       token, inviterFirst: inviterFirst ?? 'A friend', tripTitle: String(trip!.title ?? 'a trip'),
       dates: formatTripDates(toDate(trip!.startDate), toDate(trip!.endDate)), coverUrl: cover?.url ?? null,
-    }, {}));
+      coverCredit: cover?.credit ?? null,
+    }, { platform: platformFromUserAgent(req.get('user-agent')) }));
   } catch (err) {
     console.error('joinPage failed', err);
     res.status(200).send(renderJoinPage(null, {}));

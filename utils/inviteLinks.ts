@@ -37,3 +37,12 @@ export function inviteErrorCopy(code: string | undefined, inviterFirst?: string 
   if (c === 'unavailable' || c === 'deadline-exceeded' || c === 'internal') return "Couldn't reach Supernova. Check your connection and try again.";
   return 'Something went wrong joining this trip. Try again.';
 }
+
+/**
+ * Whether a waiting invite is finished with (review, 2026-10-30): after a join or a final refusal, yes; when the
+ * phone couldn't reach us, keep it for the next start.
+ */
+export function shouldClearPending(outcome: string): boolean {
+  const c = outcome.replace(/^functions\//, '');
+  return c === 'joined' || c === 'member' || c === 'failed-precondition' || c === 'permission-denied' || c === 'invalid-argument';
+}

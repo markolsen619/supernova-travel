@@ -2,7 +2,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/services/firebase';
 
 export type InvitePreview =
-  | { status: 'open'; inviterFirst: string; tripTitle: string; dates: string | null; coverUrl: string | null }
+  | { status: 'open'; inviterFirst: string; tripTitle: string; dates: string | null; coverUrl: string | null; coverCredit?: string | null }
   | { status: 'expired'; inviterFirst: string | null }
   | { status: 'member'; tripId: string };
 export type AcceptResult = { status: 'joined' | 'member'; tripId: string; inviterFirst: string; tripTitle: string };

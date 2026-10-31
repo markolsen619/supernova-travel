@@ -22,8 +22,9 @@ export async function checkInstallReferrerOnce(): Promise<void> {
   if (Platform.OS !== 'android') return;
   try {
     if (await AsyncStorage.getItem(REFERRER_KEY)) return;
-    await AsyncStorage.setItem(REFERRER_KEY, '1');
     const token = parseInstallReferrer(await Application.getInstallReferrerAsync());
     if (token) await savePendingInvite(token);
+    // Marked only after a read: on first launch Play's service may not be bound yet, and a failed read is tried next start.
+    await AsyncStorage.setItem(REFERRER_KEY, '1');
   } catch { /* no referrer service: nothing to do */ }
 }
