@@ -73,6 +73,7 @@ import { buildBookingAction } from '@/utils/bookingLinks';
 import { isSectionOpen } from '@/utils/walletByTrip';
 import { toCalendarDate } from '@/utils/calendarDate';
 import { manualSearchQuery, selectStopsToGround, typedStopMatches } from '@/utils/groundingQueue';
+import { tidyPlan } from '@/utils/tidyDays';
 import { venueTitle } from '@/utils/venueTitle';
 import { hotelStayDates } from '@/utils/hotelStay';
 import { tripPlaceLabel } from '@/utils/tripRegion';
@@ -186,6 +187,7 @@ export default function TripDetailScreen() {
     reorderActivities,
     moveActivityToDay,
     deleteDay,
+    updateTrip: updateTripDoc,
   } = useCreateTrip();
   const setPlace = usePlacesStore((s) => s.setPlace);
   const getPlace = usePlacesStore((s) => s.getPlace);
@@ -552,6 +554,8 @@ export default function TripDetailScreen() {
     (dayId: string, orderedActivities: TripActivity[]) => {
     if (!requireOnline()) return;
       if (!id) return;
+      // Your own order wins: a new AI trip is never tidied after you arrange a day (utils/tidyDays).
+      if (trip?.isAiGenerated && !(trip as { daysTidied?: boolean }).daysTidied) updateTripDoc(id, { daysTidied: true }).catch(() => {});
       reorderActivities(id, dayId, orderedActivities).catch((err) => {
         // The list has already snapped back (reorderActivities reverts its
         // optimistic order), so say why rather than leave it looking ignored.
@@ -559,7 +563,7 @@ export default function TripDetailScreen() {
         Alert.alert("Couldn't save the new order", 'Check your connection and try moving it again.');
       });
     },
-    [id, reorderActivities],
+    [id, reorderActivities, trip, updateTripDoc],
   );
 
   const handleOpenAddStop = useCallback((day: TripDay) => {
@@ -849,6 +853,29 @@ export default function TripDetailScreen() {
   // `destReady` is in the key on purpose (see above): it flips false → true
   // exactly once, when the bounds/destination backfill lands, and that is the
   // first moment the pass has a geographic anchor to search inside.
+  // A new AI trip's days, ordered once for the least travel when every stop is placed (owner, 2026-10-30;
+  // utils/tidyDays). Owner only, once (`daysTidied`), never after they arranged a day themselves.
+  const tidying = useRef(false);
+  useEffect(() => {
+    if (!trip || !isOwner || !online || !id || tidying.current) return;
+    const plan = tidyPlan(trip as never, Date.now());
+    if (!plan.ready) return;
+    tidying.current = true;
+    (async () => {
+      try {
+        for (const r of plan.reorders) {
+          const day = trip.days.find((d) => d.id === r.dayId);
+          const ordered = day ? r.ids.map((x) => day.activities.find((a) => a.id === x)).filter((a): a is TripActivity => !!a) : [];
+          if (ordered.length) await reorderActivities(id, r.dayId, ordered);
+        }
+        await updateTripDoc(id, { daysTidied: true });
+      } catch (err) {
+        console.warn('[trip] tidying the days failed; will try again next open', err);
+        tidying.current = false;
+      }
+    })();
+  }, [trip, isOwner, online, id, reorderActivities, updateTripDoc]);
+
   useEffect(() => {
     // Any trip: stops typed by hand carry a search query too (utils/groundingQueue manualSearchQuery).
     // Offline: grounding needs the network; `online` in the key restarts the pass on reconnect.

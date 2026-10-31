@@ -52,12 +52,12 @@ describe('withoutUnasked (a whole generated trip)', () => {
     ] }],
   };
   it('drops what nobody asked for, keeps the rest in order, counts the removals', () => {
-    const r = withoutUnasked(trip as never, 'Party style, great food');
-    expect(r.trip.days[0].activities.map((a: { title: string }) => a.title)).toEqual(['Check into Bellagio Hotel & Casino', 'Dinner at Lotus of Siam']);
+    const r = withoutUnasked(trip, 'Party style, great food');
+    expect(r.trip.days[0].activities.map((a) => a.title)).toEqual(['Check into Bellagio Hotel & Casino', 'Dinner at Lotus of Siam']);
     expect(r.removed).toBe(2);
   });
   it('keeps what was asked for', () => {
-    const r = withoutUnasked(trip as never, 'bachelor party with a casino night');
+    const r = withoutUnasked(trip, 'bachelor party with a casino night');
     expect(r.removed).toBe(0);
   });
 });

@@ -521,6 +521,8 @@ export interface CreateTripInput {
 }
 
 export interface UpdateTripInput {
+  /** A new AI trip's days were ordered once for the least travel (utils/tidyDays). */
+  daysTidied?: boolean;
   title?: string;
   description?: string;
   coverImageUrl?: string | null;
