@@ -156,3 +156,12 @@ export function didSizeChange(a: Size, b: Size): boolean {
 export function crossedBreakpoint(prev: Size, next: Size): boolean {
   return isLargeScreen(prev.width, prev.height) !== isLargeScreen(next.width, next.height);
 }
+
+/**
+ * How a full-screen search modal (DestinationPicker) is presented. On iOS always a page sheet: full screen,
+ * its header could sit under the status bar and there was no swipe to close, so a mistaken "Add another
+ * destination" had no way back (owner, 2026-10-31). Android keeps full screen; its back button closes it.
+ */
+export function pickerPresentation(platform: string): 'pageSheet' | undefined {
+  return platform === 'ios' ? 'pageSheet' : undefined;
+}
