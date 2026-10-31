@@ -83,3 +83,17 @@ describe('only real itineraries in the feed (2026-10-25)', () => {
     expect(pool.map((t) => t.id)).toEqual(['full']);
   });
 });
+
+import { feedItemKey, feedStartIndex } from '@/utils/feedMix';
+
+describe('feedStartIndex (Explore → the feed at a post)', () => {
+  const items = [
+    { kind: 'post', post: { id: 'p1' } }, { kind: 'trip', trip: { id: 't1' } }, { kind: 'post', post: { id: 'p2' } },
+  ] as never[];
+  it('finds the post', () => expect(feedStartIndex(items, 'p2')).toBe(2));
+  it('a post not in the list (deleted, hidden, older): the top', () => {
+    expect(feedStartIndex(items, 'gone')).toBe(0);
+    expect(feedStartIndex(items, undefined)).toBe(0);
+  });
+  it('keys', () => expect(items.map(feedItemKey)).toEqual(['post:p1', 'trip:t1', 'post:p2']));
+});

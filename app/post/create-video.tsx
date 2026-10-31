@@ -14,6 +14,7 @@ import { CLIP_AUDIO_MIXING } from '@/utils/videoPlayback';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { requireOnline } from '@/services/offline';
+import { AFTER_POST_ROUTE } from '@/utils/postTile';
 
 interface Clip {
   uri: string;
@@ -94,7 +95,7 @@ export default function CreateVideoScreen() {
       });
       // Two modals deep (add-to-feed → here): unwind both, then the feed (Architecture Rule 15).
       if (router.canDismiss()) router.dismissAll();
-      router.navigate('/');
+      router.navigate(AFTER_POST_ROUTE); // Explore: its From travelers row shows the new post (Home has no feed now)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Your video didn't upload. Check your connection and try again.");
     }

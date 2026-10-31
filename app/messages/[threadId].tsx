@@ -73,6 +73,7 @@ export default function DmThreadScreen() {
         () => {
           queryClient.invalidateQueries({ queryKey: ['dmThreads'] });
           queryClient.invalidateQueries({ queryKey: ['hasUnreadActivity'] });
+          queryClient.invalidateQueries({ queryKey: ['inboxBadge'] });
         },
       ).catch(() => {});
     }, [threadId, myUid, queryClient]),

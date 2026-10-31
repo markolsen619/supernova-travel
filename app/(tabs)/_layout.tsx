@@ -20,7 +20,7 @@ import { usesReadingColumn } from '@/utils/layout';
 import { useOfflinePrefetch } from '@/hooks/useOfflinePrefetch';
 
 const TABS = [
-  { name: 'index',   label: 'Feed'    },
+  { name: 'index',   label: 'Home'    },
   { name: 'explore', label: 'Explore' },
   { name: 'create',  label: ''        },
   { name: 'search',  label: 'Search'  },

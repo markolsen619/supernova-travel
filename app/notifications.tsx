@@ -74,9 +74,10 @@ export default function NotificationsScreen() {
   // What the server says was already answered — survives leaving the screen, unlike `handled`.
   const { data: serverAnswers = {} } = useNotificationAnswers(notifications);
 
-  const [tab, setTab] = useState<'Activity' | 'Messages'>('Activity');
   // A tapped push the app couldn't open lands here at its notification (utils/notificationRoute notificationTapRoute).
-  const { highlight } = useLocalSearchParams<{ highlight?: string }>();
+  // Home's Inbox button passes ?tab=messages when a conversation is unread (spec 2026-10-29).
+  const { highlight, tab: tabParam } = useLocalSearchParams<{ highlight?: string; tab?: string }>();
+  const [tab, setTab] = useState<'Activity' | 'Messages'>(tabParam === 'messages' && !highlight ? 'Messages' : 'Activity');
   const [highlightId, setHighlightId] = useState<string | null>(highlight ?? null);
   // Rows redraw when an answer or the highlight changes (FlashList only re-renders on data/extraData).
   const listExtra = useMemo(() => ({ highlightId, handled, serverAnswers }), [highlightId, handled, serverAnswers]);

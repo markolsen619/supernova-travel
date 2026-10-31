@@ -15,7 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Bag,
+  Wallet,
   Gear,
   PencilSimple,
   MapTrifold,
@@ -38,7 +38,6 @@ import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { db } from '@/services/firebase';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
@@ -233,70 +232,62 @@ function ProfileScreenContent() {
           <View style={styles.heroIconGroup}>
             <TouchableOpacity
               onPress={handleWallet}
-              style={styles.heroIconBtn}
+              style={[styles.heroIconBtn, { backgroundColor: colors.background.card }]}
               activeOpacity={0.7}
-              hitSlop={6}
               accessibilityLabel="Wallet"
             >
-              <Bag size={22} color={colors.text.secondary} weight="regular" />
+              <Wallet size={20} color={colors.text.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSettings}
-              style={styles.heroIconBtn}
+              style={[styles.heroIconBtn, { backgroundColor: colors.background.card }]}
               activeOpacity={0.7}
-              hitSlop={6}
               accessibilityLabel="Settings"
             >
-              <Gear size={22} color={colors.text.secondary} weight="regular" />
+              <Gear size={20} color={colors.text.primary} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Avatar + info */}
+        {/* Photo left (tap to edit profile and photo), counts right, name below (owner, 2026-10-30) */}
         <View style={styles.heroContent}>
-          <Avatar uri={profile?.avatarUrl ?? user?.photoURL} name={fullName} size="xl" />
+          <View style={styles.heroTopRow}>
+            <TouchableOpacity onPress={openEditSheet} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Edit your profile and photo">
+              <Avatar uri={profile?.avatarUrl ?? user?.photoURL} name={fullName} size="xl" />
+              <View style={[styles.editBadge, { backgroundColor: colors.text.primary, borderColor: colors.background.primary }]}>
+                <PencilSimple size={14} color={colors.background.primary} weight="bold" />
+              </View>
+            </TouchableOpacity>
+            <View style={styles.statsRow}>
+              {([
+                { label: 'Followers', value: profile?.followersCount ?? 0, tab: 'followers' },
+                { label: 'Following', value: profile?.followingCount ?? 0, tab: 'following' },
+                // Trips you created — the same count others see on your profile.
+                { label: 'Trips', value: uid ? allTrips.filter((t) => !isJoinedTrip(t, uid)).length : allTrips.length, tab: null },
+              ] as const).map(({ label, value, tab }, i) => (
+                <TouchableOpacity
+                  key={label}
+                  disabled={!tab || !uid}
+                  onPress={() => {
+                    if (!tab || !uid) return;
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: '/connections/[uid]', params: { uid, tab } });
+                  }}
+                  accessibilityRole={tab ? 'button' : undefined}
+                  accessibilityLabel={`${value} ${label.toLowerCase()}`}
+                  style={[styles.stat, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.background.cardBorder }]}
+                >
+                  <Text style={[styles.statValue, { color: colors.text.primary }]}>{value}</Text>
+                  <Text style={[styles.statLabel, { color: colors.text.tertiary }]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
           <Text style={[styles.heroName, { color: colors.text.primary }]}>{fullName}</Text>
-          {/* Every account now has a username (captured at sign-up, or set
-              via the Edit profile button below) — no separate nudge needed. */}
           {username ? (
             <Text style={[styles.heroUsername, { color: colors.text.tertiary }]}>@{username}</Text>
           ) : null}
           {tier !== 'free' && <Badge variant={tier} style={styles.heroBadge} />}
-
-          {/* Stats row */}
-          <View style={styles.statsRow}>
-            {([
-              { label: 'Followers', value: profile?.followersCount ?? 0, tab: 'followers' },
-              { label: 'Following', value: profile?.followingCount ?? 0, tab: 'following' },
-              // Trips you created — the same count others see on your profile.
-              { label: 'Trips', value: uid ? allTrips.filter((t) => !isJoinedTrip(t, uid)).length : allTrips.length, tab: null },
-            ] as const).map(({ label, value, tab }, i) => (
-              <TouchableOpacity
-                key={label}
-                disabled={!tab || !uid}
-                onPress={() => {
-                  if (!tab || !uid) return;
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push({ pathname: '/connections/[uid]', params: { uid, tab } });
-                }}
-                accessibilityRole={tab ? 'button' : undefined}
-                accessibilityLabel={`${value} ${label.toLowerCase()}`}
-                style={[styles.stat, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.background.cardBorder }]}
-              >
-                <Text style={[styles.statValue, { color: colors.text.primary }]}>{value}</Text>
-                <Text style={[styles.statLabel, { color: colors.text.tertiary }]}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Button
-            label="Edit profile"
-            variant="secondary"
-            size="sm"
-            icon={PencilSimple}
-            onPress={openEditSheet}
-            style={styles.editBtn}
-          />
         </View>
       </View>
 
@@ -573,20 +564,38 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing['3'],
   },
   heroIconBtn: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroIconGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing['2'],
   },
 
   heroContent: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing['6'],
+    paddingHorizontal: Spacing['5'],
     paddingTop: Spacing['2'],
+    paddingBottom: Spacing['3'],
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing['4'],
+  },
+  editBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroName: {
     fontSize: FontSize.xl,
@@ -598,15 +607,16 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     marginBottom: Spacing['2'],
   },
-  heroBadge: { marginBottom: Spacing['3'] },
+  heroBadge: { marginTop: Spacing['1'], alignSelf: 'flex-start' },
 
   statsRow: {
+    flex: 1,
     flexDirection: 'row',
-    marginVertical: Spacing['4'],
   },
   stat: {
+    flex: 1,
     alignItems: 'center',
-    paddingHorizontal: Spacing['6'],
+    paddingVertical: Spacing['2'],
   },
   statValue: {
     fontSize: FontSize.xl,
@@ -617,9 +627,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  editBtn: {
-    marginBottom: Spacing['2'],
-  },
 
   tabBar: {
     flexDirection: 'row',

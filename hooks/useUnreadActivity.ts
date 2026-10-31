@@ -55,6 +55,7 @@ export function useMarkMessagesSeen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hasUnreadActivity', uid] });
+      queryClient.invalidateQueries({ queryKey: ['inboxBadge', uid] });
     },
   });
 }

@@ -4,13 +4,12 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Bag, Compass, MapTrifold } from 'phosphor-react-native';
+import { Compass, MapTrifold } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { columnWidth } from '@/utils/layout';
@@ -22,6 +21,7 @@ import { DestinationCard } from '@/components/explore/DestinationCard';
 import { FilterChips } from '@/components/explore/FilterChips';
 import { UserSuggestion } from '@/components/explore/UserSuggestion';
 import { TripGrid } from '@/components/explore/TripGrid';
+import { FromTravelersRow } from '@/components/explore/FromTravelersRow';
 import { SkeletonCard, SkeletonListRow } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
@@ -98,11 +98,6 @@ export default function ExploreScreen() {
     router.push('/trip/new');
   }, [router]);
 
-  const handleWalletPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/(wallet)');
-  }, [router]);
-
   // Offline (spec 2026-10-19 §3): nothing saved for this screen, so say so instead of spinning.
   if (!online && trips.length === 0 && destinations.length === 0) return <OfflineEmptyState title="Connect to explore" description="Your trips and wallet still work offline." />;
 
@@ -125,20 +120,14 @@ export default function ExploreScreen() {
                 Explore
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={handleWalletPress}
-              style={styles.walletBtn}
-              activeOpacity={0.7}
-              hitSlop={6}
-              accessibilityLabel="Wallet"
-            >
-              <Bag size={22} color={colors.text.secondary} weight="regular" />
-            </TouchableOpacity>
           </View>
           <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
             Where to next
           </Text>
         </View>
+
+        {/* ── From travelers: the feed's photos and videos (spec 2026-10-29) ── */}
+        <FromTravelersRow />
 
         {/* ── Destinations ──
             The editorial catalog, filtered by one region and one vibe. Hidden
@@ -285,12 +274,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FontSize.sm,
-  },
-  walletBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   section: {
     marginBottom: Spacing['6'],

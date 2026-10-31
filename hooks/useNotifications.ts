@@ -42,6 +42,7 @@ export function useMarkNotificationsRead() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications', uid] });
       queryClient.invalidateQueries({ queryKey: ['hasUnreadActivity', uid] });
+      queryClient.invalidateQueries({ queryKey: ['inboxBadge', uid] });
     },
   });
 }
@@ -85,6 +86,7 @@ export function useDeleteNotification() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: key });
       queryClient.invalidateQueries({ queryKey: ['hasUnreadActivity', uid] });
+      queryClient.invalidateQueries({ queryKey: ['inboxBadge', uid] });
     },
   });
 }
