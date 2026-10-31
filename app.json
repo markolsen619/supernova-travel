@@ -91,6 +91,11 @@
             {
               "scheme": "https",
               "host": "supernova-a2125.web.app",
+              "pathPrefix": "/join/"
+            },
+            {
+              "scheme": "https",
+              "host": "supernova-a2125.web.app",
               "pathPrefix": "/post/"
             }
           ],
