@@ -146,3 +146,17 @@ export async function resolveCityByName(name: string, near?: { lat: number; lng:
     return null;
   }
 }
+
+/** The city a point is in (Geocoding v6 reverse, types place) — names a playback highlights chapter that has no saved city. */
+export async function cityNameAt(lat: number, lng: number): Promise<string | null> {
+  if (!TOKEN) return null;
+  try {
+    const url = `https://api.mapbox.com/search/geocode/v6/reverse?longitude=${lng}&latitude=${lat}&types=place&limit=1&access_token=${TOKEN}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+    if (!res.ok) return null;
+    const f = ((await res.json()) as { features?: { properties?: { name?: string } }[] }).features?.[0];
+    return f?.properties?.name ?? null;
+  } catch {
+    return null;
+  }
+}

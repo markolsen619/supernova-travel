@@ -50,10 +50,12 @@ import { TripDay, TripActivity, TripStatus } from '@/types';
 import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { routeFeatures } from '@/utils/routeFeatures';
 import { arrivalHints, playbackPlan, travelLabel } from '@/utils/playback';
+import { dayRangeLabel, highlightsActive, isLongTrip, momentEyebrow, tripChapters } from '@/utils/highlights';
+import { cityNameAt } from '@/services/places/mapboxSearch';
 import type { TripBooking } from '@/utils/bookingDays';
 import { useStopPhotos } from '@/hooks/useStopPhotos';
 import { Avatar } from '@/components/ui/Avatar';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, filmTiming, FILM_OPENING_MS, FILM_END_MS, DEFAULT_TIMING, stopShot, introShot, followStepMs, legSpeed } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, filmTiming, FILM_OPENING_MS, FILM_END_MS, FILM_BUDGET_MS, DEFAULT_TIMING, stopShot, introShot, followStepMs, legSpeed, momentHoldMs, photoIndexAt, highlightFilmPhotos, HIGHLIGHT_PHOTOS_MAX, type FlyoverTiming } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -333,6 +335,37 @@ export function TripMapView({
     [stopsByDay],
   );
 
+  // Planned | Actual — offered once there's something actual to show.
+  const [mapMode, setMapMode] = useState<'planned' | 'actual'>('planned');
+  const showModeSwitch = actualViewAvailable({
+    status: tripStatus, endDate: tripEndDate, anyVisited: grounded.some((g) => g.visited), now: new Date(),
+  });
+  const actualMode = showModeSwitch && mapMode === 'actual';
+
+  // Highlights (spec 2026-10-31-trip-highlights-playback-design.md): a long trip plays city by city, one moment
+  // per day. Each chapter flies [opening, ...moments]: the opening is the previous chapter's last moment (the
+  // arrival leg starts there) or, for the first chapter, its first moment again — two stops on one spot each get
+  // their own pause, so that moment still gets its photos.
+  const useHighlights = highlightsActive({ long: isLongTrip(days.length, tripStops.length), actualMode });
+  const chapters = useMemo(() => (useHighlights ? tripChapters(
+    days.map((d) => ({ id: d.id, dayNumber: d.dayNumber, title: d.title ?? null, savedCity: dayCities[d.id] ?? null })),
+    tripStops.map((st, i) => ({
+      id: st.activity.id, dayId: st.dayId, lat: st.lat, lng: st.lng, searchQuery: st.activity.searchQuery ?? null,
+      route: toRouteStop(st, i > 0 && st.stopNumber === 1 ? hints[st.dayId] : undefined),
+    })),
+  ) : []), [useHighlights, days, dayCities, tripStops, hints]);
+  const chapterSeqs = useMemo(() => {
+    const byId = new Map(tripStops.map((st) => [st.activity.id, st]));
+    return chapters.map((c) => {
+      const moments = c.moments.map((m) => byId.get(m.stopId)).filter((x): x is GroundedStop => !!x);
+      const opening = (c.arrival ? byId.get(c.arrival.fromStopId) : undefined) ?? moments[0];
+      const stops = opening ? [opening, ...moments] : moments;
+      // The arrival leg carries how they travelled; inside a city, legs route like any other (cached).
+      const route = stops.map((st, k) => toRouteStop(st, k === 1 && c.arrival ? c.arrival.travel : undefined));
+      return { stops, route };
+    });
+  }, [chapters, tripStops]);
+
   // Built once against an empty cache only to learn which legs are missing
   // — planned days and the actual route share legs, so they share the cache.
   const allMissing = useMemo(
@@ -340,8 +373,9 @@ export function TripMapView({
       ...stopsByDay.flatMap(([, stops]) => buildPath(stops.map((st) => toRouteStop(st)), {}).missing),
       ...buildPath(actualStops.map((st) => toRouteStop(st)), {}).missing,
       ...(plan === 'wholeTrip' ? buildPath(tripRouteStops, {}).missing : []),
+      ...chapterSeqs.flatMap((c) => buildPath(c.route, {}).missing),
     ],
-    [stopsByDay, actualStops, plan, tripRouteStops],
+    [stopsByDay, actualStops, plan, tripRouteStops, chapterSeqs],
   );
   const { cache } = useTripRoutes(tripId, allMissing, canEditRoutes);
 
@@ -358,21 +392,17 @@ export function TripMapView({
   const actualPath = useMemo(() => buildPath(actualStops.map((st) => toRouteStop(st)), cache), [actualStops, cache]);
   const wholePath = useMemo(() => (plan === 'wholeTrip' ? buildPath(tripRouteStops, cache) : null), [plan, tripRouteStops, cache]);
 
-  // Planned | Actual — offered once there's something actual to show.
-  const [mapMode, setMapMode] = useState<'planned' | 'actual'>('planned');
-  const showModeSwitch = actualViewAvailable({
-    status: tripStatus, endDate: tripEndDate, anyVisited: grounded.some((g) => g.visited), now: new Date(),
-  });
-  const actualMode = showModeSwitch && mapMode === 'actual';
 
   // What the flyover flies: each planned day, or the actual route as one leg of the story.
   const flightPaths = useMemo(
-    () => (actualMode
+    () => (useHighlights && chapterSeqs.length > 0
+      ? chapterSeqs.map((c, i) => ({ dayId: `chapter-${i}`, color: palette.days[i % palette.days.length], stops: c.stops, path: buildPath(c.route, cache) }))
+      : actualMode
       ? (actualPath.coordinates.length > 1 ? [{ dayId: 'actual', color: palette.actual, stops: actualStops, path: actualPath }] : [])
       : wholePath && wholePath.coordinates.length > 1
         ? [{ dayId: 'trip', color: tripStops[0]?.dayColor ?? palette.days[0], stops: tripStops, path: wholePath }]
         : dayPaths),
-    [actualMode, actualPath, actualStops, dayPaths, palette.actual, palette.days, wholePath, tripStops],
+    [actualMode, actualPath, actualStops, dayPaths, palette.actual, palette.days, wholePath, tripStops, useHighlights, chapterSeqs, cache],
   );
 
   // One line per leg (road, rail, ferry or flight). flightIndex ties a line
@@ -380,9 +410,9 @@ export function TripMapView({
   // days stay underneath, faded.
   const routesCollection: GeoJSON.FeatureCollection = useMemo(() => routeFeatures([
     // A whole-trip playback draws its city-to-city route; day paths of one stop draw nothing.
-    ...(!actualMode && wholePath ? flightPaths : dayPaths).map((d, i) => ({ path: d.path, color: d.color, flightIndex: actualMode ? -1 : i, faded: actualMode })),
+    ...(useHighlights || (!actualMode && wholePath) ? flightPaths : dayPaths).map((d, i) => ({ path: d.path, color: d.color, flightIndex: actualMode ? -1 : i, faded: actualMode })),
     ...(actualMode ? [{ path: actualPath, color: palette.actual, flightIndex: 0, faded: false }] : []),
-  ]), [dayPaths, actualMode, actualPath, palette.actual, wholePath, flightPaths]);
+  ]), [dayPaths, actualMode, actualPath, palette.actual, wholePath, flightPaths, useHighlights]);
 
   // Markers are native views — only worth their cost close in. Tracked as a
   // boolean flipped at the threshold, not the live zoom, so a pinch doesn't
@@ -452,8 +482,47 @@ export function TripMapView({
     ),
     [durations, flightPaths, filmPhotos],
   );
+  // Highlights: a moment shows its day's photos one after another, 2 s each (utils/flyover momentHoldMs). Playback
+  // shows them as the stop-by-stop playback does; the video only on trips you're on, and fits about a minute by
+  // dropping photos — never by shortening one (highlightFilmPhotos).
+  const momentPhotos = useMemo(() => chapters.map((c) => c.moments.map((m) => tripStops
+    .filter((st) => st.dayId === m.dayId)
+    .flatMap((st) => photosByStop[st.activity.id] ?? [])
+    .slice(0, HIGHLIGHT_PHOTOS_MAX))), [chapters, tripStops, photosByStop]);
+  const highlightTiming = useMemo<FlyoverTiming | undefined>(() => (useHighlights
+    ? { ...DEFAULT_TIMING, dwells: momentPhotos.map((ch) => [0, ...ch.map((ph) => momentHoldMs(ph.length))]) }
+    : undefined), [useHighlights, momentPhotos]);
+  const filmMomentPhotos = useMemo(() => {
+    if (!useHighlights) return [];
+    const counts = momentPhotos.map((ch) => ch.map((ph) => (canEdit ? ph.length : 0)));
+    const introMs = 3000;
+    const fixed = filmPlan.durations.reduce((a, d) => a + d, 0) + chapters.length * introMs
+      + counts.flat().length * momentHoldMs(0);
+    const keep = highlightFilmPhotos(counts, FILM_BUDGET_MS, fixed);
+    return momentPhotos.map((ch, i) => ch.map((ph, k) => ph.slice(0, keep[i]?.[k] ?? 0)));
+  }, [useHighlights, momentPhotos, canEdit, filmPlan.durations, chapters.length]);
+  const filmTimingNow = useMemo<FlyoverTiming>(() => (useHighlights
+    ? { introMs: 3000, dwellMs: DEFAULT_TIMING.dwellMs, legMinMs: filmPlan.timing.legMinMs, dwells: filmMomentPhotos.map((ch) => [0, ...ch.map((ph) => momentHoldMs(ph.length))]) }
+    : filmPlan.timing), [useHighlights, filmMomentPhotos, filmPlan.timing]);
   const tickDurations = filming ? filmPlan.durations : durations;
-  const tickTiming = filming ? filmPlan.timing : undefined;
+  const tickTiming = filming ? filmTimingNow : highlightTiming;
+
+  // A chapter with no saved or searched city name: one map lookup per session (nothing saved).
+  const [cityNames, setCityNames] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    if (!useHighlights || !(flying || film !== 'idle')) return;
+    chapters.forEach((c) => {
+      const key = `${c.center.lat.toFixed(3)},${c.center.lng.toFixed(3)}`;
+      if (c.cityName || key in cityNames) return;
+      setCityNames((prev) => ({ ...prev, [key]: null }));
+      cityNameAt(c.center.lat, c.center.lng).then((name) => setCityNames((prev) => ({ ...prev, [key]: name })));
+    });
+  }, [useHighlights, flying, film, chapters, cityNames]);
+  const chapterName = useCallback((i: number): string | null => {
+    const c = chapters[i];
+    if (!c) return null;
+    return c.cityName ?? cityNames[`${c.center.lat.toFixed(3)},${c.center.lng.toFixed(3)}`] ?? null;
+  }, [chapters, cityNames]);
 
   useEffect(() => {
     if (flyover.status !== 'playing') return;
@@ -623,20 +692,36 @@ export function TripMapView({
   // The trip video's caption: the day of the stop the flyover is at — right for per-day and whole-trip flyovers alike.
   const filmStopDayId = flyDay?.stops[Math.max(0, flyover.stopIndex)]?.dayId;
   const filmDay = filmStopDayId ? days.find((d) => d.id === filmStopDayId) : undefined;
-  const filmCaption = filmDay ? dayCaption(filmDay.dayNumber, dayCities[filmDay.id] ?? null) : null;
+  // Highlights: the chapter opening (stop 0) reads TOKYO · DAYS 1–4; a moment reads DAY 2 · SHIBUYA.
+  const hlChapter = useHighlights && flying ? chapters[flyover.dayIndex] : undefined;
+  const hlMoment = hlChapter && flyover.stopIndex >= 1 ? hlChapter.moments[flyover.stopIndex - 1] : undefined;
+  const hlCity = hlChapter ? chapterName(flyover.dayIndex) : null;
+  const hlEyebrow = hlChapter
+    ? (hlMoment ? momentEyebrow(hlMoment.dayNumber, hlMoment.label, hlCity) : [hlCity?.toUpperCase(), dayRangeLabel(hlChapter.dayNumbers)].filter(Boolean).join(' · '))
+    : null;
+  const hlPhotos = hlMoment ? ((filming ? filmMomentPhotos : momentPhotos)[flyover.dayIndex]?.[flyover.stopIndex - 1] ?? []) : [];
+  const hlHoldTotal = tickTiming?.dwells?.[flyover.dayIndex]?.[flyover.stopIndex] ?? 0;
+  const hlPhotoIndex = hlMoment && flyover.hold > 0 ? photoIndexAt(hlHoldTotal, flyover.hold, hlPhotos.length) : null;
+  const hlPhoto = hlPhotoIndex !== null ? hlPhotos[hlPhotoIndex] ?? null : null;
+  const filmCaption = hlChapter ? hlEyebrow : filmDay ? dayCaption(filmDay.dayNumber, dayCities[filmDay.id] ?? null) : null;
   // Resting on a stop picked for the video: its first photo, framed over the map.
   const filmPhotoStop = filming && flyStop && flyover.hold > 0 && filmPhotos.has(flyStop.activity.id) ? flyStop : undefined;
-  const filmPhoto = filmPhotoStop && photosByStop[filmPhotoStop.activity.id]?.[0]
+  const filmPhoto = hlChapter
+    ? (hlPhoto ? { uri: hlPhoto.url, place: hlCity ?? '' } : null)
+    : filmPhotoStop && photosByStop[filmPhotoStop.activity.id]?.[0]
     ? { uri: photosByStop[filmPhotoStop.activity.id][0].url, place: filmPhotoStop.activity.placeName || filmPhotoStop.activity.title }
     : null;
   // The shown stop's own day: in Actual mode one path spans every day, so the
   // flight path's day would label every stop "DAY 1".
   const flyStopDay = flyStop ? days.find((d) => d.id === flyStop.dayId) ?? flyDayMeta : flyDayMeta;
-  const flyPhoto = flyStop ? photosByStop[flyStop.activity.id]?.[0] ?? null : null;
-  const flyPhotoCount = flyStop ? photosByStop[flyStop.activity.id]?.length ?? 0 : 0;
+  const flyPhoto = hlChapter ? hlPhoto : flyStop ? photosByStop[flyStop.activity.id]?.[0] ?? null : null;
+  const flyPhotoCount = hlChapter ? hlPhotos.length : flyStop ? photosByStop[flyStop.activity.id]?.length ?? 0 : 0;
   // While moving between stops: how, and to where ("By train to Budapest").
   const legTo = flying && activeLeg && curLeg >= 0 ? flyDay?.stops[curLeg + 1] : undefined;
-  const legLine = legTo && activeLeg && legT > 0 && legT < 1 ? travelLabel(activeLeg.travel, legTo.activity.placeName || legTo.activity.title) : null;
+  const legLine = hlChapter
+    // Highlights name only the trip into a new city ("By train to Osaka"), not the hops inside one.
+    ? (hlChapter.arrival && curLeg === 0 && activeLeg && legT > 0 && legT < 1 ? travelLabel(hlChapter.arrival.travel, hlCity ?? (legTo?.activity.placeName || legTo?.activity.title || '')) : null)
+    : legTo && activeLeg && legT > 0 && legT < 1 ? travelLabel(activeLeg.travel, legTo.activity.placeName || legTo.activity.title) : null;
   const playingNow = flyover.status === 'playing';
   useEffect(() => {
     // Only while resting on it — resuming mid-leg mustn't pull the camera back.
@@ -819,7 +904,9 @@ export function TripMapView({
     await new Promise((r) => setTimeout(r, 400));
     if (!mountedRef.current || filmRef.current !== 'starting') return;
     // The video's photos load before recording, so none pops in half-drawn (≤ 4 s; a slow one just shows late).
-    const urls = [...filmPhotos].map((id) => photosByStop[id]?.[0]?.url).filter((u): u is string => !!u);
+    const urls = useHighlights
+      ? filmMomentPhotos.flat(2).map((ph) => ph.url)
+      : [...filmPhotos].map((id) => photosByStop[id]?.[0]?.url).filter((u): u is string => !!u);
     if (urls.length) {
       await Promise.race([Promise.all(urls.map((u) => Image.prefetch(u).catch(() => false))), new Promise((r) => setTimeout(r, 4000))]);
       if (!mountedRef.current || filmRef.current !== 'starting') return;
@@ -853,7 +940,7 @@ export function TripMapView({
         return;
       }
       filmTimers.current.push(setTimeout(() => {
-        dispatch({ type: 'play', timing: filmPlan.timing });
+        dispatch({ type: 'play', timing: filmTimingNow });
         setFilm('flying');
       }, FILM_OPENING_MS));
       return;
@@ -883,10 +970,10 @@ export function TripMapView({
     fitAllStops();
     setFilm('opening');
     filmTimers.current.push(setTimeout(() => {
-      dispatch({ type: 'play', timing: filmPlan.timing });
+      dispatch({ type: 'play', timing: filmTimingNow });
       setFilm('flying');
     }, FILM_OPENING_MS));
-  }, [fitAllStops, filmPlan.timing, filmPhotos, photosByStop, finishFilm]);
+  }, [fitAllStops, filmTimingNow, filmPhotos, photosByStop, finishFilm, useHighlights, filmMomentPhotos]);
 
   // The flyover finished: end card, then the file, then the share sheet.
   useEffect(() => {
@@ -925,6 +1012,16 @@ export function TripMapView({
     const sub = AppState.addEventListener('change', (s) => { if (s === 'background') cancelFilmRef.current(); });
     return () => { sub.remove(); cancelFilmRef.current(); };
   }, []);
+
+  // Highlights' chips are the chapters: the city, else its days.
+  const chipLabel = (dayId: string, i: number, dayNumber?: number) => {
+    if (dayId === 'trip') return 'Whole trip';
+    if (useHighlights && chapters[i]) {
+      const first = chapters[i].dayNumbers[0], last = chapters[i].dayNumbers[chapters[i].dayNumbers.length - 1];
+      return chapterName(i) ?? (first === last ? `Day ${first}` : `Days ${first}–${last}`);
+    }
+    return `Day ${dayNumber ?? i + 1}`;
+  };
 
   const handleJumpDay = useCallback((dayIndex: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1684,7 +1781,7 @@ export function TripMapView({
           <SpringIn key={flyStop?.activity.id ?? 'none'}>
             <View style={styles.flyStopRow}>
               {flyPhoto ? (
-                <View accessible accessibilityLabel={`Photo by ${flyPhoto.name}`}>
+                <View key={flyPhoto.url} accessible accessibilityLabel={`Photo by ${flyPhoto.name}`}>
                   <Image source={{ uri: flyPhoto.url }} style={styles.flyPhoto} />
                   <View style={[styles.flyPhotoBy, { borderColor: colors.background.card }]}>
                     <Avatar uri={flyPhoto.avatarUrl} name={flyPhoto.name} size="xs" />
@@ -1697,7 +1794,7 @@ export function TripMapView({
               ) : null}
               <View style={styles.flyStopText}>
                 <Text style={[styles.flyEyebrow, { color: colors.text.secondary }]} numberOfLines={1}>
-                  {stopEyebrow(
+                  {hlEyebrow ?? stopEyebrow(
                     flyStopDay?.dayNumber ?? flyover.dayIndex + 1,
                     flyStopDay?.date ? flyStopDay.date.toDate().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase() : null,
                     Math.max(0, flyover.stopIndex),
@@ -1705,7 +1802,7 @@ export function TripMapView({
                   )}
                 </Text>
                 <Text style={[styles.flyTitle, { color: colors.text.primary }]} numberOfLines={1}>
-                  {flyStop ? (flyStop.activity.placeName || flyStop.activity.title) : ' '}
+                  {hlChapter ? (hlCity ?? ' ') : flyStop ? (flyStop.activity.placeName || flyStop.activity.title) : ' '}
                 </Text>
                 {legLine ? (
                   <Text style={[styles.flyMeta, { color: colors.text.secondary }]} numberOfLines={1}>{legLine}</Text>
@@ -1714,9 +1811,9 @@ export function TripMapView({
                     {`Photo by ${flyPhoto.name}${flyPhotoCount > 1 ? ` · ${flyPhotoCount} photos` : ''}`}
                   </Text>
                 ) : null}
-                {flyStop?.activity.startTime || flyStop?.activity.notes ? (
+                {!hlChapter && (flyStop?.activity.startTime || flyStop?.activity.notes) ? (
                   <Text style={[styles.flyMeta, { color: colors.text.secondary }]} numberOfLines={2}>
-                    {[flyStop.activity.startTime, flyStop.activity.notes].filter(Boolean).join(' · ')}
+                    {[flyStop?.activity.startTime, flyStop?.activity.notes].filter(Boolean).join(' · ')}
                   </Text>
                 ) : null}
               </View>
@@ -1742,11 +1839,11 @@ export function TripMapView({
                     onPress={() => handleJumpDay(i)}
                     disabled={durations[i] === 0 && d.stops.length === 0}
                     style={[styles.dayChip, { borderColor: d.color }, active && { backgroundColor: d.color }]}
-                    accessibilityLabel={d.dayId === 'trip' ? 'Whole trip' : `Day ${meta?.dayNumber ?? i + 1}`}
+                    accessibilityLabel={chipLabel(d.dayId, i, meta?.dayNumber)}
                     accessibilityState={{ selected: active, disabled: durations[i] === 0 && d.stops.length === 0 }}
                   >
                     <Text style={[styles.dayChipText, { color: active ? '#0B0A12' : colors.text.primary }]}>
-                      {d.dayId === 'trip' ? 'Whole trip' : `Day ${meta?.dayNumber ?? i + 1}`}
+                      {chipLabel(d.dayId, i, meta?.dayNumber)}
                     </Text>
                   </TouchableOpacity>
                 );

@@ -112,3 +112,16 @@ export function tripChapters(days: HDay[], stops: HStop[]): Chapter[] {
     };
   });
 }
+
+/** A chapter's days for its opening eyebrow: `DAYS 1–4`, `DAY 5`. */
+export function dayRangeLabel(dayNumbers: number[]): string {
+  if (dayNumbers.length === 0) return '';
+  const first = dayNumbers[0], last = dayNumbers[dayNumbers.length - 1];
+  return first === last ? `DAY ${first}` : `DAYS ${first}–${last}`;
+}
+
+/** A day moment's eyebrow: `DAY 2 · SHIBUYA & HARAJUKU`, else the city, else just the day. */
+export function momentEyebrow(dayNumber: number, label: string | null, city: string | null): string {
+  const place = label ?? city;
+  return place ? `DAY ${dayNumber} · ${place.toUpperCase()}` : `DAY ${dayNumber}`;
+}

@@ -1,5 +1,5 @@
 import {
-  isLongTrip, highlightsActive, stripDayPrefix, cityFromQueries, momentStop, arrivalTravel, tripChapters,
+  isLongTrip, highlightsActive, stripDayPrefix, cityFromQueries, momentStop, arrivalTravel, tripChapters, dayRangeLabel, momentEyebrow,
   type HStop, type HDay,
 } from '@/utils/highlights';
 
@@ -95,5 +95,21 @@ describe('tripChapters', () => {
     const t = Date.now();
     tripChapters(days, stops);
     expect(Date.now() - t).toBeLessThan(100);
+  });
+});
+
+describe('dayRangeLabel', () => {
+  it('reads DAYS 1–4, DAY 5, or a list when days skip', () => {
+    expect(dayRangeLabel([1, 2, 3, 4])).toBe('DAYS 1–4');
+    expect(dayRangeLabel([5])).toBe('DAY 5');
+    expect(dayRangeLabel([])).toBe('');
+  });
+});
+
+describe('momentEyebrow', () => {
+  it('DAY 2 · AREA, else the city, else just the day', () => {
+    expect(momentEyebrow(2, 'Shibuya & Harajuku', 'Tokyo')).toBe('DAY 2 · SHIBUYA & HARAJUKU');
+    expect(momentEyebrow(3, null, 'Tokyo')).toBe('DAY 3 · TOKYO');
+    expect(momentEyebrow(4, null, null)).toBe('DAY 4');
   });
 });
