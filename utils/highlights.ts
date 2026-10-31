@@ -10,8 +10,20 @@ export const HIGHLIGHT_MIN_STOPS = 26;
 export const CITY_RADIUS_M = 50_000;
 
 export const isLongTrip = (dayCount: number, stopCount: number) => dayCount >= HIGHLIGHT_MIN_DAYS || stopCount >= HIGHLIGHT_MIN_STOPS;
-/** Highlights are the Planned view; Actual mode keeps the visited route as it is. */
-export const highlightsActive = (i: { long: boolean; actualMode: boolean }) => i.long && !i.actualMode;
+/**
+ * Highlights are the Planned view's playback and video only: the map at rest keeps every day's route, and
+ * Actual mode keeps the visited route (review, 2026-10-31).
+ */
+export const highlightsActive = (i: { long: boolean; actualMode: boolean; playing: boolean }) => i.long && !i.actualMode && i.playing;
+
+/**
+ * The trip's day → city map is worth using only when it names more than one city: a one-destination trip maps
+ * every day to it ("Thailand"), which would make the whole trip one chapter (review, 2026-10-31).
+ */
+export function usableSavedCities(dayCities: Record<string, string | null>): Record<string, string | null> {
+  const names = new Set(Object.values(dayCities).filter((v): v is string => !!v));
+  return names.size >= 2 ? dayCities : {};
+}
 
 export interface HStop { id: string; dayId: string; lat: number; lng: number; searchQuery: string | null; route: RouteStop }
 export interface HDay { id: string; dayNumber: number; title: string | null; savedCity: string | null }
@@ -104,11 +116,15 @@ export function tripChapters(days: HDay[], stops: HStop[]): Chapter[] {
     const prev = all[i - 1];
     const fromId = prev ? prev.moments[prev.moments.length - 1].stopId : null;
     const toStop = stopById.get(c.moments[0].stopId)!;
+    // How they got here: from the previous city's last stop to this one's first — where a booked train or a
+    // "Shinkansen to Osaka" stop sits — not between the two moments (review, 2026-10-31).
+    const lastBefore = prev ? prev.stops[prev.stops.length - 1] : undefined;
+    const firstHere = own[0] ?? toStop;
     return {
       ...rest,
       cityName: rest.cityName ?? cityFromQueries(own.map((s) => s.searchQuery)),
       center: own.length ? middle(own) : { lat: toStop.lat, lng: toStop.lng },
-      arrival: fromId ? { travel: arrivalTravel(stopById.get(fromId)!.route, toStop.route), fromStopId: fromId } : null,
+      arrival: fromId ? { travel: arrivalTravel((lastBefore ?? stopById.get(fromId)!).route, firstHere.route), fromStopId: fromId } : null,
     };
   });
 }

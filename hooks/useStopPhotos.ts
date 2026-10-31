@@ -1,4 +1,5 @@
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { useModerationStore } from '@/stores/useModerationStore';
@@ -44,6 +45,13 @@ export function useStopPhotos(a: {
       return { journals, reviews };
     },
   });
-  if (!data || !a.organizerUid) return {};
-  return stopPhotos(a.stops, data.journals, a.organizerUid, data.reviews, a.memberUids, profiles, new Set(blocked));
+  // One object until something changes: a fresh one each render re-ran every memo downstream on every flyover
+  // tick, which restarted the follow camera's timer before it ever fired (review, 2026-10-31).
+  const stopsKey = a.stops.map((s) => `${s.id}:${s.placeId ?? ''}`).join(',');
+  const membersKey = a.memberUids.join(',');
+  return useMemo(() => {
+    if (!data || !a.organizerUid) return {};
+    return stopPhotos(a.stops, data.journals, a.organizerUid, data.reviews, a.memberUids, profiles, new Set(blocked));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the stops' and members' contents, not their array identity
+  }, [data, a.organizerUid, stopsKey, membersKey, profiles, blocked]);
 }

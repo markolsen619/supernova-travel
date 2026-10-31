@@ -282,3 +282,13 @@ export function highlightFilmPhotos(photoCounts: number[][], budgetMs: number, f
   }
   return out;
 }
+
+/** A video still over budget with no photos left shortens photo-less holds to 0.8 s (spec 2026-10-31). */
+export function filmEmptyHoldMs(moments: number, otherMs: number, budgetMs: number): number {
+  return otherMs + moments * HIGHLIGHT_EMPTY_HOLD_MS > budgetMs ? 800 : HIGHLIGHT_EMPTY_HOLD_MS;
+}
+
+/** A highlights chapter's drawing time: a chapter of one spot (one moment, no arrival) draws nothing — it used to sit still for 6 s. */
+export function highlightDayDurationMs(meters: number): number {
+  return meters <= 0 ? 1 : dayDurationMs(meters);
+}

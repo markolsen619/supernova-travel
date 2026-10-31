@@ -152,7 +152,9 @@ export async function cityNameAt(lat: number, lng: number): Promise<string | nul
   if (!TOKEN) return null;
   try {
     const url = `https://api.mapbox.com/search/geocode/v6/reverse?longitude=${lng}&latitude=${lat}&types=place&limit=1&access_token=${TOKEN}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 2000);
+    const res = await fetch(url, { signal: ctl.signal }).finally(() => clearTimeout(timer));
     if (!res.ok) return null;
     const f = ((await res.json()) as { features?: { properties?: { name?: string } }[] }).features?.[0];
     return f?.properties?.name ?? null;

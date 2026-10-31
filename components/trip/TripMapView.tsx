@@ -50,12 +50,12 @@ import { TripDay, TripActivity, TripStatus } from '@/types';
 import { buildPath, markerStops, overviewDots, pointAlongPath, actualStopOrder, actualViewAvailable, legAtProgress, flightAltitudeMeters, MARKER_MIN_ZOOM, type RouteStop } from '@/utils/tripRoutes';
 import { routeFeatures } from '@/utils/routeFeatures';
 import { arrivalHints, playbackPlan, travelLabel } from '@/utils/playback';
-import { dayRangeLabel, highlightsActive, isLongTrip, momentEyebrow, tripChapters } from '@/utils/highlights';
+import { dayRangeLabel, highlightsActive, isLongTrip, momentEyebrow, tripChapters, usableSavedCities } from '@/utils/highlights';
 import { cityNameAt } from '@/services/places/mapboxSearch';
 import type { TripBooking } from '@/utils/bookingDays';
 import { useStopPhotos } from '@/hooks/useStopPhotos';
 import { Avatar } from '@/components/ui/Avatar';
-import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, filmTiming, FILM_OPENING_MS, FILM_END_MS, FILM_BUDGET_MS, DEFAULT_TIMING, stopShot, introShot, followStepMs, legSpeed, momentHoldMs, photoIndexAt, highlightFilmPhotos, HIGHLIGHT_PHOTOS_MAX, type FlyoverTiming } from '@/utils/flyover';
+import { flyoverReducer, dayDurationMs, initialFlyover, isFlyoverActive, stopEyebrow, filmTiming, FILM_OPENING_MS, FILM_END_MS, FILM_BUDGET_MS, DEFAULT_TIMING, stopShot, introShot, followStepMs, legSpeed, momentHoldMs, photoIndexAt, highlightFilmPhotos, filmEmptyHoldMs, highlightDayDurationMs, HIGHLIGHT_PHOTO_MS, HIGHLIGHT_PHOTOS_MAX, type FlyoverTiming } from '@/utils/flyover';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { useTripRoutes } from '@/hooks/useTripRoutes';
 import { ROUTE_PALETTES, routePalette, dayRouteColor, type RoutePalette, type RoutePaletteId } from '@/constants/routePalettes';
@@ -335,6 +335,18 @@ export function TripMapView({
     [stopsByDay],
   );
 
+  // The flyover and the trip video's state (declared here: highlights depend on whether either runs).
+  const [flyover, dispatch] = useReducer(flyoverReducer, initialFlyover);
+  const flyoverRef = useRef(flyover);
+  flyoverRef.current = flyover;
+  // Playing or paused only — a finished flyover hands the map back.
+  const flying = isFlyoverActive(flyover.status);
+  // Trip video (spec 2026-10-24-trip-video-design.md): the same flyover on film timing while recording.
+  type FilmState = 'idle' | 'confirm' | 'starting' | 'opening' | 'flying' | 'end' | 'saving';
+  const [film, setFilm] = useState<FilmState>('idle');
+  const [filmError, setFilmError] = useState<string | null>(null);
+  const filming = film === 'opening' || film === 'flying' || film === 'end' || film === 'saving';
+
   // Planned | Actual — offered once there's something actual to show.
   const [mapMode, setMapMode] = useState<'planned' | 'actual'>('planned');
   const showModeSwitch = actualViewAvailable({
@@ -346,14 +358,15 @@ export function TripMapView({
   // per day. Each chapter flies [opening, ...moments]: the opening is the previous chapter's last moment (the
   // arrival leg starts there) or, for the first chapter, its first moment again — two stops on one spot each get
   // their own pause, so that moment still gets its photos.
-  const useHighlights = highlightsActive({ long: isLongTrip(days.length, tripStops.length), actualMode });
+  const useHighlights = highlightsActive({ long: isLongTrip(days.length, tripStops.length), actualMode, playing: flying || film !== 'idle' });
+  const savedCities = useMemo(() => usableSavedCities(dayCities), [dayCities]);
   const chapters = useMemo(() => (useHighlights ? tripChapters(
-    days.map((d) => ({ id: d.id, dayNumber: d.dayNumber, title: d.title ?? null, savedCity: dayCities[d.id] ?? null })),
+    days.map((d) => ({ id: d.id, dayNumber: d.dayNumber, title: d.title ?? null, savedCity: savedCities[d.id] ?? null })),
     tripStops.map((st, i) => ({
       id: st.activity.id, dayId: st.dayId, lat: st.lat, lng: st.lng, searchQuery: st.activity.searchQuery ?? null,
       route: toRouteStop(st, i > 0 && st.stopNumber === 1 ? hints[st.dayId] : undefined),
     })),
-  ) : []), [useHighlights, days, dayCities, tripStops, hints]);
+  ) : []), [useHighlights, days, savedCities, tripStops, hints]);
   const chapterSeqs = useMemo(() => {
     const byId = new Map(tripStops.map((st) => [st.activity.id, st]));
     return chapters.map((c) => {
@@ -431,11 +444,6 @@ export function TripMapView({
   // Day by day, each route draws itself while the camera follows the
   // drawing head. Pacing and day changes live in utils/flyover (tested);
   // this only runs the clock and moves the camera.
-  const [flyover, dispatch] = useReducer(flyoverReducer, initialFlyover);
-  const flyoverRef = useRef(flyover);
-  flyoverRef.current = flyover;
-  // Playing or paused only — a finished flyover hands the map back.
-  const flying = isFlyoverActive(flyover.status);
   const headingRef = useRef(0);
   // Sent only when it changes — a new object every flyover tick re-applied the whole config each second.
   // Daylight always on the trip map: switching to day only for a flyover flashed night→day→night.
@@ -447,18 +455,13 @@ export function TripMapView({
 
   // A day with fewer than two stops has no path: duration 0, skipped.
   const durations = useMemo(
-    () => flightPaths.map((d) => (d.path.coordinates.length > 1 ? dayDurationMs(d.path.meters) : 0)),
-    [flightPaths],
+    () => flightPaths.map((d) => (d.path.coordinates.length > 1 ? (useHighlights ? highlightDayDurationMs(d.path.meters) : dayDurationMs(d.path.meters)) : 0)),
+    [flightPaths, useHighlights],
   );
   const canFly = durations.some((d) => d > 0);
   // Where each stop sits on its day's line — the reducer rests the head on each.
   const stopFractions = useMemo(() => flightPaths.map((d) => d.path.stopFractions), [flightPaths]);
 
-  // Trip video (spec 2026-10-24-trip-video-design.md): the same flyover on film timing while recording.
-  type FilmState = 'idle' | 'confirm' | 'starting' | 'opening' | 'flying' | 'end' | 'saving';
-  const [film, setFilm] = useState<FilmState>('idle');
-  const [filmError, setFilmError] = useState<string | null>(null);
-  const filming = film === 'opening' || film === 'flying' || film === 'end' || film === 'saving';
   // Members' photos at each stop, loaded once a playback starts — or the trip video's sheet opens, so the film
   // can be timed around them (utils/playback stopPhotos).
   const photosByStop = useStopPhotos({
@@ -496,14 +499,22 @@ export function TripMapView({
     if (!useHighlights) return [];
     const counts = momentPhotos.map((ch) => ch.map((ph) => (canEdit ? ph.length : 0)));
     const introMs = 3000;
-    const fixed = filmPlan.durations.reduce((a, d) => a + d, 0) + chapters.length * introMs
-      + counts.flat().length * momentHoldMs(0);
-    const keep = highlightFilmPhotos(counts, FILM_BUDGET_MS, fixed);
+    const routesMs = filmPlan.durations.reduce((a, d) => a + d, 0) + chapters.length * introMs;
+    const keep = highlightFilmPhotos(counts, FILM_BUDGET_MS, routesMs + counts.flat().length * momentHoldMs(0));
     return momentPhotos.map((ch, i) => ch.map((ph, k) => ph.slice(0, keep[i]?.[k] ?? 0)));
   }, [useHighlights, momentPhotos, canEdit, filmPlan.durations, chapters.length]);
-  const filmTimingNow = useMemo<FlyoverTiming>(() => (useHighlights
-    ? { introMs: 3000, dwellMs: DEFAULT_TIMING.dwellMs, legMinMs: filmPlan.timing.legMinMs, dwells: filmMomentPhotos.map((ch) => [0, ...ch.map((ph) => momentHoldMs(ph.length))]) }
-    : filmPlan.timing), [useHighlights, filmMomentPhotos, filmPlan.timing]);
+  const filmTimingNow = useMemo<FlyoverTiming>(() => {
+    if (!useHighlights) return filmPlan.timing;
+    // Legs draw at the squeezed pace (no 3 s minimum the budget didn't count); still over with no photos left:
+    // photo-less holds shorten to 0.8 s (filmEmptyHoldMs).
+    const photoMs = filmMomentPhotos.flat().reduce((a, ph) => a + ph.length, 0) * HIGHLIGHT_PHOTO_MS;
+    const routesMs = filmPlan.durations.reduce((a, d) => a + d, 0) + chapters.length * 3000 + photoMs;
+    const emptyMs = filmEmptyHoldMs(filmMomentPhotos.flat().length, routesMs, FILM_BUDGET_MS);
+    return {
+      introMs: 3000, dwellMs: DEFAULT_TIMING.dwellMs, legMinMs: 0,
+      dwells: filmMomentPhotos.map((ch) => [0, ...ch.map((ph) => (ph.length ? momentHoldMs(ph.length) : emptyMs))]),
+    };
+  }, [useHighlights, filmMomentPhotos, filmPlan.timing, filmPlan.durations, chapters.length]);
   const tickDurations = filming ? filmPlan.durations : durations;
   const tickTiming = filming ? filmTimingNow : highlightTiming;
 
@@ -674,7 +685,8 @@ export function TripMapView({
   const stopProgress = useMemo(() => {
     const m = new Map<string, { dayIndex: number; fraction: number }>();
     flightPaths.forEach((d, dayIndex) => d.stops.forEach((st, i) => {
-      m.set(st.activity.id, { dayIndex, fraction: d.path.stopFractions[i] ?? 0 });
+      // First appearance wins: in highlights a city's last moment also opens the next chapter.
+      if (!m.has(st.activity.id)) m.set(st.activity.id, { dayIndex, fraction: d.path.stopFractions[i] ?? 0 });
     }));
     return m;
   }, [flightPaths]);
@@ -700,7 +712,11 @@ export function TripMapView({
     ? (hlMoment ? momentEyebrow(hlMoment.dayNumber, hlMoment.label, hlCity) : [hlCity?.toUpperCase(), dayRangeLabel(hlChapter.dayNumbers)].filter(Boolean).join(' · '))
     : null;
   const hlPhotos = hlMoment ? ((filming ? filmMomentPhotos : momentPhotos)[flyover.dayIndex]?.[flyover.stopIndex - 1] ?? []) : [];
-  const hlHoldTotal = tickTiming?.dwells?.[flyover.dayIndex]?.[flyover.stopIndex] ?? 0;
+  // The hold as set when this moment was reached — photos that load mid-hold must not jump the index ahead.
+  const hlHoldRef = useRef<{ key: string; total: number }>({ key: '', total: 0 });
+  const hlKey = `${flyover.dayIndex}:${flyover.stopIndex}`;
+  if (hlMoment && hlHoldRef.current.key !== hlKey) hlHoldRef.current = { key: hlKey, total: flyover.hold };
+  const hlHoldTotal = hlHoldRef.current.total;
   const hlPhotoIndex = hlMoment && flyover.hold > 0 ? photoIndexAt(hlHoldTotal, flyover.hold, hlPhotos.length) : null;
   const hlPhoto = hlPhotoIndex !== null ? hlPhotos[hlPhotoIndex] ?? null : null;
   const filmCaption = hlChapter ? hlEyebrow : filmDay ? dayCaption(filmDay.dayNumber, dayCities[filmDay.id] ?? null) : null;
@@ -761,7 +777,9 @@ export function TripMapView({
         animationMode: 'flyTo',
       });
       // A short video opening has no time for the fly-in and orbit; the follow camera takes it from here.
-      if (shot.arriveAt !== undefined) timers.push(setTimeout(arrive, shot.arriveAt), setTimeout(() => circle(shot.circleMs ?? 600), shot.circleAt));
+      // A highlights chapter that arrives from another city stays on its aerial: stop 0 is the previous city.
+      const arrivesFromElsewhere = useHighlights && !!chapters[flyover.dayIndex]?.arrival;
+      if (shot.arriveAt !== undefined && !arrivesFromElsewhere) timers.push(setTimeout(arrive, shot.arriveAt), setTimeout(() => circle(shot.circleMs ?? 600), shot.circleAt));
     } else {
       const shot = stopShot(flyoverRef.current.hold);
       if (shot.style === 'closeup') {
@@ -1484,7 +1502,7 @@ export function TripMapView({
           </MarkerView>
         ))}
 
-        {(flying ? markerStops(MARKER_MIN_ZOOM, shownStops, flyDay?.stops[0]?.dayId ?? null) : visibleMarkers).filter(reached).map((stop) => {
+        {(flying ? (useHighlights ? (flyDay?.stops.slice(1) ?? []) : markerStops(MARKER_MIN_ZOOM, shownStops, flyDay?.stops[0]?.dayId ?? null)) : visibleMarkers).filter(reached).map((stop) => {
           const { Icon, color } = ACTIVITY_ICONS[stop.activity.type];
           const Wrap = flying ? SpringIn : View;
           // The stop being shown grows and pops in again each time it's reached.

@@ -1,4 +1,4 @@
-import { momentHoldMs, photoIndexAt, highlightFilmPhotos, HIGHLIGHT_PHOTO_MS } from '@/utils/flyover';
+import { momentHoldMs, photoIndexAt, highlightFilmPhotos, HIGHLIGHT_PHOTO_MS, filmEmptyHoldMs, highlightDayDurationMs, dayDurationMs } from '@/utils/flyover';
 
 describe('momentHoldMs', () => {
   it('arrive + 2 s a photo, or a short hold without photos', () => {
@@ -32,5 +32,16 @@ describe('highlightFilmPhotos', () => {
   });
   it('shows none when there is no room', () => {
     expect(highlightFilmPhotos([[4]], 10000, 12000)).toEqual([[0]]);
+  });
+});
+
+describe('review fixes: video budget and empty chapters', () => {
+  it('shortens photo-less holds to 0.8 s only when the video still runs over', () => {
+    expect(filmEmptyHoldMs(10, 30000, 54000)).toBe(1500);
+    expect(filmEmptyHoldMs(30, 45000, 54000)).toBe(800);
+  });
+  it('a chapter path of one spot takes no drawing time', () => {
+    expect(highlightDayDurationMs(0)).toBe(1);
+    expect(highlightDayDurationMs(12000)).toBe(dayDurationMs(12000));
   });
 });

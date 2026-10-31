@@ -1,5 +1,5 @@
 import {
-  isLongTrip, highlightsActive, stripDayPrefix, cityFromQueries, momentStop, arrivalTravel, tripChapters, dayRangeLabel, momentEyebrow,
+  isLongTrip, highlightsActive, stripDayPrefix, cityFromQueries, momentStop, arrivalTravel, tripChapters, dayRangeLabel, momentEyebrow, usableSavedCities,
   type HStop, type HDay,
 } from '@/utils/highlights';
 
@@ -20,9 +20,9 @@ describe('isLongTrip / highlightsActive', () => {
     expect(isLongTrip(2, 26)).toBe(true);
   });
   it('planned view only', () => {
-    expect(highlightsActive({ long: true, actualMode: false })).toBe(true);
-    expect(highlightsActive({ long: true, actualMode: true })).toBe(false);
-    expect(highlightsActive({ long: false, actualMode: false })).toBe(false);
+    expect(highlightsActive({ long: true, actualMode: false, playing: true })).toBe(true);
+    expect(highlightsActive({ long: true, actualMode: true, playing: true })).toBe(false);
+    expect(highlightsActive({ long: false, actualMode: false, playing: true })).toBe(false);
   });
 });
 
@@ -111,5 +111,28 @@ describe('momentEyebrow', () => {
     expect(momentEyebrow(2, 'Shibuya & Harajuku', 'Tokyo')).toBe('DAY 2 · SHIBUYA & HARAJUKU');
     expect(momentEyebrow(3, null, 'Tokyo')).toBe('DAY 3 · TOKYO');
     expect(momentEyebrow(4, null, null)).toBe('DAY 4');
+  });
+});
+
+describe('review fixes', () => {
+  it('a single-destination trip has no usable saved cities (every day says "Thailand")', () => {
+    expect(usableSavedCities({ a: 'Thailand', b: 'Thailand' })).toEqual({});
+    expect(usableSavedCities({ a: 'Lisbon', b: 'Porto', c: null })).toEqual({ a: 'Lisbon', b: 'Porto', c: null });
+    expect(usableSavedCities({})).toEqual({});
+  });
+  it('the trip into a city is read from the day\'s first stop (a train booked as the first stop), not the moment', () => {
+    const days = [day('a', 1), day('b', 2)];
+    const s = [
+      stop('a', TOKYO, 'X, Tokyo'),
+      stop('b', near(OSAKA, -0.05), 'Shin-Osaka, Osaka', 'transport', 'Shinkansen train to Osaka'),
+      stop('b', OSAKA, 'Y, Osaka'),
+      stop('b', near(OSAKA, 0.001), 'Z, Osaka'),
+    ];
+    const ch = tripChapters(days, s);
+    expect(ch[1].arrival?.travel).toBe('train');
+  });
+  it('highlights only while playing or recording', () => {
+    expect(highlightsActive({ long: true, actualMode: false, playing: false })).toBe(false);
+    expect(highlightsActive({ long: true, actualMode: false, playing: true })).toBe(true);
   });
 });
