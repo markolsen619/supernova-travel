@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { checkInstallReferrerOnce, readPendingInvite } from '@/services/pendingInvite';
+import { checkInstallReferrerOnce, inviteFromClipboardOnce, readPendingInvite } from '@/services/pendingInvite';
 import { claimMode } from '@/utils/inviteLinks';
 
 export function usePendingInviteClaim(): void {
@@ -13,11 +13,13 @@ export function usePendingInviteClaim(): void {
     ran.current = user.uid;
     (async () => {
       await checkInstallReferrerOnce();
-      const token = await readPendingInvite();
-      if (!token) return;
+      const parsed = Date.parse(user.metadata?.creationTime ?? '');
+      const created = Number.isNaN(parsed) ? null : parsed;
       // Not cleared here: the join screen clears it on a final answer, so a join that fails offline is tried next start.
-      const created = Date.parse(user.metadata?.creationTime ?? '');
-      const mode = claimMode({ createdAtMs: Number.isNaN(created) ? null : created, nowMs: Date.now() });
+      // Nothing waiting: on iPhone the invite page may have copied the link before the App Store (owner, 2026-10-31).
+      const token = (await readPendingInvite()) ?? (await inviteFromClipboardOnce(user.uid, created));
+      if (!token) return;
+      const mode = claimMode({ createdAtMs: created, nowMs: Date.now() });
       router.push(`/join/${token}${mode === 'auto' ? '?auto=1' : ''}` as never);
     })();
   }, [user]);

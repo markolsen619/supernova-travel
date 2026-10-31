@@ -18,8 +18,6 @@ import { NextTripCard } from '@/components/home/NextTripCard';
 import { TripRow } from '@/components/home/TripRow';
 import { InspiredStrip } from '@/components/home/InspiredStrip';
 import { PlanCard } from '@/components/home/PlanCard';
-import { PasteInviteCard } from '@/components/home/PasteInviteCard';
-import { showPasteInviteCard } from '@/utils/inviteLinks';
 import { homeEyebrow, homeTrips, tripSpan } from '@/utils/homeState';
 import { countdownLabel, todayCityIndex, todayInfo, todaysBooking } from '@/utils/todayCard';
 import { firstName, greeting } from '@/utils/greeting';
@@ -32,7 +30,6 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
-  const createdAt = useAuthStore((s) => s.user?.metadata.creationTime ?? null);
   const profile = useUserStore((s) => s.profile);
   const { data: trips = [], refetch } = useOwnAndJoinedTrips(uid);
   const { destinations } = useDestinations();
@@ -84,8 +81,6 @@ export default function HomeScreen() {
           {h.next && leadStart ? (
             <NextTripCard trip={h.next} label={countdownLabel(leadStart, today)} eyebrow={homeEyebrow(tripSpan(h.next), today)} booking={booking} />
           ) : null}
-          {showPasteInviteCard({ createdAtMs: createdAt ? Date.parse(createdAt) || null : null, nowMs: now.getTime(), tripCount: trips.length })
-            ? <PasteInviteCard /> : null}
           {h.isEmpty ? <PlanCard /> : null}
           {h.comingUp.length > 0 ? (
             <View style={styles.section}>

@@ -147,7 +147,17 @@ ${dates}
 <h1>${who} invited you to ${title}</h1>
 <p class="lede">Join the trip on Supernova to plan it together.</p>
 <a class="cta" href="${escapeHtml(openAppHref(invite.token, opts.platform ?? 'other'))}">Open in Supernova</a>
-<a class="store" href="${APP_STORE_URL}">Download on the App Store</a>
+<a class="store" data-copy="${escapeHtml(inviteUrl(invite.token))}" href="${APP_STORE_URL}">Download on the App Store</a>
 <a class="store" href="${escapeHtml(playStoreUrl(invite.token))}">Get it on Google Play</a>
-<p class="note">On iPhone? After installing, come back and tap Open in Supernova.</p>`);
+<p class="note">Install Supernova and sign up, and it brings you to the trip.</p>
+<script>
+// The App Store can't carry the invite through an install: copy the link so the new app can find it after sign-up.
+document.querySelectorAll('[data-copy]').forEach(function (a) {
+  a.addEventListener('click', function (e) {
+    e.preventDefault();
+    var go = function () { location.href = a.href; };
+    try { navigator.clipboard.writeText(a.getAttribute('data-copy')).then(go, go); } catch (_) { go(); }
+  });
+});
+</script>`);
 }

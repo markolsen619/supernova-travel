@@ -2,7 +2,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
-import { parseInstallReferrer } from '@/utils/inviteLinks';
+import * as Clipboard from 'expo-clipboard';
+import { parseInstallReferrer, parseInviteToken, shouldCheckClipboard } from '@/utils/inviteLinks';
 
 const KEY = 'pendingInvite';
 const REFERRER_KEY = 'installReferrerChecked';
@@ -27,4 +28,22 @@ export async function checkInstallReferrerOnce(): Promise<void> {
     // Marked only after a read: on first launch Play's service may not be bound yet, and a failed read is tried next start.
     await AsyncStorage.setItem(REFERRER_KEY, '1');
   } catch { /* no referrer service: nothing to do */ }
+}
+
+/**
+ * iPhone: the invite page copies the link when someone taps Download on the App Store. A new account looks at the
+ * clipboard once (utils/inviteLinks shouldCheckClipboard). Checking whether there's anything copied asks nothing;
+ * reading it shows iOS's Allow Paste question, so it's read only when something is there. Never throws.
+ */
+export async function inviteFromClipboardOnce(uid: string, createdAtMs: number | null): Promise<string | null> {
+  const key = `clipboardInviteChecked:${uid}`;
+  try {
+    const alreadyChecked = !!(await AsyncStorage.getItem(key));
+    if (!shouldCheckClipboard({ platform: Platform.OS, createdAtMs, nowMs: Date.now(), alreadyChecked, hasPending: false })) return null;
+    await AsyncStorage.setItem(key, '1');
+    if (!(await Clipboard.hasUrlAsync().catch(() => false)) && !(await Clipboard.hasStringAsync())) return null;
+    return parseInviteToken(await Clipboard.getStringAsync());
+  } catch {
+    return null;
+  }
 }

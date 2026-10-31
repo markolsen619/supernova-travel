@@ -23,8 +23,14 @@ export function parseInstallReferrer(ref: string | null | undefined): string | n
   return null;
 }
 
-export const showPasteInviteCard = (i: { createdAtMs: number | null; nowMs: number; tripCount: number }) =>
-  i.createdAtMs !== null && i.tripCount === 0 && i.nowMs - i.createdAtMs < 7 * DAY;
+/**
+ * iPhone only: the App Store can't carry an invite through an install, so the invite page copies the link when
+ * someone taps Download (functions/src/tripInviteLinks.ts). A new account (< 24 h) with no invite waiting looks at
+ * the clipboard once; reading it shows iOS's own Allow Paste question (owner, 2026-10-31).
+ */
+export const shouldCheckClipboard = (i: {
+  platform: string; createdAtMs: number | null; nowMs: number; alreadyChecked: boolean; hasPending: boolean;
+}) => i.platform === 'ios' && !i.alreadyChecked && !i.hasPending && claimMode(i) === 'auto';
 
 export const claimMode = (i: { createdAtMs: number | null; nowMs: number }): 'auto' | 'confirm' =>
   i.createdAtMs !== null && i.nowMs - i.createdAtMs < DAY ? 'auto' : 'confirm';

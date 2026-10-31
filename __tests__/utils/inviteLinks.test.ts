@@ -1,4 +1,4 @@
-import { parseInviteToken, parseInstallReferrer, showPasteInviteCard, claimMode, inviteErrorCopy, shouldClearPending } from '@/utils/inviteLinks';
+import { parseInviteToken, parseInstallReferrer, shouldCheckClipboard, claimMode, inviteErrorCopy, shouldClearPending } from '@/utils/inviteLinks';
 
 const T = 'abcdefgh12345678';
 const DAY = 86_400_000;
@@ -33,12 +33,17 @@ describe('parseInstallReferrer', () => {
   });
 });
 
-describe('showPasteInviteCard / claimMode', () => {
-  it('shows the paste card to accounts under 7 days with no trips', () => {
-    expect(showPasteInviteCard({ createdAtMs: 0, nowMs: 6 * DAY, tripCount: 0 })).toBe(true);
-    expect(showPasteInviteCard({ createdAtMs: 0, nowMs: 7 * DAY, tripCount: 0 })).toBe(false);
-    expect(showPasteInviteCard({ createdAtMs: 0, nowMs: DAY, tripCount: 1 })).toBe(false);
-    expect(showPasteInviteCard({ createdAtMs: null, nowMs: DAY, tripCount: 0 })).toBe(false);
+describe('shouldCheckClipboard / claimMode', () => {
+  const base = { platform: 'ios', createdAtMs: 0, nowMs: DAY - 1, alreadyChecked: false, hasPending: false };
+  it('looks once on iPhone for a new account with no invite waiting (the page copied the link)', () => {
+    expect(shouldCheckClipboard(base)).toBe(true);
+  });
+  it('not on Android (Play carries the invite), not twice, not for older accounts, not when one is waiting', () => {
+    expect(shouldCheckClipboard({ ...base, platform: 'android' })).toBe(false);
+    expect(shouldCheckClipboard({ ...base, alreadyChecked: true })).toBe(false);
+    expect(shouldCheckClipboard({ ...base, nowMs: DAY })).toBe(false);
+    expect(shouldCheckClipboard({ ...base, createdAtMs: null })).toBe(false);
+    expect(shouldCheckClipboard({ ...base, hasPending: true })).toBe(false);
   });
   it('joins automatically only for an account under a day old', () => {
     expect(claimMode({ createdAtMs: 0, nowMs: DAY - 1 })).toBe('auto');

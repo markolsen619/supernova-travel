@@ -96,7 +96,9 @@ describe('renderJoinPage', () => {
     expect(html).toContain('referrer=invite%3Dabcdefgh12345678');
     expect(html).toContain('https://apps.apple.com/app/id6810490710');
     expect(html).toContain('href="supernova://join/abcdefgh12345678"');
-    expect(html).toContain('After installing, come back and tap Open in Supernova');
+    expect(html).toContain('data-copy="https://supernova-a2125.web.app/join/abcdefgh12345678" href="https://apps.apple.com/app/id6810490710"');
+    expect(html).toContain('navigator.clipboard.writeText');
+    expect(html).toContain('Install Supernova and sign up, and it brings you to the trip.');
     expect(html).not.toContain('<b>Mark');
   });
   it('expired page names the inviter when known and has no join link', () => {
