@@ -247,3 +247,38 @@ export function isFlyoverActive(status: FlyoverStatus): boolean {
 export function stopEyebrow(dayNumber: number, dateLabel: string | null, stopIndex: number, stopCount: number): string {
   return [`DAY ${dayNumber}`, dateLabel, `STOP ${stopIndex + 1} OF ${stopCount}`].filter(Boolean).join(' · ');
 }
+
+/**
+ * Highlights (spec 2026-10-31): each day's moment lets the camera arrive, then shows its photos one after another
+ * for 2 s each — long enough to see (owner) — up to 4. A day without photos passes quickly.
+ */
+export const HIGHLIGHT_PHOTO_MS = 2000;
+export const HIGHLIGHT_PHOTOS_MAX = 4;
+export const HIGHLIGHT_ARRIVE_MS = 1500;
+export const HIGHLIGHT_EMPTY_HOLD_MS = 1500;
+
+export function momentHoldMs(photoCount: number): number {
+  const n = Math.min(Math.max(0, photoCount), HIGHLIGHT_PHOTOS_MAX);
+  return n === 0 ? HIGHLIGHT_EMPTY_HOLD_MS : HIGHLIGHT_ARRIVE_MS + n * HIGHLIGHT_PHOTO_MS;
+}
+
+/** Which photo shows during a moment's hold, or null while the camera arrives (or with none). */
+export function photoIndexAt(holdTotalMs: number, holdLeftMs: number, photoCount: number): number | null {
+  if (photoCount <= 0) return null;
+  const elapsed = holdTotalMs - holdLeftMs - HIGHLIGHT_ARRIVE_MS;
+  if (elapsed < 0) return null;
+  return Math.min(photoCount - 1, Math.floor(elapsed / HIGHLIGHT_PHOTO_MS));
+}
+
+/** The video's photos per moment within the budget: photos keep 2 s; the busiest day (then the later one) gives one up first. */
+export function highlightFilmPhotos(photoCounts: number[][], budgetMs: number, fixedMs: number): number[][] {
+  const out = photoCounts.map((ch) => ch.map((n) => Math.min(Math.max(0, n), HIGHLIGHT_PHOTOS_MAX)));
+  const room = () => budgetMs - fixedMs - out.flat().reduce((a, b) => a + b, 0) * HIGHLIGHT_PHOTO_MS;
+  while (room() < 0) {
+    let bc = -1, bm = -1, most = 0;
+    out.forEach((ch, c) => ch.forEach((n, m) => { if (n > 0 && n >= most) { most = n; bc = c; bm = m; } }));
+    if (bc < 0) break;
+    out[bc][bm] -= 1;
+  }
+  return out;
+}
