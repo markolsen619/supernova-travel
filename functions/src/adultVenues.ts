@@ -57,3 +57,9 @@ export function withoutUnasked<T extends { days: { activities: { title?: string 
   });
   return { trip: { ...trip, days }, removed };
 }
+
+/** Nova's proposed stop additions and edits follow the same rule; every other kind of change passes. */
+export function keepAgentOp(op: { kind: string; title?: string | null; query?: string | null; type?: string | null }, allowed: Set<AdultCategory>): boolean {
+  if (op.kind !== 'trip.addStop' && op.kind !== 'trip.editStop') return true;
+  return keepActivity({ title: op.title ?? null, searchQuery: op.query ?? null, type: op.type ?? null }, allowed);
+}

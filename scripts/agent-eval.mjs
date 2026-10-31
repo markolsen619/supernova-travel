@@ -16,6 +16,7 @@ const CAPS = new Set((arg2('--caps') ?? 'trip.v1,trip.v2,wallet.v1').split(','))
 function arg2(n) { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : null; }
 const { generate } = require('../functions/lib/agentModel.js');
 const { TRIP_SYSTEM_PROMPT, AGENT_RESPONSE_SCHEMA, polishReply } = require('../functions/lib/agentPrompt.js');
+const { adultCategory, allowedCategories } = require('../functions/lib/adultVenues.js');
 
 const PRICES = { // USD per 1M tokens (input, output) — check current Gemini pricing before trusting totals
   'gemini-2.5-flash': [0.30, 2.50],
@@ -38,12 +39,17 @@ const REQUESTS = [
   'That bar is the wrong Pennant, use the one in Mission Beach', 'Swap day 2 and day 3',
   // wallet.v1 (a synthetic unlinked hotel booking, b1, is in the context)
   'I booked Pennant for 7pm on the first day, confirmation ABC123', 'My hotel booking should be on this trip', 'Our dinner reservation on day 2 moved to 8pm, add it if it is not there',
+  // Local-friend questions (owner, 2026-10-30): fuller answers
+  'Tell me a bit of the history of this area', 'How do I say thank you to a local here?', 'Any little-known facts about Mission Beach?', 'Is tipping expected at restaurants here?', 'What is there to do here on a rainy day?',
+  // Opt-in adult places (owner, 2026-10-30): a party request must not get them; an explicit ask may
+  'We want one wild party night, add it', 'It is a bachelor party, add a strip club one night',
 ];
+const KNOWLEDGE = new Set(['Tell me a bit of the history of this area', 'How do I say thank you to a local here?', 'Any little-known facts about Mission Beach?', 'Is tipping expected at restaurants here?', 'What is there to do here on a rainy day?']);
 const WALLET = new Set(['I booked Pennant for 7pm on the first day, confirmation ABC123', 'My hotel booking should be on this trip', 'Our dinner reservation on day 2 moved to 8pm, add it if it is not there']);
 const V2 = new Set(['Rename the trip to Mission Beach weekend', 'Add sunscreen and a beach towel to the packing list', 'That bar is the wrong Pennant, use the one in Mission Beach', 'Swap day 2 and day 3']);
 
 // Questions expect an answer and no changes; every other request should come back with changes.
-const QUESTIONS = new Set(['Is day 3 too packed?', 'What should we not miss here?', 'Which day is best for the market?', 'Is there anything near the Taco Stand on day 2?']);
+const QUESTIONS = new Set(['Is day 3 too packed?', 'What should we not miss here?', 'Which day is best for the market?', 'Is there anything near the Taco Stand on day 2?', ...KNOWLEDGE]);
 const LABEL = /\b[dsc]\d+\b/;
 
 const env = Object.fromEntries(fs.readFileSync('functions/.env', 'utf8').split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]));
@@ -78,7 +84,7 @@ async function loadTrip() {
 const { text, labels, cityOfDay } = await loadTrip();
 console.log(`context: ${text.length} chars`);
 for (const model of models) {
-  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0, adds = 0, addsWithQuery = 0, apologies = 0, v2ok = 0, walletOk = 0;
+  let valid = 0, inT = 0, outT = 0, lat = 0, failed = 0, opsTotal = 0, droppedTotal = 0, acted = 0, leaks = 0, adds = 0, addsWithQuery = 0, apologies = 0, v2ok = 0, walletOk = 0, knowChars = 0, adultUnasked = 0;
   const changeRequests = REQUESTS.filter((r) => !QUESTIONS.has(r)).length;
   for (const r of REQUESTS) {
     try {
@@ -95,7 +101,9 @@ for (const model of models) {
       if (V2.has(r) && kept.some((o) => OP_CAPABILITY[o.kind] === 'trip.v2')) v2ok += 1;
       // Every new place must come with the model's own search name (not just the title+city default).
       for (const raw of res.json.operations ?? []) if (raw.op === 'addStop' && raw.type !== 'free' && raw.type !== 'transport') { adds += 1; if (typeof raw.query === 'string' && raw.query.trim().length >= 2) addsWithQuery += 1; }
+      for (const raw of res.json.operations ?? []) if (raw.op === 'addStop' || raw.op === 'editStop') { const c = adultCategory({ title: raw.title, searchQuery: raw.query, type: raw.type }); if (c && !allowedCategories(r).has(c)) { adultUnasked += 1; console.log('  UNASKED ADULT:', r, '→', raw.title); } }
       res.json.reply = polishReply(String(res.json.reply ?? ''));
+      if (KNOWLEDGE.has(r)) knowChars += res.json.reply.length;
       if (/apolog|sorry/i.test(res.json.reply)) { apologies += 1; if (process.argv.includes('--verbose')) console.log('  apology:', r, '→', res.json.reply); }
       if (v.dropped === 0) valid += 1;
       if (v.dropped > 0 && process.argv.includes('--verbose')) console.log('  DROPPED in', r, '→', JSON.stringify(res.json.operations));
@@ -109,6 +117,6 @@ for (const model of models) {
   const ok = REQUESTS.length - failed;
   const [pi, po] = PRICES[model] ?? [0, 0];
   const cost = ok ? ((inT / ok) * pi + (outT / ok) * po) / 1e6 : 0;
-  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, apologies ${apologies}, new places with a query ${addsWithQuery}/${adds}, trip.v2 used for ${v2ok}/${V2.size}, wallet used for ${walletOk}/${WALLET.size}, ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
+  console.log(`${model}: answered ${ok}/${REQUESTS.length}, fully valid ${valid}/${ok}, changes proposed for ${acted}/${changeRequests} change requests, labels leaked in ${leaks} replies, apologies ${apologies}, new places with a query ${addsWithQuery}/${adds}, trip.v2 used for ${v2ok}/${V2.size}, wallet used for ${walletOk}/${WALLET.size}, knowledge answers avg ${Math.round(knowChars / KNOWLEDGE.size)} chars, unasked adult suggestions ${adultUnasked} (removed server-side), ops ${opsTotal} (dropped ${droppedTotal}), avg in ${Math.round(inT / ok)} out ${Math.round(outT / ok)} tok, avg ${Math.round(lat / ok)} ms, ~$${cost.toFixed(5)}/message`);
 }
 process.exit(0);

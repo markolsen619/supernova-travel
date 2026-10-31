@@ -61,3 +61,18 @@ describe('withoutUnasked (a whole generated trip)', () => {
     expect(r.removed).toBe(0);
   });
 });
+
+import { keepAgentOp } from '../../functions/src/adultVenues';
+
+describe("keepAgentOp (Nova's suggestions)", () => {
+  const add = (title: string, query: string | null = null) => ({ kind: 'trip.addStop', dayId: 'd1', title, type: 'activity', afterStopId: null, time: null, query });
+  it('drops an unasked strip club or casino stop, keeps ordinary ones and other kinds of change', () => {
+    expect(keepAgentOp(add('Drinks', "Spearmint Rhino Gentlemen's Club, Las Vegas") as never, new Set())).toBe(false);
+    expect(keepAgentOp({ kind: 'trip.editStop', dayId: 'd1', stopId: 's1', title: 'Casino night at Bellagio' } as never, new Set())).toBe(false);
+    expect(keepAgentOp(add('Dinner at Lotus of Siam') as never, new Set())).toBe(true);
+    expect(keepAgentOp({ kind: 'trip.removeStop', dayId: 'd1', stopId: 's1' } as never, new Set())).toBe(true);
+  });
+  it('keeps them when asked (the message, or the trip itself: "Bachelor party in Vegas")', () => {
+    expect(keepAgentOp(add('Drinks', "Spearmint Rhino Gentlemen's Club, Las Vegas") as never, allowedCategories('Bachelor party in Vegas'))).toBe(true);
+  });
+});

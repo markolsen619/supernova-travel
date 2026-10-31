@@ -13,6 +13,7 @@ import { buildTripContext, bookingForContext, type CtxBooking, type CtxDay, type
 import { validateTripOps } from './agentTripOps';
 import { validateWalletOps, WALLET_OPS } from './agentWalletOps';
 import { filterByCapabilities, isAgentSurface, threadId } from './agentSurfaces';
+import { allowedCategories, keepAgentOp } from './adultVenues';
 import { generate, type ModelTurn } from './agentModel';
 import { AGENT_RESPONSE_SCHEMA, TRIP_SYSTEM_PROMPT, polishReply } from './agentPrompt';
 import { loadCatalog } from './discoveryFunctions';
@@ -140,7 +141,10 @@ export const agent = onCall({ region: 'us-central1', timeoutSeconds: 60, memory:
     const tripOps = isAuthor ? tripPart.ops : tripPart.ops.filter((o) => o.kind !== 'trip.updateTrip');
     const ops = [...tripOps, ...walletPart.ops];
     const dropped = tripPart.dropped + walletPart.dropped + (tripPart.ops.length - tripOps.length);
-    const allowed: AgentOp[] = filterByCapabilities(ops, capabilities);
+    const capable: AgentOp[] = filterByCapabilities(ops, capabilities);
+    // Adult and gambling places only when asked (adultVenues.ts): the message or the trip itself ("Bachelor party in Vegas").
+    const asked = allowedCategories(`${message} ${trip.title ?? ''} ${trip.description ?? ''}`);
+    const allowed: AgentOp[] = capable.filter((o) => keepAgentOp(o as { kind: string }, asked));
     const totalDropped = dropped + (ops.length - allowed.length);
     const said = polishReply(String(result.json.reply ?? ''));
     const reply = totalDropped > 0
