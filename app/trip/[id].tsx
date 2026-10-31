@@ -402,6 +402,7 @@ export default function TripDetailScreen() {
   // Budget and packing belong to the people taking the trip — nobody else sees them.
   const { budget: tripBudget } = useTripBudgetAmount(trip?.id ?? null, isOwner || isCollaborator);
   const { isPro, requirePro } = useProGate();
+  const budgetNeedsPro = (trip?.collaborators?.length ?? 0) > 0;
   // Upcoming → Live → Completed from the trip's dates (utils/tripStatus).
   const tripStatus = trip
     ? displayStatus({ status: trip.status, startDate: toDateOrNull(trip.startDate), endDate: toDateOrNull(trip.endDate) }, new Date())
@@ -1465,16 +1466,15 @@ export default function TripDetailScreen() {
             <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                // Travelling together is Pro (inviteToTrip enforces it too).
-                requirePro(() => setInviteVisible(true));
+                // Inviting is free since 2026-10-30 (owner); splitting a shared budget is the Pro part.
+                setInviteVisible(true);
               }}
               style={[styles.chip, { backgroundColor: colors.background.sunken }]}
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-              accessibilityLabel={isPro ? 'Invite friends' : 'Invite friends. Pro feature'}
+              accessibilityLabel="Invite friends"
             >
               <UsersThree size={13} color={colors.text.secondary} weight="duotone" />
               <Text style={[styles.chipText, { color: colors.text.primary }]}>Invite</Text>
-              {!isPro ? <Badge variant="pro" /> : null}
             </TouchableOpacity>
           )}
 
@@ -1483,11 +1483,13 @@ export default function TripDetailScreen() {
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push({ pathname: '/trip/budget', params: { id: trip.id } });
+              const open = () => router.push({ pathname: '/trip/budget', params: { id: trip.id } });
+              // A budget shared with others is the Pro part of travelling together (owner, 2026-10-30); solo stays free.
+              if (budgetNeedsPro) requirePro(open); else open();
             }}
             style={[styles.chip, { backgroundColor: colors.background.sunken }]}
             hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-            accessibilityLabel="Trip budget"
+            accessibilityLabel={budgetNeedsPro && !isPro ? 'Trip budget. Pro feature' : 'Trip budget'}
           >
             <Wallet size={13} color={colors.text.secondary} weight="duotone" />
             <Text style={[styles.chipText, { color: colors.text.primary }]}>
@@ -1499,6 +1501,7 @@ export default function TripDetailScreen() {
                   }).format(tripBudget.amount)
                 : 'Budget'}
             </Text>
+            {budgetNeedsPro && !isPro ? <Badge variant="pro" /> : null}
           </TouchableOpacity>
           )}
 

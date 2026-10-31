@@ -44,7 +44,7 @@ describe('PAYWALL_FEATURE_ICONS', () => {
     expect(PAYWALL_FEATURE_ICONS.map((f) => f.label)).toEqual([
       'Unlimited AI trips',
       'Multi-city trips',
-      'Travel together',
+      'Split a trip budget',
       'Unlimited wallet',
       'Flight alerts',
     ]);
