@@ -34,8 +34,11 @@ describe('renderLinksPage', () => {
     expect(page).toContain('LISBON · 4 DAYS');
     expect(page).toContain('Photo: Google');
   });
-  it('the promo button goes to this phone\'s store; both store badges are there', () => {
-    expect(page).toMatch(/class="btn-white" href="https:\/\/play\.google\.com\/store\/apps\/details\?id=com\.supernovatravel\.app"/);
+  it('the promo button picks the phone\'s store in the browser (the CDN keeps one copy for everyone); both badges are there', () => {
+    const cached = renderLinksPage({ promo: { eyebrow: '', title: 'Try Pro', body: '', cta: 'Get the app' }, trips: [], platform: 'ios' });
+    expect(cached).toBe(renderLinksPage({ promo: { eyebrow: '', title: 'Try Pro', body: '', cta: 'Get the app' }, trips: [], platform: 'android' }));
+    expect(cached).toContain('class="btn-white" href="https://apps.apple.com/app/id6810490710" data-android="https://play.google.com/store/apps/details?id=com.supernovatravel.app"');
+    expect(cached).toContain('/Android/i.test(navigator.userAgent)');
     expect(page).toContain('https://apps.apple.com/app/id6810490710');
     expect(page).toContain('/links/app-store-badge.svg');
     expect(page).toContain('/links/google-play-badge.png');

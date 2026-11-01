@@ -104,13 +104,14 @@ const STYLES = `
 
 const STAR = '/links/star.png';
 
+/** `platform` is accepted but not used: the CDN keeps one copy of the page for every phone (see the script at the end). */
 export function renderLinksPage(a: { promo: LinksPromo | null; trips: LinksTrip[]; platform: PagePlatform }): string {
   const promo = a.promo ? `
   <div class="promo">
     ${a.promo.eyebrow ? `<span class="eyebrow">${escapeHtml(a.promo.eyebrow)}</span>` : ''}
     <h2>${escapeHtml(a.promo.title)}</h2>
     ${a.promo.body ? `<p>${escapeHtml(a.promo.body)}</p>` : ''}
-    <a class="btn-white" href="${escapeHtml(storeHref(a.platform))}">${escapeHtml(a.promo.cta)}</a>
+    <a class="btn-white" href="${APP_STORE_URL}" data-android="${PLAY_STORE_URL}">${escapeHtml(a.promo.cta)}</a>
   </div>` : '';
   const trips = a.trips.map((t) => {
     const photo = safePhoto(t.photoUrl);
@@ -174,6 +175,10 @@ ${trips ? `
   </section>` : ''}
   <footer><a href="https://supernova-a2125.web.app/terms">Terms</a><a href="https://supernova-a2125.web.app/privacy">Privacy</a><a href="https://supernova-a2125.web.app/support">Support</a></footer>
 </main>
+<script>
+// The page is cached once for every phone, so the store is picked here: Android → Google Play.
+if (/Android/i.test(navigator.userAgent)) document.querySelectorAll('[data-android]').forEach(function (a) { a.href = a.getAttribute('data-android'); });
+</script>
 </body>
 </html>`;
 }
