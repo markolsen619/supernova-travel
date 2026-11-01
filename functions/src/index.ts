@@ -25,6 +25,7 @@ export { moveTripBudgetPrivate } from './budgetPrivacyFunctions';
 export { onFollowRequestCreated, respondToFollowRequest, onUserPrivacyChanged, onPostCreatedVisibility } from './privacyFunctions';
 export { tripPreview } from './tripPreviewFunction';
 export { linksPage } from './linksPageFunction';
+export { refreshCovers, refreshCover } from './coverRefreshFunctions';
 export { createTripInviteLink, cancelTripInviteLinks, openTripInviteLinks, previewTripInviteLink, acceptTripInviteLink, joinPage } from './tripInviteLinkFunctions';
 export { matchBooking, onTripWrittenRematch } from './bookingMatchFunctions';
 export { onBoardingPassWrittenShare, onReservationWrittenShare } from './sharedBookingFunctions';

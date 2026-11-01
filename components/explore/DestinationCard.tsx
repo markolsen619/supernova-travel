@@ -1,10 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { MapPin } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useRefreshableCover } from '@/hooks/useRefreshableCover';
 import { useLayout } from '@/hooks/useLayout';
 import { columnWidth } from '@/utils/layout';
 import { destinationEyebrow, type Destination } from '@/utils/destinations';
@@ -26,16 +27,15 @@ export function DestinationCard({ destination, onPress }: DestinationCardProps) 
   const { width, columns } = useLayout();
   const cardWidth = columnWidth(width, columns);
   const cardHeight = Math.round(cardWidth * 1.3);
-  // A stored photo URL can go stale — fall back to the placeholder, never a broken image.
-  const [photoFailed, setPhotoFailed] = useState(false);
-  const showPhoto = !!destination.coverImageUrl && !photoFailed;
+  // A stored photo URL goes stale after a few weeks: the card asks for a fresh one once, else the placeholder.
+  const cover = useRefreshableCover('destination', destination.slug, destination.coverImageUrl);
+  const showPhoto = !!cover.uri;
   const eyebrow = destinationEyebrow(destination);
 
   const handlePress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress(destination.slug);
   }, [onPress, destination.slug]);
-  const handlePhotoError = useCallback(() => setPhotoFailed(true), []);
 
   const label = `${destination.name}, ${destination.countryName}`;
 
@@ -48,7 +48,7 @@ export function DestinationCard({ destination, onPress }: DestinationCardProps) 
         accessibilityLabel={label}
       >
         {/* Disk-cached: each cover is a billed Google photo request, fetched once per device rather than on every Explore open. */}
-        <Image source={{ uri: destination.coverImageUrl! }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" transition={200} onError={handlePhotoError} />
+        <Image source={{ uri: cover.uri! }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" transition={200} onError={cover.onError} />
         {/* Deep enough at the bottom that white text holds 4.5:1 over a white photo. */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.42)', 'rgba(0,0,0,0.85)'] as [string, string, string]}

@@ -14,6 +14,7 @@ import { Timestamp } from 'firebase/firestore';
 import * as Haptics from 'expo-haptics';
 import { MapPin } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useRefreshableCover } from '@/hooks/useRefreshableCover';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Avatar } from '@/components/ui/Avatar';
@@ -80,7 +81,9 @@ function LiveDot({ color }: { color: string }) {
 
 export function TripCard({ trip, onPress, style, fallbackCoverUrl, author, pick }: TripCardProps) {
   const { colors } = useTheme();
-  const coverUrl = trip.coverImageUrl || fallbackCoverUrl || null;
+  // A stored cover goes stale after a few weeks: on a failed load the card asks for a fresh one once.
+  const cover = useRefreshableCover('trip', trip.id, trip.coverImageUrl || null);
+  const coverUrl = cover.uri || fallbackCoverUrl || null;
   const styleLabel = tripStyleLabel(trip);
   // Dot hues come from the shared accent/brand tokens (identical in both
   // themes) — the dot sits on the photo's dark scrim, so it needs the
@@ -121,6 +124,7 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author, pick 
                 source={{ uri: coverUrl }}
                 style={StyleSheet.absoluteFill}
                 resizeMode="cover"
+                onError={cover.uri ? cover.onError : undefined}
               />
               {/* Bottom-up dark fade for text readability over the photo */}
               <LinearGradient
