@@ -32,7 +32,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import type { ThemeColors } from '@/constants/colors';
 import { useJournalEntry, useJournal, MAX_JOURNAL_PHOTOS } from '@/hooks/useJournal';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { TripActivity } from '@/types';
@@ -117,7 +117,7 @@ export function JournalSheet({ visible, tripId, dayId, activity, isOwner, onClos
     onClose();
   }, [onClose]);
 
-  const { Icon: TypeIcon, color: accentColor } = ACTIVITY_ICONS[activity.type];
+  const { Icon: TypeIcon, color: accentColor } = activityIcon(activity.type);
   const hasContent = photoUrls.length > 0 || !!note;
 
   const sheetContent = (

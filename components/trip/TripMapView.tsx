@@ -41,7 +41,7 @@ import { useDimensionChange } from '@/hooks/useDimensionChange';
 import { tapBbox, findStopMatchingPlace } from '@/utils/mapInteraction';
 import { placeToTripActivity } from '@/services/places/googlePlaces';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { StopStateBubble } from '@/components/trip/StopStateBubble';
 import { PlaceDetailSheet } from '@/components/search/PlaceDetailSheet';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
@@ -1503,7 +1503,7 @@ export function TripMapView({
         ))}
 
         {(flying ? (useHighlights ? (flyDay?.stops.slice(1) ?? []) : markerStops(MARKER_MIN_ZOOM, shownStops, flyDay?.stops[0]?.dayId ?? null)) : visibleMarkers).filter(reached).map((stop) => {
-          const { Icon, color } = ACTIVITY_ICONS[stop.activity.type];
+          const { Icon, color } = activityIcon(stop.activity.type);
           const Wrap = flying ? SpringIn : View;
           // The stop being shown grows and pops in again each time it's reached.
           const showcased = flying && stop.activity.id === flyStop?.activity.id;
@@ -1732,8 +1732,8 @@ export function TripMapView({
           )}
           <View style={styles.selectedCardRow}>
             <StopStateBubble
-              Icon={ACTIVITY_ICONS[selected.activity.type].Icon}
-              color={ACTIVITY_ICONS[selected.activity.type].color}
+              Icon={activityIcon(selected.activity.type).Icon}
+              color={activityIcon(selected.activity.type).color}
               visited={selected.activity.visited}
               isCurrent={selected.activity.id === currentActivityId}
               onToggle={handleToggleSelectedVisited}
@@ -1808,7 +1808,7 @@ export function TripMapView({
               ) : flyStop?.activity.mediaUrls?.[0] ? (
                 <Image source={{ uri: flyStop.activity.mediaUrls[0] }} style={styles.flyThumb} />
               ) : flyStop ? (
-                <TypeIconBubble Icon={ACTIVITY_ICONS[flyStop.activity.type].Icon} color={ACTIVITY_ICONS[flyStop.activity.type].color} bubbleSize={44} iconSize={22} />
+                <TypeIconBubble Icon={activityIcon(flyStop.activity.type).Icon} color={activityIcon(flyStop.activity.type).color} bubbleSize={44} iconSize={22} />
               ) : null}
               <View style={styles.flyStopText}>
                 <Text style={[styles.flyEyebrow, { color: colors.text.secondary }]} numberOfLines={1}>

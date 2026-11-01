@@ -21,6 +21,20 @@ export function parseGeneratedTrip(text: string): GeneratedTrip | null {
   return g as GeneratedTrip;
 }
 
+const STOP_TYPES = ['flight', 'hotel', 'restaurant', 'activity', 'transport', 'free'] as const;
+const REST = /^(free|free time|relax|relaxing|rest|leisure|downtime|break|chill)$/i;
+
+/**
+ * A stop type the shipped apps know. They look a stop's icon up by its type and crash on any other value: the AI
+ * once wrote a travel style ("relax") as the type and every app crashed opening that trip (2026-10-31). Rest-like
+ * words become free time; anything else an activity.
+ */
+export function storedActivityType(raw: unknown): (typeof STOP_TYPES)[number] {
+  const t = typeof raw === 'string' ? raw.trim() : '';
+  if ((STOP_TYPES as readonly string[]).includes(t)) return t as (typeof STOP_TYPES)[number];
+  return REST.test(t) ? 'free' : 'activity';
+}
+
 export function tripDocuments(
   uid: string,
   data: GenerateTripRequest,
@@ -77,7 +91,7 @@ export function tripDocuments(
     activities: (day.activities ?? []).map((act, idx) => ({
       // Every optional field defaults to null: Firestore rejects undefined,
       // and a stop Gemini left partial used to fail the whole write.
-      type: act.type ?? 'activity',
+      type: storedActivityType(act.type),
       title: act.title ?? '',
       placeId: null,
       address: act.address ?? null,

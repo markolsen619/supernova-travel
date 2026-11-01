@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { ArrowDown, ArrowUp, DotsSixVertical, X } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/Button';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { moveItem } from '@/utils/reorder';
 import type { TripActivity } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -52,7 +52,7 @@ export function ReorderStopsSheet({ visible, dayLabel, stops, onClose, onSave }:
 
   const renderItem = useCallback(({ item, drag, isActive, getIndex }: RenderItemParams<TripActivity>) => {
     const i = getIndex() ?? 0;
-    const { Icon, color } = ACTIVITY_ICONS[item.type];
+    const { Icon, color } = activityIcon(item.type);
     return (
       <ScaleDecorator>
         <TouchableOpacity

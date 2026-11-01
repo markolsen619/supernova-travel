@@ -39,6 +39,14 @@ export const ACTIVITY_ICONS: Record<ActivityType, IconEntry> = {
   free:       { Icon: Clock,        color: '#6b7280' },
 };
 
+/**
+ * A stop's icon, never undefined: a type no app knows (the AI once wrote "relax") crashed every screen that looked
+ * it up directly (2026-10-31). Use this instead of indexing ACTIVITY_ICONS.
+ */
+export function activityIcon(type: string | null | undefined): IconEntry {
+  return (type && (ACTIVITY_ICONS as Record<string, IconEntry>)[type]) || ACTIVITY_ICONS.activity;
+}
+
 export const RESERVATION_ICONS: Record<ReservationType, IconEntry> = {
   hotel:      { Icon: Buildings, color: '#a78bfa' },
   airbnb:     { Icon: House,     color: '#f472b6' },

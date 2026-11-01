@@ -28,7 +28,7 @@ import { X, MapTrifold, Camera } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useTripJournals } from '@/hooks/useJournal';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { TripWithDays } from '@/types';
@@ -151,7 +151,7 @@ export function TripRecapSheet({ visible, trip, onClose, onViewOnMap }: TripReca
                 </Text>
                 {stops.map((stop) => {
                   const journal = journals?.[stop.id];
-                  const { Icon, color: accentColor } = ACTIVITY_ICONS[stop.type];
+                  const { Icon, color: accentColor } = activityIcon(stop.type);
                   return (
                     <View key={stop.id} style={styles.stopBlock}>
                       <View style={styles.stopHeader}>
