@@ -17,7 +17,7 @@ import { TrashSimple } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { DismissKeyboardView } from '@/components/ui/DismissKeyboardView';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -219,7 +219,7 @@ export function ActivityFormSheet({
           {/* Type selector */}
           <View style={styles.typeRow}>
             {ACTIVITY_TYPE_OPTIONS.map((actType) => {
-              const { Icon, color } = ACTIVITY_ICONS[actType];
+              const { Icon, color } = activityIcon(actType);
               return (
                 <TouchableOpacity
                   key={actType}

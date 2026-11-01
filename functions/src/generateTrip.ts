@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GenerateTripRequest } from './types';
 import { parseGeneratedTrip, tripDocuments } from './tripDocs';
+import { ADULT_VENUE_RULE, withoutUnasked } from './adultVenues';
 import { resolveTravelStyles, travelStyleRules, travelStyleSummary, VENUE_NAMING_RULES, destinationLabel } from './promptRules';
 import { multiCityAllowed, aiTripQuotaPolicy, aiTripLengthAllowed, MAX_AI_TRIP_DAYS } from './quotaUtils';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
@@ -111,10 +112,13 @@ export const generateTrip = functions.https.onCall(
     const text = result.response.text();
 
     // 5. Parse JSON from Gemini response
-    const generated = parseGeneratedTrip(text);
-    if (!generated) {
+    const parsedTrip = parseGeneratedTrip(text);
+    if (!parsedTrip) {
       throw new functions.https.HttpsError('internal', 'Failed to parse Gemini response as JSON');
     }
+    // Safety net for the opt-in rule (adultVenues.ts): stops nobody asked for are removed.
+    const { trip: generated, removed } = withoutUnasked(parsedTrip, [data.preferences ?? '', ...(data.mustSee ?? [])].join(' '));
+    if (removed > 0) console.log('generateTrip removed unasked adult stops', { removed });
 
     // 6. Write to Firestore
     const now = admin.firestore.FieldValue.serverTimestamp();
@@ -214,6 +218,8 @@ Rules:
 - Follow the travel style rules above — the itinerary should look visibly different for a different style/pace than this one
 - Mix activity types naturally
 - List each day's activities in the order they would naturally happen, morning to evening — do not give clock times; the traveler sets times themselves
+- Keep each day in one area of the city, or two neighbouring areas, and order its stops as a walking route through them — never send the traveler back and forth across town; cross town only for something fixed (a booked show, a day trip out of the city). Name the day's area in its title (e.g. "Alfama and Baixa")
+- ${ADULT_VENUE_RULE}
 - Use local currency for costs
 - Include at least one meal per day
 ${VENUE_NAMING_RULES}
@@ -282,6 +288,8 @@ Rules:
 - Follow the travel style rules above — the itinerary should look visibly different for a different style/pace than this one
 - Mix activity types naturally
 - List each day's activities in the order they would naturally happen, morning to evening — do not give clock times; the traveler sets times themselves
+- Keep each day in one area of the city, or two neighbouring areas, and order its stops as a walking route through them — never send the traveler back and forth across town; cross town only for something fixed (a booked show, a day trip out of the city). Name the day's area in its title (e.g. "Alfama and Baixa")
+- ${ADULT_VENUE_RULE}
 - Allocate the ${data.durationDays} total days across all ${cities.length} destinations yourself, in the order listed above — consider how much there typically is to see and do in each place. Do not split evenly by default; weight it realistically based on each destination's size and typical stay length.
 - region is the most specific common name for where ALL the destinations are: a shared state or province when there is one ("Baja California Sur"), otherwise a shared country ("Italy"), otherwise a travel region people actually use ("Central Europe", "Southeast Asia") — never just the first destination's name
 - Visit the destinations strictly in the order listed above — do not reorder them and do not revisit an earlier destination later in the trip

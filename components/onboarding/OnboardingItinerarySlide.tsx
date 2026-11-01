@@ -6,7 +6,7 @@ import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { KenBurnsImage } from '@/components/onboarding/KenBurnsImage';
 import { SlideTextBlock } from '@/components/onboarding/SlideTextBlock';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { ACTIVITY_ICONS, activityIcon } from '@/constants/icons';
 import { SPRING } from '@/constants/motion';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -66,7 +66,7 @@ export function OnboardingItinerarySlide({ active, itinerary }: Props) {
               </View>
               <Text style={[styles.dayLabel, { color: colors.text.tertiary }]}>DAY 1</Text>
               {rows.map((row, i) => {
-                const { Icon, color } = ACTIVITY_ICONS[row.type] ?? ACTIVITY_ICONS.activity;
+                const { Icon, color } = activityIcon(row.type) ?? ACTIVITY_ICONS.activity;
                 const a = anims[i];
                 return (
                   <Animated.View

@@ -1,7 +1,9 @@
 /**
  * components/trip/InviteFriendsSheet.tsx
  *
- * "Invite friends" — request/accept, not instant-add: picking someone here
+ * "Invite friends". On top, Invite with a link (spec 2026-10-30-trip-invite-links-design.md): a single-use link
+ * shared through the system sheet (Messages, Mail…) for someone who may not have Supernova yet.
+ * Below, friends in the app — request/accept, not instant-add: picking someone here
  * sends a pending trips/{id}/invites/{uid} doc + notification (inviteToTrip
  * Cloud Function); they only become a collaborator once they accept from
  * the notifications screen. Audience is the follow graph only (followers ∪
@@ -15,12 +17,12 @@
  * comment for why a FlashList inside a BlurView needs a resolved size.
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform, Alert, ActivityIndicator } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { UsersThree, X } from 'phosphor-react-native';
+import { LinkSimple, UsersThree, X } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -28,6 +30,7 @@ import { maybePromptForPush } from '@/services/push';
 import { useFollowConnections } from '@/hooks/useFollow';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { useTripInvites, useInviteFriend } from '@/hooks/useTripInvites';
+import { useInviteLinks } from '@/hooks/useInviteLinks';
 import { Avatar } from '@/components/ui/Avatar';
 import type { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -69,6 +72,25 @@ export function InviteFriendsSheet({ visible, tripId, collaborators, onClose, co
     [invites],
   );
   const inviteFriend = useInviteFriend(tripId);
+  const links = useInviteLinks(tripId, visible);
+  const [linkError, setLinkError] = useState(false);
+
+  const handleShareLink = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setLinkError(false);
+    try {
+      await links.shareLink();
+    } catch {
+      setLinkError(true);
+    }
+  }, [links]);
+
+  const handleCancelLinks = useCallback(() => {
+    Alert.alert('Cancel invite links?', "Anyone who hasn't joined yet won't be able to.", [
+      { text: 'Keep', style: 'cancel' },
+      { text: 'Cancel links', style: 'destructive', onPress: () => { links.cancelAll().catch(() => setLinkError(true)); } },
+    ]);
+  }, [links]);
 
   const rows: Row[] = useMemo(
     () =>
@@ -110,11 +132,36 @@ export function InviteFriendsSheet({ visible, tripId, collaborators, onClose, co
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity
+        onPress={handleShareLink}
+        disabled={links.sharing}
+        style={styles.linkBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Invite with a link"
+      >
+        {links.sharing ? <ActivityIndicator color="#1F1C19" /> : <LinkSimple size={18} color="#1F1C19" weight="bold" />}
+        <Text style={styles.linkBtnText}>Invite with a link</Text>
+      </TouchableOpacity>
+      <Text style={[styles.linkNote, { color: linkError ? colors.semantic.error : colors.text.tertiary }]}>
+        {linkError ? "Couldn't make a link. Check your connection and try again." : 'Works once, for one person, for 30 days.'}
+      </Text>
+      {links.openCount > 0 ? (
+        <View style={styles.waitingRow}>
+          <Text style={[styles.waitingText, { color: colors.text.secondary }]}>
+            {`${links.openCount} ${links.openCount === 1 ? 'link' : 'links'} waiting`}
+          </Text>
+          <TouchableOpacity onPress={handleCancelLinks} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel="Cancel waiting invite links">
+            <Text style={[styles.cancelText, { color: colors.text.primary }]}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      <Text style={[styles.eyebrow, styles.sectionEyebrow, { color: colors.text.tertiary }]}>FRIENDS ON SUPERNOVA</Text>
       {rows.length === 0 ? (
         <View style={styles.emptyRow}>
           <UsersThree size={22} color={colors.text.disabled} weight="duotone" />
           <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>
-            Follow people to invite them on trips.
+            Follow people to invite them here, or send a link.
           </Text>
         </View>
       ) : (
@@ -197,6 +244,18 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   title: { fontSize: FontSize.lg, fontWeight: FontWeight.bold },
+
+  linkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing['2'],
+    minHeight: 50, borderRadius: BorderRadius.md, backgroundColor: '#FBF9F5', marginTop: Spacing['1'],
+  },
+  linkBtnText: { color: '#1F1C19', fontSize: FontSize.base, fontWeight: FontWeight.semiBold },
+  linkNote: { fontSize: FontSize.sm, textAlign: 'center' },
+  waitingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing['1'] },
+  waitingText: { fontSize: FontSize.sm },
+  cancelBtn: { minHeight: 44, paddingHorizontal: Spacing['2'], justifyContent: 'center' },
+  cancelText: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold, textDecorationLine: 'underline' },
+  sectionEyebrow: { marginTop: Spacing['2'], marginBottom: 0 },
 
   emptyRow: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing['2'], paddingHorizontal: Spacing['8'] },
   emptyText: { fontSize: FontSize.sm, textAlign: 'center' },

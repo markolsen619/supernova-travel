@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { pickerPresentation } from '@/utils/layout';
 import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
 import { MapPin, MagnifyingGlass, X, Compass } from 'phosphor-react-native';
@@ -18,7 +19,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { usePlaceAutocomplete, PlaceSelection, PlaceSuggestion } from '@/hooks/usePlaceAutocomplete';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import { useLayout } from '@/hooks/useLayout';
 
 export interface DestinationPickerProps {
   visible: boolean;
@@ -28,7 +28,6 @@ export interface DestinationPickerProps {
 
 export function DestinationPicker({ visible, onSelect, onClose }: DestinationPickerProps) {
   const { colors } = useTheme();
-  const { isLarge } = useLayout();
   const { query, setQuery, suggestions, isLoading, error, selectPlace, clearQuery } =
     usePlaceAutocomplete(350, { destinationsOnly: true });
   const [isSelecting, setIsSelecting] = useState(false);
@@ -150,9 +149,9 @@ export function DestinationPicker({ visible, onSelect, onClose }: DestinationPic
       visible={visible}
       animationType="slide"
       transparent={false}
-      // iPad: a centred sheet. Full screen there stretched a search list across
-      // the whole display and slid its header under the status bar.
-      presentationStyle={isLarge ? 'pageSheet' : undefined}
+      // A sheet on iPhone and iPad (swipe down to close; onRequestClose runs): full screen slid the header,
+      // and its X, under the status bar, so a mistaken pick had no way back (utils/layout pickerPresentation).
+      presentationStyle={pickerPresentation(Platform.OS)}
       onRequestClose={handleClose}
     >
       <SafeAreaView style={[styles.root, { backgroundColor: colors.background.primary }]}>

@@ -42,6 +42,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { TripCard } from '@/components/trip/TripCard';
+import { InviteButton } from '@/components/trip/InviteButton';
 import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -404,6 +405,7 @@ function ProfileScreenContent() {
           }
           renderItem={({ item }) => (
             <View style={cardListColumns > 1 ? styles.cardCell : undefined}>
+            <View>
             <TripCard
               trip={item}
               onPress={() => router.push(`/trip/${item.id}`)}
@@ -414,6 +416,9 @@ function ProfileScreenContent() {
                   : { name: fullName, avatarUrl: profile?.avatarUrl ?? null }
               }
             />
+            {/* Invite from the card (spec 2026-10-30) — not on trips you've already taken. */}
+            {tripFilter !== 'Past' ? <InviteButton trip={item} style={styles.cardInvite} /> : null}
+            </View>
             </View>
           )}
         />
@@ -542,6 +547,8 @@ function ProfileScreenContent() {
 }
 
 const styles = StyleSheet.create({
+  // Below the card's own status badge (TripCard statusBadge, top-right).
+  cardInvite: { top: 40, right: 8 },
   beenThereRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing['1'], paddingBottom: Spacing['2'] },
   beenThereText: { fontSize: 11, fontWeight: '500', letterSpacing: 0.9 },
   beenThereAdd: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing['2'] },

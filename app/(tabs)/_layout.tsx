@@ -18,6 +18,7 @@ import { SPRING } from '@/constants/motion';
 import { ReadingColumn } from '@/components/layout/ReadingColumn';
 import { usesReadingColumn } from '@/utils/layout';
 import { useOfflinePrefetch } from '@/hooks/useOfflinePrefetch';
+import { usePendingInviteClaim } from '@/hooks/usePendingInviteClaim';
 
 const TABS = [
   { name: 'index',   label: 'Home'    },
@@ -131,6 +132,7 @@ function FullWidthTabBar({ state, navigation }: TabBarProps) {
 export default function TabLayout() {
   // Offline trips: while online, quietly keep your trips' details on the phone.
   useOfflinePrefetch();
+  usePendingInviteClaim();
   return (
     <Tabs
       tabBar={(props) => <FullWidthTabBar {...(props as unknown as TabBarProps)} />}

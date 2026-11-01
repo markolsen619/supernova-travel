@@ -1,5 +1,5 @@
 // Relative path: functions/ is a separate package; tripDocs imports no firebase-admin.
-import { parseGeneratedTrip, tripDocuments } from '../../functions/src/tripDocs';
+import { parseGeneratedTrip, tripDocuments, storedActivityType } from '../../functions/src/tripDocs';
 
 const generated = {
   title: 'Lisbon in Three Days',
@@ -104,5 +104,24 @@ describe('tripDocuments saves the travel styles (trip cards show them, 2026-10-1
   it('stores the styles the trip was planned for', () => {
     const { trip } = tripDocuments('u1', { ...request, travelStyle: 'cultural', travelStyles: ['cultural', 'foodie'] } as never, generated as never, 'NOW');
     expect(trip.travelStyles).toEqual(['cultural', 'foodie']);
+  });
+});
+
+describe('storedActivityType (2026-10-31: the AI wrote "relax", a travel style, as a stop type and every app crashed opening the trip)', () => {
+  it('keeps the six types the apps know', () => {
+    for (const t of ['flight', 'hotel', 'restaurant', 'activity', 'transport', 'free']) expect(storedActivityType(t)).toBe(t);
+  });
+  it('rest-like words become free time; anything else an activity', () => {
+    expect(storedActivityType('relax')).toBe('free');
+    expect(storedActivityType('Free time')).toBe('free');
+    expect(storedActivityType('leisure')).toBe('free');
+    expect(storedActivityType('party')).toBe('activity');
+    expect(storedActivityType(undefined)).toBe('activity');
+    expect(storedActivityType(42)).toBe('activity');
+  });
+  it('tripDocuments never writes an unknown type', () => {
+    const g = { ...generated, days: [{ ...generated.days[0], activities: [{ ...generated.days[0].activities[0], type: 'relax' }] }] };
+    const docs = tripDocuments('u1', request as never, g as never, 'NOW');
+    expect(docs.days[0].activities[0].type).toBe('free');
   });
 });

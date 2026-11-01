@@ -39,6 +39,14 @@ export const ACTIVITY_ICONS: Record<ActivityType, IconEntry> = {
   free:       { Icon: Clock,        color: '#6b7280' },
 };
 
+/**
+ * A stop's icon, never undefined: a type no app knows (the AI once wrote "relax") crashed every screen that looked
+ * it up directly (2026-10-31). Use this instead of indexing ACTIVITY_ICONS.
+ */
+export function activityIcon(type: string | null | undefined): IconEntry {
+  return (type && (ACTIVITY_ICONS as Record<string, IconEntry>)[type]) || ACTIVITY_ICONS.activity;
+}
+
 export const RESERVATION_ICONS: Record<ReservationType, IconEntry> = {
   hotel:      { Icon: Buildings, color: '#a78bfa' },
   airbnb:     { Icon: House,     color: '#f472b6' },
@@ -69,7 +77,7 @@ export const PAYWALL_FEATURE_ICONS: Array<{
   // Store rejection (guideline 2.3.1).
   { Icon: Sparkle,     color: '#a78bfa', label: 'Unlimited AI trips', description: 'Plan as many itineraries as you like, not one a month' },
   { Icon: MapTrifold,  color: '#60a5fa', label: 'Multi-city trips',   description: 'Let AI route a trip through several cities and countries' },
-  { Icon: UsersThree,  color: '#f472b6', label: 'Travel together',    description: 'Invite friends to plan, split a budget and share a packing list' },
+  { Icon: UsersThree,  color: '#f472b6', label: 'Split a trip budget', description: 'Track a shared budget and split costs with your group' },
   { Icon: Bag,         color: '#34d399', label: 'Unlimited wallet',   description: 'Every pass, booking and loyalty card, plus AI import from confirmations' },
   { Icon: Bell,        color: '#fbbf24', label: 'Flight alerts',      description: 'Gate, delay, landing and cancellation alerts' },
 ];

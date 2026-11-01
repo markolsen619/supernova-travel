@@ -8,6 +8,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { bookingLines, type DayBooking } from '@/utils/bookingDays';
 import type { Trip } from '@/types';
 import { BookingLine } from './BookingLine';
+import { InviteButton } from '@/components/trip/InviteButton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -19,6 +20,7 @@ export const NextTripCard = memo(function NextTripCard({ trip, label, eyebrow, b
       <View style={[styles.cover, { backgroundColor: colors.background.sunken }]}>
         {trip.coverImageUrl ? <Image source={{ uri: trip.coverImageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
         <View style={styles.pill}><Text style={styles.pillText}>{label}</Text></View>
+        <InviteButton trip={trip} />
       </View>
       <View style={styles.body}>
         <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{eyebrow}</Text>

@@ -1,5 +1,6 @@
 import {
   ACTIVITY_ICONS,
+  activityIcon,
   RESERVATION_ICONS,
   LOYALTY_ICONS,
   PAYWALL_FEATURE_ICONS,
@@ -44,7 +45,7 @@ describe('PAYWALL_FEATURE_ICONS', () => {
     expect(PAYWALL_FEATURE_ICONS.map((f) => f.label)).toEqual([
       'Unlimited AI trips',
       'Multi-city trips',
-      'Travel together',
+      'Split a trip budget',
       'Unlimited wallet',
       'Flight alerts',
     ]);
@@ -69,5 +70,13 @@ describe('TAB_ICONS', () => {
   });
   it('does not have an icon for create (gradient button)', () => {
     expect(TAB_ICONS['create']).toBeUndefined();
+  });
+});
+
+describe('activityIcon (2026-10-31: a stop typed "relax" crashed the trip screen)', () => {
+  it('known types get their own icon; anything else the activity icon', () => {
+    expect(activityIcon('hotel')).toBe(ACTIVITY_ICONS.hotel);
+    expect(activityIcon('relax')).toBe(ACTIVITY_ICONS.activity);
+    expect(activityIcon(undefined)).toBe(ACTIVITY_ICONS.activity);
   });
 });

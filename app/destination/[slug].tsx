@@ -27,7 +27,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { SkeletonBlock, SkeletonCard } from '@/components/ui/Skeleton';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { SPRING } from '@/constants/motion';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
@@ -263,7 +263,7 @@ export default function DestinationScreen() {
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.text.tertiary }]}>PLACES TO GO</Text>
                 {destination.topPlaces.map((p, i) => {
-                  const { Icon, color } = ACTIVITY_ICONS[p.type];
+                  const { Icon, color } = activityIcon(p.type);
                   return (
                     <TouchableOpacity
                       key={`${p.name}-${i}`}

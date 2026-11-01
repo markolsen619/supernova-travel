@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ArrowsDownUp, ArrowRight, CalendarBlank, CheckSquare, MapTrifold, Minus, NotePencil, PencilSimple, Plus, Square, Suitcase, Wallet } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { Button } from '@/components/ui/Button';
 import { cardLines, type CardExtra } from '@/utils/agentCard';
 import { useAgentGrounding } from '@/hooks/useAgentGrounding';
@@ -46,7 +46,7 @@ export function ProposalCard({ message, trip, busy, onApply, onDismiss, extra }:
       <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{done ? (message.status === 'dismissed' ? 'NOT APPLIED' : message.status === 'partial' ? 'PARTLY APPLIED' : 'APPLIED') : 'PROPOSED CHANGES'}</Text>
       {lines.map(({ line, index: i }) => {
         if (!line) return <Text key={i} style={[styles.stale, { color: colors.text.tertiary }]}>This change no longer fits the trip</Text>;
-        const TypeIcon = line.type ? ACTIVITY_ICONS[line.type] : null;
+        const TypeIcon = line.type ? activityIcon(line.type) : null;
         const Glyph = ICON[line.icon];
         const on = !off.has(i) && !line.unavailable;
         return (

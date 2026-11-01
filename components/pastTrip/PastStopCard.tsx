@@ -9,7 +9,7 @@ import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { CheckCircle } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
@@ -26,7 +26,7 @@ interface Props {
 export const PastStopCard = memo(function PastStopCard({ stop, photos, onOpen, onMovePhoto, onToggleShown }: Props) {
   const { colors } = useTheme();
   const [choosing, setChoosing] = useState(false);
-  const { Icon, color } = ACTIVITY_ICONS[stop.type];
+  const { Icon, color } = activityIcon(stop.type);
   const hidden = stop.photoIds.length - stop.shownIds.length;
   const strip = choosing ? stop.photoIds : stop.shownIds;
 

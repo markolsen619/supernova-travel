@@ -12,6 +12,7 @@ import { bookingLines, type DayBooking } from '@/utils/bookingDays';
 import type { TodayInfo } from '@/utils/todayCard';
 import type { TripWithDays } from '@/types';
 import { BookingLine } from './BookingLine';
+import { InviteButton } from '@/components/trip/InviteButton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -24,6 +25,7 @@ export const TodayCard = memo(function TodayCard({ trip, info, booking }: { trip
       <View style={[styles.cover, { backgroundColor: colors.background.sunken }]}>
         {trip.coverImageUrl ? <Image source={{ uri: trip.coverImageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
         <View style={styles.pill}><Text style={styles.pillText}>{`TODAY · DAY ${info.dayNumber} OF ${info.totalDays}`}</Text></View>
+        <InviteButton trip={trip} />
       </View>
       <View style={styles.body}>
         <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={1}>{title}</Text>

@@ -13,7 +13,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { TripActivity } from '@/types';
-import { ACTIVITY_ICONS } from '@/constants/icons';
+import { activityIcon } from '@/constants/icons';
 import { StopStateBubble } from '@/components/trip/StopStateBubble';
 
 interface ActivityItemProps {
@@ -55,7 +55,7 @@ export function ActivityItem({
 }: ActivityItemProps) {
   const { colors } = useTheme();
   const shown = stopTime(activity, bookedTime);
-  const { Icon, color: accentColor } = ACTIVITY_ICONS[activity.type];
+  const { Icon, color: accentColor } = activityIcon(activity.type);
   // An AI-generated stop not yet resolved to a real place — tapping it
   // triggers lazy grounding (see trip/[id].tsx). Grounded means "has
   // coordinates", not "has a Google placeId": a Mapbox-grounded stop carries

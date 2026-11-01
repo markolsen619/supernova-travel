@@ -1,7 +1,7 @@
 import {
   isLargeScreen, twoColumnWidth, thirdWidth, gridColumnsFor,
   contentMaxWidth, didSizeChange, crossedBreakpoint, LARGE_SCREEN_MIN,
-  columnWidth, galleryColumnsFor, galleryCellWidth, feedColumnWidth, contentColumnStyle, usesReadingColumn, cardListColumnsFor,
+  columnWidth, galleryColumnsFor, galleryCellWidth, feedColumnWidth, contentColumnStyle, usesReadingColumn, cardListColumnsFor, pickerPresentation,
 } from '@/utils/layout';
 
 const IPHONE_WIDTHS = [375, 390, 393, 402, 430];
@@ -142,5 +142,14 @@ describe('usesReadingColumn', () => {
     expect(usesReadingColumn('root', '(tabs)')).toBe(false);
     expect(usesReadingColumn('root', 'trip/ai-generating')).toBe(false);
     expect(usesReadingColumn('root', 'paywall')).toBe(false);
+  });
+});
+
+describe('pickerPresentation (a full-screen search modal had no way out on iPhone, 2026-10-31)', () => {
+  it('is a swipe-to-close sheet on iPhone and iPad', () => {
+    expect(pickerPresentation('ios')).toBe('pageSheet');
+  });
+  it('stays full screen on Android, where the back button closes it', () => {
+    expect(pickerPresentation('android')).toBeUndefined();
   });
 });

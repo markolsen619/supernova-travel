@@ -43,6 +43,13 @@
         }
       },
       {
+        "source": "/join/**",
+        "function": {
+          "functionId": "joinPage",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/trip/**",
         "function": {
           "functionId": "tripPreview",
