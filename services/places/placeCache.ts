@@ -21,14 +21,14 @@ import type { EnrichedPlace } from '@/stores/usePlacesStore';
  */
 
 /**
- * How long a cached place is trusted.
+ * How long a cached place is trusted: 14 days.
  *
- * Generous on purpose. Most of what we store never changes — name, address,
- * coordinates, primaryType, viewport, photo names. Only rating and opening
- * hours drift, and a rating being a few weeks out of date costs a trip
- * planner nothing, while a short TTL costs a paid API call per expiry.
+ * Most of what we store never changes (name, address, coordinates, primaryType, viewport) and a rating a few
+ * weeks old costs a trip planner nothing — but the **photo names don't last**: Google stops accepting a photo
+ * reference within weeks (7-day-old ones loaded, 35-day-old ones were rejected, 2026-11-01), and at 30 days a
+ * place could sit in the cache with no photos. 14 days keeps photos working at a modest extra API cost.
  */
-export const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 /** Milliseconds since epoch, or null/undefined when the entry has no stamp. */
 export function isCacheFresh(cachedAtMs: number | null | undefined, nowMs: number): boolean {

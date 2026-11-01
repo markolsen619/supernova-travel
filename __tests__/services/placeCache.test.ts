@@ -31,6 +31,12 @@ describe('isCacheFresh', () => {
     expect(isCacheFresh(NOW + 60_000, NOW)).toBe(true);
   });
 
+  it('trusts an entry for 14 days: its photo names stop working within weeks (2026-11-01)', () => {
+    expect(CACHE_TTL_MS).toBe(14 * DAY);
+    expect(isCacheFresh(NOW - 20 * DAY, NOW)).toBe(false);
+    expect(isCacheFresh(NOW - 7 * DAY, NOW)).toBe(true);
+  });
+
   it('rejects a non-numeric timestamp', () => {
     expect(isCacheFresh(Number.NaN, NOW)).toBe(false);
   });
