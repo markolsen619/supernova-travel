@@ -29,6 +29,20 @@
     ],
     "rewrites": [
       {
+        "source": "/links",
+        "function": {
+          "functionId": "linksPage",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/",
+        "function": {
+          "functionId": "linksPage",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/wallet/apple/**",
         "function": {
           "functionId": "appleWalletPass",
