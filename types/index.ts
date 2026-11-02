@@ -581,6 +581,10 @@ export interface BoardingPass {
   localDate?: string;
   originCountryCode?: string;
   confirmationCode?: string;
+  /** Minutes late, from live flight status (checkFlightStatus). */
+  delayMinutes?: number;
+  /** Day-of assistant (server-written): reminder stamps and the leave-for-the-airport time. */
+  dayOf?: { checkInSentAtMs?: number; leaveByMs?: number; driveMin?: number | null; bufferMin?: number; leaveSentAtMs?: number };
 }
 
 export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show' | 'transit';
