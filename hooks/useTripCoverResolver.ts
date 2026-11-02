@@ -1,7 +1,8 @@
 import { useCallback, useRef } from 'react';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { usePlacesStore } from '@/stores/usePlacesStore';
-import { enrichPlaceById, enrichPlaceByQuery, photoUrl } from '@/services/places/googlePlaces';
+import { enrichPlaceById, enrichPlaceByQuery } from '@/services/places/googlePlaces';
+import { photoUriFor } from '@/services/places/placePhotos';
 import { resolveCityBounds, resolveDestinationRegion } from '@/services/places/mapboxSearch';
 import { regionNameFor } from '@/utils/tripRegion';
 import type { Destination, Trip } from '@/types';
@@ -183,8 +184,11 @@ export function useTripCoverResolver() {
           });
         }
 
-        const url = photoNames?.[0] ? photoUrl(photoNames[0], 1200) : '';
-        await updateTrip(trip.id, { coverImageUrl: url });
+        // Google's key-less address, never the keyed media URL: that one bills every view on every phone (October's
+        // whole $45 Places bill). refreshCovers keeps it fresh by coverPlaceId.
+        const url = photoNames?.[0] ? await photoUriFor(photoNames[0], 1200) : '';
+        if (url === null) { attempted.current.delete(trip.id); return; }
+        await updateTrip(trip.id, url ? { coverImageUrl: url, coverPlaceId: placeId, coverRefreshedAtMs: Date.now() } : { coverImageUrl: '' });
       } catch (err) {
         console.error('[useTripCoverResolver] failed:', err);
         attempted.current.delete(trip.id);

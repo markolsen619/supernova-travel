@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { DarkColors } from '@/constants/colors';
@@ -7,6 +7,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { Trip, TripStatus } from '@/types';
 import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '@/utils/tripStatus';
+import { Image as CachedImage } from 'expo-image';
 
 interface TripResultProps {
   trip: Trip;
@@ -44,10 +45,11 @@ export function TripResult({ trip, onPress }: TripResultProps) {
       {/* Thumbnail */}
       <View style={[styles.thumbnail, { backgroundColor: colors.brand.purple + '26' }]}>
         {trip.coverImageUrl ? (
-          <Image
+          <CachedImage
             source={{ uri: trip.coverImageUrl }}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="disk"
           />
         ) : (
           <LinearGradient

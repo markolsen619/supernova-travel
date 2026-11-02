@@ -743,6 +743,12 @@ service cloud.firestore {
         && request.resource.data.cachedAt == request.time
         && !('ownerUid' in request.resource.data)
         && !('uid' in request.resource.data);
+      // Shared key-less photo addresses (utils/placePhotos.ts): only these two fields, without touching cachedAt —
+      // the place's own photo names must still age out on time.
+      allow update: if isAuthed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoUris', 'photoUrisAtMs'])
+        && request.resource.data.photoUris is list && request.resource.data.photoUris.size() <= 4
+        && request.resource.data.photoUrisAtMs is number;
       allow delete: if false;
     }
   }

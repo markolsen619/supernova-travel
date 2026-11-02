@@ -1,25 +1,30 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { firstPhotoName, needsRefresh, parsePlacesPhotoUrl, photoUrlFrom } from './coverRefresh';
+import { coverDue, coverPlaceId, firstPhotoName, parsePlacesPhotoUrl, photoUriFrom, photoUriRequest } from './coverRefresh';
 
 const db = admin.firestore();
 const DAY_MS = 86_400_000;
 
-/** Looks the cover's place up again and saves a fresh photo URL of the same shape; the URL saved, or null. */
-async function refreshDoc(ref: FirebaseFirestore.DocumentReference, url: unknown): Promise<string | null> {
-  const parsed = parsePlacesPhotoUrl(url);
-  if (!parsed) return null;
-  const key = process.env.PLACES_API_KEY || parsed.key;
+/**
+ * Looks the cover's place up again and saves Google's key-less photo address for it (free to view), with the place
+ * id to refresh it by next time; the address saved, or null. Two billed calls: the place's photos, then the address.
+ */
+async function refreshDoc(ref: FirebaseFirestore.DocumentReference, data: FirebaseFirestore.DocumentData): Promise<string | null> {
+  const placeId = coverPlaceId(data);
+  const key = process.env.PLACES_API_KEY || parsePlacesPhotoUrl(data.coverImageUrl)?.key;
+  if (!placeId || !key) return null;
   try {
-    const r = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(parsed.placeId)}?fields=photos&key=${key}`, { signal: AbortSignal.timeout(5000) });
+    const r = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?fields=photos&key=${key}`, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
     const name = firstPhotoName(await r.json());
     if (!name) return null;
-    // The stored URL's own key, so the app loads it exactly as before.
-    const next = photoUrlFrom(name, parsed.key, parsed.maxWidthPx);
-    await ref.update({ coverImageUrl: next, coverRefreshedAtMs: Date.now() });
-    return next;
+    const m = await fetch(photoUriRequest(name, key, parsePlacesPhotoUrl(data.coverImageUrl)?.maxWidthPx ?? 1200), { signal: AbortSignal.timeout(5000) });
+    if (!m.ok) return null;
+    const uri = photoUriFrom(await m.json());
+    if (!uri) return null;
+    await ref.update({ coverImageUrl: uri, coverPlaceId: placeId, coverRefreshedAtMs: Date.now() });
+    return uri;
   } catch (err) {
     console.warn('cover refresh failed', ref.path, String(err).slice(0, 120));
     return null;
@@ -27,21 +32,25 @@ async function refreshDoc(ref: FirebaseFirestore.DocumentReference, url: unknown
 }
 
 /**
- * Daily: every catalog destination and every public trip whose cover photo reference is older than 20 days
- * (Google stops accepting them after a few weeks). Private and followers-only trips refresh on demand
+ * Daily: every catalog destination and public trip whose cover is due (`coverDue`: a keyed URL, or a photo address
+ * older than 10 days), and every trip still holding a keyed URL. Private and followers-only trips refresh on demand
  * (refreshCover) when their owner's or a member's card fails to load.
  */
 export const refreshCovers = onSchedule({ schedule: 'every day 05:00', timeZone: 'UTC', timeoutSeconds: 540, memory: '256MiB' }, async () => {
   const now = Date.now();
+  const fields = ['coverImageUrl', 'coverPlaceId', 'coverRefreshedAtMs', 'visibility'];
   const [dests, trips] = await Promise.all([
-    db.collection('destinations').select('coverImageUrl', 'coverRefreshedAtMs').get(),
-    db.collection('trips').where('visibility', '==', 'public').select('coverImageUrl', 'coverRefreshedAtMs').get(),
+    db.collection('destinations').select(...fields).get(),
+    db.collection('trips').select(...fields).get(),
   ]);
+  // Destinations and public trips stay fresh on schedule. Any trip still holding a keyed URL is converted once,
+  // whatever its visibility (older apps keep drawing it, billed). Private photo addresses refresh on demand.
   const due = [...dests.docs, ...trips.docs]
-    .filter((d) => parsePlacesPhotoUrl(d.get('coverImageUrl')) && needsRefresh(d.get('coverRefreshedAtMs'), now))
+    .filter((d) => (d.ref.parent.id === 'destinations' || d.get('visibility') === 'public' || parsePlacesPhotoUrl(d.get('coverImageUrl')))
+      && coverDue(d.data(), now))
     .slice(0, 300);
   let ok = 0;
-  for (const d of due) if (await refreshDoc(d.ref, d.get('coverImageUrl'))) ok++;
+  for (const d of due) if (await refreshDoc(d.ref, d.data())) ok++;
   console.log('refreshCovers', { due: due.length, refreshed: ok });
 });
 
@@ -66,5 +75,5 @@ export const refreshCover = onCall({ region: 'us-central1' }, async (req) => {
   }
   const refreshedAt = doc.coverRefreshedAtMs as number | undefined;
   if (typeof refreshedAt === 'number' && Date.now() - refreshedAt < DAY_MS) return { url: doc.coverImageUrl ?? null };
-  return { url: (await refreshDoc(ref, doc.coverImageUrl)) ?? doc.coverImageUrl ?? null };
+  return { url: (await refreshDoc(ref, doc)) ?? doc.coverImageUrl ?? null };
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Animated, useWindowDimensions, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, useWindowDimensions, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/hooks/useTheme';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
@@ -8,6 +8,7 @@ import { KenBurnsImage } from '@/components/onboarding/KenBurnsImage';
 import { SlideTextBlock } from '@/components/onboarding/SlideTextBlock';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { FontWeight } from '@/constants/typography';
+import { Image as CachedImage } from 'expo-image';
 
 interface Props {
   active: boolean;
@@ -76,7 +77,7 @@ export function OnboardingTripsSlide({ active, trips }: Props) {
               // would drop someone into a trip mid-introduction.
               <View key={`${trip.id}-${i}`} style={styles.card} pointerEvents="none">
                 <View style={[styles.cover, { backgroundColor: colors.background.sunken }]}>
-                  <Image source={{ uri: trip.coverUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  <CachedImage source={{ uri: trip.coverUrl }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" />
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.7)'] as [string, string]}
                     style={styles.coverShade}

@@ -526,6 +526,9 @@ export interface UpdateTripInput {
   title?: string;
   description?: string;
   coverImageUrl?: string | null;
+  /** The place a key-less cover address is refreshed by (functions/src/coverRefresh.ts). */
+  coverPlaceId?: string;
+  coverRefreshedAtMs?: number;
   regionName?: string | null;
   destination?: Destination;
   additionalDestinations?: Destination[];
