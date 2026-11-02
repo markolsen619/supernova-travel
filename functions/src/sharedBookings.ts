@@ -75,7 +75,8 @@ export function mirrorPlan(
 }
 
 /** Fields only the server's own bookkeeping writes (live checks, Wallet). A write that touches nothing else changes no shared copy or stop. */
-const BOOKKEEPING = new Set(['liveCheckedAtMs', 'walletUpdatedAtMs', 'walletTimeZone', 'googleWalletObject']);
+// dayOf: the day-of assistant's reminder stamps and leave-by time (dayOfFunctions.ts).
+const BOOKKEEPING = new Set(['liveCheckedAtMs', 'walletUpdatedAtMs', 'walletTimeZone', 'googleWalletObject', 'dayOf']);
 
 /** Whether a booking write needs the share/stop jobs (every live flight check stamps liveCheckedAtMs; each used to re-read the trip). */
 export function bookingWriteMatters(before: Record<string, any> | undefined, after: Record<string, any> | undefined): boolean {

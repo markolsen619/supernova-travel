@@ -27,6 +27,7 @@ export { tripPreview } from './tripPreviewFunction';
 export { linksPage } from './linksPageFunction';
 export { refreshCovers, refreshCover } from './coverRefreshFunctions';
 export { yearInTravel } from './yearInTravelFunctions';
+export { dayOfReminders } from './dayOfFunctions';
 export { createTripInviteLink, cancelTripInviteLinks, openTripInviteLinks, previewTripInviteLink, acceptTripInviteLink, joinPage } from './tripInviteLinkFunctions';
 export { matchBooking, onTripWrittenRematch } from './bookingMatchFunctions';
 export { onBoardingPassWrittenShare, onReservationWrittenShare } from './sharedBookingFunctions';

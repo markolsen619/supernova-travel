@@ -129,6 +129,12 @@ service cloud.firestore {
         allow read: if isOwner(uid);
         allow write: if false;
       }
+      // Live Activity push tokens (day-of assistant): the owner's phone writes, the server reads.
+      match /liveActivities/{passId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && request.resource.data.keys().hasOnly(['token', 'updatedAtMs'])
+          && request.resource.data.token is string && request.resource.data.token.size() < 512;
+      }
 
       // Friends on a trip (functions/src/friendsTravelingFunctions.ts): your own list, server-written.
       match /friendsTraveling/{travelerUid} {
@@ -689,9 +695,12 @@ service cloud.firestore {
 
     match /boarding_passes/{passId} {
       allow read, delete: if isAuthed() && isOwner(resource.data.ownerUid);
+      // dayOf (reminder stamps, leave-by time) is server-written only (day-of assistant, 2026-11-01).
       allow update: if isAuthed() && isOwner(resource.data.ownerUid) && walletLinkWriteAllowed()
-        && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid && walletCreateLinkAllowed();
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dayOf']);
+      allow create: if isAuthed() && request.auth.uid == request.resource.data.ownerUid && walletCreateLinkAllowed()
+        && !('dayOf' in request.resource.data);
     }
 
     // Reservations
