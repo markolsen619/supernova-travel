@@ -8,6 +8,7 @@ import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { ArrowsClockwise } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useUserStore } from '@/stores/useUserStore';
 import { Button } from '@/components/ui/Button';
@@ -31,9 +32,11 @@ interface Props {
   onSave: (visibility: TripVisibility) => void;
   error: string | null;
   noLocations: boolean;
+  /** Some stops were built from times alone and wait for a place (Android). */
+  placesByHand?: boolean;
 }
 
-export function PastTripReview({ draft, onEdit, onSave, error, noLocations }: Props) {
+export function PastTripReview({ draft, onEdit, onSave, error, noLocations, placesByHand }: Props) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const publicOk = publicAllowed(isPrivateAccount(useUserStore((s) => s.profile)));
@@ -56,9 +59,24 @@ export function PastTripReview({ draft, onEdit, onSave, error, noLocations }: Pr
 
   const renderDay = useCallback(({ item: day, index }: { item: DraftDay; index: number }) => (
     <View style={styles.day}>
-      <Text style={[styles.dayHead, { color: colors.text.primary }]}>
-        Day {index + 1}{day.stops[0] ? ` · ${draft.cities[day.city]?.name || day.stops[0].name}` : ''}
-      </Text>
+      {draft.citiesChosen && draft.cities.length > 1 ? (
+        <View style={styles.dayRow}>
+          <Text style={[styles.dayHead, { color: colors.text.primary }]}>Day {index + 1}</Text>
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onEdit({ type: 'dayCity', day: index, city: (day.city + 1) % draft.cities.length }); }}
+            style={[styles.cityPill, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Day ${index + 1} is in ${draft.cities[day.city]?.name ?? 'a city'}. Tap to change`}
+          >
+            <Text style={[styles.cityPillText, { color: colors.text.primary }]} numberOfLines={1}>{draft.cities[day.city]?.name}</Text>
+            <ArrowsClockwise size={12} weight="bold" color={colors.text.tertiary} />
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={[styles.dayHead, { color: colors.text.primary }]}>
+          Day {index + 1}{day.stops[0] || draft.citiesChosen ? ` · ${draft.cities[day.city]?.name || day.stops[0]?.name || ''}` : ''}
+        </Text>
+      )}
       <TextInput
         value={day.caption}
         onChangeText={(v) => onEdit({ type: 'caption', day: index, value: v })}
@@ -73,7 +91,7 @@ export function PastTripReview({ draft, onEdit, onSave, error, noLocations }: Pr
         <PastStopCard key={s.id} stop={s} photos={draft.photos} onOpen={setEditing} onMovePhoto={setMoving} onToggleShown={toggleShown} />
       ))}
     </View>
-  ), [colors, draft.cities, draft.photos, onEdit, toggleShown]);
+  ), [colors, draft.cities, draft.citiesChosen, draft.photos, onEdit, toggleShown]);
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.background.primary }]}>
@@ -98,7 +116,11 @@ export function PastTripReview({ draft, onEdit, onSave, error, noLocations }: Pr
                 accessibilityLabel="Trip title"
               />
               {draft.description ? <Text style={[styles.body, { color: colors.text.secondary }]}>{draft.description}</Text> : null}
-              {noLocations && (
+              {placesByHand ? (
+                <Text style={[styles.note, { color: colors.text.secondary }]}>
+                  {"These photos don't say where they were taken. Tap a stop to name its place — any you skip are saved as Stop 1, Stop 2 and so on."}
+                </Text>
+              ) : noLocations && (
                 <Text style={[styles.note, { color: colors.text.secondary }]}>
                   {"These photos don't say where they were taken, so the days are built from their dates. Add places to the trip after saving."}
                 </Text>
@@ -173,6 +195,9 @@ const styles = StyleSheet.create({
   body: { fontSize: FontSize.base, lineHeight: 22 },
   day: { paddingHorizontal: Spacing['5'], paddingTop: Spacing['6'] },
   dayHead: { fontSize: FontSize.md, fontWeight: FontWeight.medium },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'] },
+  cityPill: { flexDirection: 'row', alignItems: 'center', gap: Spacing['1'], minHeight: 32, paddingHorizontal: Spacing['3'], borderRadius: BorderRadius.full, borderWidth: StyleSheet.hairlineWidth, maxWidth: 220 },
+  cityPillText: { fontSize: FontSize.sm, fontWeight: FontWeight.medium },
   caption: { fontSize: FontSize.sm, paddingVertical: Spacing['2'], minHeight: 44 },
   note: { fontSize: FontSize.sm, lineHeight: 19 },
   footer: { paddingHorizontal: Spacing['5'], paddingTop: Spacing['6'], gap: Spacing['6'] },

@@ -16,6 +16,7 @@ import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 import { usePastTripBuilder } from '@/hooks/usePastTripBuilder';
 import { PastTripReview } from '@/components/pastTrip/PastTripReview';
 import { PastTripFinish } from '@/components/pastTrip/PastTripFinish';
+import { PastTripCities } from '@/components/pastTrip/PastTripCities';
 import { DarkColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
@@ -53,10 +54,14 @@ export default function PastTripScreen() {
     );
   }
 
+  if (b.phase === 'cities') {
+    return <PastTripCities dayCount={b.waitingDays} onContinue={b.chooseCities} onCancel={b.cancelCities} />;
+  }
+
   if (b.phase === 'review' && b.draft) {
     return (
       <>
-        <PastTripReview draft={b.draft} onEdit={b.edit} onSave={b.save} error={b.error} noLocations={b.noLocations} />
+        <PastTripReview draft={b.draft} onEdit={b.edit} onSave={b.save} error={b.error} noLocations={b.noLocations} placesByHand={b.placesByHand} />
         {consentSheet}
       </>
     );

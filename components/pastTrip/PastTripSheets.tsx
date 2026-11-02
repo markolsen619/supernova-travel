@@ -65,7 +65,9 @@ export function StopActionsSheet({ stop, canMerge, onEdit, onClose }: {
   const findPlace = useCallback(async () => {
     if (!stop || !text.trim()) return;
     setSearching(true); setNotFound(false);
-    const d = 0.05; // ~5 km around the stop: the place is where the photos were taken
+    // ~5 km around the stop: the place is where the photos were taken. A stop built from times alone sits at its
+    // city's centre, so search the whole city (~30 km).
+    const d = stop.needsPlace ? 0.3 : 0.05;
     const found = await searchPlaceInBounds(text.trim(), [stop.lng - d, stop.lat - d, stop.lng + d, stop.lat + d], { lat: stop.lat, lng: stop.lng });
     setSearching(false);
     if (!found) { setNotFound(true); return; }
@@ -74,11 +76,11 @@ export function StopActionsSheet({ stop, canMerge, onEdit, onClose }: {
 
   if (!stop) return null;
   return (
-    <Sheet visible={!!stop} onClose={close} title={mode === 'rename' ? 'Rename this stop' : mode === 'place' ? 'Change the place' : stop.name}>
+    <Sheet visible={!!stop} onClose={close} title={mode === 'rename' ? 'Rename this stop' : mode === 'place' ? (stop.needsPlace ? 'Name this place' : 'Change the place') : (stop.needsPlace ? 'Name this place' : stop.name)}>
       {mode === 'menu' && (
         <View>
           <Row label="Rename" onPress={() => setMode('rename')} />
-          <Row label="Change place" onPress={() => { setText(''); setMode('place'); }} />
+          <Row label={stop.needsPlace ? 'Search for the place' : 'Change place'} onPress={() => { setText(''); setMode('place'); }} />
           {canMerge && <Row label="Merge with the stop before" onPress={() => act({ type: 'mergeWithPrevious', stopId: stop.id })} />}
           <Row label="Delete stop" destructive onPress={() => act({ type: 'deleteStop', stopId: stop.id }, true)} />
         </View>

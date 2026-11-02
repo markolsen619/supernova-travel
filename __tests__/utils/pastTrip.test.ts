@@ -1,4 +1,4 @@
-import { buildPastTrip, coverPhoto, pastTripNights, shownPhotos, spanDays, type PickedPhoto } from '@/utils/pastTrip';
+import { buildPastTrip, coverPhoto, needsCities, pastTripNights, shownPhotos, spanDays, withTripCities, type PickedPhoto } from '@/utils/pastTrip';
 
 let n = 0;
 const p = (day: string | null, hhmm: string | null, lat: number | null, lng: number | null, id = `p${n++}`): PickedPhoto => ({
@@ -48,11 +48,31 @@ describe('buildPastTrip', () => {
     expect(d.unplaced).toEqual(['shot', 'scr']);
     expect(d.days.map((x) => x.day)).toEqual(['2025-05-03', '2025-05-04']);
   });
-  it('no photo has a location → days from the dates, no stops, no cities, everything unplaced', () => {
-    const d = buildPastTrip([p('2025-05-03', '10:00', null, null, 'a'), p('2025-05-04', '10:00', null, null, 'b')]);
-    expect(d.days.map((x) => x.stops.length)).toEqual([0, 0]);
+  it('no photo has a location (Android\'s picker removes it) → stops by time alone, each waiting for a place', () => {
+    const d = buildPastTrip([
+      p('2025-05-03', '10:00', null, null, 'a'), p('2025-05-03', '11:00', null, null, 'b'),
+      p('2025-05-03', '13:00', null, null, 'c'), p('2025-05-04', '09:00', null, null, 'd'), p(null, null, null, null, 'scr'),
+    ]);
+    expect(d.days.map((x) => x.stops.map((s) => s.photoIds))).toEqual([[['a', 'b'], ['c']], [['d']]]);
+    expect(d.days[0].stops.every((s) => s.needsPlace)).toBe(true);
+    expect(d.days[0].stops.map((s) => s.time)).toEqual(['10:00', '13:00']);
     expect(d.cities).toEqual([]);
-    expect(d.unplaced).toEqual(['a', 'b']);
+    expect(d.unplaced).toEqual(['scr']);
+    expect(needsCities(d)).toBe(true);
+  });
+  it('a trip with any located photo keeps today\'s rule: photos without one go to unplaced', () => {
+    const d = buildPastTrip([p('2025-05-03', '10:00', ...ALFAMA), p('2025-05-03', '13:00', null, null, 'x')]);
+    expect(d.unplaced).toEqual(['x']);
+    expect(needsCities(d)).toBe(false);
+  });
+  it('withTripCities: the chosen cities, every day in the first, waiting stops at its centre', () => {
+    const d = withTripCities(buildPastTrip([p('2025-05-03', '10:00', null, null, 'a'), p('2025-05-04', '10:00', null, null, 'b')]), [
+      { name: 'Lisbon', lat: 38.72, lng: -9.14, countryCode: 'PT' }, { name: 'Porto', lat: 41.15, lng: -8.61, countryCode: 'PT' },
+    ]);
+    expect(d.cities.map((c) => c.name)).toEqual(['Lisbon', 'Porto']);
+    expect(d.days.map((x) => x.city)).toEqual([0, 0]);
+    expect(d.days[1].stops[0]).toMatchObject({ lat: 38.72, lng: -9.14, needsPlace: true, name: '' });
+    expect(needsCities(d)).toBe(false);
   });
   it('nothing dated at all → no days', () => {
     expect(buildPastTrip([p(null, null, null, null)]).days).toEqual([]);
@@ -96,9 +116,9 @@ it('eyebrow', () => {
 });
 
 import { pastTripsSupported } from '@/utils/pastTrip';
-it('final review C2: iPhone only until Android can read photo locations', () => {
+it('iPhone and Android (Android names its places by hand, owner 2026-11-02); not web', () => {
   expect(pastTripsSupported('ios')).toBe(true);
-  expect(pastTripsSupported('android')).toBe(false);
+  expect(pastTripsSupported('android')).toBe(true);
   expect(pastTripsSupported('web')).toBe(false);
 });
 
@@ -121,4 +141,11 @@ describe('mergeSameArea (owner trip: "Grote Markt, Brussels" twice in a row at t
     expect(d.days[0].stops[0].photoIds).toHaveLength(14);
     expect(d.days[0].stops[0].shownIds).toHaveLength(10);
   });
+});
+
+it('mergeSameArea never joins stops still waiting for a place (they all sit at the city centre, unnamed)', () => {
+  const d = withTripCities(buildPastTrip([p('2025-05-03', '10:00', null, null), p('2025-05-03', '13:00', null, null)]), [
+    { name: 'Lisbon', lat: 38.72, lng: -9.14, countryCode: 'PT' },
+  ]);
+  expect(mergeSameArea(d).days[0].stops).toHaveLength(2);
 });

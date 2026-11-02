@@ -19,6 +19,7 @@ const areaUrl = (lat: number, lng: number, types: string) => `https://api.mapbox
 
 export async function nameDraft(d: PastTripDraft, onStop?: (done: number, total: number) => void): Promise<PastTripDraft> {
   const cities = await Promise.all(d.cities.map(async (c) => {
+    if (c.name) return c; // chosen by the traveler ("Where was this trip?"): already named and placed
     const area = areaFromGeocode(await getJson(areaUrl(c.lat, c.lng, 'place')));
     // The city's own centre, never the photos' position (final review C1).
     return { ...c, ...publicPosition(null, area.center, c), name: area.city ?? c.name, countryCode: area.countryCode ?? c.countryCode };
@@ -31,6 +32,8 @@ export async function nameDraft(d: PastTripDraft, onStop?: (done: number, total:
     const stops = [];
     for (const s of day.stops) {
       const i = index++;
+      // Built from times alone, at the city centre: naming it after that spot would be wrong — the traveler names it.
+      if (s.needsPlace) { stops.push(s); onStop?.(++done, total); continue; }
       // Named after its neighbourhood and city, never the nearest business (owner, 2026-10-26).
       const area = areaFromGeocode(await getJson(areaUrl(s.lat, s.lng, 'neighborhood,locality')));
       const place = area.city && area.country && area.center ? null : areaFromGeocode(await getJson(areaUrl(s.lat, s.lng, 'place')));

@@ -35,10 +35,17 @@ export const PastStopCard = memo(function PastStopCard({ stop, photos, onOpen, o
 
   return (
     <View style={[styles.card, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}>
-      <Pressable onPress={open} style={styles.head} accessibilityRole="button" accessibilityLabel={`${stop.name}. Edit this stop`}>
+      <Pressable onPress={open} style={styles.head} accessibilityRole="button" accessibilityLabel={stop.needsPlace && !stop.name ? 'Name this place' : `${stop.name}. Edit this stop`}>
         <TypeIconBubble Icon={Icon} color={color} />
         <View style={styles.headText}>
-          <Text style={[styles.name, { color: colors.text.primary }]} numberOfLines={2}>{stop.name}</Text>
+          {stop.needsPlace && !stop.name ? (
+            <>
+              <Text style={[styles.name, { color: colors.brand.purple }]} numberOfLines={1}>Name this place</Text>
+              <Text style={[styles.hint, { color: colors.text.tertiary }]} numberOfLines={1}>{`Photos from ${stop.time}`}</Text>
+            </>
+          ) : (
+            <Text style={[styles.name, { color: colors.text.primary }]} numberOfLines={2}>{stop.name}</Text>
+          )}
         </View>
       </Pressable>
       {strip.length > 0 && (
@@ -76,6 +83,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], minHeight: 44 },
   headText: { flex: 1 },
   name: { fontSize: FontSize.base, fontWeight: FontWeight.medium },
+  hint: { fontSize: FontSize.xs, marginTop: 2 },
   strip: { gap: Spacing['2'] },
   thumbHit: { borderRadius: 12 },
   thumb: { width: 64, height: 64, borderRadius: 12 },
