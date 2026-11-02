@@ -29,6 +29,7 @@ import { requireOnline } from '@/services/offline';
 import { CalendarSwitchRow } from '@/components/wallet/CalendarSwitchRow';
 import { AddToAppleWallet } from '@/components/wallet/AddToAppleWallet';
 import { AddToGoogleWallet } from '@/components/wallet/AddToGoogleWallet';
+import { CheckInButton } from '@/components/wallet/CheckInButton';
 
 const CARD_HEIGHT = 200;
 
@@ -161,6 +162,9 @@ export default function BoardingPassDetailScreen() {
         ) : (
           <BoardingPassCard pass={pass} onPress={() => {}} />
         )}
+
+        {/* Day-of assistant (spec 2026-11-01): leave-by (Pro) and the airline's check-in page. */}
+        <CheckInButton pass={pass} style={styles.tripBlock} />
 
         {/* Apple Wallet (spec 2026-10-22): Apple's own button, right under the pass people show at the gate. */}
         <AddToAppleWallet passId={pass.id} style={styles.tripBlock} />

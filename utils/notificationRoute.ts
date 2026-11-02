@@ -33,6 +33,9 @@ const ROUTES: Record<string, RouteSpec> = {
   flight_status: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
   // Gate changes and delays (functions/src/flightLive.ts).
   flight_change: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
+  // Day-of assistant (2026-11-01): the pass, where Check in online and Leave by live.
+  checkin_open: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
+  leave_by: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
   // Email import (functions/src/emailImportFunctions.ts): one booking opens it, several open the log.
   email_import_pass: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
   email_import_reservation: { idKey: 'reservationId', build: (id) => `/(wallet)/reservation/${id}` },

@@ -89,3 +89,13 @@ it('a past trip saves no stop times (owner 2026-10-26: people want to see where 
   expect(docs.stops.map((s) => s.startTime)).toEqual([null, null]);
   expect(docs.stops.map((s) => s.order)).toEqual([0, 1000]);
 });
+
+import { withTripCities } from '@/utils/pastTrip';
+it('Android: a stop nobody named saves as "Stop n" at its city centre; the chosen city is the destination', () => {
+  const ph = (id: string, minutes: number): PickedPhoto => ({ id, uri: `file://${id}`, meta: { day: '2025-05-03', minutes, lat: null, lng: null } });
+  const d = withTripCities(buildPastTrip([ph('a', 600), ph('b', 800)]), [{ name: 'Lisbon', lat: 38.72, lng: -9.14, countryCode: 'PT' }]);
+  const docs = pastTripDocs(d, 'private');
+  expect(docs.stops.map((s) => [s.title, s.lat, s.lng])).toEqual([['Stop 1', 38.72, -9.14], ['Stop 2', 38.72, -9.14]]);
+  expect(docs.trip.destination).toMatchObject({ name: 'Lisbon', countryCode: 'PT' });
+  expect(docs.trip.title).toBe('Trip to Lisbon');
+});

@@ -122,3 +122,10 @@ describe('bookingWriteMatters (2026-10-23)', () => {
     expect(bookingWriteMatters(pass, undefined)).toBe(true);
   });
 });
+
+describe('day-of stamps are bookkeeping (2026-11-01)', () => {
+  it('a reminder stamp alone does not run the share/stop jobs', () => {
+    const pass = { ownerUid: 'u', flightNumber: 'TP204' };
+    expect(bookingWriteMatters(pass, { ...pass, dayOf: { checkInSentAtMs: 5 } })).toBe(false);
+  });
+});

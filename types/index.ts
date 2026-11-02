@@ -526,6 +526,9 @@ export interface UpdateTripInput {
   title?: string;
   description?: string;
   coverImageUrl?: string | null;
+  /** The place a key-less cover address is refreshed by (functions/src/coverRefresh.ts). */
+  coverPlaceId?: string;
+  coverRefreshedAtMs?: number;
   regionName?: string | null;
   destination?: Destination;
   additionalDestinations?: Destination[];
@@ -581,6 +584,10 @@ export interface BoardingPass {
   localDate?: string;
   originCountryCode?: string;
   confirmationCode?: string;
+  /** Minutes late, from live flight status (checkFlightStatus). */
+  delayMinutes?: number;
+  /** Day-of assistant (server-written): reminder stamps and the leave-for-the-airport time. */
+  dayOf?: { key?: string; checkInSentAtMs?: number; leaveByMs?: number; driveMin?: number | null; bufferMin?: number; leaveSentAtMs?: number };
 }
 
 export type ReservationType = 'hotel' | 'airbnb' | 'rental_car' | 'restaurant' | 'activity' | 'show' | 'transit';

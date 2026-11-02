@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
-  Image,
   Alert,
   Platform,
 } from 'react-native';
@@ -82,6 +81,7 @@ import { useProGate } from '@/hooks/useProGate';
 import { Badge } from '@/components/ui/Badge';
 import { isOnline, requireOnline, useIsOnline } from '@/services/offline';
 import { CalendarSheet } from '@/components/calendar/CalendarSheet';
+import { Image as CachedImage } from 'expo-image';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1228,10 +1228,11 @@ export default function TripDetailScreen() {
         <View style={styles.headerImageContainer}>
           {trip.coverImageUrl ? (
             <>
-              <Image
+              <CachedImage
                 source={{ uri: trip.coverImageUrl }}
                 style={StyleSheet.absoluteFill}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="disk"
               />
               {/* Scrim: extra legibility margin for the header buttons over
                   unpredictable photo content — the buttons themselves don't

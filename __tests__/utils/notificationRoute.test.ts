@@ -88,3 +88,10 @@ describe('notificationTapRoute', () => {
     expect(notificationTapRoute(undefined)).toBe('/notifications');
   });
 });
+
+describe('day-of reminders (2026-11-01)', () => {
+  it('check-in and leave-by open the boarding pass', () => {
+    expect(resolveNotificationRoute({ type: 'checkin_open', passId: 'bp1' })).toBe('/(wallet)/boarding-pass/bp1');
+    expect(resolveNotificationRoute({ type: 'leave_by', passId: 'bp1' })).toBe('/(wallet)/boarding-pass/bp1');
+  });
+});

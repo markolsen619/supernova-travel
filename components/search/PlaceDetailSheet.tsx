@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Platform,
@@ -21,8 +20,11 @@ import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
 import type { ActivityType } from '@/types';
 import { PlaceReviewsSummary } from '@/components/places/PlaceReviewsSummary';
 import { buildBookingAction } from '@/utils/bookingLinks';
+import { activityPartner, activityPartnerUrl, isSightType, partnerIdsFromEnv, PARTNER_NAME } from '@/utils/activityBooking';
 import * as WebBrowser from 'expo-web-browser';
-import { enrichPlaceById, photoUrl } from '@/services/places/googlePlaces';
+import { enrichPlaceById } from '@/services/places/googlePlaces';
+import { placePhotoUris } from '@/services/places/placePhotos';
+import { Image as CachedImage } from 'expo-image';
 import { AddToTripSheet } from '@/components/search/AddToTripSheet';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
@@ -207,9 +209,14 @@ export function PlaceDetailSheet({
     [slideAnim, onDismiss],
   );
 
-  // Booking hand-off. Only when the caller said what kind of stop this is —
-  // the globe has no trip and no dates, so it shows no booking button.
-  const bookingAction = booking
+  // Booking hand-off. From a trip stop: by the stop's type (hotels → Booking.com, sights → tours partner,
+  // the rest → Maps). On the globe, with no trip: only sights, as tickets and tours (owner, 2026-11-01).
+  const partnerIds = partnerIdsFromEnv({
+    EXPO_PUBLIC_GYG_PARTNER_ID: process.env.EXPO_PUBLIC_GYG_PARTNER_ID,
+    EXPO_PUBLIC_VIATOR_PID: process.env.EXPO_PUBLIC_VIATOR_PID,
+    EXPO_PUBLIC_VIATOR_MCID: process.env.EXPO_PUBLIC_VIATOR_MCID,
+  });
+  const bookingAction = useMemo(() => (booking
     ? buildBookingAction({
         type: booking.type,
         placeId: displayPlace.placeId,
@@ -218,8 +225,17 @@ export function PlaceDetailSheet({
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         affiliateId: process.env.EXPO_PUBLIC_BOOKING_AFFILIATE_ID ?? null,
+        countryCode: displayPlace.countryCode ?? null,
+        partnerIds,
       })
-    : null;
+    : isSightType(displayPlace.primaryType)
+      ? {
+          label: `Find tickets & tours · ${PARTNER_NAME[activityPartner(displayPlace.countryCode)]}`,
+          url: activityPartnerUrl({ name: displayPlace.name, near: null, countryCode: displayPlace.countryCode ?? null }, partnerIds),
+        }
+      : null),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- partnerIds come from build-time env and never change
+  [booking, displayPlace.placeId, displayPlace.name, displayPlace.countryCode, displayPlace.primaryType]);
 
   const handleBook = useCallback(() => {
     if (!bookingAction) return;
@@ -234,7 +250,23 @@ export function PlaceDetailSheet({
   const fromTrip = !!booking;
   const hoursLine = todaysHoursLine(displayPlace.openingHours);
   const priceLabel = displayPlace.priceLevel ? PRICE_LEVEL_LABELS[displayPlace.priceLevel] : null;
-  const hasPhotos = !!displayPlace.photoNames && displayPlace.photoNames.length > 0;
+  // Key-less photo addresses, shared by everyone for 10 days (services/places/placePhotos): drawing Google's keyed
+  // media URL billed every photo on every open — October's whole $45 Places bill (2026-11-01).
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const photoKey = displayPlace.photoNames?.slice(0, 4).join('|') ?? '';
+  useEffect(() => {
+    let live = true;
+    setPhotoUris([]);
+    setPhotosLoading(false);
+    if (!displayPlace.placeId || !photoKey) return;
+    setPhotosLoading(true);
+    placePhotoUris(displayPlace.placeId, photoKey.split('|')).then((uris) => {
+      if (live) { setPhotoUris(uris); setPhotosLoading(false); }
+    });
+    return () => { live = false; };
+  }, [displayPlace.placeId, photoKey]);
+  const hasPhotos = photoUris.length > 0;
 
   const sheetContent = (
     <View style={[styles.content, { paddingBottom: bottomInset + Spacing['4'] }]}>
@@ -274,24 +306,25 @@ export function PlaceDetailSheet({
         </Text>
       ) : null}
 
-      {/* Photo rail — lazy: URLs are only built once photoNames exist */}
+      {/* Photo rail — up to 4 key-less photo addresses, looked up once photoNames exist */}
       {hasPhotos ? (
         <View style={styles.photoRail}>
           <FlashList
             horizontal
-            data={displayPlace.photoNames}
-            keyExtractor={(name) => name}
+            data={photoUris}
+            keyExtractor={(uri) => uri}
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
-              <Image
-                source={{ uri: photoUrl(item, 600) }}
+              <CachedImage
+                source={{ uri: item }}
                 style={styles.photo}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="disk"
               />
             )}
           />
         </View>
-      ) : enrichingTier2 ? (
+      ) : enrichingTier2 || photosLoading ? (
         <View style={styles.photoRailSkeleton}>
           {[0, 1, 2].map((i) => (
             <View

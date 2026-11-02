@@ -2,7 +2,7 @@
   "expo": {
     "name": "Supernova",
     "slug": "supernova-travel",
-    "version": "1.0.9",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/SupernovaStar.png",
     "scheme": "supernova",
@@ -145,6 +145,12 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.329448816704-2ek5dmk5j5a5s7mteoms6mkgc71fk8ce"
         }
+      ],
+      [
+        "expo-live-activity",
+        {
+          "enablePushNotifications": true
+        }
       ]
     ],
     "experiments": {
@@ -154,6 +160,19 @@
       "router": {},
       "eas": {
         "projectId": "4218e2b6-1605-4105-9225-c3fc5d12156d"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/4218e2b6-1605-4105-9225-c3fc5d12156d",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "codeSigningCertificate": "./certs/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
       }
     }
   }

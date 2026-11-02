@@ -31,6 +31,7 @@ import { startOnlineSync } from '@/services/offline';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { keepOfflineQueriesAlive, startPersistence, stopPersistence } from '@/services/queryPersist';
 import { looksOffline } from '@/utils/offlineCache';
+import { foregroundPresentation } from '@/utils/dayOf';
 
 SplashScreen.preventAutoHideAsync();
 configureGoogleSignIn();
@@ -38,13 +39,8 @@ configureGoogleSignIn();
 startOnlineSync();
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  // The day-of assistant's ongoing Android flight notice stays quiet; every other push shows as before.
+  handleNotification: async (n) => foregroundPresentation(n.request.identifier),
 });
 
 const queryClient = new QueryClient({
@@ -107,6 +103,7 @@ function AppStack() {
         <Stack.Screen name="notification-intro" options={{ presentation: 'modal', gestureEnabled: false }} />
         <Stack.Screen name="pro-gift" options={{ presentation: 'modal' }} />
         <Stack.Screen name="join/[token]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="year/[year]" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="place/review" options={{ presentation: 'modal' }} />
         <Stack.Screen name="place/reviews" />
       </Stack>

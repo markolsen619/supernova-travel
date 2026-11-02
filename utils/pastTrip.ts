@@ -10,12 +10,16 @@ export interface PickedPhoto { id: string; uri: string; meta: PhotoMeta }
 export interface DraftStop {
   id: string; lat: number; lng: number; time: string; photoIds: string[]; shownIds: string[];
   name: string; placeName: string | null; type: 'activity' | 'restaurant' | 'hotel';
+  /** Built from times alone (no photo had a location): sits at its day's city centre until someone names the place. */
+  needsPlace?: boolean;
 }
 export interface DraftDay { day: string; city: number; caption: string; stops: DraftStop[] }
 export interface DraftCity { lat: number; lng: number; name: string; countryCode: string | null }
 export interface PastTripDraft {
   title: string; description: string; days: DraftDay[]; cities: DraftCity[];
   unplaced: string[]; coverId: string | null; photos: Record<string, PickedPhoto>;
+  /** The traveler chose the cities ("Where was this trip?"): review lets them set each day's. */
+  citiesChosen?: boolean;
 }
 
 export const STOP_GAP_M = 250;
@@ -66,8 +70,12 @@ export function pastTripNights(dayCities: number[], cityCount: number): number[]
 export function buildPastTrip(input: PickedPhoto[]): PastTripDraft {
   const photos = unique(input);
   const byId: Record<string, PickedPhoto> = Object.fromEntries(photos.map((p) => [p.id, p]));
-  const placed = photos
-    .filter((p) => p.meta.day && p.meta.minutes !== null && p.meta.lat !== null && p.meta.lng !== null)
+  const timed = (p: PickedPhoto) => !!p.meta.day && p.meta.minutes !== null;
+  const located = photos.filter((p) => timed(p) && p.meta.lat !== null && p.meta.lng !== null);
+  // Android's photo picker removes every photo's location (owner 2026-11-02, option a): when none has one, stops
+  // come from times alone and wait for the traveler to name each place. A trip with any located photo is unchanged.
+  const timeOnly = located.length === 0;
+  const placed = (timeOnly ? photos.filter(timed) : located)
     .sort((a, b) => a.meta.day!.localeCompare(b.meta.day!) || a.meta.minutes! - b.meta.minutes!);
   const unplaced = photos.filter((p) => !placed.includes(p)).map((p) => p.id);
   const dated = photos.map((p) => p.meta.day).filter((d): d is string => !!d).sort();
@@ -78,10 +86,10 @@ export function buildPastTrip(input: PickedPhoto[]): PastTripDraft {
   let current: { stop: DraftStop; day: string; lastMin: number; n: number } | null = null;
   let stopCount = 0;
   for (const ph of placed) {
-    const at = { lat: ph.meta.lat!, lng: ph.meta.lng! };
+    const at = timeOnly ? { lat: 0, lng: 0 } : { lat: ph.meta.lat!, lng: ph.meta.lng! };
     const sameStop = current && current.day === ph.meta.day
       && ph.meta.minutes! - current.lastMin <= STOP_GAP_MIN
-      && haversineMeters({ lat: current.stop.lat, lng: current.stop.lng }, at) <= STOP_GAP_M;
+      && (timeOnly || haversineMeters({ lat: current.stop.lat, lng: current.stop.lng }, at) <= STOP_GAP_M);
     if (current && sameStop) {
       const k = current.n + 1;
       current.stop.lat += (at.lat - current.stop.lat) / k;
@@ -91,7 +99,7 @@ export function buildPastTrip(input: PickedPhoto[]): PastTripDraft {
       current.n = k;
       continue;
     }
-    const stop: DraftStop = { id: `s${++stopCount}`, lat: at.lat, lng: at.lng, time: hhmm(ph.meta.minutes!), photoIds: [ph.id], shownIds: [], name: '', placeName: null, type: 'activity' };
+    const stop: DraftStop = { id: `s${++stopCount}`, lat: at.lat, lng: at.lng, time: hhmm(ph.meta.minutes!), photoIds: [ph.id], shownIds: [], name: '', placeName: null, type: 'activity', ...(timeOnly ? { needsPlace: true } : {}) };
     current = { stop, day: ph.meta.day!, lastMin: ph.meta.minutes!, n: 1 };
     const list = stopsByDay.get(ph.meta.day!) ?? [];
     list.push(stop);
@@ -106,7 +114,7 @@ export function buildPastTrip(input: PickedPhoto[]): PastTripDraft {
     const day = addDays(first, i);
     const stops = stopsByDay.get(day) ?? [];
     stops.forEach((s) => { s.shownIds = shownPhotos(s.photoIds, byId); });
-    const lead = stops[0];
+    const lead = timeOnly ? undefined : stops[0];
     if (lead) {
       const here = cities[cities.length - 1];
       if (!here || haversineMeters(here, lead) > CITY_GAP_M) cities.push({ lat: lead.lat, lng: lead.lng, name: '', countryCode: null });
@@ -136,7 +144,23 @@ export function pastTripEyebrow(days: string[]): string {
  * expo-image-picker reads EXIF without MediaStore.setRequireOriginal), so every photo would be unplaced.
  */
 export function pastTripsSupported(os: string): boolean {
-  return os === 'ios';
+  return os === 'ios' || os === 'android';
+}
+
+/** Stops built from times alone and no cities yet: ask "Where was this trip?" before anything else. */
+export const needsCities = (d: PastTripDraft): boolean =>
+  d.cities.length === 0 && d.days.some((day) => day.stops.some((s) => s.needsPlace));
+
+/** The cities the traveler chose: every day starts in the first, waiting stops sit at its centre. */
+export function withTripCities(d: PastTripDraft, cities: DraftCity[]): PastTripDraft {
+  if (!cities.length) return d;
+  const c = cities[0];
+  return {
+    ...d,
+    cities,
+    citiesChosen: true,
+    days: d.days.map((day) => ({ ...day, city: 0, stops: day.stops.map((s) => (s.needsPlace ? { ...s, lat: c.lat, lng: c.lng } : s)) })),
+  };
 }
 
 /**
@@ -148,7 +172,7 @@ export function mergeSameArea(d: PastTripDraft): PastTripDraft {
     const stops: DraftStop[] = [];
     for (const s of day.stops) {
       const prev = stops[stops.length - 1];
-      if (prev && prev.name === s.name && prev.lat === s.lat && prev.lng === s.lng) {
+      if (prev && !prev.needsPlace && !s.needsPlace && prev.name === s.name && prev.lat === s.lat && prev.lng === s.lng) {
         const photoIds = [...prev.photoIds, ...s.photoIds];
         stops[stops.length - 1] = { ...prev, photoIds, shownIds: shownPhotos(photoIds, d.photos) };
       } else {

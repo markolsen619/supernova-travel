@@ -18,6 +18,11 @@ import { NextTripCard } from '@/components/home/NextTripCard';
 import { TripRow } from '@/components/home/TripRow';
 import { InspiredStrip } from '@/components/home/InspiredStrip';
 import { PlanCard } from '@/components/home/PlanCard';
+import { YearCard } from '@/components/yearInTravel/YearCard';
+import { FlightTodayCard } from '@/components/home/FlightTodayCard';
+import { useBoardingPasses } from '@/hooks/useBoardingPasses';
+import { flightToday } from '@/utils/dayOf';
+import { showYearCard } from '@/utils/yearInTravel';
 import { homeEyebrow, homeTrips, tripSpan } from '@/utils/homeState';
 import { countdownLabel, todayCityIndex, todayInfo, todaysBooking } from '@/utils/todayCard';
 import { firstName, greeting } from '@/utils/greeting';
@@ -35,6 +40,11 @@ export default function HomeScreen() {
   const { destinations } = useDestinations();
   const now = useNow();
   const today = toCalendarDate(now);
+  // Dec 1 – Jan 15: Year in Travel on Home (spec 2026-11-01).
+  const yearCard = showYearCard(now);
+  // Travel day (day-of assistant, spec 2026-11-01): the next flight today, from the wallet.
+  const { boardingPasses } = useBoardingPasses();
+  const flight = useMemo(() => flightToday(boardingPasses, now), [boardingPasses, now]);
   // A fresh day or a return to the app: the badge may be stale too.
   useEffect(() => { queryClient.invalidateQueries({ queryKey: ['inboxBadge'] }); }, [now, queryClient]);
   const h = useMemo(() => homeTrips(trips, today), [trips, today]);
@@ -77,6 +87,8 @@ export default function HomeScreen() {
             <Text style={[styles.dateLine, { color: colors.text.tertiary }]}>{dateLine}</Text>
             <Text style={[styles.hello, { color: colors.text.primary }]}>{hello}</Text>
           </View>
+          {flight ? <FlightTodayCard pass={flight} /> : null}
+          {yearCard ? <YearCard year={yearCard} /> : null}
           {h.today && leadTrip && info ? <TodayCard trip={leadTrip} info={info} booking={booking} /> : null}
           {h.next && leadStart ? (
             <NextTripCard trip={h.next} label={countdownLabel(leadStart, today)} eyebrow={homeEyebrow(tripSpan(h.next), today)} booking={booking} />

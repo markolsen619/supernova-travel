@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { gridImageUrl } from '@/utils/postImages';
 import {
   View,
@@ -50,6 +50,7 @@ import { Trip, TripStatus } from '@/types';
 import { displayStatus, toDateOrNull } from '@/utils/tripStatus';
 import { beenThereSummary } from '@/utils/beenThere';
 import { pastTripsSupported } from '@/utils/pastTrip';
+import { hasTripThisYear } from '@/utils/yearInTravel';
 
 const canAddPast = pastTripsSupported(Platform.OS);
 
@@ -127,6 +128,12 @@ function ProfileScreenContent() {
   // used to appear nowhere but its invite notification.
   const { data: allTrips = [], isLoading: tripsLoading, refetch: refetchTrips } = useOwnAndJoinedTrips(uid);
   const { data: joinedOwners = {} } = useAuthorProfiles(uid ? joinedTripOwners(allTrips, uid) : []);
+  // Year in Travel (spec 2026-11-01): a row once a trip has started this year.
+  const thisYear = new Date().getFullYear();
+  const showYearRow = useMemo(
+    () => hasTripThisYear(allTrips.map((t) => ({ startDate: toDateOrNull(t.startDate), endDate: toDateOrNull(t.endDate) })), new Date()),
+    [allTrips],
+  );
 
   // TanStack's staleTime keeps this list from refetching on every tab
   // switch — right, most of the time. But the cover/author backfill below
@@ -355,6 +362,17 @@ function ProfileScreenContent() {
           ))}
         </View>
       )}
+      {activeTab === 'Trips' && showYearRow ? (
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/year/${thisYear}` as never); }}
+          style={[styles.yearRow, { backgroundColor: colors.background.card }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Your ${thisYear} in travel`}
+        >
+          <Text style={[styles.yearEyebrow, { color: colors.brand.purple }]}>{`YOUR ${thisYear} IN TRAVEL`}</Text>
+          <Text style={[styles.yearTitle, { color: colors.text.primary }]}>See your year so far</Text>
+        </TouchableOpacity>
+      ) : null}
       {/* Past: how many trips and countries, and a way to add one from photos (past trips, 2026-10-25). */}
       {activeTab === 'Trips' && tripFilter === 'Past' && filteredTrips.length > 0 && canAddPast && (
         <View style={styles.beenThereRow}>
@@ -547,6 +565,9 @@ function ProfileScreenContent() {
 }
 
 const styles = StyleSheet.create({
+  yearRow: { marginHorizontal: 20, marginBottom: 12, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, minHeight: 56, justifyContent: 'center', gap: 2 },
+  yearEyebrow: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
+  yearTitle: { fontSize: 15, fontWeight: '600' },
   // Below the card's own status badge (TripCard statusBadge, top-right).
   cardInvite: { top: 40, right: 8 },
   beenThereRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing['1'], paddingBottom: Spacing['2'] },

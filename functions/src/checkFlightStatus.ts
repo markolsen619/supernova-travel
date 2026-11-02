@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { notifyUser } from './notify';
+import { laKeyFromEnv, liveActivityPayload, pushLiveActivity, type LaPass } from './liveActivityPush';
 import { dueCheckpoint, eachIsolated, filterPassesForPaidOwners, groupPassesByFlight, LOOKAHEAD_HOURS, LOOKBACK_HOURS } from './flightPolling';
 import { alertNotification, flightChanges, parseLiveFlight, type LiveResult } from './flightLive';
 
@@ -81,7 +82,28 @@ export const checkFlightStatus = onSchedule(
         // update(), never set(): an edit the owner made a moment ago keeps every field this check didn't compute.
         await doc.ref.update(patch);
         for (const alert of alerts) await notifyUser(pass.ownerUid, alertNotification(alert, doc.id, pass.flightNumber));
+        await updateLiveActivity(pass.ownerUid, doc.id, { ...pass, ...patch } as LaPass);
       }, (error, { doc }) => console.error('[checkFlightStatus] pass update failed', { passId: doc.id, error: (error as Error).message }));
     }
   },
 );
+
+/**
+ * Day-of assistant: refresh the pass's iPhone Live Activity with what this check learned, only once an APNs key is
+ * configured (APNS_LA_KEY / APNS_LA_KEY_ID in functions/.env). The token doc is dropped when the activity ends or
+ * APNs says it's gone. Never throws.
+ */
+async function updateLiveActivity(ownerUid: string, passId: string, pass: LaPass): Promise<void> {
+  const creds = laKeyFromEnv(process.env);
+  if (!creds) return;
+  try {
+    const ref = admin.firestore().doc(`users/${ownerUid}/liveActivities/${passId}`);
+    const token = (await ref.get()).get('token');
+    if (typeof token !== 'string' || !token) return;
+    const payload = liveActivityPayload(pass, Date.now());
+    const result = await pushLiveActivity(token, payload, creds);
+    if (result === 'gone' || (result === 'ok' && payload.aps.event === 'end')) await ref.delete();
+  } catch (e) {
+    console.warn('[checkFlightStatus] live activity update failed', { passId, error: (e as Error).message });
+  }
+}
