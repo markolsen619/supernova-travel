@@ -15,7 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Compass, MapPin, MapTrifold } from 'phosphor-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { ArrowLeft, ArrowSquareOut, Compass, MapPin, MapTrifold, Ticket } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { useDestination, useDestinationTrips } from '@/hooks/useDestinations';
@@ -29,6 +30,7 @@ import { SkeletonBlock, SkeletonCard } from '@/components/ui/Skeleton';
 import { TypeIconBubble } from '@/components/ui/TypeIconBubble';
 import { activityIcon } from '@/constants/icons';
 import { SPRING } from '@/constants/motion';
+import { activityPartner, partnerIdsFromEnv, PARTNER_NAME, thingsToDoUrl } from '@/utils/activityBooking';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import {
@@ -226,6 +228,28 @@ export default function DestinationScreen() {
 
             <Button label="Plan my trip here" variant="hero" size="lg" onPress={planHere} />
 
+            {/* Tours and tickets for the city through an affiliate partner (owner, 2026-11-01). */}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                WebBrowser.openBrowserAsync(thingsToDoUrl(destination.name, destination.countryCode, partnerIdsFromEnv({
+                  EXPO_PUBLIC_GYG_PARTNER_ID: process.env.EXPO_PUBLIC_GYG_PARTNER_ID,
+                  EXPO_PUBLIC_VIATOR_PID: process.env.EXPO_PUBLIC_VIATOR_PID,
+                  EXPO_PUBLIC_VIATOR_MCID: process.env.EXPO_PUBLIC_VIATOR_MCID,
+                })));
+              }}
+              style={[styles.toursRow, { backgroundColor: colors.background.card }]}
+              accessibilityRole="link"
+              accessibilityLabel={`Things to do in ${destination.name} on ${PARTNER_NAME[activityPartner(destination.countryCode)]}`}
+            >
+              <Ticket size={20} color={colors.brand.purple} weight="duotone" />
+              <View style={styles.toursText}>
+                <Text style={[styles.toursTitle, { color: colors.text.primary }]}>{`Things to do in ${destination.name}`}</Text>
+                <Text style={[styles.toursSub, { color: colors.text.tertiary }]}>{`Tours and tickets on ${PARTNER_NAME[activityPartner(destination.countryCode)]}`}</Text>
+              </View>
+              <ArrowSquareOut size={18} color={colors.text.tertiary} weight="bold" />
+            </TouchableOpacity>
+
             {/* ── Itineraries ── */}
             {tripsLoading ? (
               <View style={styles.section}>
@@ -306,6 +330,10 @@ export default function DestinationScreen() {
 }
 
 const styles = StyleSheet.create({
+  toursRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], minHeight: 60, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing['4'], paddingVertical: Spacing['3'] },
+  toursText: { flex: 1, gap: 2 },
+  toursTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },
+  toursSub: { fontSize: FontSize.sm },
   fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
   hero: { height: HERO_HEIGHT, overflow: 'hidden' },

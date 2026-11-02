@@ -21,6 +21,7 @@ import { usePlacesStore, type EnrichedPlace } from '@/stores/usePlacesStore';
 import type { ActivityType } from '@/types';
 import { PlaceReviewsSummary } from '@/components/places/PlaceReviewsSummary';
 import { buildBookingAction } from '@/utils/bookingLinks';
+import { activityPartner, activityPartnerUrl, isSightType, partnerIdsFromEnv, PARTNER_NAME } from '@/utils/activityBooking';
 import * as WebBrowser from 'expo-web-browser';
 import { enrichPlaceById, photoUrl } from '@/services/places/googlePlaces';
 import { AddToTripSheet } from '@/components/search/AddToTripSheet';
@@ -207,9 +208,14 @@ export function PlaceDetailSheet({
     [slideAnim, onDismiss],
   );
 
-  // Booking hand-off. Only when the caller said what kind of stop this is —
-  // the globe has no trip and no dates, so it shows no booking button.
-  const bookingAction = booking
+  // Booking hand-off. From a trip stop: by the stop's type (hotels → Booking.com, sights → tours partner,
+  // the rest → Maps). On the globe, with no trip: only sights, as tickets and tours (owner, 2026-11-01).
+  const partnerIds = partnerIdsFromEnv({
+    EXPO_PUBLIC_GYG_PARTNER_ID: process.env.EXPO_PUBLIC_GYG_PARTNER_ID,
+    EXPO_PUBLIC_VIATOR_PID: process.env.EXPO_PUBLIC_VIATOR_PID,
+    EXPO_PUBLIC_VIATOR_MCID: process.env.EXPO_PUBLIC_VIATOR_MCID,
+  });
+  const bookingAction = useMemo(() => (booking
     ? buildBookingAction({
         type: booking.type,
         placeId: displayPlace.placeId,
@@ -218,8 +224,17 @@ export function PlaceDetailSheet({
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         affiliateId: process.env.EXPO_PUBLIC_BOOKING_AFFILIATE_ID ?? null,
+        countryCode: displayPlace.countryCode ?? null,
+        partnerIds,
       })
-    : null;
+    : isSightType(displayPlace.primaryType)
+      ? {
+          label: `Find tickets & tours · ${PARTNER_NAME[activityPartner(displayPlace.countryCode)]}`,
+          url: activityPartnerUrl({ name: displayPlace.name, near: null, countryCode: displayPlace.countryCode ?? null }, partnerIds),
+        }
+      : null),
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- partnerIds come from build-time env and never change
+  [booking, displayPlace.placeId, displayPlace.name, displayPlace.countryCode, displayPlace.primaryType]);
 
   const handleBook = useCallback(() => {
     if (!bookingAction) return;

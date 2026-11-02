@@ -1,4 +1,5 @@
 import type { ActivityType } from '@/types';
+import { activityPartner, activityPartnerUrl, PARTNER_NAME, type PartnerIds } from '@/utils/activityBooking';
 
 /**
  * Where a "book this" button sends someone.
@@ -42,6 +43,10 @@ export interface BookingActionInput {
   checkOut: string | null;
   /** EXPO_PUBLIC_BOOKING_AFFILIATE_ID. Absent until the account exists. */
   affiliateId: string | null;
+  /** The place's country, for the tours partner (Viator in North America, else GetYourGuide). */
+  countryCode?: string | null;
+  /** Tours partners' affiliate ids (utils/activityBooking). Without them activities still link, earning nothing. */
+  partnerIds?: PartnerIds | null;
 }
 
 /** Types with nothing to book: free time, and a flight already ticketed. */
@@ -87,6 +92,12 @@ export function buildBookingAction(input: BookingActionInput): BookingAction | n
 
   if (input.type === 'hotel') {
     return { label: 'Book on Booking.com', url: bookingComUrl(input) };
+  }
+
+  // Sights: tickets and tours through an affiliate partner (owner, 2026-11-01).
+  if (input.type === 'activity' && input.partnerIds) {
+    const partner = activityPartner(input.countryCode);
+    return { label: `Find tickets & tours · ${PARTNER_NAME[partner]}`, url: activityPartnerUrl({ name: input.name, near: input.near ?? null, countryCode: input.countryCode ?? null }, input.partnerIds) };
   }
 
   return {
