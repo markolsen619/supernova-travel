@@ -5,7 +5,7 @@ import { isPaidTier } from './flightPolling';
 import { airportZone } from './airportTime';
 import { airportInfo } from './airportInfo';
 import { dayKey } from './friendsTraveling';
-import { bufferMinutes, dueActions, leaveByMs, stayFor, type DayOfPass } from './dayOf';
+import { bufferMinutes, currentDayOf, dueActions, leaveByMs, stampKey, stayFor, usableDrive, type DayOfPass } from './dayOf';
 
 const db = admin.firestore();
 const HOUR = 3_600_000;
@@ -37,7 +37,7 @@ async function driveMinutes(from: { lat: number; lng: number }, to: { lat: numbe
 }
 
 /** Where the traveler sleeps before the flight: a hotel stop on the pass's trip (stayFor). */
-async function stayForPass(tripId: string | null, departureDay: string): Promise<{ lat: number; lng: number } | null> {
+async function stayForPass(tripId: string | null, departureDay: string, airport: { lat: number; lng: number } | null): Promise<{ lat: number; lng: number } | null> {
   if (!tripId) return null;
   const tripRef = db.doc(`trips/${tripId}`);
   const trip = (await tripRef.get()).data();
@@ -54,7 +54,7 @@ async function stayForPass(tripId: string | null, departureDay: string): Promise
     const acts = await d.ref.collection('activities').where('type', '==', 'hotel').get();
     for (const a of acts.docs) stops.push({ dayKey: key, type: 'hotel', lat: typeof a.get('lat') === 'number' ? a.get('lat') : null, lng: typeof a.get('lng') === 'number' ? a.get('lng') : null });
   }
-  return stayFor(stops, departureDay);
+  return stayFor(stops, departureDay, airport);
 }
 
 /**
@@ -64,17 +64,32 @@ async function stayForPass(tripId: string | null, departureDay: string): Promise
  */
 export const dayOfReminders = onSchedule({ schedule: 'every 10 minutes', timeZone: 'UTC', timeoutSeconds: 300, memory: '256MiB' }, async () => {
   const now = Date.now();
+  // Live Activity tokens outlive their activity when the app isn't opened again: a flight's activity lasts hours, so
+  // one not refreshed for 36 h is over (the privacy policy promises they're deleted after the flight).
+  try {
+    const old = await db.collectionGroup('liveActivities').where('updatedAtMs', '<', now - 36 * HOUR).limit(200).get();
+    await Promise.allSettled(old.docs.map((d) => d.ref.delete()));
+  } catch (e) {
+    console.warn('dayOfReminders: token sweep failed', (e as Error).message);
+  }
   const snap = await db.collection('boarding_passes')
     .where('departureTime', '>=', new Date(now - HOUR).toISOString())
     .where('departureTime', '<=', new Date(now + 25 * HOUR).toISOString())
     .get();
-  const passes: (DayOfPass & { ref: FirebaseFirestore.DocumentReference })[] = snap.docs.map((d) => ({
-    ref: d.ref, id: d.id, ownerUid: String(d.get('ownerUid') ?? ''), status: String(d.get('status') ?? 'upcoming'),
+  const passes: (DayOfPass & { ref: FirebaseFirestore.DocumentReference; key: string; stale: boolean })[] = snap.docs.map((d) => {
+    const key = stampKey(String(d.get('departureTime') ?? ''), String(d.get('origin') ?? ''));
+    const raw = d.get('dayOf');
+    const dayOf = currentDayOf(raw, key);
+    return {
+    ref: d.ref, id: d.id, key, stale: !!raw && raw.key !== key, ownerUid: String(d.get('ownerUid') ?? ''), status: String(d.get('status') ?? 'upcoming'),
     departureMs: Date.parse(String(d.get('departureTime') ?? '')), origin: String(d.get('origin') ?? ''), destination: String(d.get('destination') ?? ''),
     airline: String(d.get('airline') ?? ''), flightNumber: String(d.get('flightNumber') ?? ''), destinationCity: String(d.get('destinationCity') ?? ''),
-    tripId: typeof d.get('tripId') === 'string' ? d.get('tripId') : null, dayOf: d.get('dayOf') ?? {},
-  })).filter((p) => p.ownerUid && Number.isFinite(p.departureMs));
+    tripId: typeof d.get('tripId') === 'string' ? d.get('tripId') : null, dayOf,
+  }; }).filter((p) => p.ownerUid && Number.isFinite(p.departureMs));
   if (!passes.length) return;
+
+  // Stamps made for an earlier departure time or airport (the traveler edited the pass) start over.
+  await Promise.allSettled(passes.filter((p) => p.stale).map((p) => p.ref.update({ dayOf: { key: p.key } })));
 
   const owners = [...new Set(passes.map((p) => p.ownerUid))];
   const ownerDocs = await db.getAll(...owners.map((u) => db.doc(`users/${u}`)));
@@ -85,21 +100,21 @@ export const dayOfReminders = onSchedule({ schedule: 'every 10 minutes', timeZon
     const p = byId.get(a.passId)!;
     const flight = `${p.airline ? `${p.airline} ` : ''}${p.flightNumber}`.trim();
     if (a.kind === 'checkin') {
-      await p.ref.update({ 'dayOf.checkInSentAtMs': now });
+      await p.ref.update({ 'dayOf.key': p.key, 'dayOf.checkInSentAtMs': now });
       await notifyUser(p.ownerUid, {
         notification: { type: 'checkin_open', passId: p.id, flightNumber: p.flightNumber },
         push: { title: `Check in for ${flight}${p.destinationCity ? ` to ${p.destinationCity}` : ''}`, body: 'Online check-in is usually open now.' },
       });
     } else if (a.kind === 'computeLeaveBy') {
       const bufferMin = bufferMinutes(p.origin, p.destination);
-      const stay = await stayForPass(p.tripId, airportDay(p.departureMs, p.origin));
       const airport = airportInfo(p.origin);
-      const driveMin = stay && airport ? await driveMinutes(stay, airport) : null;
-      await p.ref.update({ 'dayOf.leaveByMs': leaveByMs(p.departureMs, bufferMin, driveMin), 'dayOf.driveMin': driveMin, 'dayOf.bufferMin': bufferMin });
+      const stay = await stayForPass(p.tripId, airportDay(p.departureMs, p.origin), airport);
+      const driveMin = usableDrive(stay && airport ? await driveMinutes(stay, airport) : null);
+      await p.ref.update({ 'dayOf.key': p.key, 'dayOf.leaveByMs': leaveByMs(p.departureMs, bufferMin, driveMin), 'dayOf.driveMin': driveMin, 'dayOf.bufferMin': bufferMin });
     } else {
       const leaveBy = p.dayOf.leaveByMs!;
       const drive = p.dayOf.driveMin;
-      await p.ref.update({ 'dayOf.leaveSentAtMs': now });
+      await p.ref.update({ 'dayOf.key': p.key, 'dayOf.leaveSentAtMs': now });
       await notifyUser(p.ownerUid, {
         notification: { type: 'leave_by', passId: p.id, flightNumber: p.flightNumber },
         push: drive != null

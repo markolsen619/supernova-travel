@@ -1,4 +1,4 @@
-import { dueActions, bufferMinutes, leaveByMs, stayFor, previousDay, type DayOfPass } from '../../functions/src/dayOf';
+import { dueActions, bufferMinutes, leaveByMs, stayFor, previousDay, usableDrive, stampKey, currentDayOf, type DayOfPass } from '../../functions/src/dayOf';
 
 const H = 3_600_000, M = 60_000;
 const NOW = Date.UTC(2026, 10, 10, 12, 0);
@@ -59,5 +59,29 @@ describe('stayFor', () => {
     expect(stayFor(stops, '2026-11-10')).toEqual({ lat: 38.71, lng: -9.14 });
     expect(stayFor(stops, '2026-12-01')).toBeNull();
     expect(previousDay('2026-03-01')).toBe('2026-02-28');
+  });
+});
+
+describe('review fixes', () => {
+  const LIS = { lat: 38.774, lng: -9.134 };
+  it('stayFor skips a hotel far from the departure airport (day 1 of a trip is the destination hotel)', () => {
+    const stops = [
+      { dayKey: '2026-11-10', type: 'hotel', lat: 41.15, lng: -8.61 }, // Porto, 275 km away
+      { dayKey: '2026-11-09', type: 'hotel', lat: 38.71, lng: -9.14 }, // Lisbon
+    ];
+    expect(stayFor(stops, '2026-11-10', LIS)).toEqual({ lat: 38.71, lng: -9.14 });
+    expect(stayFor(stops.slice(0, 1), '2026-11-10', LIS)).toBeNull();
+  });
+  it('usableDrive drops an implausible drive (over 4 h)', () => {
+    expect(usableDrive(35)).toBe(35);
+    expect(usableDrive(360)).toBeNull();
+    expect(usableDrive(null)).toBeNull();
+  });
+  it('stamps made for another departure time or airport are ignored', () => {
+    const key = stampKey('2026-11-10T14:30:00Z', 'LIS');
+    expect(currentDayOf({ key, checkInSentAtMs: 1 }, key)).toEqual({ key, checkInSentAtMs: 1 });
+    expect(currentDayOf({ key: stampKey('2026-11-11T14:30:00Z', 'LIS'), leaveByMs: 5 }, key)).toEqual({});
+    expect(currentDayOf({ leaveByMs: 5 }, key)).toEqual({});
+    expect(currentDayOf(undefined, key)).toEqual({});
   });
 });

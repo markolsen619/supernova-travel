@@ -72,12 +72,15 @@ function airportDay(ms: number, iata: string): string {
 
 const ACTIVE = new Set(['upcoming', 'checked_in', 'boarded']);
 
-/** Today's next flight: departing today on its airport's clock, not more than 30 min gone, not cancelled. */
+/**
+ * Today's next flight: departing today on its airport's clock, not more than 30 min gone, not cancelled. "Gone"
+ * counts from the delayed time — a delayed flight is when the card matters most (final review I5).
+ */
 export function flightToday(passes: BoardingPass[], now: Date): BoardingPass | null {
   const n = now.getTime();
   return passes
     .filter((p) => ACTIVE.has(p.status))
-    .map((p) => ({ p, ms: Date.parse(p.departureTime) }))
+    .map((p) => ({ p, ms: Date.parse(p.departureTime) + Math.max(0, p.delayMinutes ?? 0) * 60_000 }))
     .filter(({ p, ms }) => Number.isFinite(ms) && ms > n - 30 * 60_000 && airportDay(ms, p.origin) === airportDay(n, p.origin))
     .sort((a, b) => a.ms - b.ms)[0]?.p ?? null;
 }
@@ -102,10 +105,48 @@ export function shouldStartActivity(p: BoardingPass, nowMs: number, started: Set
   return Number.isFinite(dep) && dep - nowMs <= 6 * H && !liveActivityContent(p, nowMs).ended;
 }
 
-/** "Leave by 11:10 AM" on the departure airport's clock, once the server has worked it out (Pro). */
+/**
+ * "Leave by 11:10 AM" on the departure airport's clock, once the server has worked it out (Pro). With no drive known
+ * the time is when to be at the airport, so it says that, as the push does. Stamps made for another departure time or
+ * airport (the pass was edited) show nothing — the server's `dayOf.key`, as `stampKey` in functions/src/dayOf.ts.
+ */
 export function leaveByLine(p: BoardingPass): string | null {
-  const ms = p.dayOf?.leaveByMs;
-  if (typeof ms !== 'number') return null;
+  const d = p.dayOf;
+  if (typeof d?.leaveByMs !== 'number' || d.key !== `${p.departureTime}|${p.origin}`) return null;
   const timeZone = airportZone(p.origin) ?? undefined;
-  return `Leave by ${new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', ...(timeZone ? { timeZone } : {}) }).format(new Date(ms))}`;
+  const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', ...(timeZone ? { timeZone } : {}) }).format(new Date(d.leaveByMs));
+  return d.driveMin != null ? `Leave by ${time}` : `Be at ${p.origin} by ${time}`;
+}
+
+export interface ActivityPlan {
+  stop: { passId: string; activityId: string }[];
+  update: { activityId: string; pass: BoardingPass } | null;
+  start: BoardingPass | null;
+}
+
+/**
+ * What the Live Activity hook does, from what's started on this phone (`{ passId → activityId }`) and the user's
+ * passes. A started flight is followed by its own pass until it lands or is cancelled/deleted — not by `flightToday`,
+ * which lets go 30 min after departure. Only today's next flight starts one. Pro is checked by the caller.
+ */
+export function activityPlan(started: Record<string, string>, passes: BoardingPass[], nowMs: number): ActivityPlan {
+  const byId = new Map(passes.map((p) => [p.id, p]));
+  const stop: ActivityPlan['stop'] = [];
+  let update: ActivityPlan['update'] = null;
+  for (const [passId, activityId] of Object.entries(started)) {
+    const p = byId.get(passId);
+    if (!p || liveActivityContent(p, nowMs).ended) stop.push({ passId, activityId });
+    else if (!update) update = { activityId, pass: p };
+  }
+  const today = flightToday(passes, new Date(nowMs));
+  const start = !update && today && shouldStartActivity(today, nowMs, new Set(Object.keys(started)), true) ? today : null;
+  return { stop, update, start };
+}
+
+/** Android's ongoing "Flight today" notification: within 6 h of departure until the flight lands, else none. */
+export function androidFlightNotice(p: BoardingPass | null, nowMs: number): { title: string; body: string } | null {
+  if (!p) return null;
+  const c = liveActivityContent(p, nowMs);
+  if (c.ended || Date.parse(p.departureTime) - nowMs > 6 * H) return null;
+  return { title: `Flight today · ${c.title}`, body: c.subtitle };
 }
