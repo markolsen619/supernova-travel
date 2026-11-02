@@ -145,6 +145,12 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.329448816704-2ek5dmk5j5a5s7mteoms6mkgc71fk8ce"
         }
+      ],
+      [
+        "expo-live-activity",
+        {
+          "enablePushNotifications": true
+        }
       ]
     ],
     "experiments": {
