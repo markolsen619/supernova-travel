@@ -59,3 +59,27 @@ describe('editPastTrip', () => {
     expect([d.title, d.days[0].caption]).toEqual(['Five days of Lisbon', 'Hills and tiles']);
   });
 });
+
+import { withTripCities } from '@/utils/pastTrip';
+const q = (id: string, day: string): PickedPhoto => ({ id, uri: `file://${id}`, meta: { day, minutes: 600, lat: null, lng: null } });
+describe('Android past trips: places by hand', () => {
+  const two = withTripCities(buildPastTrip([q('m', '2025-05-03'), q('n', '2025-05-04')]), [
+    { name: 'Lisbon', lat: 38.72, lng: -9.14, countryCode: 'PT' }, { name: 'Porto', lat: 41.15, lng: -8.61, countryCode: 'PT' },
+  ]);
+  it('dayCity moves a day and its waiting stops to that city', () => {
+    const d = editPastTrip(two, { type: 'dayCity', day: 1, city: 1 });
+    expect(d.days.map((x) => x.city)).toEqual([0, 1]);
+    expect(d.days[1].stops[0]).toMatchObject({ lat: 41.15, lng: -8.61 });
+    expect(d.days[0].stops[0]).toMatchObject({ lat: 38.72 });
+  });
+  it('dayCity leaves a stop someone already placed where it is', () => {
+    const id = two.days[1].stops[0].id;
+    const placed = editPastTrip(two, { type: 'place', stopId: id, name: 'Livraria Lello', placeName: 'Livraria Lello', lat: 41.1468, lng: -8.6148 });
+    expect(stopById(placed, id)?.needsPlace).toBe(false);
+    const d = editPastTrip(placed, { type: 'dayCity', day: 1, city: 0 });
+    expect(stopById(d, id)).toMatchObject({ lat: 41.1468, lng: -8.6148 });
+  });
+  it('dayCity ignores a city that doesn\'t exist', () => {
+    expect(editPastTrip(two, { type: 'dayCity', day: 0, city: 5 })).toBe(two);
+  });
+});

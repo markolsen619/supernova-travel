@@ -10,7 +10,8 @@ export type PastTripEdit =
   | { type: 'deleteStop'; stopId: string }
   | { type: 'movePhoto'; photoId: string; toStopId: string }
   | { type: 'toggleShown'; stopId: string; photoId: string }
-  | { type: 'cover'; photoId: string };
+  | { type: 'cover'; photoId: string }
+  | { type: 'dayCity'; day: number; city: number };
 
 export function stopById(d: PastTripDraft, id: string): DraftStop | null {
   for (const day of d.days) for (const s of day.stops) if (s.id === id) return s;
@@ -30,7 +31,14 @@ export function editPastTrip(d: PastTripDraft, e: PastTripEdit): PastTripDraft {
     case 'title': return { ...d, title: e.value };
     case 'caption': return { ...d, days: d.days.map((day, i) => (i === e.day ? { ...day, caption: e.value } : day)) };
     case 'rename': return mapStops(d, (s) => (s.id === e.stopId ? { ...s, name: e.name } : s));
-    case 'place': return mapStops(d, (s) => (s.id === e.stopId ? { ...s, name: e.name, placeName: e.placeName, lat: e.lat, lng: e.lng } : s));
+    case 'place': return mapStops(d, (s) => (s.id === e.stopId ? { ...s, name: e.name, placeName: e.placeName, lat: e.lat, lng: e.lng, needsPlace: false } : s));
+    case 'dayCity': {
+      const c = d.cities[e.city];
+      if (!c || !d.days[e.day]) return d;
+      return { ...d, days: d.days.map((day, i) => (i !== e.day ? day : {
+        ...day, city: e.city, stops: day.stops.map((s) => (s.needsPlace ? { ...s, lat: c.lat, lng: c.lng } : s)),
+      })) };
+    }
     case 'cover': return { ...d, coverId: e.photoId };
     case 'mergeWithPrevious': {
       let changed = false;
