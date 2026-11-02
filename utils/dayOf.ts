@@ -150,3 +150,25 @@ export function androidFlightNotice(p: BoardingPass | null, nowMs: number): { ti
   if (c.ended || Date.parse(p.departureTime) - nowMs > 6 * H) return null;
   return { title: `Flight today · ${c.title}`, body: c.subtitle };
 }
+
+/** The hook acts only once the passes and the server tier are known: a cold start's empty list would end activities. */
+export const liveActivityReady = (s: { passesLoading: boolean; serverTier: string | null }) => !s.passesLoading && s.serverTier !== null;
+
+/** Runs async jobs one at a time, in order; a failed job never blocks the next. */
+export function serialQueue(): (job: () => Promise<void>) => Promise<void> {
+  let tail: Promise<void> = Promise.resolve();
+  return (job) => {
+    const next = tail.then(job, job).catch(() => {});
+    tail = next;
+    return next;
+  };
+}
+
+export const sameNotice = (a: { title: string; body: string } | null, b: { title: string; body: string } | null) =>
+  !!a && !!b && a.title === b.title && a.body === b.body;
+
+/** How a notification shows while the app is open: our own ongoing flight notice ('flight-today') stays quiet. */
+export function foregroundPresentation(identifier: string) {
+  const quiet = identifier === 'flight-today';
+  return { shouldShowAlert: !quiet, shouldPlaySound: !quiet, shouldSetBadge: false, shouldShowBanner: !quiet, shouldShowList: true };
+}

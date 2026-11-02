@@ -103,3 +103,36 @@ describe('review fixes', () => {
     expect(androidFlightNotice(p, Date.parse('2026-11-10T18:00:00Z'))).toBeNull();
   });
 });
+
+import { liveActivityReady, serialQueue, sameNotice } from '@/utils/dayOf';
+describe('Live Activity hook rules (final review I3, I4, I6)', () => {
+  it('waits for the passes and the tier: a cold start must not end a running activity', () => {
+    expect(liveActivityReady({ passesLoading: true, serverTier: 'pro' })).toBe(false);
+    expect(liveActivityReady({ passesLoading: false, serverTier: null })).toBe(false);
+    expect(liveActivityReady({ passesLoading: false, serverTier: 'free' })).toBe(true);
+  });
+  it('serialQueue runs one sync at a time, in order (two at once started two activities)', async () => {
+    const run = serialQueue();
+    const log: string[] = [];
+    const job = (name: string, ms: number) => () => new Promise<void>((r) => { log.push(`${name}+`); setTimeout(() => { log.push(`${name}-`); r(); }, ms); });
+    await Promise.all([run(job('a', 20)), run(job('b', 1))]);
+    expect(log).toEqual(['a+', 'a-', 'b+', 'b-']);
+  });
+  it('serialQueue keeps going after a failed job', async () => {
+    const run = serialQueue();
+    const log: string[] = [];
+    await Promise.all([run(async () => { throw new Error('x'); }), run(async () => { log.push('next'); })]);
+    expect(log).toEqual(['next']);
+  });
+  it('sameNotice: Android re-posts only when the text changed (every re-post buzzed)', () => {
+    expect(sameNotice({ title: 'a', body: 'b' }, { title: 'a', body: 'b' })).toBe(true);
+    expect(sameNotice({ title: 'a', body: 'b' }, { title: 'a', body: 'Gate 4' })).toBe(false);
+    expect(sameNotice(null, { title: 'a', body: 'b' })).toBe(false);
+  });
+});
+
+import { foregroundPresentation } from '@/utils/dayOf';
+it('the ongoing flight notice sits quietly in the list while the app is open; every other push shows as before', () => {
+  expect(foregroundPresentation('flight-today')).toEqual({ shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: true });
+  expect(foregroundPresentation('abc')).toEqual({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true });
+});
