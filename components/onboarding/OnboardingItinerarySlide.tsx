@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/hooks/useTheme';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
@@ -12,6 +12,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import { FontSize, FontWeight } from '@/constants/typography';
 import type { ShowcaseTrip } from '@/hooks/useOnboardingShowcase';
 import type { PreviewRow } from '@/utils/onboardingShowcase';
+import { Image as CachedImage } from 'expo-image';
 
 interface Props {
   active: boolean;
@@ -57,7 +58,7 @@ export function OnboardingItinerarySlide({ active, itinerary }: Props) {
           <View style={styles.planWrap}>
             <View style={[styles.plan, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}>
               <View style={styles.planCover}>
-                <Image source={{ uri: trip.coverUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                <CachedImage source={{ uri: trip.coverUrl }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" />
                 <LinearGradient colors={['transparent', 'rgba(0,0,0,0.65)'] as [string, string]} style={styles.planShade} />
                 <View style={styles.planCoverText}>
                   <Text style={styles.planEyebrow} numberOfLines={1}>{trip.eyebrow}</Text>

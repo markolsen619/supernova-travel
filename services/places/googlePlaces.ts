@@ -446,11 +446,8 @@ export async function enrichPlaceById(placeId: string): Promise<Partial<Enriched
   return fields;
 }
 
-/** Builds a Places photo media URL. Call lazily at render time — only for the
- * sheet's own photo rail, never for autocomplete/search list rows. */
-export function photoUrl(photoName: string, maxWidthPx = 800): string {
-  return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${maxWidthPx}&key=${API_KEY}`;
-}
+// No keyed photo URL builder on purpose: an <Image> on `…/media?key=` bills every view on every phone (October 2026:
+// 7,428 loads, the whole $45 Places bill). Use services/places/placePhotos.ts for key-less addresses.
 
 /** Maps a resolved place into a TripActivity ready for `addActivity()`. */
 export function placeToTripActivity(place: EnrichedPlace): Omit<TripActivity, 'id' | 'order'> {

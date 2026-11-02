@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import {
   View,
   Text,
-  Image,
   TextInput,
   StyleSheet,
   TouchableOpacity,
@@ -27,6 +26,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import { tripPlaceLabel } from '@/utils/tripRegion';
 import { requireOnline } from '@/services/offline';
 import { AFTER_POST_ROUTE } from '@/utils/postTile';
+import { Image as CachedImage } from 'expo-image';
 
 function formatDateRange(trip: Trip): string | null {
   if (!trip.startDate) return null;
@@ -57,7 +57,7 @@ function TripRow({ trip, selected, onPress, colors }: TripRowProps) {
       activeOpacity={0.75}
     >
       {trip.coverImageUrl ? (
-        <Image source={{ uri: trip.coverImageUrl }} style={styles.tripThumb} resizeMode="cover" />
+        <CachedImage source={{ uri: trip.coverImageUrl }} style={styles.tripThumb} contentFit="cover" cachePolicy="disk" />
       ) : (
         <LinearGradient colors={colors.gradient.purplePink} style={styles.tripThumb} />
       )}

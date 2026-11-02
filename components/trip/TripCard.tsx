@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   ViewStyle,
@@ -21,6 +20,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Trip, TripStatus } from '@/types';
 import { tripPlaceLabel } from '@/utils/tripRegion';
 import { displayStatus, toDateOrNull, STATUS_LABEL as TRIP_STATUS_LABEL } from '@/utils/tripStatus';
+import { Image as CachedImage } from 'expo-image';
 
 interface TripCardProps {
   trip: Trip;
@@ -120,10 +120,11 @@ export function TripCard({ trip, onPress, style, fallbackCoverUrl, author, pick 
         <View style={[styles.imageContainer, { backgroundColor: colors.background.sunken }]}>
           {coverUrl ? (
             <>
-              <Image
+              <CachedImage
                 source={{ uri: coverUrl }}
                 style={StyleSheet.absoluteFill}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="disk"
                 onError={cover.uri ? cover.onError : undefined}
               />
               {/* Bottom-up dark fade for text readability over the photo */}
