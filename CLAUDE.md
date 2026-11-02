@@ -16,6 +16,8 @@ cd functions && npm run deploy  # deploy Cloud Functions to Firebase
 
 There is no separate build step for local dev — Expo handles transpilation at runtime. Cloud builds use EAS (`eas build --profile development|preview|production`).
 
+**Over-the-air updates** (from 1.1.0; `expo-updates`): `runtimeVersion` policy **`appVersion`**, so an update reaches only builds with the same `version` — a JS update never lands on an older binary whose native code differs. Each build profile has its own **channel** (`development`, `preview`, `production`). JS/asset-only changes ship with `eas update --channel production --message "…"` (owner's OK, like a build); phones download on launch and apply on the next one. Anything native (a new module, a config plugin, `app.json` native keys, permissions) still needs a store build **and a version bump**, or the update would run against native code it doesn't match.
+
 **EAS build profiles** (`eas.json`):
 - `development` — dev client; iOS simulator + Android APK
 - `preview` — internal distribution (device install)
