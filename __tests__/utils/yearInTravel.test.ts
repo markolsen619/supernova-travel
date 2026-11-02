@@ -1,5 +1,5 @@
 import {
-  visibleSlides, storyStep, showYearCard, kmLine, styleLine, typeLine, countLabel, SLIDE_MS, type StoryState,
+  visibleSlides, storyStep, showYearCard, kmLine, styleLine, typeLine, countLabel, SLIDE_MS, hasTripThisYear, type StoryState,
 } from '@/utils/yearInTravel';
 
 const full = { trips: 3, photos: ['p'], companions: [{}], places: [{}], longestTrip: {} };
@@ -61,5 +61,16 @@ describe('copy', () => {
     expect(typeLine({ restaurant: 0, activity: 0 })).toBeNull();
     expect(countLabel(1, 'trip', 'trips')).toBe('1 trip');
     expect(countLabel(3, 'trip', 'trips')).toBe('3 trips');
+  });
+});
+
+describe('hasTripThisYear (Profile shows the row once a trip has started this year)', () => {
+  const now = new Date('2026-06-15T12:00:00Z');
+  it('a trip that started this year counts; a future or last-year trip does not; undated never', () => {
+    expect(hasTripThisYear([{ startDate: new Date('2026-03-01T12:00:00Z') }], now)).toBe(true);
+    expect(hasTripThisYear([{ startDate: new Date('2026-08-01T12:00:00Z') }], now)).toBe(false);
+    expect(hasTripThisYear([{ startDate: new Date('2025-12-30T12:00:00Z'), endDate: new Date('2026-01-02T12:00:00Z') }], now)).toBe(true);
+    expect(hasTripThisYear([{ startDate: new Date('2025-03-01T12:00:00Z') }], now)).toBe(false);
+    expect(hasTripThisYear([{ startDate: null }], now)).toBe(false);
   });
 });

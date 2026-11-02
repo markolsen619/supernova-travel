@@ -66,3 +66,13 @@ export function typeLine(c: { restaurant: number; activity: number }): string | 
   const parts = [c.restaurant ? countLabel(c.restaurant, 'restaurant', 'restaurants') : null, c.activity ? countLabel(c.activity, 'sight', 'sights') : null].filter(Boolean);
   return parts.length ? `You saved ${parts.join(' and ')}` : null;
 }
+
+/** Whether a trip has already started this year (or crossed into it) — Profile's "Your {year} in travel" row. */
+export function hasTripThisYear(trips: { startDate: Date | null; endDate?: Date | null }[], now: Date): boolean {
+  const y = now.getFullYear();
+  return trips.some((t) => {
+    if (!t.startDate || t.startDate > now) return false;
+    const end = t.endDate ?? t.startDate;
+    return t.startDate.getFullYear() === y || end.getFullYear() === y;
+  });
+}
