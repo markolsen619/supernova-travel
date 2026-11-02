@@ -168,7 +168,12 @@
     "updates": {
       "url": "https://u.expo.dev/4218e2b6-1605-4105-9225-c3fc5d12156d",
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "codeSigningCertificate": "./certs/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      }
     }
   }
 }
