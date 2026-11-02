@@ -7,7 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Avatar } from '@/components/ui/Avatar';
 import { WorldMap } from '@/components/yearInTravel/WorldMap';
-import { countLabel, kmLine, styleLine, typeLine, type SlideId } from '@/utils/yearInTravel';
+import { countLabel, kmLine, photoTile, shareCells, styleLine, typeLine, type SlideId } from '@/utils/yearInTravel';
 import type { YearSummary } from '@/types/yearInTravel';
 
 export const INK = { text: '#F5F3F9', soft: '#B9B2CC', muted: '#8C85A0', accent: '#B9B2F0', pink: '#E28FA9' };
@@ -30,9 +30,9 @@ const CountUp = memo(function CountUp({ value, animate, style }: { value: number
   return <Text style={style}>{shown.toLocaleString('en-US')}</Text>;
 });
 
-interface SlideProps { id: SlideId; s: YearSummary; firstName: string; width: number; animate: boolean }
+interface SlideProps { id: SlideId; s: YearSummary; firstName: string; width: number; animate: boolean; height?: number; large?: boolean }
 
-export const Slide = memo(function Slide({ id, s, firstName, width, animate }: SlideProps) {
+export const Slide = memo(function Slide({ id, s, firstName, width, animate, height = 9999, large = false }: SlideProps) {
   switch (id) {
     case 'opener':
       return (
@@ -100,9 +100,10 @@ export const Slide = memo(function Slide({ id, s, firstName, width, animate }: S
         <View style={styles.center}>
           <Text style={styles.eyebrow}>YOUR BEST MOMENTS</Text>
           <View style={styles.collage}>
-            {s.photos.slice(0, 6).map((u) => (
-              <Image key={u} source={{ uri: u }} style={[styles.photo, { width: (width - 12) / 2, height: (width - 12) / 2 }]} contentFit="cover" />
-            ))}
+            {s.photos.slice(0, 6).map((u) => {
+              const t = photoTile({ width, height, large });
+              return <Image key={u} source={{ uri: u }} style={[styles.photo, { width: t.size, height: t.size }]} contentFit="cover" />;
+            })}
           </View>
         </View>
       );
@@ -124,7 +125,7 @@ export const Slide = memo(function Slide({ id, s, firstName, width, animate }: S
       const days = s.nextTrip ? Math.max(0, Math.ceil((s.nextTrip.startMs - Date.now()) / 86_400_000)) : null;
       return (
         <View style={styles.center}>
-          <Text style={styles.eyebrow}>COMING UP</Text>
+          <Text style={styles.eyebrow}>{s.nextTrip ? `COMING UP · ${new Date(s.nextTrip.startMs).getFullYear()}` : 'COMING UP'}</Text>
           <Text style={styles.hero}>{s.nextTrip ? s.nextTrip.title : 'Where to next?'}</Text>
           <Text style={styles.lede}>{s.nextTrip ? (days === 0 ? 'Starts today.' : `In ${countLabel(days ?? 0, 'day', 'days')}.`) : 'Plan your next trip with Nova in a minute.'}</Text>
         </View>
@@ -135,9 +136,9 @@ export const Slide = memo(function Slide({ id, s, firstName, width, animate }: S
         <View style={styles.center}>
           <Text style={styles.eyebrow}>{`${firstName === 'Your' ? 'YOUR' : `${firstName.toUpperCase()}'S`} ${s.year}`}</Text>
           <View style={styles.summaryRow}>
-            {([[s.trips, 'trips'], [s.cities, 'cities'], [s.countries, 'countries']] as const).map(([n, l]) => (
-              <View key={l} style={styles.summaryCell}>
-                <Text style={styles.summaryNum}>{n.toLocaleString('en-US')}</Text>
+            {shareCells(s).map(([n, l], k) => (
+              <View key={k} style={styles.summaryCell}>
+                <Text style={styles.summaryNum}>{n}</Text>
                 <Text style={styles.cellLabel}>{l}</Text>
               </View>
             ))}

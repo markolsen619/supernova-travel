@@ -1,4 +1,4 @@
-import { tripDaysInYear, yearSummary, earthFraction, type YTTrip } from '../../functions/src/yearInTravel';
+import { tripDaysInYear, yearSummary, earthFraction, tripRange, summaryCacheKey, SUMMARY_VERSION, type YTTrip } from '../../functions/src/yearInTravel';
 
 const d = (s: string) => new Date(`${s}T12:00:00Z`);
 const stop = (lat: number | null, lng: number | null, type = 'activity', order = 0, photoUrls: string[] = []) => ({ lat, lng, type, order, photoUrls });
@@ -77,4 +77,38 @@ describe('yearSummary', () => {
 
 describe('earthFraction', () => {
   it('km over the equator', () => expect(earthFraction(40075)).toBeCloseTo(1));
+});
+
+describe('review fixes (server)', () => {
+  it('reads trips on the traveler\'s calendar: Paris Dec 30 – Jan 2 is 2 days in each year', () => {
+    // Stored at Paris local midnight (UTC+1).
+    const r = tripRange({ startDateMs: Date.parse('2026-12-29T23:00:00Z'), endDateMs: Date.parse('2027-01-01T23:00:00Z'), startDay: null })!;
+    expect(tripDaysInYear(r.start, r.end, 2026)).toBe(2);
+    expect(tripDaysInYear(r.start, r.end, 2027)).toBe(2);
+  });
+  it('a Tokyo New Year trip (stored Dec 31 15:00Z) belongs to 2027 only', () => {
+    const r = tripRange({ startDateMs: Date.parse('2026-12-31T15:00:00Z'), endDateMs: Date.parse('2027-01-03T15:00:00Z'), startDay: '2027-01-01' })!;
+    expect(tripDaysInYear(r.start, r.end, 2026)).toBe(0);
+    expect(tripDaysInYear(r.start, r.end, 2027)).toBe(4);
+  });
+  it('trips that haven\'t started yet don\'t count', () => {
+    const s = yearSummary({ ...base, nowMs: Date.UTC(2026, 11, 1), trips: [trip({ id: 'later', start: d('2026-12-28'), end: d('2026-12-31') })] });
+    expect(s.trips).toBe(0);
+  });
+  it('photos are spread across trips before a second one from the same trip', () => {
+    const many = Array.from({ length: 8 }, (_, k) => `a${k}`);
+    const s = yearSummary({ ...base, reviewPhotos: [], trips: [
+      trip({ id: 'a', start: d('2026-05-01'), end: d('2026-05-02'), days: [{ dayNumber: 1, stops: [stop(1, 1, 'activity', 0, many)] }] }),
+      trip({ id: 'b', start: d('2026-04-01'), end: d('2026-04-02'), days: [{ dayNumber: 1, stops: [stop(1, 1, 'activity', 0, ['b0'])] }] }),
+    ] });
+    expect(s.photos).toHaveLength(6);
+    expect(s.photos).toContain('b0');
+  });
+  it('the cache key changes when the set of trips or any trip changes, and with the rules version', () => {
+    const k = summaryCacheKey([{ id: 'a', updatedAtMs: 1 }, { id: 'b', updatedAtMs: 2 }]);
+    expect(summaryCacheKey([{ id: 'b', updatedAtMs: 2 }, { id: 'a', updatedAtMs: 1 }])).toBe(k);
+    expect(summaryCacheKey([{ id: 'a', updatedAtMs: 1 }])).not.toBe(k);
+    expect(summaryCacheKey([{ id: 'a', updatedAtMs: 1 }, { id: 'b', updatedAtMs: 3 }])).not.toBe(k);
+    expect(k.startsWith(`v${SUMMARY_VERSION}:`)).toBe(true);
+  });
 });

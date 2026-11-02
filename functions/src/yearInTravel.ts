@@ -12,7 +12,27 @@ export interface YearSummary { year: number; trips: number; daysAway: number; ci
   typeCounts: Record<Types, number>; topStyle: string | null; places: { name: string; lat: number; lng: number }[]; photos: string[];
   companions: { uid: string; name: string; avatarUrl: string | null }[]; nextTrip: { tripId: string; title: string; startMs: number } | null; computedAtMs: number }
 
+import { tripDays } from './friendsTraveling';
+
 const DAY = 86_400_000;
+
+/** Bump when the summary's rules change, so cached summaries are recomputed at once. */
+export const SUMMARY_VERSION = 2;
+
+/** The cache's key: the counted trips and when each last changed, plus the rules version (review, 2026-11-01). */
+export function summaryCacheKey(trips: { id: string; updatedAtMs: number }[]): string {
+  return `v${SUMMARY_VERSION}:` + [...trips].sort((a, b) => a.id.localeCompare(b.id)).map((t) => `${t.id}@${t.updatedAtMs}`).join(',');
+}
+
+/**
+ * A trip's first and last calendar days as noon-UTC dates. Dates are stored at the creator's local midnight, so
+ * reading them as UTC put every trip east of Greenwich a day early (a Tokyo Jan 1 trip counted in the old year);
+ * friendsTraveling's tripDays reads the saved startDay, else the date at noon (review, 2026-11-01).
+ */
+export function tripRange(t: { startDateMs: number | null; endDateMs: number | null; startDay: string | null }): { start: Date; end: Date } | null {
+  const r = tripDays({ startDateMs: t.startDateMs, endDateMs: t.endDateMs, startDay: t.startDay });
+  return r ? { start: new Date(`${r.start}T12:00:00Z`), end: new Date(`${r.end}T12:00:00Z`) } : null;
+}
 const utcDay = (x: Date) => Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
 
 export function tripDaysInYear(start: Date, end: Date, year: number): number {
@@ -32,13 +52,15 @@ export const earthFraction = (k: number) => k / 40_075;
 
 export function yearSummary(i: { uid: string; year: number; nowMs: number; trips: YTTrip[]; reviewPhotos: string[];
   profiles: Record<string, { name: string; avatarUrl: string | null }>; blocked: Set<string>; upcoming: { tripId: string; title: string; startMs: number }[] }): YearSummary {
-  const trips = i.trips.filter((t) => t.start && t.end && tripDaysInYear(t.start, t.end, i.year) > 0);
+  // Trips that took place: overlapping the year and already started.
+  const today = utcDay(new Date(i.nowMs));
+  const trips = i.trips.filter((t) => t.start && t.end && utcDay(t.start) <= today && tripDaysInYear(t.start, t.end, i.year) > 0);
   const daySet = new Set<number>();
   const cities = new Set<string>(), countries = new Set<string>();
   const typeCounts: Record<Types, number> = { restaurant: 0, activity: 0, hotel: 0, flight: 0, transport: 0, free: 0 };
   const styleCounts = new Map<string, number>();
   const places: { name: string; lat: number; lng: number }[] = [];
-  const photos: string[] = [];
+  const photosByTrip: string[][] = [];
   const companionIds: string[] = [];
   let totalKm = 0;
   let longest: YearSummary['longestTrip'] = null;
@@ -54,12 +76,14 @@ export function yearSummary(i: { uid: string; year: number; nowMs: number; trips
       if (c.lat != null && c.lng != null) places.push({ name: c.name, lat: c.lat, lng: c.lng });
     }
     for (const s of t.travelStyles) styleCounts.set(s, (styleCounts.get(s) ?? 0) + 1);
+    const tripPhotos: string[] = [];
+    photosByTrip.push(tripPhotos);
     let prev: { lat: number; lng: number } | null = null;
     for (const day of [...t.days].sort((a, b) => a.dayNumber - b.dayNumber)) {
       if (!biggest || day.stops.length > biggest.stops) biggest = { tripId: t.id, title: t.title, dayNumber: day.dayNumber, stops: day.stops.length };
       for (const s of [...day.stops].sort((a, b) => a.order - b.order)) {
         if (s.type in typeCounts) typeCounts[s.type as Types]++;
-        if (t.authorUid === i.uid) photos.push(...s.photoUrls);
+        if (t.authorUid === i.uid) tripPhotos.push(...s.photoUrls);
         if (s.lat == null || s.lng == null) continue;
         const here = { lat: s.lat, lng: s.lng };
         if (prev) totalKm += km(prev, here);
@@ -68,7 +92,12 @@ export function yearSummary(i: { uid: string; year: number; nowMs: number; trips
     }
     for (const m of t.members) if (m !== i.uid && !i.blocked.has(m) && !companionIds.includes(m)) companionIds.push(m);
   }
-  photos.push(...i.reviewPhotos);
+  // One photo from each trip (newest trip first) before a second from any, then review photos.
+  photosByTrip.reverse().push(i.reviewPhotos);
+  const photos: string[] = [];
+  for (let round = 0; photos.length < 6 && photosByTrip.some((l) => l.length > round); round++) {
+    for (const l of photosByTrip) if (l[round] && !photos.includes(l[round]) && photos.length < 6) photos.push(l[round]);
+  }
   let topStyle: string | null = null, best = 0;
   for (const [k, v] of styleCounts) if (v > best) { best = v; topStyle = k; }
   if (!topStyle) {
@@ -78,7 +107,7 @@ export function yearSummary(i: { uid: string; year: number; nowMs: number; trips
   return {
     year: i.year, trips: trips.length, daysAway: daySet.size, cities: cities.size, countries: countries.size, km: Math.round(totalKm),
     longestTrip: longest, biggestDay: biggest && biggest.stops > 0 ? biggest : null, typeCounts, topStyle, places,
-    photos: [...new Set(photos)].reverse().slice(0, 6),
+    photos,
     companions: companionIds.filter((u) => i.profiles[u]).slice(0, 8).map((u) => ({ uid: u, name: i.profiles[u].name, avatarUrl: i.profiles[u].avatarUrl })),
     nextTrip: [...i.upcoming].sort((a, b) => a.startMs - b.startMs)[0] ?? null, computedAtMs: i.nowMs,
   };

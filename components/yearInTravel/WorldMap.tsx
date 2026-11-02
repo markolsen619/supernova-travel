@@ -5,10 +5,9 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { Animated } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Stop, G } from 'react-native-svg';
-import { arcPath, project, worldDots } from '@/utils/yearMap';
+import { arcPaths, dotsPath, project } from '@/utils/yearMap';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
-const DOTS = worldDots();
 
 export const WorldMap = memo(function WorldMap({ width, places, animate }: {
   width: number; places: { name: string; lat: number; lng: number }[]; animate: boolean;
@@ -19,7 +18,10 @@ export const WorldMap = memo(function WorldMap({ width, places, animate }: {
     if (!animate) return;
     Animated.timing(draw, { toValue: 1, duration: 1800, delay: 300, useNativeDriver: false }).start();
   }, [animate, draw]);
-  const arcs = useMemo(() => places.slice(1).map((p, i) => arcPath(places[i], p, width, height)), [places, width, height]);
+  // An arc over the date line is drawn twice (arcPaths), so it leaves one edge and arrives from the other.
+  const arcs = useMemo(() => places.slice(1).flatMap((p, i) => arcPaths(places[i], p, width, height)), [places, width, height]);
+  // The land as one path of round dots: one native view, not 2,400 (review, 2026-11-01).
+  const land = useMemo(() => dotsPath(width, height), [width, height]);
   const pts = useMemo(() => places.map((p) => project(p.lat, p.lng, width, height)), [places, width, height]);
   const dash = 2000;
   return (
@@ -34,12 +36,7 @@ export const WorldMap = memo(function WorldMap({ width, places, animate }: {
           <Stop offset="1" stopColor="#7F77DD" stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      <G>
-        {DOTS.map(([lat, lng], i) => {
-          const p = project(lat, lng, width, height);
-          return <Circle key={i} cx={p.x} cy={p.y} r={width / 300} fill="#F5F3F9" fillOpacity={0.16} />;
-        })}
-      </G>
+      <Path d={land} stroke="#F5F3F9" strokeOpacity={0.16} strokeWidth={width / 150} strokeLinecap="round" fill="none" />
       {arcs.map((d, i) => (
         <AnimatedPath
           key={`a${i}`} d={d} stroke="url(#arc)" strokeWidth={1.6} fill="none" strokeLinecap="round"

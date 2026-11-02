@@ -1,5 +1,5 @@
 import {
-  visibleSlides, storyStep, showYearCard, kmLine, styleLine, typeLine, countLabel, SLIDE_MS, hasTripThisYear, type StoryState,
+  visibleSlides, storyStep, showYearCard, kmLine, styleLine, typeLine, countLabel, SLIDE_MS, hasTripThisYear, shareCells, photoTile, type StoryState,
 } from '@/utils/yearInTravel';
 
 const full = { trips: 3, photos: ['p'], companions: [{}], places: [{}], longestTrip: {} };
@@ -72,5 +72,18 @@ describe('hasTripThisYear (Profile shows the row once a trip has started this ye
     expect(hasTripThisYear([{ startDate: new Date('2025-12-30T12:00:00Z'), endDate: new Date('2026-01-02T12:00:00Z') }], now)).toBe(true);
     expect(hasTripThisYear([{ startDate: new Date('2025-03-01T12:00:00Z') }], now)).toBe(false);
     expect(hasTripThisYear([{ startDate: null }], now)).toBe(false);
+  });
+});
+
+describe('review fixes (app)', () => {
+  it('the share card says "1 trip", never "1 trips"', () => {
+    expect(shareCells({ trips: 1, cities: 1, countries: 1 })).toEqual([['1', 'trip'], ['1', 'city'], ['1', 'country']]);
+    expect(shareCells({ trips: 4, cities: 9, countries: 3 })).toEqual([['4', 'trips'], ['9', 'cities'], ['3', 'countries']]);
+  });
+  it('photo tiles fit the screen: half the width on a phone, capped by height, three across on iPad', () => {
+    expect(photoTile({ width: 345, height: 500, large: false })).toEqual({ size: 146, columns: 2 }); // 3 rows in 500 − a 36-pt label
+    expect(photoTile({ width: 345, height: 700, large: false })).toEqual({ size: 166, columns: 2 });
+    expect(photoTile({ width: 976, height: 900, large: true }).columns).toBe(3);
+    expect(photoTile({ width: 976, height: 900, large: true }).size).toBeLessThanOrEqual(400);
   });
 });

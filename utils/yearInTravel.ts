@@ -76,3 +76,20 @@ export function hasTripThisYear(trips: { startDate: Date | null; endDate?: Date 
     return t.startDate.getFullYear() === y || end.getFullYear() === y;
   });
 }
+
+/** The share card's three numbers with singular labels ("1 trip", review 2026-11-01). */
+export function shareCells(s: { trips: number; cities: number; countries: number }): [string, string][] {
+  const cell = (n: number, one: string, many: string): [string, string] => [n.toLocaleString('en-US'), n === 1 ? one : many];
+  return [cell(s.trips, 'trip', 'trips'), cell(s.cities, 'city', 'cities'), cell(s.countries, 'country', 'countries')];
+}
+
+/**
+ * Photo tiles for the best-moments slide: two across on a phone, three on iPad, and never taller than the space
+ * for six photos (a 1024-pt iPad drew three rows of ~500 pt; review 2026-11-01).
+ */
+export function photoTile(a: { width: number; height: number; large: boolean }): { size: number; columns: number } {
+  const gap = 12, label = 36, columns = a.large ? 3 : 2, rows = Math.ceil(6 / columns);
+  const byWidth = (a.width - gap * (columns - 1)) / columns;
+  const byHeight = (a.height - label - gap * (rows - 1)) / rows;
+  return { size: Math.floor(Math.min(byWidth, byHeight)), columns };
+}

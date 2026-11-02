@@ -13,7 +13,8 @@ import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
-import { ShareFat, X } from 'phosphor-react-native';
+import { ArrowLeft, ArrowRight, ShareFat, X } from 'phosphor-react-native';
+import { isLargeScreen } from '@/utils/layout';
 import { useYearInTravel } from '@/hooks/useYearInTravel';
 import { useUserStore } from '@/stores/useUserStore';
 import { Slide, INK } from '@/components/yearInTravel/Slides';
@@ -31,7 +32,7 @@ function close() {
 
 export default function YearInTravelScreen() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { year: yearParam } = useLocalSearchParams<{ year?: string }>();
   const year = Number(yearParam) || new Date().getFullYear();
   const { data: s, isLoading, isError, refetch } = useYearInTravel(year);
@@ -41,12 +42,24 @@ export default function YearInTravelScreen() {
   const slides = useMemo(() => (s ? visibleSlides(s) : []), [s]);
   const [state, dispatch] = useReducer(storyStep, { index: 0, elapsed: 0, paused: false, done: false } as StoryState);
   const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => { AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {}); }, []);
+  const [screenReader, setScreenReader] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+    AccessibilityInfo.isScreenReaderEnabled().then(setScreenReader).catch(() => {});
+    const subs = [
+      AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion),
+      AccessibilityInfo.addEventListener('screenReaderChanged', setScreenReader),
+    ];
+    return () => subs.forEach((x) => x.remove());
+  }, []);
+  // A refetch can change the slide list (a photos slide appears): keep the position on a real slide.
+  useEffect(() => { if (slides.length && state.index >= slides.length) dispatch({ type: 'prev', count: slides.length }); }, [slides.length, state.index]);
   useEffect(() => { if (state.done) close(); }, [state.done]);
 
   // The story clock.
   useEffect(() => {
-    if (!slides.length || state.paused) return;
+    // With VoiceOver/TalkBack the story waits for the person: no auto-advance.
+    if (!slides.length || state.paused || screenReader) return;
     let raf = 0, last = Date.now();
     const loop = () => {
       const now = Date.now();
@@ -56,22 +69,19 @@ export default function YearInTravelScreen() {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [slides.length, state.paused]);
+  }, [slides.length, state.paused, screenReader]);
 
-  const prevIndex = useRef(0);
-  useEffect(() => {
-    if (state.index !== prevIndex.current) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    prevIndex.current = state.index;
-  }, [state.index]);
 
   // Tap left third: back; elsewhere: forward. Hold: pause.
   const held = useRef(false);
   const onPress = useCallback((e: GestureResponderEvent) => {
-    if (held.current) { held.current = false; return; }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     dispatch({ type: e.nativeEvent.locationX < width / 3 ? 'prev' : 'next', count: slides.length });
   }, [width, slides.length]);
   const onLongPress = useCallback(() => { held.current = true; dispatch({ type: 'pause' }); }, []);
-  const onPressOut = useCallback(() => { if (held.current) dispatch({ type: 'resume' }); }, []);
+  // After a hold React Native doesn't call onPress, so the flag is cleared here (a stuck flag swallowed the next tap).
+  const onPressOut = useCallback(() => { if (held.current) { held.current = false; dispatch({ type: 'resume' }); } }, []);
+  const step = useCallback((type: 'next' | 'prev') => dispatch({ type, count: slides.length }), [slides.length]);
 
   const drag = useRef(new Animated.Value(0)).current;
   const pan = useMemo(() => PanResponder.create({
@@ -114,9 +124,13 @@ export default function YearInTravelScreen() {
       ) : isLoading ? <ActivityIndicator color={INK.soft} /> : null}
     </View>
   ) : (
-    <Pressable style={styles.fill} onPress={onPress} onLongPress={onLongPress} onPressOut={onPressOut} delayLongPress={250} accessibilityRole="button" accessibilityLabel="Next slide">
+    // Not one big button: screen readers read the slide itself and use the Previous/Next buttons below.
+    <Pressable style={styles.fill} onPress={onPress} onLongPress={onLongPress} onPressOut={onPressOut} delayLongPress={250} accessible={false}>
       <View style={[styles.slide, { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 96 }]}>
-        {current ? <Slide key={current} id={current} s={s} firstName={firstName} width={contentWidth} animate={!reduceMotion} /> : null}
+        {current ? (
+          <Slide key={current} id={current} s={s} firstName={firstName} width={contentWidth} animate={!reduceMotion}
+            height={height - insets.top - insets.bottom - 160} large={isLargeScreen(width, height)} />
+        ) : null}
       </View>
     </Pressable>
   );
@@ -140,12 +154,30 @@ export default function YearInTravelScreen() {
         </Pressable>
       </View>
 
-      {s && current && current !== 'companions' && current !== 'opener' ? (
+      {s && current ? (
         <View style={[styles.bottom, { bottom: insets.bottom + 24 }]}>
-          <Pressable onPress={share} disabled={sharing} style={styles.shareBtn} accessibilityRole="button" accessibilityLabel="Share this slide">
-            {sharing ? <ActivityIndicator color="#1F1C19" /> : <ShareFat size={18} color="#1F1C19" weight="fill" />}
-            <Text style={styles.shareText}>Share</Text>
-          </Pressable>
+          {screenReader ? (
+            <Pressable onPress={() => step('prev')} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Previous slide">
+              <ArrowLeft size={20} color={INK.text} weight="bold" />
+            </Pressable>
+          ) : null}
+          {current === 'next' && !s.nextTrip ? (
+            // "Where to next?" with nothing planned: the slide's action is planning one.
+            <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); if (router.canDismiss()) router.dismissAll(); router.navigate('/(tabs)/create'); }}
+              style={styles.shareBtn} accessibilityRole="button">
+              <Text style={styles.shareText}>Plan a trip</Text>
+            </Pressable>
+          ) : current !== 'companions' && current !== 'opener' ? (
+            <Pressable onPress={share} disabled={sharing} style={styles.shareBtn} accessibilityRole="button" accessibilityLabel="Share this slide">
+              {sharing ? <ActivityIndicator color="#1F1C19" /> : <ShareFat size={18} color="#1F1C19" weight="fill" />}
+              <Text style={styles.shareText}>Share</Text>
+            </Pressable>
+          ) : null}
+          {screenReader ? (
+            <Pressable onPress={() => step('next')} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Next slide">
+              <ArrowRight size={20} color={INK.text} weight="bold" />
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -155,7 +187,7 @@ export default function YearInTravelScreen() {
           <View ref={shareRef} collapsable={false} style={styles.shareFrame}>
             <LinearGradient colors={['rgba(127,119,221,0.35)', 'rgba(11,10,18,0)'] as [string, string]} style={styles.glow} />
             <View style={styles.shareBody}>
-              <Slide id={current === 'companions' ? 'share' : current} s={s} firstName={firstName} width={SHARE_W - 48} animate={false} />
+              <Slide id={current === 'companions' ? 'share' : current} s={s} firstName={firstName} width={SHARE_W - 48} animate={false} height={SHARE_H - 140} />
             </View>
             <View style={styles.shareFooter}>
               <Image source={STAR} style={styles.shareStar} />
@@ -182,7 +214,8 @@ const styles = StyleSheet.create({
   bar: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(245,243,249,0.22)', overflow: 'hidden' },
   barFill: { height: 3, backgroundColor: '#F5F3F9' },
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  bottom: { position: 'absolute', left: 24, right: 24, alignItems: 'center' },
+  bottom: { position: 'absolute', left: 24, right: 24, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 16 },
+  navBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245,243,249,0.12)' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 22, borderRadius: 999, backgroundColor: '#F5F3F9' },
   shareText: { color: '#1F1C19', fontSize: 16, fontWeight: '700' },
   offscreen: { position: 'absolute', left: -10000, top: 0 },
