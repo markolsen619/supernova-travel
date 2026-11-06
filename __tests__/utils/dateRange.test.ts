@@ -105,3 +105,20 @@ describe('startOfDay', () => {
     expect(startOfDay(new Date(2026, 6, 25, 17, 45))).toEqual(d(2026, 7, 25));
   });
 });
+
+import { selectFixedSpan } from '@/utils/dateRange';
+describe('selectFixedSpan (copying a trip keeps its length)', () => {
+  it('a tapped day starts a range of exactly N days', () => {
+    const r = selectFixedSpan(new Date(2026, 11, 30, 15), 5);
+    expect([r.start?.getFullYear(), r.start?.getMonth(), r.start?.getDate(), r.start?.getHours()]).toEqual([2026, 11, 30, 0]);
+    expect([r.end?.getFullYear(), r.end?.getMonth(), r.end?.getDate()]).toEqual([2027, 0, 3]);
+  });
+  it('one day → start and end the same day', () => {
+    const r = selectFixedSpan(new Date(2026, 2, 8), 1);
+    expect(r.end?.getDate()).toBe(8);
+  });
+  it('across a daylight-saving change still lands on the right calendar day', () => {
+    const r = selectFixedSpan(new Date(2026, 2, 7), 3); // US DST starts Mar 8 2026
+    expect(r.end?.getDate()).toBe(9);
+  });
+});
