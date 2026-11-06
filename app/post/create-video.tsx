@@ -15,6 +15,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { requireOnline } from '@/services/offline';
 import { AFTER_POST_ROUTE } from '@/utils/postTile';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 interface Clip {
   uri: string;
@@ -113,6 +114,7 @@ export default function CreateVideoScreen() {
         <View style={styles.headerBtn} />
       </View>
 
+      <KeyboardLift>
       <ScrollView
         automaticallyAdjustKeyboardInsets
         keyboardDismissMode="on-drag"
@@ -169,6 +171,7 @@ export default function CreateVideoScreen() {
           />
         </View>
       </ScrollView>
+      </KeyboardLift>
     </View>
   );
 }

@@ -22,6 +22,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 import { useProGate } from '@/hooks/useProGate';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 function quotaLabel(
   quota: { limit: number | null; remaining: number | null; resetsAt: string | null } | undefined,
@@ -118,6 +119,7 @@ export default function ImportScreen() {
     >
       <WalletHeader title="Import" onBack={handleBack} />
 
+      <KeyboardLift>
       <ScrollView
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view — padding the whole screen instead left fields low on the
@@ -193,6 +195,7 @@ export default function ImportScreen() {
           <Text style={[styles.manualLinkText, { color: colors.text.secondary }]}>Enter manually instead</Text>
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardLift>
       {consentSheet}
     </View>
   );

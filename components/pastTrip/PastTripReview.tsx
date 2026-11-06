@@ -21,6 +21,7 @@ import type { PastTripEdit } from '@/utils/pastTripEdits';
 import type { TripVisibility } from '@/types';
 import { PastStopCard } from './PastStopCard';
 import { MoveToStopSheet, StopActionsSheet } from './PastTripSheets';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 const VISIBILITIES: { v: TripVisibility; label: string }[] = [
   { v: 'public', label: 'Public' }, { v: 'followers', label: 'Followers' }, { v: 'private', label: 'Private' },
@@ -95,6 +96,7 @@ export function PastTripReview({ draft, onEdit, onSave, error, noLocations, plac
 
   return (
     <View style={[styles.fill, { backgroundColor: colors.background.primary }]}>
+      <KeyboardLift>
       <FlashList
         data={draft.days}
         keyExtractor={(d) => d.day}
@@ -176,6 +178,7 @@ export function PastTripReview({ draft, onEdit, onSave, error, noLocations, plac
           </View>
         )}
       />
+      </KeyboardLift>
       <View style={[styles.bar, { paddingBottom: insets.bottom + Spacing['3'], backgroundColor: colors.background.primary, borderTopColor: colors.background.cardBorder }]}>
         {error ? <Text style={[styles.error, { color: colors.semantic.error }]}>{error}</Text> : null}
         <Button label="Save trip" onPress={save} fullWidth />

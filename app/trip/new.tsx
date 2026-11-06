@@ -39,6 +39,8 @@ import { DateRangeField } from '@/components/ui/DateRangeField';
 import { formatRangeLabel } from '@/utils/dateRange';
 import { SPRING } from '@/constants/motion';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
+import { openCreatedTrip } from '@/services/openCreatedTrip';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 const TOTAL_STEPS = 4;
 
@@ -650,7 +652,7 @@ export default function NewTripScreen() {
       // was still re-rendering (the spinner switching off in `finally`) crashed Android with "The specified child
       // already has a parent" (Play vitals, 1.0.7, 2026-10-24); iOS tolerated it.
       Keyboard.dismiss();
-      setTimeout(() => router.replace(`/trip/${newId}`), 150);
+      setTimeout(() => openCreatedTrip(newId), 150);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'The trip didn\'t save. Try again.';
       setCreateError(message);
@@ -755,6 +757,7 @@ export default function NewTripScreen() {
         style={styles.flex}
       >
         <Animated.View style={[styles.flex, animatedStyle]}>
+          <KeyboardLift>
           <NestableScrollContainer
             // iOS insets the content by the keyboard and scrolls the focused field
             // into view — padding the whole screen instead left fields low on the
@@ -768,6 +771,7 @@ export default function NewTripScreen() {
           >
             {renderStep()}
           </NestableScrollContainer>
+          </KeyboardLift>
         </Animated.View>
       </View>
 

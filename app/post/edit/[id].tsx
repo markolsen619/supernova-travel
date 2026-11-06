@@ -25,6 +25,7 @@ import { SkeletonBlock, SkeletonListRow } from '@/components/ui/Skeleton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { requireOnline } from '@/services/offline';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 const MAX_PHOTOS = 10;
 
@@ -185,6 +186,7 @@ export default function EditPostScreen() {
         </TouchableOpacity>
       </View>
 
+      <KeyboardLift>
       <ScrollView
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view — padding the whole screen instead left fields low on the
@@ -265,6 +267,7 @@ export default function EditPostScreen() {
           />
         </View>
       </ScrollView>
+      </KeyboardLift>
     </View>
   );
 }

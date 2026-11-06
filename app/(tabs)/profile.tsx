@@ -37,7 +37,7 @@ import { useTripCoverResolver } from '@/hooks/useTripCoverResolver';
 import { useAuthorProfiles } from '@/hooks/useAuthorProfiles';
 import { db } from '@/services/firebase';
 import { Avatar } from '@/components/ui/Avatar';
-import { Badge } from '@/components/ui/Badge';
+import { ProPill } from '@/components/profile/ProPill';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
@@ -51,6 +51,7 @@ import { displayStatus, toDateOrNull } from '@/utils/tripStatus';
 import { beenThereSummary } from '@/utils/beenThere';
 import { pastTripsSupported } from '@/utils/pastTrip';
 import { hasTripThisYear } from '@/utils/yearInTravel';
+import { profileTripOrder } from '@/utils/homeState';
 
 const canAddPast = pastTripsSupported(Platform.OS);
 
@@ -172,9 +173,9 @@ function ProfileScreenContent() {
       cancelled = true;
     };
   }, [allTrips, resolveCover, uid]);
-  const filteredTrips = allTrips.filter(
+  const filteredTrips = profileTripOrder(tripFilter, allTrips.filter(
     (t) => displayStatus({ status: t.status, startDate: toDateOrNull(t.startDate), endDate: toDateOrNull(t.endDate) }, new Date()) === TRIP_STATUS_MAP[tripFilter],
-  );
+  ));
 
   const { data: posts = [], isLoading: postsLoading } = useQuery({
     queryKey: ['userPosts', uid],
@@ -238,6 +239,7 @@ function ProfileScreenContent() {
         <View style={styles.heroActions}>
           <ScreenHeaderStar />
           <View style={styles.heroIconGroup}>
+            <ProPill tier={tier} />
             <TouchableOpacity
               onPress={handleWallet}
               style={[styles.heroIconBtn, { backgroundColor: colors.background.card }]}
@@ -295,7 +297,6 @@ function ProfileScreenContent() {
           {username ? (
             <Text style={[styles.heroUsername, { color: colors.text.tertiary }]}>@{username}</Text>
           ) : null}
-          {tier !== 'free' && <Badge variant={tier} style={styles.heroBadge} />}
         </View>
       </View>
 
@@ -635,7 +636,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     marginBottom: Spacing['2'],
   },
-  heroBadge: { marginTop: Spacing['1'], alignSelf: 'flex-start' },
 
   statsRow: {
     flex: 1,

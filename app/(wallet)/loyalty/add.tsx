@@ -25,6 +25,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 import { requireOnline } from '@/services/offline';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 type ProgramType = LoyaltyProgram['programType'];
 
@@ -192,6 +193,7 @@ export default function AddLoyaltyScreen() {
         onBack={handleBack}
       />
 
+      <KeyboardLift>
       <ScrollView
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view — padding the whole screen instead left fields low on the
@@ -354,6 +356,7 @@ export default function AddLoyaltyScreen() {
           style={styles.submitButton}
         />
       </ScrollView>
+      </KeyboardLift>
     </View>
   );
 }

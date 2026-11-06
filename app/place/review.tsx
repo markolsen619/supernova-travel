@@ -12,6 +12,7 @@ import { MAX_REVIEW_PHOTOS, MAX_REVIEW_TEXT, reviewProblem } from '@/utils/place
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 /**
  * Write or edit your review of a place: stars, a few words, up to 6 photos
@@ -114,6 +115,7 @@ export default function PlaceReviewScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
+      <KeyboardLift>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing['3'] }]}
         keyboardDismissMode="on-drag"
@@ -178,6 +180,7 @@ export default function PlaceReviewScreen() {
         {error && <Text style={[styles.error, { color: colors.semantic.error }]}>{error}</Text>}
         <Text style={[styles.hint, { color: colors.text.tertiary }]}>Anyone on Supernova can see your review, your name and your photos.</Text>
       </ScrollView>
+      </KeyboardLift>
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing['4'], borderColor: colors.background.cardBorder }]}>
         <Button label={mine ? 'Save changes' : 'Post review'} onPress={handleSave} loading={saving} haptic="medium" />
         {mine && (
