@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, CalendarBlank, DotsThree, EyeSlash, Export, Ticket } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, CalendarBlank, DotsThree, EyeSlash, Export, Ticket, Heart } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -83,6 +83,9 @@ import { isOnline, requireOnline, useIsOnline } from '@/services/offline';
 import { CalendarSheet } from '@/components/calendar/CalendarSheet';
 import { Image as CachedImage } from 'expo-image';
 import { MakeItYours } from '@/components/trip/MakeItYours';
+import { useWishlist } from '@/hooks/useWishlist';
+import { TripWishlistSheet } from '@/components/wishlist/TripWishlistSheet';
+import { toTripForMatch, wishMatches } from '@/utils/wishlist';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -392,6 +395,13 @@ export default function TripDetailScreen() {
 
   const isOwner = !!trip && !!currentUserUid && trip.authorUid === currentUserUid;
   const isCollaborator = !!trip && !!currentUserUid && trip.collaborators.includes(currentUserUid);
+  // Your saved TikTok places near this trip (spec 2026-11-06): members only, and only ever your own wish list.
+  const { saves: wishSaves } = useWishlist();
+  const [wishlistVisible, setWishlistVisible] = useState(false);
+  const tripWishMatches = useMemo(
+    () => (trip && (isOwner || isCollaborator) ? wishMatches(toTripForMatch(trip), wishSaves, toCalendarDate(new Date())) : []),
+    [trip, isOwner, isCollaborator, wishSaves],
+  );
   // Your own wallet bookings linked to this trip — never anyone else's. Only
   // fetched when you're on the trip, the only trips a booking can link to;
   // anyone else opening it would pay two queries for nothing.
@@ -1523,6 +1533,21 @@ export default function TripDetailScreen() {
           </TouchableOpacity>
           )}
 
+          {tripWishMatches.length > 0 && (
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setWishlistVisible(true);
+            }}
+            style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            accessibilityLabel={`Your wish list: ${tripWishMatches.length} saved places near this trip`}
+          >
+            <Heart size={13} color={colors.brand.pink} weight="duotone" />
+            <Text style={[styles.chipText, { color: colors.text.primary }]}>{`Wish list · ${tripWishMatches.length}`}</Text>
+          </TouchableOpacity>
+          )}
+
           {/* Calendar (spec 2026-10-19): your trips in your phone's calendar, kept up to date. */}
           {(isOwner || isCollaborator) && (
           <TouchableOpacity
@@ -1778,6 +1803,7 @@ export default function TripDetailScreen() {
 
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
+      <TripWishlistSheet visible={wishlistVisible} tripId={trip.id} matches={tripWishMatches} onClose={() => setWishlistVisible(false)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
       <CalendarSheet visible={calendarVisible} onClose={() => setCalendarVisible(false)} />
       <TripMembersSheet
