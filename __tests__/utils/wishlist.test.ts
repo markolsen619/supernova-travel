@@ -1,7 +1,7 @@
 import { tiktokUrlFromShare, wishMatches, fitsTrip, kindToActivityType, wishlistByCity, wishlistDoc, type WishSave, type TripForMatch } from '@/utils/wishlist';
 
 const place = (id: string, name: string, lat: number | null, lng: number | null, city = 'Tokyo') => ({ id, name, kind: 'restaurant' as const, city, countryCode: 'JP', lat, lng });
-const save = (videoId: string, places: ReturnType<typeof place>[], city: string | null = 'Tokyo', savedAtMs = 1): WishSave => ({
+const save = (videoId: string, places: WishSave['places'], city: string | null = 'Tokyo', savedAtMs = 1): WishSave => ({
   videoId, platform: 'tiktok', postUrl: `https://www.tiktok.com/@a/video/${videoId}`, author: 'A', authorHandle: 'a', caption: '', city, country: 'Japan', cityLat: 35.68, cityLng: 139.76, savedAtMs, places,
 });
 const tokyo: TripForMatch = { id: 't', title: 'Tokyo trip', start: '2026-12-01', end: '2026-12-07', cities: [{ name: 'Tokyo', lat: 35.68, lng: 139.76 }] };
@@ -81,4 +81,32 @@ it('wishActivity: a normal stop of the right type, on the map, with a search tex
   expect(a).toMatchObject({ type: 'restaurant', title: 'Gion Kappa', titleSource: 'user', placeName: 'Gion Kappa', lat: 35.0, lng: 135.7, searchQuery: 'Gion Kappa, Kyoto', placeId: null, startTime: null, visited: false });
   expect(Object.values(a).some((v) => v === undefined)).toBe(false);
   expect(wishActivity({ id: 'q', name: 'Spot', kind: 'sight', city: null, countryCode: null, lat: null, lng: null }, save('w', [], null)).searchQuery).toBe('Spot');
+});
+
+import { afterLimitPaywall, mergeReshare, singleFlight } from '@/utils/wishlist';
+describe('final review fixes', () => {
+  it('afterLimitPaywall: retry only once the account is paid; a cancel stops (it looped forever)', () => {
+    expect(afterLimitPaywall('pro')).toBe('retry');
+    expect(afterLimitPaywall('business')).toBe('retry');
+    expect(afterLimitPaywall('free')).toBe('stop');
+    expect(afterLimitPaywall(null)).toBe('stop');
+  });
+  it('mergeReshare keeps "on a trip" marks when the same video is saved again', () => {
+    const before = save('v', [{ ...place('p1', 'Ichiran', 35.6, 139.7), addedTo: { tripId: 't', dayId: 'd', activityId: 'a' } }]);
+    const again = save('v', [place('p1', 'Ichiran', 35.6, 139.7), place('p2', 'New spot', 35.6, 139.7)]);
+    const m = mergeReshare(before, again);
+    expect(m.places.find((p) => p.name === 'Ichiran')?.addedTo).toEqual({ tripId: 't', dayId: 'd', activityId: 'a' });
+    expect(m.places.find((p) => p.name === 'New spot')).not.toHaveProperty('addedTo');
+    expect(mergeReshare(null, again)).toBe(again);
+  });
+  it('singleFlight ignores a second call while the first is running (a double tap added two stops)', async () => {
+    let calls = 0;
+    let release!: () => void;
+    const f = singleFlight(() => { calls++; return new Promise<void>((r) => { release = r; }); });
+    const a = f(); f(); f();
+    expect(calls).toBe(1);
+    release(); await a;
+    f();
+    expect(calls).toBe(2);
+  });
 });

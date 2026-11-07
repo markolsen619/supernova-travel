@@ -5,7 +5,7 @@ import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc
 import { db } from '@/services/firebase';
 import { requireOnline } from '@/services/offline';
 import { useAuthStore } from '@/stores/useAuthStore';
-import type { WishPlace, WishSave } from '@/utils/wishlist';
+import { mergeReshare, type WishPlace, type WishSave } from '@/utils/wishlist';
 
 export function useWishlist() {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
@@ -30,13 +30,15 @@ export function useWishlist() {
   const save = useCallback(async (w: Omit<WishSave, 'savedAtMs'>) => {
     if (!uid || !requireOnline()) throw new Error('offline');
     // Exactly the keys the rules allow (the server's answer also carries coverUrl, which is never stored).
-    const { platform, videoId, postUrl, author, authorHandle, caption, city, country, cityLat, cityLng, places } = w;
+    // A video saved again keeps its places' "on a trip" marks (final review).
+    const merged = mergeReshare(saves.find((s) => s.videoId === w.videoId) ?? null, w);
+    const { platform, videoId, postUrl, author, authorHandle, caption, city, country, cityLat, cityLng, places } = merged;
     await setDoc(doc(db, 'users', uid, 'wishlist', videoId), {
       platform, videoId, postUrl, author, authorHandle, caption: caption.slice(0, 300), city, country, cityLat, cityLng,
       places: places.slice(0, 10), savedAt: serverTimestamp(),
     });
     await refresh();
-  }, [uid, refresh]);
+  }, [uid, saves, refresh]);
 
   const remove = useCallback(async (videoId: string) => {
     if (!uid || !requireOnline()) return;

@@ -112,3 +112,9 @@ export function pickByName(name: string, features: { name: string; lat: number; 
     .sort((a, b) => b.hits - a.hits);
   return scored[0] ? { lat: scored[0].f.lat, lng: scored[0].f.lng } : null;
 }
+
+/**
+ * Only a real read goes in the shared cache (final review): with TikTok unreachable, rate-limited or the AI failing,
+ * the empty answer would have told everyone who shared that video "No places named" for 30 days.
+ */
+export const shouldCachePost = (r: { oembedStatus: number; aiFailed: boolean }) => r.oembedStatus === 200 && !r.aiFailed;

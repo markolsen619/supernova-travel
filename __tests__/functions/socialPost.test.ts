@@ -80,3 +80,14 @@ describe('pickByName', () => {
     expect(pickByName('Gion Kappa', [{ name: 'Tokyo Tower', lat: 35.65, lng: 139.74 }], center)).toBeNull();
   });
 });
+
+import { shouldCachePost } from '../../functions/src/socialPost';
+describe('shouldCachePost (final review: a failed read was cached for 30 days, for everyone)', () => {
+  it('caches only a real read: oEmbed answered and the AI did not fail', () => {
+    expect(shouldCachePost({ oembedStatus: 200, aiFailed: false })).toBe(true);
+    expect(shouldCachePost({ oembedStatus: 0, aiFailed: false })).toBe(false);
+    expect(shouldCachePost({ oembedStatus: 429, aiFailed: false })).toBe(false);
+    expect(shouldCachePost({ oembedStatus: 503, aiFailed: false })).toBe(false);
+    expect(shouldCachePost({ oembedStatus: 200, aiFailed: true })).toBe(false);
+  });
+});

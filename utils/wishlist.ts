@@ -114,3 +114,27 @@ export function wishActivity(place: WishPlace, save: Pick<WishSave, 'city'>) {
     mediaUrls: [] as string[], visited: false, visitedAt: null, groundingFailedAt: null,
   };
 }
+
+/**
+ * After the limit paywall closes: retry only once the account is paid (final review — `useLimitPaywall` calls back on a
+ * cancel too, and the retry hit the limit again and reopened the paywall forever).
+ */
+export const afterLimitPaywall = (tier: string | null): 'retry' | 'stop' => (tier === 'pro' || tier === 'business' ? 'retry' : 'stop');
+
+/** Saving a video already on the list keeps each place's "on a trip" mark (final review: a re-share wiped them). */
+export function mergeReshare<T extends Pick<WishSave, 'places'>>(existing: Pick<WishSave, 'places'> | null, incoming: T): T {
+  if (!existing) return incoming;
+  const fold = (s: string) => s.trim().toLowerCase();
+  const marks = new Map(existing.places.filter((p) => p.addedTo).map((p) => [fold(p.name), p.addedTo!]));
+  return { ...incoming, places: incoming.places.map((p) => (marks.has(fold(p.name)) ? { ...p, addedTo: marks.get(fold(p.name))! } : p)) };
+}
+
+/** A call made while the previous one is still running is ignored (final review: a double tap added two stops). */
+export function singleFlight<A extends unknown[]>(fn: (...args: A) => Promise<void>): (...args: A) => Promise<void> {
+  let running: Promise<void> | null = null;
+  return (...args: A) => {
+    if (running) return running;
+    running = fn(...args).finally(() => { running = null; });
+    return running;
+  };
+}

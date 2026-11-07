@@ -22,7 +22,7 @@ import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
 import { readSocialPost } from '@/services/socialPost';
 import { searchPlaceInBounds } from '@/services/places/mapboxSearch';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { fitsTrip, toTripForMatch, wishlistDoc, type WishPlace, type WishSave } from '@/utils/wishlist';
+import { afterLimitPaywall, fitsTrip, toTripForMatch, wishlistDoc, type WishPlace, type WishSave } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -54,6 +54,7 @@ export default function SaveFromSocialScreen() {
   const [query, setQuery] = useState('');
   const [notFound, setNotFound] = useState(false);
   const started = useRef(false);
+  const consentAsked = useRef(false);
 
   const today = toCalendarDate(new Date());
   const tripsForMatch = useMemo(() => trips.map((t) => toTripForMatch(t)), [trips]);
@@ -68,7 +69,12 @@ export default function SaveFromSocialScreen() {
     } catch (e) {
       const err = e as { code?: string; details?: { reason?: unknown } };
       if (err.code?.endsWith('resource-exhausted') && err.details?.reason === 'monthly') { openPaywall(); return; }
-      if (err.code?.endsWith('failed-precondition')) { requireConsent('agent', run, () => router.back()); return; }
+      // Ask once: with a stale local consent the gate runs `run` at once and this looped (final review).
+      if (err.code?.endsWith('failed-precondition')) {
+        if (!consentAsked.current) { consentAsked.current = true; requireConsent('agent', run, () => router.back()); return; }
+        setError('Allow AI data sharing in Settings → Privacy to save TikTok posts.');
+        return;
+      }
       setError(errorCopy(err.code ?? '', err.details?.reason));
     } finally {
       setLoading(false);
@@ -76,7 +82,14 @@ export default function SaveFromSocialScreen() {
     // openPaywall is stable for the screen's life; declared below to share `run` as its return.
   }, [url, requireConsent]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openPaywall = useLimitPaywall(run);
+  // Retry only once the account is paid; a cancel shows why it stopped (it reopened the paywall forever before).
+  const onPaywallClosed = useCallback(() => {
+    const { serverTier, tier } = useAuthStore.getState();
+    if (afterLimitPaywall(serverTier ?? tier) === 'retry') { run(); return; }
+    setError('Free accounts save 20 videos a month. Pro saves as many as you like.');
+    setLoading(false);
+  }, [run]);
+  const openPaywall = useLimitPaywall(onPaywallClosed);
 
   useEffect(() => {
     if (started.current) return;

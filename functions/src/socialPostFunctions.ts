@@ -11,7 +11,7 @@ import { isPaidTier } from './flightPolling';
 import { generateJson } from './agentModel';
 import {
   PLACES_SCHEMA, PLACES_SYSTEM, cleanPlaces, isShortTikTok, monthKey, parsePlacesAnswer, pickByName, placesPrompt,
-  tiktokVideoId, trimCaption, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
+  shouldCachePost, tiktokVideoId, trimCaption, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
 } from './socialPost';
 
 const db = () => admin.firestore();
@@ -124,6 +124,7 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
   const author = String(meta.author_name ?? '');
   const authorHandle = String(meta.author_unique_id ?? '');
   let answer: PlacesAnswer = { city: null, country: null, places: [] };
+  let aiFailed = false;
   const apiKey = process.env.GEMINI_API_KEY;
   if (apiKey && caption) {
     try {
@@ -135,10 +136,11 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
       console.log('readSocialPost', { uid, videoId, places: answer.places.length, inputTokens: result.inputTokens, outputTokens: result.outputTokens, latencyMs: result.latencyMs });
     } catch (err) {
       console.warn('readSocialPost: AI failed', { videoId, err: String(err).slice(0, 160) });
+      aiFailed = true;
     }
   }
   const placed = await placeAll(answer);
   const out: Cached = { caption, author, authorHandle, city: answer.city, country: answer.country, cityLat: placed.cityLat, cityLng: placed.cityLng, places: placed.places, at: now };
-  await cacheRef.set(out).catch(() => {});
+  if (shouldCachePost({ oembedStatus: oe.status, aiFailed: aiFailed || (!apiKey && !!caption) })) await cacheRef.set(out).catch(() => {});
   return { videoId, postUrl: canonical, coverUrl, caption, author, authorHandle, city: answer.city, country: answer.country, cityLat: placed.cityLat, cityLng: placed.cityLng, places: placed.places };
 });

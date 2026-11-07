@@ -4,7 +4,7 @@
  * `trip` given (the trip chip) skips straight to the day.
  */
 import { useCallback, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +16,7 @@ import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { useWishlist } from '@/hooks/useWishlist';
 import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { fitsTrip, toTripForMatch, wishActivity, type WishPlace, type WishSave } from '@/utils/wishlist';
+import { fitsTrip, singleFlight, toTripForMatch, wishActivity, type WishPlace, type WishSave } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -45,7 +45,8 @@ export function AddWishToTripSheet({ target, tripId: fixedTripId, onClose }: {
 
   const close = useCallback(() => { setChosen(null); setError(null); onClose(); }, [onClose]);
   const pickTrip = useCallback((id: string) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setChosen(id); }, []);
-  const pickDay = useCallback(async (dayId: string) => {
+  // One add at a time (a double tap added two stops), and a failure says so — the trip list holding `error` is hidden here.
+  const pickDayOnce = useMemo(() => singleFlight(async (dayId: string) => {
     if (!target || !tripId) return;
     try {
       const activityId = await addActivity(tripId, dayId, { ...wishActivity(target.place, target.save), createdAt: Timestamp.now() });
@@ -54,8 +55,10 @@ export function AddWishToTripSheet({ target, tripId: fixedTripId, onClose }: {
       close();
     } catch {
       setError("Couldn't add it. Try again.");
+      Alert.alert("Couldn't add it", 'Check your connection and try again.');
     }
-  }, [target, tripId, addActivity, markAdded, close]);
+  }), [target, tripId, addActivity, markAdded, close]);
+  const pickDay = useCallback((dayId: string) => { pickDayOnce(dayId); }, [pickDayOnce]);
 
   const choosingDay = !!target && !!tripId && !!trip;
   return (
