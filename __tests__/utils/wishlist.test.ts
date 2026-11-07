@@ -73,3 +73,12 @@ it('toTripForMatch: calendar dates and every city with a position', () => {
     { name: 'Tokyo', lat: 35.68, lng: 139.76 }, { name: 'Kyoto', lat: 35.01, lng: 135.77 }, { name: 'Somewhere', lat: null, lng: null },
   ] });
 });
+
+import { wishActivity } from '@/utils/wishlist';
+it('wishActivity: a normal stop of the right type, on the map, with a search text the grounding pass can improve', () => {
+  const s = save('v', [], 'Tokyo');
+  const a = wishActivity({ id: 'p', name: 'Gion Kappa', kind: 'bar', city: 'Kyoto', countryCode: 'JP', lat: 35.0, lng: 135.7 }, s);
+  expect(a).toMatchObject({ type: 'restaurant', title: 'Gion Kappa', titleSource: 'user', placeName: 'Gion Kappa', lat: 35.0, lng: 135.7, searchQuery: 'Gion Kappa, Kyoto', placeId: null, startTime: null, visited: false });
+  expect(Object.values(a).some((v) => v === undefined)).toBe(false);
+  expect(wishActivity({ id: 'q', name: 'Spot', kind: 'sight', city: null, countryCode: null, lat: null, lng: null }, save('w', [], null)).searchQuery).toBe('Spot');
+});

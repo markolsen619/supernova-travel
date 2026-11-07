@@ -100,3 +100,17 @@ export function toTripForMatch(t: {
     cities: [t.destination, ...(t.additionalDestinations ?? [])].map((c) => ({ name: c.name, lat: c.lat ?? null, lng: c.lng ?? null })),
   };
 }
+
+/**
+ * A saved place as a trip stop (without createdAt — the caller adds its timestamp): the type from its kind, the
+ * place's own position, and "name, city" so the background grounding pass can place it better. No undefined values.
+ */
+export function wishActivity(place: WishPlace, save: Pick<WishSave, 'city'>) {
+  const city = place.city ?? save.city;
+  return {
+    type: kindToActivityType(place.kind), title: place.name, titleSource: 'user' as const, placeId: null, placeName: place.name,
+    address: null, lat: place.lat, lng: place.lng, searchQuery: city ? `${place.name}, ${city}` : place.name,
+    startTime: null, endTime: null, durationMinutes: null, notes: '', bookingRef: null, cost: null, currency: null,
+    mediaUrls: [] as string[], visited: false, visitedAt: null, groundingFailedAt: null,
+  };
+}

@@ -52,11 +52,14 @@ import { beenThereSummary } from '@/utils/beenThere';
 import { pastTripsSupported } from '@/utils/pastTrip';
 import { hasTripThisYear } from '@/utils/yearInTravel';
 import { profileTripOrder } from '@/utils/homeState';
+import { WishlistList } from '@/components/wishlist/WishlistList';
 
 const canAddPast = pastTripsSupported(Platform.OS);
 
 type ProfileTab = 'Trips' | 'Posts' | 'Saved';
 type TripFilter = 'Upcoming' | 'Current' | 'Past';
+/** The Trips tab's views: the three trip lists and the private Wish list (spec 2026-11-06). */
+type TripsView = TripFilter | 'Wish list';
 
 const TRIP_STATUS_MAP: Record<TripFilter, TripStatus> = {
   Upcoming: 'planning',
@@ -118,7 +121,7 @@ function ProfileScreenContent() {
   const postCell = galleryCellWidth(width, galleryColumns);
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('Trips');
-  const [tripFilter, setTripFilter] = useState<TripFilter>('Upcoming');
+  const [tripFilter, setTripFilter] = useState<TripsView>('Upcoming');
   const [editSheetVisible, setEditSheetVisible] = useState(false);
 
   const uid = user?.uid ?? null;
@@ -173,8 +176,9 @@ function ProfileScreenContent() {
       cancelled = true;
     };
   }, [allTrips, resolveCover, uid]);
-  const filteredTrips = profileTripOrder(tripFilter, allTrips.filter(
-    (t) => displayStatus({ status: t.status, startDate: toDateOrNull(t.startDate), endDate: toDateOrNull(t.endDate) }, new Date()) === TRIP_STATUS_MAP[tripFilter],
+  const listFilter: TripFilter = tripFilter === 'Wish list' ? 'Upcoming' : tripFilter;
+  const filteredTrips = tripFilter === 'Wish list' ? [] : profileTripOrder(listFilter, allTrips.filter(
+    (t) => displayStatus({ status: t.status, startDate: toDateOrNull(t.startDate), endDate: toDateOrNull(t.endDate) }, new Date()) === TRIP_STATUS_MAP[listFilter],
   ));
 
   const { data: posts = [], isLoading: postsLoading } = useQuery({
@@ -202,7 +206,7 @@ function ProfileScreenContent() {
     setActiveTab(tab);
   }, []);
 
-  const handleFilterPress = useCallback((filter: TripFilter) => {
+  const handleFilterPress = useCallback((filter: TripsView) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTripFilter(filter);
   }, []);
@@ -337,7 +341,7 @@ function ProfileScreenContent() {
       {/* Trips sub-filter */}
       {activeTab === 'Trips' && (
         <View style={styles.filterRow}>
-          {(['Upcoming', 'Current', 'Past'] as TripFilter[]).map((f) => (
+          {(['Upcoming', 'Current', 'Past', 'Wish list'] as TripsView[]).map((f) => (
             <TouchableOpacity
               key={f}
               onPress={() => handleFilterPress(f)}
@@ -349,7 +353,7 @@ function ProfileScreenContent() {
                 },
               ]}
               activeOpacity={0.75}
-              accessibilityLabel={`${f} trips`}
+              accessibilityLabel={f === 'Wish list' ? 'Your wish list' : `${f} trips`}
             >
               <Text
                 style={[
@@ -402,6 +406,15 @@ function ProfileScreenContent() {
       );
     }
 
+    if (tripFilter === 'Wish list') {
+      return (
+        <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
+          <WishlistList header={headerComponent} />
+          <EditProfileSheet visible={editSheetVisible} onClose={closeEditSheet} />
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
         <FlashList
@@ -415,8 +428,8 @@ function ProfileScreenContent() {
           ListEmptyComponent={
             <EmptyState
               icon={MapTrifold}
-              title={EMPTY_COPY[tripFilter].title}
-              description={EMPTY_COPY[tripFilter].description}
+              title={EMPTY_COPY[listFilter].title}
+              description={EMPTY_COPY[listFilter].description}
               actionLabel={tripFilter === 'Past' && canAddPast ? 'Add a trip' : 'Create a trip'}
               onAction={() => router.push(tripFilter === 'Past' && canAddPast ? '/trip/past' : '/trip/new')}
               actionHaptic="light"
