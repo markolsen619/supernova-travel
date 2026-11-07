@@ -21,8 +21,7 @@ stop. Built to cost a fraction of a cent per save.
 
 ## 1. Saving a post
 
-**Share target.** A share-intent library (`expo-share-intent` or equivalent, version matching Expo SDK 54 — chosen in
-the plan) registers an iOS share extension that opens the app and an Android `SEND text/plain` intent filter. The
+**Share target.** `expo-share-intent` (the release that supports Expo SDK 54; the plan pins it) registers an iOS share extension that opens the app and an Android `SEND text/plain` intent filter. The
 app receives the shared text/URL; a TikTok link (`tiktok.com/@…/video/{id}`, `vm.tiktok.com/…`, `vt.tiktok.com/…`,
 `www.tiktok.com/t/…`) opens the **Save to wish list** sheet. Anything else: "Supernova can save TikTok posts for now".
 A share that arrives signed out, before auth settles or offline waits in AsyncStorage (`pendingShare`) and opens the
@@ -70,8 +69,8 @@ the post is still saveable with its city, and Add a place by name is right there
 ```
 
 No images are stored (TikTok's cover URLs expire, and copies aren't allowed); a saved post's cover is fetched fresh via
-oEmbed when opened (callable `socialPostCover({ videoId })` — free, cached 1 h server-side — or the app calls oEmbed
-directly, chosen in the plan).
+oEmbed when opened — the app calls TikTok's public oEmbed directly (free, no key, nothing about the user sent beyond the
+public post URL), cached in memory for the session.
 
 ## 2. Where saved places show up
 
