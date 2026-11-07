@@ -130,6 +130,16 @@ service cloud.firestore {
         allow write: if false;
       }
       // Live Activity push tokens (day-of assistant): the owner's phone writes, the server reads.
+      // Social wish list (spec 2026-11-06): private to its owner; the app writes it after the traveler confirms.
+      match /wishlist/{videoId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['platform', 'videoId', 'postUrl', 'author', 'authorHandle', 'caption', 'city', 'country', 'cityLat', 'cityLng', 'savedAt', 'places'])
+          && request.resource.data.platform == 'tiktok' && request.resource.data.videoId == videoId
+          && request.resource.data.caption is string && request.resource.data.caption.size() <= 300
+          && request.resource.data.places is list && request.resource.data.places.size() <= 10;
+      }
+
       match /liveActivities/{passId} {
         allow read, delete: if isOwner(uid);
         allow create, update: if isOwner(uid) && request.resource.data.keys().hasOnly(['token', 'updatedAtMs'])
