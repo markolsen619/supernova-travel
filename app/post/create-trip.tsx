@@ -27,6 +27,7 @@ import { tripPlaceLabel } from '@/utils/tripRegion';
 import { requireOnline } from '@/services/offline';
 import { AFTER_POST_ROUTE } from '@/utils/postTile';
 import { Image as CachedImage } from 'expo-image';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 function formatDateRange(trip: Trip): string | null {
   if (!trip.startDate) return null;
@@ -154,6 +155,7 @@ export default function CreateTripPostScreen() {
           />
         </View>
       ) : (
+        <KeyboardLift>
         <FlashList
           // iOS insets the content by the keyboard and scrolls the focused field
           // into view. This screen is a page-sheet modal, where KeyboardAvoidingView
@@ -214,6 +216,7 @@ export default function CreateTripPostScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         />
+        </KeyboardLift>
       )}
     </View>
   );

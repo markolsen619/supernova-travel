@@ -24,6 +24,7 @@ import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { KenBurnsImage } from '@/components/onboarding/KenBurnsImage';
 import { catalogFor, generatingMessages, messageIndexAt, progressAt, waitCardAt, waitCards } from '@/utils/generatingStory';
 import { parseTravelStyles, parseTripVisibility } from '@/utils/aiRouteParams';
+import { openCreatedTrip } from '@/services/openCreatedTrip';
 
 // ─── Destination display ──────────────────────────────────────────────────────
 
@@ -171,7 +172,7 @@ export default function AiGeneratingScreen() {
         // A finish worth the wait: the ring fills, the star bursts, then the trip.
         setFinishing(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setTimeout(() => router.replace(`/trip/${tripId}`), 900);
+        setTimeout(() => openCreatedTrip(tripId), 900);
       })
       .catch(() => {
         // Errors are handled by the mutation's onError (resource-exhausted → hosted paywall)

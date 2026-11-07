@@ -51,3 +51,16 @@ export function homeEyebrow(span: { start: string | null; end: string | null }, 
   const right = m1 === m2 && y1 === y2 ? `${d2}` : `${MON[m2 - 1]} ${d2}`;
   return `${MON[m1 - 1]} ${d1} – ${right}${year} · ${len}`;
 }
+
+/**
+ * Profile's trip list order (owner, 2026-11-05: "like our home page"): Upcoming soonest first and undated last,
+ * Current and Past most recent first. Pure; never sorts the input in place.
+ */
+export function profileTripOrder<T extends SpanTrip>(filter: 'Upcoming' | 'Current' | 'Past', trips: T[]): T[] {
+  const spans = trips.map((t) => ({ t, ...tripSpan(t) }));
+  if (filter === 'Upcoming') {
+    return spans.sort((a, b) => (a.start && b.start ? a.start.localeCompare(b.start) : a.start ? -1 : b.start ? 1 : 0)).map((s) => s.t);
+  }
+  const key = (s: { start: string | null; end: string | null }) => (filter === 'Past' ? s.end : s.start) ?? '';
+  return spans.sort((a, b) => key(b).localeCompare(key(a))).map((s) => s.t);
+}

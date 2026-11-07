@@ -110,3 +110,10 @@ export function formatRangeLabel(start: Date, end: Date): string {
   }
   return `${monthDay(start)} – ${end.getDate()} · ${count}`;
 }
+
+/** A range of exactly `days` calendar days from the tapped day (copying a trip keeps its length). */
+export function selectFixedSpan(day: Date, days: number): DateRange {
+  const start = startOfDay(day);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + Math.max(1, days) - 1);
+  return { start, end };
+}

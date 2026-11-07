@@ -21,6 +21,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { requireOnline } from '@/services/offline';
 import { AFTER_POST_ROUTE } from '@/utils/postTile';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 const MAX_PHOTOS = 10;
 
@@ -101,6 +102,7 @@ export default function CreatePhotoScreen() {
         </TouchableOpacity>
       </View>
 
+      <KeyboardLift>
       <ScrollView
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view — padding the whole screen instead left fields low on the
@@ -207,6 +209,7 @@ export default function CreatePhotoScreen() {
           />
         </View>
       </ScrollView>
+      </KeyboardLift>
     </View>
   );
 }

@@ -29,6 +29,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 import { requireOnline } from '@/services/offline';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 const RESERVATION_TYPES: { type: ReservationType; label: string }[] = [
   { type: 'hotel', label: 'Hotel' },
@@ -255,6 +256,7 @@ export default function AddReservationScreen() {
         onBack={handleBack}
       />
 
+      <KeyboardLift>
       <ScrollView
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view — padding the whole screen instead left fields low on the
@@ -427,6 +429,7 @@ export default function AddReservationScreen() {
           style={styles.submitButton}
         />
       </ScrollView>
+      </KeyboardLift>
     </View>
   );
 }

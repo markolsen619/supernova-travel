@@ -22,18 +22,7 @@ import { Button } from '@/components/ui/Button';
 import { SPRING } from '@/constants/motion';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
-import {
-  dayCountLabel,
-  formatRangeLabel,
-  isDaySelectable,
-  isSameDay,
-  isWithinRange,
-  monthGrid,
-  selectDay,
-  startOfDay,
-  tripDayCount,
-  type DateRange,
-} from '@/utils/dateRange';
+import { dayCountLabel, formatRangeLabel, isDaySelectable, isSameDay, isWithinRange, monthGrid, selectDay, startOfDay, tripDayCount, type DateRange, selectFixedSpan } from '@/utils/dateRange';
 
 export interface DateRangeSheetProps {
   visible: boolean;
@@ -45,6 +34,8 @@ export interface DateRangeSheetProps {
   onClear?: () => void;
   minDate?: Date | null;
   maxDays?: number | null;
+  /** A fixed length: one tap picks the start and the range fills these many days (copying a trip). */
+  fixedDays?: number | null;
 }
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -63,6 +54,7 @@ export function DateRangeSheet({
   onClear,
   minDate,
   maxDays,
+  fixedDays,
 }: DateRangeSheetProps) {
   const { colors } = useTheme();
   const { isLarge } = useLayout();
@@ -108,8 +100,8 @@ export function DateRangeSheet({
 
   const handleDayPress = useCallback((day: Date) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setRange((r) => selectDay(r, day));
-  }, []);
+    setRange((r) => (fixedDays ? selectFixedSpan(day, fixedDays) : selectDay(r, day)));
+  }, [fixedDays]);
 
   const handleConfirm = useCallback(() => {
     if (range.start && range.end) onConfirm(range.start, range.end);

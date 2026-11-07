@@ -30,6 +30,7 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { Expense } from '@/types';
 import { requireOnline } from '@/services/offline';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 function formatMoney(amount: number, currency: string): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
@@ -180,6 +181,7 @@ export default function BudgetScreen() {
         </TouchableOpacity>
       </View>
 
+      <KeyboardLift>
       <FlashList
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view. This screen is a page-sheet modal, where KeyboardAvoidingView
@@ -278,6 +280,7 @@ export default function BudgetScreen() {
           ) : null
         }
       />
+      </KeyboardLift>
 
       {/* Once there are no expenses yet, the EmptyState above already
           offers "Add expense" — a second identical button here would just

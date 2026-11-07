@@ -21,6 +21,7 @@ import { tripDayCount } from '@/utils/dateRange';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 /**
  * The quota line under the generate button.
@@ -160,6 +161,7 @@ export default function AiGenerateScreen() {
       <View
         style={styles.flex}
       >
+        <KeyboardLift>
         <NestableScrollContainer
           // iOS insets the content by the keyboard and scrolls the focused field
           // into view — padding the whole screen instead left fields low on the
@@ -207,6 +209,7 @@ export default function AiGenerateScreen() {
             onPlaceSelect={handlePlaceSelect}
           />
         </NestableScrollContainer>
+        </KeyboardLift>
       </View>
 
       {/* Footer CTA — the hero gradient moment of this flow. */}

@@ -28,6 +28,7 @@ import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { BoardingPass } from '@/types';
 import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 import { requireOnline } from '@/services/offline';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 interface FormState {
   airline: string;
@@ -234,6 +235,7 @@ export default function AddBoardingPassScreen() {
         onBack={handleBack}
       />
 
+      <KeyboardLift>
       <ScrollView
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view — padding the whole screen instead left fields low on the
@@ -392,6 +394,7 @@ export default function AddBoardingPassScreen() {
           style={styles.submitButton}
         />
       </ScrollView>
+      </KeyboardLift>
     </View>
   );
 }

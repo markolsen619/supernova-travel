@@ -15,6 +15,7 @@ import type { PastTripDraft } from '@/utils/pastTrip';
 import type { SavedPastTrip } from '@/services/pastTrip';
 import { finishPrimary, unfinishedPhotos, type PastTripDocs } from '@/utils/pastTripDocs';
 import { ScreenRecorder } from '@/modules/screen-recorder';
+import { openCreatedTrip } from '@/services/openCreatedTrip';
 
 const recorderAvailable = (() => { try { return !!ScreenRecorder?.isAvailable(); } catch { return false; } })();
 
@@ -52,15 +53,15 @@ export function PastTripFinish({ draft, saved, docs, onRetry }: { draft: PastTri
       <View style={styles.actions}>
         {primary === 'video' ? (
           <>
-            <Button label="Make the video" onPress={() => open(`/trip/${saved.tripId}?video=1`)} fullWidth />
+            <Button label="Make the video" onPress={() => openCreatedTrip(saved.tripId, '?video=1')} fullWidth />
             <Button label="Post to the feed" variant="secondary" onPress={() => open('/post/create-photo')} fullWidth />
-            <Pressable onPress={() => open(`/trip/${saved.tripId}`)} style={styles.link} accessibilityRole="link" accessibilityLabel="View trip">
+            <Pressable onPress={() => openCreatedTrip(saved.tripId)} style={styles.link} accessibilityRole="link" accessibilityLabel="View trip">
               <Text style={[styles.linkText, { color: colors.text.secondary }]}>View trip</Text>
             </Pressable>
           </>
         ) : (
           <>
-            <Button label="View trip" onPress={() => open(`/trip/${saved.tripId}`)} fullWidth />
+            <Button label="View trip" onPress={() => openCreatedTrip(saved.tripId)} fullWidth />
             <Button label="Post to the feed" variant="secondary" onPress={() => open('/post/create-photo')} fullWidth />
           </>
         )}

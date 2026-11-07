@@ -82,6 +82,7 @@ import { Badge } from '@/components/ui/Badge';
 import { isOnline, requireOnline, useIsOnline } from '@/services/offline';
 import { CalendarSheet } from '@/components/calendar/CalendarSheet';
 import { Image as CachedImage } from 'expo-image';
+import { MakeItYours } from '@/components/trip/MakeItYours';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1353,6 +1354,7 @@ export default function TripDetailScreen() {
           <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{eyebrow}</Text>
           <Text style={[styles.title, { color: colors.text.primary }]}>{trip.title}</Text>
         </View>
+        <MakeItYours trip={trip} authorName={authorName} />
 
         {/* Trip members — only worth a row once someone besides the owner
             has actually accepted; an author-only stack of one isn't news. */}

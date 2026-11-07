@@ -22,6 +22,7 @@ import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { PackingItem } from '@/types';
+import { KeyboardLift } from '@/components/ui/KeyboardLift';
 
 export default function PackingListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -130,6 +131,7 @@ export default function PackingListScreen() {
         </Text>
       )}
 
+      <KeyboardLift>
       <ScrollView
         // iOS insets the content by the keyboard and scrolls the focused field
         // into view. This screen is a page-sheet modal, where KeyboardAvoidingView
@@ -232,6 +234,7 @@ export default function PackingListScreen() {
           </View>
         )}
       </ScrollView>
+      </KeyboardLift>
     </View>
   );
 }
