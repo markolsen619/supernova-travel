@@ -20,6 +20,7 @@ import { usesReadingColumn } from '@/utils/layout';
 import { useOfflinePrefetch } from '@/hooks/useOfflinePrefetch';
 import { usePendingInviteClaim } from '@/hooks/usePendingInviteClaim';
 import { useFlightLiveActivity } from '@/hooks/useFlightLiveActivity';
+import { usePendingShareOpener } from '@/hooks/useShareIntentRouting';
 
 const TABS = [
   { name: 'index',   label: 'Home'    },
@@ -134,6 +135,7 @@ export default function TabLayout() {
   // Offline trips: while online, quietly keep your trips' details on the phone.
   useOfflinePrefetch();
   usePendingInviteClaim();
+  usePendingShareOpener();
   useFlightLiveActivity();
   return (
     <Tabs
