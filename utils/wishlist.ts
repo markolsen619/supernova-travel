@@ -2,6 +2,8 @@
  * Social wish list — the app's rules (spec docs/superpowers/specs/2026-11-06-social-wishlist-design.md): finding the
  * TikTok link in shared text, matching saved places to trips by distance, grouping by city, and the saved doc. Pure.
  */
+import { tripSpan } from '@/utils/homeState';
+
 export type WishKind = 'restaurant' | 'bar' | 'cafe' | 'sight' | 'hotel' | 'activity' | 'shop' | 'other';
 export interface WishPlace {
   id: string; name: string; kind: WishKind; city: string | null; countryCode: string | null; lat: number | null; lng: number | null;
@@ -85,4 +87,16 @@ export function wishlistByCity(saves: WishSave[]): { city: string; places: { sav
 export function wishlistDoc(preview: WishSave, keepIds: string[], extra: WishPlace[]): Omit<WishSave, 'savedAtMs'> {
   const { savedAtMs: _savedAtMs, ...rest } = preview;
   return { ...rest, places: [...preview.places.filter((p) => keepIds.includes(p.id)), ...extra].slice(0, 10) };
+}
+
+/** A trip as matching needs it: calendar start/end (Home's `tripSpan`) and every city's position. */
+export function toTripForMatch(t: {
+  id: string; title: string; startDay?: string | null; startDate?: { toDate(): Date } | null; endDate?: { toDate(): Date } | null;
+  destination: { name: string; lat: number | null; lng: number | null }; additionalDestinations?: { name: string; lat: number | null; lng: number | null }[];
+}): TripForMatch {
+  const { start, end } = tripSpan(t);
+  return {
+    id: t.id, title: t.title, start, end,
+    cities: [t.destination, ...(t.additionalDestinations ?? [])].map((c) => ({ name: c.name, lat: c.lat ?? null, lng: c.lng ?? null })),
+  };
 }

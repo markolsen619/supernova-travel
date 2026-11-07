@@ -22,6 +22,11 @@ import {
   DotsThree,
   Confetti,
   Train,
+  Martini,
+  Coffee,
+  Binoculars,
+  ShoppingBag,
+  MapPin,
 } from 'phosphor-react-native';
 import type { Icon } from 'phosphor-react-native';
 import type { ActivityType, ReservationType, LoyaltyProgram, TripVisibility, ExpenseCategory } from '@/types';
@@ -104,3 +109,18 @@ export const TAB_ICONS: Record<string, PhosphorIcon> = {
   search:  MagnifyingGlass,
   profile: User,
 };
+
+/** Social wish list place types (utils/wishlist.ts `WishKind`) — the activity colours where a type maps to one. */
+export const WISH_KIND_ICONS: Record<'restaurant' | 'bar' | 'cafe' | 'sight' | 'hotel' | 'activity' | 'shop' | 'other', IconEntry> = {
+  restaurant: { Icon: ForkKnife,   color: '#f472b6' },
+  bar:        { Icon: Martini,     color: '#f472b6' },
+  cafe:       { Icon: Coffee,      color: '#f472b6' },
+  sight:      { Icon: Binoculars,  color: '#34d399' },
+  hotel:      { Icon: Buildings,   color: '#a78bfa' },
+  activity:   { Icon: Ticket,      color: '#34d399' },
+  shop:       { Icon: ShoppingBag, color: '#fbbf24' },
+  other:      { Icon: MapPin,      color: '#9A8F82' },
+};
+
+/** A wish-list kind's icon, falling back for a kind this app doesn't know (Architecture Rule 11). */
+export const wishKindIcon = (kind: string): IconEntry => WISH_KIND_ICONS[kind as keyof typeof WISH_KIND_ICONS] ?? WISH_KIND_ICONS.other;

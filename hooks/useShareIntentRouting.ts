@@ -26,7 +26,7 @@ export function usePendingShareOpener(): void {
     let live = true;
     const open = async () => {
       const url = await takePendingShare();
-      if (live && url) router.push({ pathname: '/wishlist/save' as never, params: { url } }); // cast removed in Task 6 once the route exists
+      if (live && url) router.push({ pathname: '/wishlist/save' as never, params: { url } }); // typed routes only regenerate under `expo start`
     };
     open();
     const off = onPendingShare(open);

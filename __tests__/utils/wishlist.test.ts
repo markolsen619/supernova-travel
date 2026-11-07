@@ -62,3 +62,14 @@ it('wishlistDoc keeps the ticked places plus ones added by name', () => {
   expect(d.places.map((p) => p.name)).toEqual(['B', 'Typed']);
   expect(d).not.toHaveProperty('savedAtMs');
 });
+
+import { toTripForMatch } from '@/utils/wishlist';
+it('toTripForMatch: calendar dates and every city with a position', () => {
+  const t = toTripForMatch({
+    id: 't1', title: 'Japan', startDay: '2026-12-01', startDate: null, endDate: { toDate: () => new Date('2026-12-10T12:00:00') },
+    destination: { name: 'Tokyo', lat: 35.68, lng: 139.76 }, additionalDestinations: [{ name: 'Kyoto', lat: 35.01, lng: 135.77 }, { name: 'Somewhere', lat: null, lng: null }],
+  } as never);
+  expect(t).toEqual({ id: 't1', title: 'Japan', start: '2026-12-01', end: '2026-12-10', cities: [
+    { name: 'Tokyo', lat: 35.68, lng: 139.76 }, { name: 'Kyoto', lat: 35.01, lng: 135.77 }, { name: 'Somewhere', lat: null, lng: null },
+  ] });
+});
