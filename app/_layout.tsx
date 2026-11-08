@@ -32,6 +32,7 @@ import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { keepOfflineQueriesAlive, startPersistence, stopPersistence } from '@/services/queryPersist';
 import { looksOffline } from '@/utils/offlineCache';
 import { foregroundPresentation } from '@/utils/dayOf';
+import { useShareIntentCatcher } from '@/hooks/useShareIntentRouting';
 
 SplashScreen.preventAutoHideAsync();
 configureGoogleSignIn();
@@ -61,6 +62,7 @@ function AppStack() {
   // Sends a tapped notification to the screen it's about. Mounted here, below
   // the auth listener, so it can wait for routing to settle before navigating.
   useNotificationRouting();
+  useShareIntentCatcher();
   // "Know when it matters", once per account, after it first reaches the tabs.
   usePushIntro();
   // Android welcome gift: the first 10 new Android accounts get a year of Pro.
@@ -80,6 +82,7 @@ function AppStack() {
         <Stack.Screen name="trip/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/past" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="wishlist/save" options={{ presentation: 'modal' }} />
         <Stack.Screen name="feed" />
         <Stack.Screen name="trip/ai-generate" options={{ presentation: 'modal' }} />
         <Stack.Screen name="trip/budget" options={{ presentation: 'modal' }} />
