@@ -86,6 +86,11 @@ import { MakeItYours } from '@/components/trip/MakeItYours';
 import { useWishlist } from '@/hooks/useWishlist';
 import { TripWishlistSheet } from '@/components/wishlist/TripWishlistSheet';
 import { toTripForMatch, wishMatches } from '@/utils/wishlist';
+import { ToursRow } from '@/components/trip/ToursRow';
+import { BookedSomethingSheet, type BookedTarget } from '@/components/trip/BookedSomethingSheet';
+import { defaultDayIndex, tourCities } from '@/utils/tripTours';
+import { activityPartner, activityPartnerUrl, partnerIdsFromEnv, PARTNER_NAME } from '@/utils/activityBooking';
+import { tripSpan } from '@/utils/homeState';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -410,6 +415,29 @@ export default function TripDetailScreen() {
   // invitees edit days and stops alike (firestore.rules allows both). Trip
   // settings (title, dates, visibility, delete) and the journal stay owner-only.
   const canEditItinerary = isOwner || isCollaborator;
+  // Tours & tickets (owner, 2026-11-08): a card per city of an upcoming or current trip, then "Booked something?"
+  // when the traveler comes back — the partners never tell us what was booked.
+  const [bookedTarget, setBookedTarget] = useState<BookedTarget | null>(null);
+  const tourToday = toCalendarDate(new Date());
+  const tripStartDay = trip ? tripSpan(trip as never).start : null;
+  const tripTourCities = useMemo(() => (trip ? tourCities(trip as never, tourToday, canEditItinerary) : []), [trip, tourToday, canEditItinerary]);
+  const handleToursReturn = useCallback((city: { index: number; name: string; countryCode: string | null }, partner: string) => {
+    if (!trip) return;
+    const days = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
+    setBookedTarget({ mode: 'new', city: city.name, countryCode: city.countryCode, partner, dayIndex: defaultDayIndex(days, city.index, tripStartDay, tourToday) });
+  }, [trip, tripStartDay, tourToday]);
+  const handleTickets = useCallback(async (activity: TripActivity, dayId: string) => {
+    if (!trip) return;
+    const day = trip.days.find((d) => d.id === dayId);
+    const cities = [trip.destination, ...(trip.additionalDestinations ?? [])];
+    const city = cities[day?.destinationIndex ?? 0] ?? trip.destination;
+    const partner = PARTNER_NAME[activityPartner(city.countryCode)];
+    await WebBrowser.openBrowserAsync(activityPartnerUrl(
+      { name: activity.placeName || activity.title, near: city.name, countryCode: city.countryCode },
+      partnerIdsFromEnv({ EXPO_PUBLIC_GYG_PARTNER_ID: process.env.EXPO_PUBLIC_GYG_PARTNER_ID, EXPO_PUBLIC_VIATOR_PID: process.env.EXPO_PUBLIC_VIATOR_PID, EXPO_PUBLIC_VIATOR_MCID: process.env.EXPO_PUBLIC_VIATOR_MCID }),
+    )).catch(() => {});
+    setBookedTarget({ mode: 'stop', city: city.name, countryCode: city.countryCode, partner, dayId, activity });
+  }, [trip]);
   // Budget and packing belong to the people taking the trip — nobody else sees them.
   const { budget: tripBudget } = useTripBudgetAmount(trip?.id ?? null, isOwner || isCollaborator);
   const { isPro, requirePro } = useProGate();
@@ -1161,6 +1189,7 @@ export default function TripDetailScreen() {
                     onEditActivity={canEditItinerary ? (activity) => handleOpenEditActivity(activity, day.id) : undefined}
                     onActivityPress={canEditItinerary ? handleActivityPress : undefined}
                     onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
+                    onTickets={canEditItinerary ? handleTickets : undefined}
                     onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
                     onDeleteDay={canEditItinerary ? () => (ci !== undefined && routeSaved ? deleteDayInCity(day, ci) : handleDeleteDay(day)) : undefined}
                     resolvingActivityId={resolvingActivityId}
@@ -1596,6 +1625,9 @@ export default function TripDetailScreen() {
           )}
         </ScrollView>
 
+        {/* Tours & tickets — one card per city (owner, 2026-11-08). */}
+        <ToursRow cities={tripTourCities} onReturn={handleToursReturn} />
+
         {/* Ask Nova (docs/superpowers/specs/2026-10-14-trip-agent-design.md) — members who can edit.
             A quiet card with Nova's face (it was a gradient sparkle button, which read as generic AI). */}
         {canEditItinerary && (
@@ -1804,6 +1836,7 @@ export default function TripDetailScreen() {
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
       <TripWishlistSheet visible={wishlistVisible} tripId={trip.id} matches={tripWishMatches} onClose={() => setWishlistVisible(false)} />
+      <BookedSomethingSheet target={bookedTarget} tripId={trip.id} days={[...trip.days].sort((a, b) => a.dayNumber - b.dayNumber)} startDay={tripStartDay} onClose={() => setBookedTarget(null)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
       <CalendarSheet visible={calendarVisible} onClose={() => setCalendarVisible(false)} />
       <TripMembersSheet
