@@ -28,6 +28,24 @@ import { BorderRadius, Spacing } from '@/constants/spacing';
 
 type Preview = WishSave & { coverUrl: string | null };
 
+/** Close, top right, in every state (device test 2026-11-08: there was no way out). */
+function CloseButton({ color, background }: { color: string; background: string }) {
+  return (
+    <Pressable
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+      style={[closeStyles.btn, { backgroundColor: background }]}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Close"
+    >
+      <X size={18} weight="bold" color={color} />
+    </Pressable>
+  );
+}
+const closeStyles = StyleSheet.create({
+  btn: { position: 'absolute', top: Spacing['4'], right: Spacing['4'], width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+});
+
 function errorCopy(code: string, reason: unknown): string {
   if (code.endsWith('not-found')) return "That video isn't available. It may be private or deleted.";
   if (code.endsWith('invalid-argument')) return 'Supernova can save TikTok posts for now.';
@@ -143,6 +161,7 @@ export default function SaveFromSocialScreen() {
       <View style={[styles.center, { backgroundColor: colors.background.primary }]}>
         <ActivityIndicator color={colors.text.secondary} />
         <Text style={[styles.body, { color: colors.text.secondary }]}>Reading the post</Text>
+        <CloseButton color={colors.text.primary} background={colors.background.sunken} />
         {consentSheet}
       </View>
     );
@@ -158,6 +177,7 @@ export default function SaveFromSocialScreen() {
         <Pressable onPress={() => router.back()} style={styles.link} accessibilityRole="button" accessibilityLabel="Close">
           <Text style={[styles.linkText, { color: colors.text.secondary }]}>Close</Text>
         </Pressable>
+        <CloseButton color={colors.text.primary} background={colors.background.sunken} />
         {consentSheet}
       </View>
     );
@@ -220,6 +240,7 @@ export default function SaveFromSocialScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing['3'], backgroundColor: colors.background.primary, borderTopColor: colors.background.cardBorder }]}>
         <Button label={count ? `Save ${count} ${count === 1 ? 'place' : 'places'}` : 'Save the video'} onPress={onSave} loading={saving} fullWidth />
       </View>
+      <CloseButton color={colors.text.primary} background={colors.background.sunken} />
       {consentSheet}
     </View>
   );
@@ -229,7 +250,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing['3'], paddingHorizontal: Spacing['6'] },
   content: { paddingHorizontal: Spacing['5'], paddingTop: Spacing['6'], gap: Spacing['2'] },
-  postRow: { flexDirection: 'row', gap: Spacing['3'], marginBottom: Spacing['4'] },
+  postRow: { flexDirection: 'row', gap: Spacing['3'], marginBottom: Spacing['4'], paddingRight: 44 },
   cover: { width: 84, height: 120, borderRadius: BorderRadius.md },
   postText: { flex: 1, gap: Spacing['1'] },
   eyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },

@@ -110,3 +110,19 @@ describe('final review fixes', () => {
     expect(calls).toBe(2);
   });
 });
+
+import { parseOembed, isDuplicateShare } from '@/utils/wishlist';
+describe('device lookup and one sheet per share', () => {
+  it('parseOembed reads caption, creator and an https cover', () => {
+    expect(parseOembed({ title: ' Ramen ', author_name: 'Foodie', author_unique_id: 'foodie', thumbnail_url: 'https://p16.tiktokcdn.com/x.jpg' }))
+      .toEqual({ caption: 'Ramen', author: 'Foodie', authorHandle: 'foodie', coverUrl: 'https://p16.tiktokcdn.com/x.jpg' });
+    expect(parseOembed({ thumbnail_url: 'http://x' })).toEqual({ caption: '', author: '', authorHandle: '', coverUrl: null });
+    expect(parseOembed(null)).toBeNull();
+  });
+  it('isDuplicateShare: the same link within 10 s opens once', () => {
+    expect(isDuplicateShare({ url: 'u', at: 1000 }, 'u', 5000)).toBe(true);
+    expect(isDuplicateShare({ url: 'u', at: 1000 }, 'u', 12_000)).toBe(false);
+    expect(isDuplicateShare({ url: 'u', at: 1000 }, 'v', 2000)).toBe(false);
+    expect(isDuplicateShare(null, 'u', 2000)).toBe(false);
+  });
+});
