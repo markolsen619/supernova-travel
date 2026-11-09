@@ -88,7 +88,8 @@ import { TripWishlistSheet } from '@/components/wishlist/TripWishlistSheet';
 import { toTripForMatch, wishMatches } from '@/utils/wishlist';
 import { ToursRow } from '@/components/trip/ToursRow';
 import { BookedSomethingSheet, type BookedTarget } from '@/components/trip/BookedSomethingSheet';
-import { defaultDayIndex, tourCities } from '@/utils/tripTours';
+import { dayDateFor, defaultDayIndex, tourCities } from '@/utils/tripTours';
+import { DayWeatherBadge } from '@/components/ui/DayWeatherBadge';
 import { activityPartner, activityPartnerUrl, partnerIdsFromEnv, PARTNER_NAME } from '@/utils/activityBooking';
 import { tripSpan } from '@/utils/homeState';
 
@@ -1190,6 +1191,10 @@ export default function TripDetailScreen() {
                     onActivityPress={canEditItinerary ? handleActivityPress : undefined}
                     onToggleVisited={canEditItinerary ? handleToggleVisited : undefined}
                     onTickets={canEditItinerary ? handleTickets : undefined}
+                    weather={(() => {
+                      const c = [trip.destination, ...(trip.additionalDestinations ?? [])][day.destinationIndex ?? 0] ?? trip.destination;
+                      return <DayWeatherBadge lat={c.lat} lng={c.lng} date={dayDateFor(tripStartDay, day.dayNumber)} />;
+                    })()}
                     onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
                     onDeleteDay={canEditItinerary ? () => (ci !== undefined && routeSaved ? deleteDayInCity(day, ci) : handleDeleteDay(day)) : undefined}
                     resolvingActivityId={resolvingActivityId}

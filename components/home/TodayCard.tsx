@@ -15,6 +15,8 @@ import { BookingLine } from './BookingLine';
 import { InviteButton } from '@/components/trip/InviteButton';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
+import { DayWeatherBadge } from '@/components/ui/DayWeatherBadge';
+import { toCalendarDate } from '@/utils/calendarDate';
 
 export const TodayCard = memo(function TodayCard({ trip, info, booking }: { trip: TripWithDays; info: TodayInfo; booking: DayBooking | null }) {
   const { colors } = useTheme();
@@ -30,6 +32,12 @@ export const TodayCard = memo(function TodayCard({ trip, info, booking }: { trip
       <View style={styles.body}>
         <Text style={[styles.title, { color: colors.text.primary }]} numberOfLines={1}>{title}</Text>
         {info.city && trip.title ? <Text style={[styles.sub, { color: colors.text.secondary }]} numberOfLines={1}>{trip.title}</Text> : null}
+        {/* Today's forecast for today's city (owner, 2026-11-08). */}
+        {(() => {
+          const cities = [trip.destination, ...(trip.additionalDestinations ?? [])];
+          const c = cities.find((d) => d.name === info.city) ?? trip.destination;
+          return <DayWeatherBadge lat={c.lat} lng={c.lng} date={toCalendarDate(new Date())} />;
+        })()}
         {info.stops.map((s) => (
           <View key={s.id} style={styles.stop}>
             <View style={[styles.dot, { backgroundColor: s.next ? colors.brand.purple : colors.background.cardBorder }, s.next && styles.dotNext]} />
