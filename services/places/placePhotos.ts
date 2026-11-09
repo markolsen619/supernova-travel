@@ -20,7 +20,7 @@ export async function photoUriFor(photoName: string, maxWidthPx: number): Promis
   }
 }
 
-/** Up to PHOTO_RAIL_MAX photo addresses for a place's sheet. */
+/** Up to PHOTO_RAIL_MAX photo addresses for a place's sheet, index-aligned with photoNames ('' = couldn't fetch). */
 export async function placePhotoUris(placeId: string, photoNames: string[]): Promise<string[]> {
   if (!placeId || !photoNames.length) return [];
   const hit = memo.get(placeId);
@@ -32,8 +32,9 @@ export async function placePhotoUris(placeId: string, photoNames: string[]): Pro
     const cached = exists ? freshPhotoUris(snap.data(), Date.now()) : null;
     if (cached) { memo.set(placeId, cached); return cached; }
   } catch { /* fall through to Google */ }
-  const uris = (await Promise.all(photoNames.slice(0, PHOTO_RAIL_MAX).map((n) => photoUriFor(n, 600)))).filter((u): u is string => !!u);
-  if (uris.length) {
+  // Index-aligned with photoNames ('' where a photo failed) so each photo keeps its own credit (final review).
+  const uris = (await Promise.all(photoNames.slice(0, PHOTO_RAIL_MAX).map((n) => photoUriFor(n, 600)))).map((u) => u ?? '');
+  if (uris.some((u) => u)) {
     memo.set(placeId, uris);
     // Only onto a place someone already cached (a doc with nothing but photos would read as a cached place).
     if (exists) updateDoc(doc(db, 'places', placeId), { photoUris: uris, photoUrisAtMs: Date.now() }).catch(() => {});

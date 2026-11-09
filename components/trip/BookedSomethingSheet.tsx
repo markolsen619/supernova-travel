@@ -4,7 +4,7 @@
  * stop's Tickets link: the time → that stop marked booked. Either way, optionally the same booking in the wallet
  * (ticked by default; Pro trip matching links it).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
@@ -14,10 +14,11 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useCreateTrip } from '@/hooks/useCreateTrip';
 import { useReservations } from '@/hooks/useReservations';
 import { useBookingMatch } from '@/hooks/useBookingMatch';
+import { useWalletAllowance } from '@/hooks/useWalletAllowance';
 import { requireOnline } from '@/services/offline';
 import { Button } from '@/components/ui/Button';
 import { isPaidTier } from '@/utils/proFeatures';
-import { bookedReservation, bookedStop, dayDateFor, normalizeTime } from '@/utils/tripTours';
+import { bookedReservation, bookedStop, dayDateFor, normalizeTime, walletSaveAllowed } from '@/utils/tripTours';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 import type { TripActivity } from '@/types';
@@ -51,15 +52,25 @@ export function BookedSomethingSheet({ target, tripId, days, startDay, onClose }
   const [toWallet, setToWallet] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { canAdd } = useWalletAllowance();
+  // The stop is saved once per opening, so a retry after a wallet failure never adds it twice (final review).
+  const stopSaved = useRef(false);
+  const daysRef = useRef(days);
+  daysRef.current = days;
 
+  // Reset only when the sheet opens for a new target — a re-render of the trip page used to wipe what was typed.
   useEffect(() => {
     if (!target) return;
+    stopSaved.current = false;
     setName(target.mode === 'stop' ? target.activity.title : '');
-    setDayIndex(target.mode === 'new' ? target.dayIndex : Math.max(0, days.findIndex((d) => d.id === target.dayId)));
+    setDayIndex(target.mode === 'new' ? target.dayIndex : Math.max(0, daysRef.current.findIndex((d) => d.id === target.dayId)));
     setTime(target.mode === 'stop' ? target.activity.startTime ?? '' : '');
     setToWallet(true);
     setError(null);
-  }, [target, days]);
+  }, [target]);
+
+  const dayForWallet = days[dayIndex] ? dayDateFor(startDay, days[dayIndex].dayNumber) : null;
+  const walletOk = walletSaveAllowed({ date: dayForWallet, canAdd });
 
   const save = useCallback(async () => {
     if (!target || !uid || !requireOnline()) return;
@@ -68,15 +79,18 @@ export function BookedSomethingSheet({ target, tripId, days, startDay, onClose }
     const t = time.trim() ? normalizeTime(time) : null;
     if (time.trim() && !t) { setError('Use a time like 9:30 or 7:30 pm.'); return; }
     const day = days[dayIndex];
-    if (!day) return;
+    if (!day) { setError('Add a day to this trip first.'); return; }
     setSaving(true); setError(null);
     try {
-      if (target.mode === 'stop') {
-        await updateActivity(tripId, target.dayId, target.activity.id, { ...(t ? { startTime: t } : {}), notes: target.activity.notes?.trim() ? target.activity.notes : `Booked on ${target.partner}` });
-      } else {
-        await addActivity(tripId, day.id, { ...bookedStop({ name: what, city: target.city, time: t, partner: target.partner }), createdAt: Timestamp.now() } as Omit<TripActivity, 'id' | 'order'>);
+      if (!stopSaved.current) {
+        if (target.mode === 'stop') {
+          await updateActivity(tripId, target.dayId, target.activity.id, { ...(t ? { startTime: t } : {}), bookedVia: target.partner, notes: target.activity.notes?.trim() ? target.activity.notes : `Booked on ${target.partner}` });
+        } else {
+          await addActivity(tripId, day.id, { ...bookedStop({ name: what, city: target.city, time: t, partner: target.partner }), createdAt: Timestamp.now() } as Omit<TripActivity, 'id' | 'order'>);
+        }
+        stopSaved.current = true;
       }
-      if (toWallet) {
+      if (toWallet && walletOk) {
         const id = await addReservation.mutateAsync(bookedReservation({
           name: what, date: dayDateFor(startDay, day.dayNumber), time: t, city: target.city, countryCode: target.countryCode,
           partner: target.partner, ownerUid: uid, nowIso: new Date().toISOString(),
@@ -86,11 +100,11 @@ export function BookedSomethingSheet({ target, tripId, days, startDay, onClose }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose();
     } catch {
-      setError("Couldn't add it. Try again.");
+      setError(stopSaved.current ? "It's on your trip. The wallet copy didn't save — try again, or turn it off." : "Couldn't add it. Try again.");
     } finally {
       setSaving(false);
     }
-  }, [target, uid, name, time, days, dayIndex, toWallet, tripId, startDay, tier, addActivity, updateActivity, addReservation, afterSave, onClose]);
+  }, [target, uid, name, time, days, dayIndex, toWallet, walletOk, tripId, startDay, tier, addActivity, updateActivity, addReservation, afterSave, onClose]);
 
   return (
     <Modal visible={!!target} transparent animationType="slide" onRequestClose={onClose}>
@@ -133,8 +147,13 @@ export function BookedSomethingSheet({ target, tripId, days, startDay, onClose }
                 <Text style={[styles.walletTitle, { color: colors.text.primary }]}>Also save to wallet</Text>
                 <Text style={[styles.walletBody, { color: colors.text.tertiary }]}>Shows with your trip&apos;s bookings and in your calendar.</Text>
               </View>
-              <Switch value={toWallet} onValueChange={setToWallet} accessibilityLabel="Also save to wallet" />
+              <Switch value={toWallet && walletOk} onValueChange={setToWallet} disabled={!walletOk} accessibilityLabel="Also save to wallet" />
             </View>
+            {!walletOk ? (
+              <Text style={[styles.walletBody, { color: colors.text.tertiary }]}>
+                {!dayForWallet ? 'Add trip dates to save it to your wallet too.' : 'Your free wallet is full. Pro keeps as many bookings as you like.'}
+              </Text>
+            ) : null}
             {error ? <Text style={[styles.body, { color: colors.semantic.error }]}>{error}</Text> : null}
             <Button label={target?.mode === 'stop' ? 'Mark as booked' : 'Add to trip'} onPress={save} loading={saving} fullWidth />
             <Pressable onPress={onClose} style={styles.link} accessibilityRole="button" accessibilityLabel="Not now">

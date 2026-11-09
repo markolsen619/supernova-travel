@@ -267,7 +267,9 @@ export function PlaceDetailSheet({
     });
     return () => { live = false; };
   }, [displayPlace.placeId, photoKey]);
-  const hasPhotos = photoUris.length > 0;
+  // Photos with their index in photoNames, so each keeps its own credit even when one failed to load.
+  const railPhotos = useMemo(() => photoUris.map((uri, index) => ({ uri, index })).filter((p) => p.uri), [photoUris]);
+  const hasPhotos = railPhotos.length > 0;
 
   const sheetContent = (
     <View style={[styles.content, { paddingBottom: bottomInset + Spacing['4'] }]}>
@@ -312,20 +314,20 @@ export function PlaceDetailSheet({
         <View style={styles.photoRail}>
           <FlashList
             horizontal
-            data={photoUris}
-            keyExtractor={(uri) => uri}
+            data={railPhotos}
+            keyExtractor={(p) => p.uri}
             showsHorizontalScrollIndicator={false}
-            renderItem={({ item, index }) => (
+            renderItem={({ item }) => (
               <View>
                 <CachedImage
-                  source={{ uri: item }}
+                  source={{ uri: item.uri }}
                   style={styles.photo}
                   contentFit="cover"
                   cachePolicy="disk"
                 />
                 {/* Google asks apps to show each Places photo's author. */}
-                {displayPlace.photoCredits?.[index] ? (
-                  <Text style={styles.photoCredit} numberOfLines={1}>{`Photo: ${displayPlace.photoCredits[index]}`}</Text>
+                {displayPlace.photoCredits?.[item.index] ? (
+                  <Text style={styles.photoCredit} numberOfLines={1}>{`Photo: ${displayPlace.photoCredits[item.index]}`}</Text>
                 ) : null}
               </View>
             )}

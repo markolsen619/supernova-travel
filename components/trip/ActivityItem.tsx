@@ -188,7 +188,7 @@ export function ActivityItem({
             <TouchableOpacity
               onPress={() => openDirections({ name: activity.placeName || activity.title, lat: activity.lat!, lng: activity.lng!, placeId: activity.placeId || null })}
               style={styles.ticketsLink}
-              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              hitSlop={{ top: 16, bottom: 16, left: 10, right: 10 }}
               accessibilityRole="link"
               accessibilityLabel={`Directions to ${activity.title}`}
             >
@@ -200,7 +200,7 @@ export function ActivityItem({
             <TouchableOpacity
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onTickets(); }}
               style={styles.ticketsLink}
-              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              hitSlop={{ top: 16, bottom: 16, left: 10, right: 10 }}
               accessibilityRole="link"
               accessibilityLabel={`Find tickets for ${activity.title}`}
             >

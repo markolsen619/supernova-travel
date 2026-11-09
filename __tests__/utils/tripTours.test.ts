@@ -59,3 +59,16 @@ describe('the "Booked something?" sheet', () => {
     expect(showTicketsLink({ type: 'activity', visited: true } as never)).toBe(false);
   });
 });
+
+import { walletSaveAllowed } from '@/utils/tripTours';
+describe('review fixes', () => {
+  it('a booked stop carries bookedVia, and no longer shows Tickets', () => {
+    expect(bookedStop({ name: 'X', city: 'Tokyo', time: null, partner: 'Viator' })).toMatchObject({ bookedVia: 'Viator' });
+    expect(showTicketsLink({ type: 'activity', bookedVia: 'GetYourGuide' } as never)).toBe(false);
+  });
+  it('walletSaveAllowed: needs a date (undated wallet bookings never list) and room in the free wallet', () => {
+    expect(walletSaveAllowed({ date: '2026-12-02', canAdd: true })).toBe(true);
+    expect(walletSaveAllowed({ date: null, canAdd: true })).toBe(false);
+    expect(walletSaveAllowed({ date: '2026-12-02', canAdd: false })).toBe(false);
+  });
+});

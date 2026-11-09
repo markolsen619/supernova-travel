@@ -1844,7 +1844,7 @@ export default function TripDetailScreen() {
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
       <TripWishlistSheet visible={wishlistVisible} tripId={trip.id} matches={tripWishMatches} onClose={() => setWishlistVisible(false)} />
-      <BookedSomethingSheet target={bookedTarget} tripId={trip.id} days={[...trip.days].sort((a, b) => a.dayNumber - b.dayNumber)} startDay={tripStartDay} onClose={() => setBookedTarget(null)} />
+      <BookedSomethingSheet target={bookedTarget} tripId={trip.id} days={sortedDays} startDay={tripStartDay} onClose={() => setBookedTarget(null)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
       <CalendarSheet visible={calendarVisible} onClose={() => setCalendarVisible(false)} />
       <TripMembersSheet

@@ -45,6 +45,8 @@ export function bookedStop(a: { name: string; city: string; time: string | null;
     type: 'activity', title: a.name, titleSource: 'user', placeId: null, placeName: null, address: null, lat: null, lng: null,
     searchQuery: `${a.name}, ${a.city}`, startTime: a.time, endTime: null, durationMinutes: null, notes: `Booked on ${a.partner}`,
     bookingRef: null, cost: null, currency: null, mediaUrls: [], visited: false, visitedAt: null, groundingFailedAt: null,
+    // Marked booked in the app (final review): no Tickets link and no "still need tickets" for it.
+    bookedVia: a.partner,
   } as Omit<TripActivity, 'id' | 'order' | 'createdAt'>;
 }
 
@@ -69,5 +71,8 @@ export function defaultDayIndex(days: { dayNumber: number; destinationIndex?: nu
 }
 
 /** The "Tickets" link on a stop row: activity stops with no booking yet, not visited. */
-export const showTicketsLink = (a: Pick<TripActivity, 'type'> & { bookingRef?: string | null; fromBooking?: unknown; visited?: boolean }) =>
-  a.type === 'activity' && !a.bookingRef && !a.fromBooking && !a.visited;
+export const showTicketsLink = (a: Pick<TripActivity, 'type'> & { bookingRef?: string | null; fromBooking?: unknown; bookedVia?: unknown; visited?: boolean }) =>
+  a.type === 'activity' && !a.bookingRef && !a.fromBooking && !a.bookedVia && !a.visited;
+
+/** The wallet copy needs a date (the wallet lists by check-in; undated ones never show) and room in a free wallet. */
+export const walletSaveAllowed = (a: { date: string | null; canAdd: boolean }) => !!a.date && a.canAdd;

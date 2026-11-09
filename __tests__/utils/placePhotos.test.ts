@@ -23,3 +23,9 @@ describe('placePhotos', () => {
     expect(PHOTO_RAIL_MAX).toBe(4);
   });
 });
+
+it('freshPhotoUris keeps empty slots for photos that failed, so credits stay lined up (final review)', () => {
+  const now = 1_800_000_000_000;
+  expect(freshPhotoUris({ photoUris: ['', uri], photoUrisAtMs: now }, now)).toEqual(['', uri]);
+  expect(freshPhotoUris({ photoUris: ['', ''], photoUrisAtMs: now }, now)).toBeNull();
+});

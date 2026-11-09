@@ -6,15 +6,15 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { notifyUser } from './notify';
-import { calendarDay, tripDays } from './friendsTraveling';
-import { reminderDue, stopsNeedingTickets, ticketsReminderCopy } from './ticketsReminder';
+import { tripDays } from './friendsTraveling';
+import { reminderDue, reminderToday, stopsNeedingTickets, ticketsReminderCopy } from './ticketsReminder';
 
 const db = admin.firestore();
 const DAY = 86_400_000;
 
 export const ticketsReminder = onSchedule({ schedule: 'every day 15:00', timeZone: 'UTC', timeoutSeconds: 300, memory: '256MiB' }, async () => {
   const now = Date.now();
-  const today = calendarDay(now);
+  const today = reminderToday(now);
   const trips = await db.collection('trips')
     .where('startDate', '>=', admin.firestore.Timestamp.fromMillis(now + 5 * DAY))
     .where('startDate', '<=', admin.firestore.Timestamp.fromMillis(now + 9 * DAY))

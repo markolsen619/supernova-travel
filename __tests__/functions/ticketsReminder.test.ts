@@ -18,3 +18,12 @@ describe('"Still need tickets" reminder (owner, 2026-11-08)', () => {
     expect(ticketsReminderCopy('Lisbon', 3)).toEqual({ title: 'Lisbon in 7 days', body: '3 stops still need tickets. Book them before they sell out.' });
   });
 });
+
+import { reminderToday } from '../../functions/src/ticketsReminder';
+it('reminderToday is the UTC date of the run (calendarDay\'s +12 h made it tomorrow at 15:00 → "7 days" sent 8 days early)', () => {
+  expect(reminderToday(Date.parse('2026-11-08T15:00:00Z'))).toBe('2026-11-08');
+  expect(reminderToday(Date.parse('2026-11-08T23:59:00Z'))).toBe('2026-11-08');
+});
+it('a stop marked booked in the app no longer needs tickets', () => {
+  expect(stopsNeedingTickets([{ type: 'activity', bookedVia: 'GetYourGuide' }, { type: 'activity' }])).toBe(1);
+});
