@@ -105,6 +105,8 @@ export interface Destination {
 
 export interface Trip {
   id: string;
+  /** "Photo: Name" for a Places cover (functions/src/coverRefresh.ts). */
+  coverCredit?: string | null;
   /** "Make it yours" (utils/tripCopy.ts): the trip this one was copied from, for the credit line. */
   copiedFrom?: { tripId: string; authorUid: string; authorName: string };
   /** Written only by the Admin SDK seed for the "Supernova" editorial account; rules forbid clients setting it. */
@@ -424,6 +426,8 @@ export type ActivityType = 'flight' | 'hotel' | 'restaurant' | 'activity' | 'tra
 export interface TripActivity {
   /** 'user' when the title was typed by hand: lookups never rename it, and only pin a place sharing a word with it (utils/groundingQueue typedStopMatches). */
   titleSource?: 'user';
+  /** Marked booked in the app after GetYourGuide/Viator (utils/tripTours) — the partner's name. */
+  bookedVia?: string;
   /** The wallet booking this stop came from (`auto`) or was attached to — functions/src/bookingStops.ts. */
   fromBooking?: { kind: 'boarding_pass' | 'reservation'; id: string; ownerUid: string; auto: boolean };
   id: string;

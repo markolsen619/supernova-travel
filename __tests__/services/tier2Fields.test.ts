@@ -36,3 +36,15 @@ describe('countryCodeFromComponents', () => {
     expect(countryCodeFromComponents(undefined)).toBeNull();
   });
 });
+
+describe('photo credits (Google asks apps to show "Photo: Name")', () => {
+  it('keeps each photo\'s author lined up with its name', () => {
+    const f = tier2FieldsFromRaw({ photos: [
+      { name: 'places/P/photos/A', authorAttributions: [{ displayName: 'Kenji Sato' }] },
+      { name: 'places/P/photos/B' },
+      { authorAttributions: [{ displayName: 'Nameless' }] },
+    ] } as never);
+    expect(f.photoNames).toEqual(['places/P/photos/A', 'places/P/photos/B']);
+    expect(f.photoCredits).toEqual(['Kenji Sato', '']);
+  });
+});

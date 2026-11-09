@@ -29,6 +29,9 @@ import { firstName, greeting } from '@/utils/greeting';
 import { toCalendarDate } from '@/utils/calendarDate';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing } from '@/constants/spacing';
+import { topSavedCity } from '@/utils/wishlist';
+import { useWishlist } from '@/hooks/useWishlist';
+import { WishlistNudge, useNudgeDismissed } from '@/components/home/WishlistNudge';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -48,6 +51,16 @@ export default function HomeScreen() {
   // A fresh day or a return to the app: the badge may be stale too.
   useEffect(() => { queryClient.invalidateQueries({ queryKey: ['inboxBadge'] }); }, [now, queryClient]);
   const h = useMemo(() => homeTrips(trips, today), [trips, today]);
+  // The wish-list nudge (owner, 2026-11-08): no upcoming trip and saved places → plan a trip to the top city.
+  const { saves: wishSaves } = useWishlist();
+  const topCity = useMemo(() => (!h.today && !h.next ? topSavedCity(wishSaves) : null), [h.today, h.next, wishSaves]);
+  const [nudgeDismissed, dismissNudge] = useNudgeDismissed(topCity?.city ?? null);
+  const nudge = topCity && nudgeDismissed === false ? topCity : null;
+  const nudgeCountry = useMemo(() => {
+    if (!topCity) return null;
+    for (const s of wishSaves) for (const p of s.places) if ((p.city ?? s.city) === topCity.city && p.countryCode) return p.countryCode;
+    return null;
+  }, [topCity, wishSaves]);
   const lead = h.today ?? h.next;
   // The full itinerary only for a trip under way (the next trip's card needs none of it — reads cost).
   const { data: leadTrip } = useTrip(h.today?.id ?? null);
@@ -93,7 +106,8 @@ export default function HomeScreen() {
           {h.next && leadStart ? (
             <NextTripCard trip={h.next} label={countdownLabel(leadStart, today)} eyebrow={homeEyebrow(tripSpan(h.next), today)} booking={booking} />
           ) : null}
-          {h.isEmpty ? <PlanCard /> : null}
+          {nudge ? <WishlistNudge top={nudge} countryCode={nudgeCountry} onDismiss={dismissNudge} /> : null}
+          {h.isEmpty && !nudge ? <PlanCard /> : null}
           {h.comingUp.length > 0 ? (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>Coming up</Text>

@@ -30,5 +30,7 @@ export const parsePhotoUri = (json: unknown): string | null => {
 export function freshPhotoUris(cached: { photoUris?: unknown; photoUrisAtMs?: unknown } | null | undefined, nowMs: number): string[] | null {
   const uris = cached?.photoUris, at = cached?.photoUrisAtMs;
   if (!Array.isArray(uris) || !uris.length || typeof at !== 'number' || nowMs - at > PHOTO_URI_TTL_MS) return null;
-  return uris.every(isPhotoUri) ? (uris as string[]) : null;
+  // '' marks a photo that couldn't be fetched — kept so each address stays at its photo's index (and credit).
+  if (!uris.every((u) => u === '' || isPhotoUri(u)) || !uris.some((u) => u !== '')) return null;
+  return uris as string[];
 }

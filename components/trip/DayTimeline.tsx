@@ -29,6 +29,10 @@ interface DayTimelineProps {
   onActivityPress?: (activity: TripActivity, dayId: string) => void;
   /** Fired when the icon bubble is tapped — toggles manual visited tracking (TM-2b). */
   onToggleVisited?: (activity: TripActivity, dayId: string) => void;
+  /** "Tickets" on an activity stop with no booking yet (owner, 2026-11-08). */
+  onTickets?: (activity: TripActivity, dayId: string) => void;
+  /** The day's forecast badge (components/ui/DayWeatherBadge), when the trip page has one. */
+  weather?: React.ReactNode;
   /** Fired once, on drop, with the full new order — never during the drag itself. */
   onReorderActivities?: (dayId: string, orderedActivities: TripActivity[]) => void;
   /** Owner-only: delete this whole day. */
@@ -63,6 +67,8 @@ export function DayTimeline({
   onEditActivity,
   onActivityPress,
   onToggleVisited,
+  onTickets,
+  weather,
   onReorderActivities,
   onDeleteDay,
   resolvingActivityId = null,
@@ -158,6 +164,7 @@ export function DayTimeline({
             onEdit={onEditActivity ? () => handleEditActivity(item) : undefined}
             onLongPress={canDrag ? openReorder : undefined}
             onToggleVisited={onToggleVisited ? () => handleToggleVisited(item) : undefined}
+            onTickets={onTickets ? () => onTickets(item, day.id) : undefined}
             showEdit={editable}
             isResolving={resolvingActivityId === item.id}
             isHighlighted={highlightActivityId === item.id}
@@ -179,6 +186,8 @@ export function DayTimeline({
       handleEditActivity,
       onToggleVisited,
       handleToggleVisited,
+      onTickets,
+      day.id,
       canDrag,
       openReorder,
       editable,
@@ -211,6 +220,7 @@ export function DayTimeline({
                 {day.title}
               </Text>
             ) : null}
+            {weather}
           </View>
         </View>
         {hasNotes && (

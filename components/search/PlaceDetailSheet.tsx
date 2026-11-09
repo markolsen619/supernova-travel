@@ -23,6 +23,7 @@ import { buildBookingAction } from '@/utils/bookingLinks';
 import { activityPartner, activityPartnerUrl, isSightType, partnerIdsFromEnv, PARTNER_NAME } from '@/utils/activityBooking';
 import * as WebBrowser from 'expo-web-browser';
 import { enrichPlaceById } from '@/services/places/googlePlaces';
+import { openDirections } from '@/services/openDirections';
 import { placePhotoUris } from '@/services/places/placePhotos';
 import { Image as CachedImage } from 'expo-image';
 import { AddToTripSheet } from '@/components/search/AddToTripSheet';
@@ -266,7 +267,9 @@ export function PlaceDetailSheet({
     });
     return () => { live = false; };
   }, [displayPlace.placeId, photoKey]);
-  const hasPhotos = photoUris.length > 0;
+  // Photos with their index in photoNames, so each keeps its own credit even when one failed to load.
+  const railPhotos = useMemo(() => photoUris.map((uri, index) => ({ uri, index })).filter((p) => p.uri), [photoUris]);
+  const hasPhotos = railPhotos.length > 0;
 
   const sheetContent = (
     <View style={[styles.content, { paddingBottom: bottomInset + Spacing['4'] }]}>
@@ -311,16 +314,22 @@ export function PlaceDetailSheet({
         <View style={styles.photoRail}>
           <FlashList
             horizontal
-            data={photoUris}
-            keyExtractor={(uri) => uri}
+            data={railPhotos}
+            keyExtractor={(p) => p.uri}
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
-              <CachedImage
-                source={{ uri: item }}
-                style={styles.photo}
-                contentFit="cover"
-                cachePolicy="disk"
-              />
+              <View>
+                <CachedImage
+                  source={{ uri: item.uri }}
+                  style={styles.photo}
+                  contentFit="cover"
+                  cachePolicy="disk"
+                />
+                {/* Google asks apps to show each Places photo's author. */}
+                {displayPlace.photoCredits?.[item.index] ? (
+                  <Text style={styles.photoCredit} numberOfLines={1}>{`Photo: ${displayPlace.photoCredits[item.index]}`}</Text>
+                ) : null}
+              </View>
             )}
           />
         </View>
@@ -382,6 +391,20 @@ export function PlaceDetailSheet({
           <Ticket size={18} color="#ffffff" weight="bold" />
           <Text style={styles.planBtnText}>{bookingAction.label}</Text>
           <ArrowRight size={16} color="rgba(255,255,255,0.7)" weight="bold" />
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Open in Maps (owner, 2026-11-08). */}
+      {displayPlace.lat != null && displayPlace.lng != null ? (
+        <TouchableOpacity
+          style={[styles.directionsBtn, { borderColor: colors.background.cardBorder }]}
+          onPress={() => openDirections({ name: displayPlace.name, lat: displayPlace.lat, lng: displayPlace.lng, placeId: displayPlace.placeId || null })}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Directions to ${displayPlace.name}`}
+        >
+          <NavigationArrow size={16} color={colors.text.primary} weight="bold" />
+          <Text style={[styles.directionsText, { color: colors.text.primary }]}>Directions</Text>
         </TouchableOpacity>
       ) : null}
 
@@ -463,6 +486,9 @@ export function PlaceDetailSheet({
 }
 
 const styles = StyleSheet.create({
+  photoCredit: { position: 'absolute', left: 6, right: 6, bottom: 4, fontSize: 9, color: 'rgba(255,255,255,0.9)', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
+  directionsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing['2'], minHeight: 44, borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth, marginTop: Spacing['2'] },
+  directionsText: { fontSize: FontSize.base, fontWeight: FontWeight.medium },
   sheet: {
     position: 'absolute',
     bottom: 0,

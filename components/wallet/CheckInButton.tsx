@@ -9,7 +9,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { AirplaneTakeoff, Clock } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useProGate } from '@/hooks/useProGate';
-import { checkInUrl, leaveByLine } from '@/utils/dayOf';
+import { checkInUrl, checkInVisible, leaveByLine } from '@/utils/dayOf';
 import type { BoardingPass } from '@/types';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
@@ -24,6 +24,8 @@ export const CheckInButton = memo(function CheckInButton({ pass, style }: { pass
   }, [pass.airline, pass.flightNumber]);
   const leave = isPro ? leaveByLine(pass) : null;
   if (departed || pass.status === 'cancelled' || pass.status === 'completed') return null;
+  const canCheckIn = checkInVisible(pass, Date.now());
+  if (!leave && !canCheckIn) return null;
   return (
     <View style={[styles.wrap, style]}>
       {leave ? (
@@ -32,11 +34,13 @@ export const CheckInButton = memo(function CheckInButton({ pass, style }: { pass
           <Text style={[styles.leaveText, { color: colors.text.primary }]}>{leave}</Text>
         </View>
       ) : null}
+      {canCheckIn ? (
       <Pressable onPress={open} style={[styles.btn, { backgroundColor: colors.background.card, borderColor: colors.background.cardBorder }]}
         accessibilityRole="link" accessibilityLabel={`Check in online with ${pass.airline || 'the airline'}`}>
         <AirplaneTakeoff size={18} color={colors.text.primary} weight="bold" />
         <Text style={[styles.btnText, { color: colors.text.primary }]}>Check in online</Text>
       </Pressable>
+      ) : null}
     </View>
   );
 });

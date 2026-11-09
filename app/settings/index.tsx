@@ -261,6 +261,8 @@ export default function SettingsScreen() {
         <View style={sectionStyle}>
           <SettingsRow label="Privacy policy" onPress={handleOpenPrivacyPolicy} showDivider />
           <SettingsRow label="Terms of use" onPress={handleOpenTerms} showDivider />
+          {/* Weather credit (CC BY 4.0): forecasts on trip days come from MET Norway (utils/weather.ts). */}
+          <SettingsRow label="Weather data" value="MET Norway" onPress={() => { WebBrowser.openBrowserAsync('https://www.met.no/en').catch(() => {}); }} showDivider />
           {/* Version and build ("1.0.4 (33)"): which TestFlight build someone has, at a glance. */}
           <SettingsRow label="Version" value={appVersionLabel(Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? null, Application.nativeBuildVersion ?? null)} />
         </View>

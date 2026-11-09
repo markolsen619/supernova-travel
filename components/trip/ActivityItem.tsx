@@ -7,7 +7,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PencilSimple, MapPinLine, CheckCircle } from 'phosphor-react-native';
+import { PencilSimple, MapPinLine, CheckCircle, Ticket, NavigationArrow } from 'phosphor-react-native';
+import { openDirections } from '@/services/openDirections';
+import { showTicketsLink } from '@/utils/tripTours';
 import { stopTime } from '@/utils/stopTime';
 import { useTheme } from '@/hooks/useTheme';
 import { BorderRadius, Spacing } from '@/constants/spacing';
@@ -37,6 +39,8 @@ interface ActivityItemProps {
   bookedDetail?: string;
   /** That booking's time, shown when the stop has none of its own (utils/stopTime). */
   bookedTime?: string | null;
+  /** "Tickets" on an activity stop with no booking yet (utils/tripTours `showTicketsLink`) — owner, 2026-11-08. */
+  onTickets?: () => void;
 }
 
 export function ActivityItem({
@@ -52,6 +56,7 @@ export function ActivityItem({
   isCurrent = false,
   bookedDetail,
   bookedTime,
+  onTickets,
 }: ActivityItemProps) {
   const { colors } = useTheme();
   const shown = stopTime(activity, bookedTime);
@@ -177,6 +182,34 @@ export function ActivityItem({
               </Text>
             </View>
           ) : null}
+          {(onTickets && !bookedDetail && showTicketsLink(activity)) || (activity.lat != null && activity.lng != null && !activity.visited) ? (
+            <View style={styles.linksRow}>
+          {activity.lat != null && activity.lng != null && !activity.visited ? (
+            <TouchableOpacity
+              onPress={() => openDirections({ name: activity.placeName || activity.title, lat: activity.lat!, lng: activity.lng!, placeId: activity.placeId || null })}
+              style={styles.ticketsLink}
+              hitSlop={{ top: 16, bottom: 16, left: 10, right: 10 }}
+              accessibilityRole="link"
+              accessibilityLabel={`Directions to ${activity.title}`}
+            >
+              <NavigationArrow size={12} color={colors.text.secondary} weight="bold" />
+              <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Directions</Text>
+            </TouchableOpacity>
+          ) : null}
+          {!bookedDetail && onTickets && showTicketsLink(activity) ? (
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onTickets(); }}
+              style={styles.ticketsLink}
+              hitSlop={{ top: 16, bottom: 16, left: 10, right: 10 }}
+              accessibilityRole="link"
+              accessibilityLabel={`Find tickets for ${activity.title}`}
+            >
+              <Ticket size={12} color={colors.brand.purple} weight="bold" />
+              <Text style={[styles.subtitle, { color: colors.brand.purple }]}>Tickets</Text>
+            </TouchableOpacity>
+          ) : null}
+            </View>
+          ) : null}
         </View>
 
         {/* Resolving spinner / edit button */}
@@ -245,6 +278,8 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semiBold,
     marginBottom: 2,
   },
+  ticketsLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  linksRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['4'], marginTop: 4 },
   subtitleRow: {
     flexDirection: 'row',
     alignItems: 'center',

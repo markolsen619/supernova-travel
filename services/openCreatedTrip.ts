@@ -5,9 +5,11 @@
  * while a modal was still re-rendering crashed Android in 1.0.7 ("The specified child already has a parent").
  */
 import { router } from 'expo-router';
+import { happyMoment } from '@/services/reviewPrompt';
 
 export function openCreatedTrip(tripId: string, query = ''): void {
   if (router.canDismiss()) router.dismissAll();
   router.navigate('/(tabs)/profile');
   setTimeout(() => router.push(`/trip/${tripId}${query}` as never), 60);
+  happyMoment('trip');
 }

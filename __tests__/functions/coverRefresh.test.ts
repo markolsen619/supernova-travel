@@ -69,3 +69,11 @@ describe('photo URI covers', () => {
     expect(photoUriFrom(null)).toBeNull();
   });
 });
+
+import { firstPhotoCredit } from '../../functions/src/coverRefresh';
+it('firstPhotoCredit: the first photo\'s author, for the credit Google asks apps to show', () => {
+  expect(firstPhotoCredit({ photos: [{ name: 'places/P/photos/R', authorAttributions: [{ displayName: 'Kenji Sato', uri: 'https://maps.google.com/x' }] }] })).toBe('Kenji Sato');
+  expect(firstPhotoCredit({ photos: [{ name: 'places/P/photos/R' }] })).toBeNull();
+  expect(firstPhotoCredit({ photos: [{ name: 'x', authorAttributions: [{ displayName: '  ' }] }] })).toBeNull();
+  expect(firstPhotoCredit(null)).toBeNull();
+});

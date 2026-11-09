@@ -117,4 +117,25 @@ export function pickByName(name: string, features: { name: string; lat: number; 
  * Only a real read goes in the shared cache (final review): with TikTok unreachable, rate-limited or the AI failing,
  * the empty answer would have told everyone who shared that video "No places named" for 30 days.
  */
-export const shouldCachePost = (r: { oembedStatus: number; aiFailed: boolean }) => r.oembedStatus === 200 && !r.aiFailed;
+export const shouldCachePost = (r: { oembedStatus: number; aiFailed: boolean; fromDevice?: boolean }) =>
+  r.oembedStatus === 200 && !r.aiFailed && !r.fromDevice;
+
+export interface PostHint { caption?: unknown; author?: unknown; authorHandle?: unknown; coverUrl?: unknown }
+export interface PostMeta { caption: string; author: string; authorHandle: string; coverUrl: string | null; fromDevice: boolean }
+
+const shortText = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+const httpsUrl = (v: unknown) => (typeof v === 'string' && /^https:\/\/[^\s]+$/.test(v) && v.length <= 1000 ? v : null);
+
+/**
+ * The post's caption, creator and cover (device test 2026-11-08: TikTok's oEmbed answered the server with nothing, so the
+ * sheet had no cover, caption or places). The server's own lookup when it worked; else what the phone read from the same
+ * public oEmbed — cleaned, and marked `fromDevice` so it never enters the shared cache.
+ */
+export function postMeta(status: number, body: unknown, hint: PostHint | null): PostMeta {
+  const b = (body ?? {}) as { title?: unknown; author_name?: unknown; author_unique_id?: unknown; thumbnail_url?: unknown };
+  if (status === 200 && body) {
+    return { caption: trimCaption(b.title), author: shortText(b.author_name, 80), authorHandle: shortText(b.author_unique_id, 40), coverUrl: httpsUrl(b.thumbnail_url), fromDevice: false };
+  }
+  if (!hint) return { caption: '', author: '', authorHandle: '', coverUrl: null, fromDevice: false };
+  return { caption: trimCaption(hint.caption), author: shortText(hint.author, 80), authorHandle: shortText(hint.authorHandle, 40), coverUrl: httpsUrl(hint.coverUrl), fromDevice: true };
+}

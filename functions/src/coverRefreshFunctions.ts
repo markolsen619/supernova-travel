@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { coverDue, coverPlaceId, firstPhotoName, parsePlacesPhotoUrl, photoUriFrom, photoUriRequest } from './coverRefresh';
+import { coverDue, coverPlaceId, firstPhotoCredit, firstPhotoName, parsePlacesPhotoUrl, photoUriFrom, photoUriRequest } from './coverRefresh';
 
 const db = admin.firestore();
 const DAY_MS = 86_400_000;
@@ -17,13 +17,15 @@ async function refreshDoc(ref: FirebaseFirestore.DocumentReference, data: Fireba
   try {
     const r = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?fields=photos&key=${key}`, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
-    const name = firstPhotoName(await r.json());
+    const details = await r.json();
+    const name = firstPhotoName(details);
     if (!name) return null;
+    const credit = firstPhotoCredit(details);
     const m = await fetch(photoUriRequest(name, key, parsePlacesPhotoUrl(data.coverImageUrl)?.maxWidthPx ?? 1200), { signal: AbortSignal.timeout(5000) });
     if (!m.ok) return null;
     const uri = photoUriFrom(await m.json());
     if (!uri) return null;
-    await ref.update({ coverImageUrl: uri, coverPlaceId: placeId, coverRefreshedAtMs: Date.now() });
+    await ref.update({ coverImageUrl: uri, coverPlaceId: placeId, coverRefreshedAtMs: Date.now(), coverCredit: credit });
     return uri;
   } catch (err) {
     console.warn('cover refresh failed', ref.path, String(err).slice(0, 120));

@@ -172,3 +172,28 @@ export function foregroundPresentation(identifier: string) {
   const quiet = identifier === 'flight-today';
   return { shouldShowAlert: !quiet, shouldPlaySound: !quiet, shouldSetBadge: false, shouldShowBanner: !quiet, shouldShowList: true };
 }
+
+/** "Check in online" from 48 h before departure until it leaves (owner, 2026-11-08: it showed months ahead). */
+export function checkInVisible(p: BoardingPass, nowMs: number): boolean {
+  if (p.status === 'cancelled' || p.status === 'completed') return false;
+  const dep = Date.parse(p.departureTime);
+  return Number.isFinite(dep) && dep > nowMs && dep - nowMs <= 48 * H;
+}
+
+/** "Departs in 3 h 5 min" (with any delay), else null once it has left. */
+export function flightCountdown(p: BoardingPass, nowMs: number): string | null {
+  const dep = Date.parse(p.departureTime) + Math.max(0, p.delayMinutes ?? 0) * 60_000;
+  if (!Number.isFinite(dep) || dep <= nowMs) return null;
+  const mins = Math.round((dep - nowMs) / 60_000);
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `Departs in ${h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`}`;
+}
+
+/** The live line: a delay of 15 min or more and/or a gate from live status; else null. */
+export function flightStatusLine(p: BoardingPass & { gateSource?: string }): string | null {
+  const parts = [
+    (p.delayMinutes ?? 0) >= 15 ? `Delayed ${p.delayMinutes} min` : null,
+    p.gateSource === 'live' && p.gate ? `Gate ${p.gate}` : null,
+  ].filter((x): x is string => !!x);
+  return parts.length ? parts.join(' · ') : null;
+}

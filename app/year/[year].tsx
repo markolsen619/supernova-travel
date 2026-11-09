@@ -19,6 +19,7 @@ import { useYearInTravel } from '@/hooks/useYearInTravel';
 import { useUserStore } from '@/stores/useUserStore';
 import { Slide, INK } from '@/components/yearInTravel/Slides';
 import { SLIDE_MS, storyStep, visibleSlides, type StoryState } from '@/utils/yearInTravel';
+import { happyMoment } from '@/services/reviewPrompt';
 
 const VOID = '#0B0A12';
 const STAR = require('@/assets/images/SupernovaStar.png');
@@ -54,6 +55,9 @@ export default function YearInTravelScreen() {
   }, []);
   // A refetch can change the slide list (a photos slide appears): keep the position on a real slide.
   useEffect(() => { if (slides.length && state.index >= slides.length) dispatch({ type: 'prev', count: slides.length }); }, [slides.length, state.index]);
+  // Finishing the story is a happy moment for the rating prompt (services/reviewPrompt) — once per visit.
+  const rated = useRef(false);
+  useEffect(() => { if (state.done && !rated.current) { rated.current = true; happyMoment('year'); } }, [state.done]);
   useEffect(() => { if (state.done) close(); }, [state.done]);
 
   // The story clock.
