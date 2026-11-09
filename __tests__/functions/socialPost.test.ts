@@ -91,3 +91,26 @@ describe('shouldCachePost (final review: a failed read was cached for 30 days, f
     expect(shouldCachePost({ oembedStatus: 200, aiFailed: true })).toBe(false);
   });
 });
+
+import { postMeta } from '../../functions/src/socialPost';
+describe('postMeta (device test 2026-11-08: TikTok\'s lookup came back empty from the server)', () => {
+  const hint = { caption: 'Best ramen in Tokyo at Ichiran Shibuya', author: 'Foodie', authorHandle: 'foodie_tokyo', coverUrl: 'https://p16.tiktokcdn.com/x.jpg' };
+  it('uses the server\'s own lookup when it worked', () => {
+    const m = postMeta(200, { title: 'Server caption', author_name: 'S', author_unique_id: 's', thumbnail_url: 'https://p16.tiktokcdn.com/s.jpg' }, hint);
+    expect(m).toMatchObject({ caption: 'Server caption', authorHandle: 's', fromDevice: false });
+  });
+  it('falls back to what the phone read when the server got nothing', () => {
+    for (const status of [0, 403, 429, 500]) expect(postMeta(status, null, hint)).toMatchObject({ caption: hint.caption, authorHandle: 'foodie_tokyo', fromDevice: true });
+  });
+  it('cleans what the phone sent (length, https covers only)', () => {
+    const m = postMeta(0, null, { caption: 'x'.repeat(900), author: 'a'.repeat(300), authorHandle: 'h', coverUrl: 'http://evil/x.jpg' });
+    expect(m.caption).toHaveLength(300); expect(m.author.length).toBeLessThanOrEqual(80); expect(m.coverUrl).toBeNull();
+  });
+  it('no lookup and no hint: empty, not from the device', () => {
+    expect(postMeta(0, null, null)).toMatchObject({ caption: '', fromDevice: false });
+  });
+  it('never caches a read that used the phone\'s words (no planting places for others)', () => {
+    expect(shouldCachePost({ oembedStatus: 0, aiFailed: false, fromDevice: true })).toBe(false);
+    expect(shouldCachePost({ oembedStatus: 200, aiFailed: false, fromDevice: false })).toBe(true);
+  });
+});

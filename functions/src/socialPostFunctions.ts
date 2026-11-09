@@ -11,7 +11,7 @@ import { isPaidTier } from './flightPolling';
 import { generateJson } from './agentModel';
 import {
   PLACES_SCHEMA, PLACES_SYSTEM, cleanPlaces, isShortTikTok, monthKey, parsePlacesAnswer, pickByName, placesPrompt,
-  shouldCachePost, tiktokVideoId, trimCaption, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
+  postMeta, shouldCachePost, tiktokVideoId, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
 } from './socialPost';
 
 const db = () => admin.firestore();
@@ -72,7 +72,7 @@ async function placeAll(a: PlacesAnswer): Promise<{ cityLat: number | null; city
 export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60 }, async (req) => {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Must be signed in');
   const uid = req.auth.uid;
-  const { url, requestId } = (req.data ?? {}) as { url?: unknown; requestId?: unknown };
+  const { url, requestId, hint } = (req.data ?? {}) as { url?: unknown; requestId?: unknown; hint?: unknown };
   if (typeof url !== 'string' || url.length > 500 || typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{6,40}$/.test(requestId)) {
     throw new HttpsError('invalid-argument', 'Supernova can save TikTok posts for now');
   }
@@ -113,16 +113,17 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
   // oEmbed every time: the cover link expires and is never stored, and a deleted video should say so.
   const oe = await getJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(canonical)}`).catch(() => ({ status: 0, body: null }));
   if (oe.status === 400 || oe.status === 404) throw new HttpsError('not-found', "That video isn't available. It may be private or deleted.");
-  const meta = (oe.body ?? {}) as { title?: string; author_name?: string; author_unique_id?: string; thumbnail_url?: string };
-  const coverUrl = typeof meta.thumbnail_url === 'string' ? meta.thumbnail_url : null;
+  // TikTok can answer servers with nothing (device test 2026-11-08); then the phone's own reading of the same public
+  // oEmbed is used — never cached, so no one can plant places for others.
+  const meta = postMeta(oe.status, oe.body, hint && typeof hint === 'object' ? hint : null);
+  if (oe.status !== 200) console.warn('readSocialPost: oEmbed', { videoId, status: oe.status, usedDevice: meta.fromDevice });
+  const coverUrl = meta.coverUrl;
 
   if (cached && now - cached.at < CACHE_MS) {
     return { videoId, postUrl: canonical, coverUrl, caption: cached.caption, author: cached.author, authorHandle: cached.authorHandle, city: cached.city, country: cached.country, cityLat: cached.cityLat, cityLng: cached.cityLng, places: cached.places };
   }
 
-  const caption = trimCaption(meta.title);
-  const author = String(meta.author_name ?? '');
-  const authorHandle = String(meta.author_unique_id ?? '');
+  const { caption, author, authorHandle } = meta;
   let answer: PlacesAnswer = { city: null, country: null, places: [] };
   let aiFailed = false;
   const apiKey = process.env.GEMINI_API_KEY;
@@ -141,6 +142,6 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
   }
   const placed = await placeAll(answer);
   const out: Cached = { caption, author, authorHandle, city: answer.city, country: answer.country, cityLat: placed.cityLat, cityLng: placed.cityLng, places: placed.places, at: now };
-  if (shouldCachePost({ oembedStatus: oe.status, aiFailed: aiFailed || (!apiKey && !!caption) })) await cacheRef.set(out).catch(() => {});
+  if (shouldCachePost({ oembedStatus: oe.status, aiFailed: aiFailed || (!apiKey && !!caption), fromDevice: meta.fromDevice })) await cacheRef.set(out).catch(() => {});
   return { videoId, postUrl: canonical, coverUrl, caption, author, authorHandle, city: answer.city, country: answer.country, cityLat: placed.cityLat, cityLng: placed.cityLng, places: placed.places };
 });

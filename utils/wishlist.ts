@@ -138,3 +138,16 @@ export function singleFlight<A extends unknown[]>(fn: (...args: A) => Promise<vo
     return running;
   };
 }
+
+/** TikTok's public oEmbed answer, read on the phone (the server's lookup can come back empty — device test 2026-11-08). */
+export function parseOembed(json: unknown): { caption: string; author: string; authorHandle: string; coverUrl: string | null } | null {
+  if (!json || typeof json !== 'object') return null;
+  const j = json as { title?: unknown; author_name?: unknown; author_unique_id?: unknown; thumbnail_url?: unknown };
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const cover = str(j.thumbnail_url);
+  return { caption: str(j.title), author: str(j.author_name), authorHandle: str(j.author_unique_id), coverUrl: cover.startsWith('https://') ? cover : null };
+}
+
+/** One sheet per share: the same link again within 10 s is the same share (it opened twice — device test). */
+export const isDuplicateShare = (last: { url: string; at: number } | null, url: string, nowMs: number) =>
+  !!last && last.url === url && nowMs - last.at < 10_000;
