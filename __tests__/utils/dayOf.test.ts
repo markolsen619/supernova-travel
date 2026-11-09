@@ -136,3 +136,27 @@ it('the ongoing flight notice sits quietly in the list while the app is open; ev
   expect(foregroundPresentation('flight-today')).toEqual({ shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: true });
   expect(foregroundPresentation('abc')).toEqual({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true });
 });
+
+import { checkInVisible, flightCountdown, flightStatusLine } from '@/utils/dayOf';
+describe('day-of polish (owner, 2026-11-08)', () => {
+  const dep = Date.parse('2026-11-10T14:30:00Z');
+  it('checkInVisible: only from 48 h before departure, until it leaves', () => {
+    expect(checkInVisible(pass(), dep - 49 * 3_600_000)).toBe(false);
+    expect(checkInVisible(pass(), dep - 47 * 3_600_000)).toBe(true);
+    expect(checkInVisible(pass(), dep + 60_000)).toBe(false);
+    expect(checkInVisible(pass({ status: 'cancelled' }), dep - 3_600_000)).toBe(false);
+  });
+  it('flightCountdown: departs in, with the delay; nothing once gone', () => {
+    expect(flightCountdown(pass(), dep - (3 * 60 + 5) * 60_000)).toBe('Departs in 3 h 5 min');
+    expect(flightCountdown(pass(), dep - 40 * 60_000)).toBe('Departs in 40 min');
+    expect(flightCountdown(pass({ delayMinutes: 30 } as Partial<BoardingPass>), dep - 10 * 60_000)).toBe('Departs in 40 min');
+    expect(flightCountdown(pass(), dep + 60_000)).toBeNull();
+  });
+  it('flightStatusLine: a delay or a live gate, else nothing', () => {
+    expect(flightStatusLine(pass({ delayMinutes: 25 } as Partial<BoardingPass>))).toBe('Delayed 25 min');
+    expect(flightStatusLine(pass({ delayMinutes: 25, gate: 'B12', gateSource: 'live' } as Partial<BoardingPass>))).toBe('Delayed 25 min · Gate B12');
+    expect(flightStatusLine(pass({ gate: 'B12', gateSource: 'live' } as Partial<BoardingPass>))).toBe('Gate B12');
+    expect(flightStatusLine(pass({ gate: 'B12' }))).toBeNull();
+    expect(flightStatusLine(pass({ delayMinutes: 10 } as Partial<BoardingPass>))).toBeNull();
+  });
+});
