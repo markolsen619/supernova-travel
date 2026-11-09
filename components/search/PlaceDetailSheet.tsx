@@ -23,6 +23,7 @@ import { buildBookingAction } from '@/utils/bookingLinks';
 import { activityPartner, activityPartnerUrl, isSightType, partnerIdsFromEnv, PARTNER_NAME } from '@/utils/activityBooking';
 import * as WebBrowser from 'expo-web-browser';
 import { enrichPlaceById } from '@/services/places/googlePlaces';
+import { openDirections } from '@/services/openDirections';
 import { placePhotoUris } from '@/services/places/placePhotos';
 import { Image as CachedImage } from 'expo-image';
 import { AddToTripSheet } from '@/components/search/AddToTripSheet';
@@ -385,6 +386,20 @@ export function PlaceDetailSheet({
         </TouchableOpacity>
       ) : null}
 
+      {/* Open in Maps (owner, 2026-11-08). */}
+      {displayPlace.lat != null && displayPlace.lng != null ? (
+        <TouchableOpacity
+          style={[styles.directionsBtn, { borderColor: colors.background.cardBorder }]}
+          onPress={() => openDirections({ name: displayPlace.name, lat: displayPlace.lat, lng: displayPlace.lng, placeId: displayPlace.placeId || null })}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Directions to ${displayPlace.name}`}
+        >
+          <NavigationArrow size={16} color={colors.text.primary} weight="bold" />
+          <Text style={[styles.directionsText, { color: colors.text.primary }]}>Directions</Text>
+        </TouchableOpacity>
+      ) : null}
+
       {/* Opened from a trip stop, you're already planning a trip here — its place is
           photos and reviews instead (PlaceReviewsSummary below). */}
       {!fromTrip && (
@@ -463,6 +478,8 @@ export function PlaceDetailSheet({
 }
 
 const styles = StyleSheet.create({
+  directionsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing['2'], minHeight: 44, borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth, marginTop: Spacing['2'] },
+  directionsText: { fontSize: FontSize.base, fontWeight: FontWeight.medium },
   sheet: {
     position: 'absolute',
     bottom: 0,

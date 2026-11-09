@@ -7,7 +7,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { PencilSimple, MapPinLine, CheckCircle, Ticket } from 'phosphor-react-native';
+import { PencilSimple, MapPinLine, CheckCircle, Ticket, NavigationArrow } from 'phosphor-react-native';
+import { openDirections } from '@/services/openDirections';
 import { showTicketsLink } from '@/utils/tripTours';
 import { stopTime } from '@/utils/stopTime';
 import { useTheme } from '@/hooks/useTheme';
@@ -181,6 +182,20 @@ export function ActivityItem({
               </Text>
             </View>
           ) : null}
+          {(onTickets && !bookedDetail && showTicketsLink(activity)) || (activity.lat != null && activity.lng != null && !activity.visited) ? (
+            <View style={styles.linksRow}>
+          {activity.lat != null && activity.lng != null && !activity.visited ? (
+            <TouchableOpacity
+              onPress={() => openDirections({ name: activity.placeName || activity.title, lat: activity.lat!, lng: activity.lng!, placeId: activity.placeId || null })}
+              style={styles.ticketsLink}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              accessibilityRole="link"
+              accessibilityLabel={`Directions to ${activity.title}`}
+            >
+              <NavigationArrow size={12} color={colors.text.secondary} weight="bold" />
+              <Text style={[styles.subtitle, { color: colors.text.secondary }]}>Directions</Text>
+            </TouchableOpacity>
+          ) : null}
           {!bookedDetail && onTickets && showTicketsLink(activity) ? (
             <TouchableOpacity
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onTickets(); }}
@@ -192,6 +207,8 @@ export function ActivityItem({
               <Ticket size={12} color={colors.brand.purple} weight="bold" />
               <Text style={[styles.subtitle, { color: colors.brand.purple }]}>Tickets</Text>
             </TouchableOpacity>
+          ) : null}
+            </View>
           ) : null}
         </View>
 
@@ -261,7 +278,8 @@ const styles = StyleSheet.create({
     fontWeight: FontWeight.semiBold,
     marginBottom: 2,
   },
-  ticketsLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, alignSelf: 'flex-start' },
+  ticketsLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  linksRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['4'], marginTop: 4 },
   subtitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
