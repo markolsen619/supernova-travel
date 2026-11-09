@@ -41,6 +41,9 @@ import { SPRING } from '@/constants/motion';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 import { openCreatedTrip } from '@/services/openCreatedTrip';
 import { KeyboardLift } from '@/components/ui/KeyboardLift';
+import { savesNear } from '@/utils/wishlist';
+import { useWishlist } from '@/hooks/useWishlist';
+import { SavedPlacesCard } from '@/components/wishlist/SavedPlacesCard';
 
 const TOTAL_STEPS = 4;
 
@@ -660,19 +663,29 @@ export default function NewTripScreen() {
     }
   };
 
+  const { saves: wishSaves } = useWishlist();
+
   const renderStep = () => {
     switch (step) {
       case 0:
         return (
-          <Step1Destination
-            destination={destination}
-            countryCode={countryCode}
-            placeId={placeId}
-            onPlaceSelect={handlePlaceSelect}
-            onClearPlace={handleClearPlace}
-            additionalDestinations={additionalDestinations}
-            onAdditionalDestinationsChange={setAdditionalDestinations}
-          />
+          <>
+            <Step1Destination
+              destination={destination}
+              countryCode={countryCode}
+              placeId={placeId}
+              onPlaceSelect={handlePlaceSelect}
+              onClearPlace={handleClearPlace}
+              additionalDestinations={additionalDestinations}
+              onAdditionalDestinationsChange={setAdditionalDestinations}
+            />
+            {/* Your saved TikTok places near this city (owner, 2026-11-08): they wait in the trip's Wish list chip. */}
+            <SavedPlacesCard
+              city={destination.trim() || 'this city'}
+              matches={savesNear(lat != null && lng != null ? { lat, lng } : null, wishSaves)}
+              note="They'll be in this trip's Wish list, ready to add to any day."
+            />
+          </>
         );
       case 1:
         return (

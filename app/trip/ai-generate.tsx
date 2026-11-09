@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,9 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import { useAiConsentGate } from '@/components/ai/useAiConsentGate';
 import { KeyboardLift } from '@/components/ui/KeyboardLift';
+import { mustSeeWith, savesNear } from '@/utils/wishlist';
+import { useWishlist } from '@/hooks/useWishlist';
+import { SavedPlacesCard } from '@/components/wishlist/SavedPlacesCard';
 
 /**
  * The quota line under the generate button.
@@ -63,6 +66,10 @@ export default function AiGenerateScreen() {
     destination?: string;
     countryCode?: string;
     placeId?: string;
+    /** From Home's wish-list nudge: the city's centre and the saved places to plan around. */
+    lat?: string;
+    lng?: string;
+    mustSee?: string;
   }>();
 
   const [destination, setDestination] = useState(params.destination ?? '');
@@ -74,7 +81,7 @@ export default function AiGenerateScreen() {
   const [travelStyles, setTravelStyles] = useState<TravelStyle[]>(['adventure']);
   const [pace, setPace] = useState<TripPace>('moderate');
   const [visibility, setVisibility] = useState<TripVisibility>('followers');
-  const [mustSeeInput, setMustSeeInput] = useState('');
+  const [mustSeeInput, setMustSeeInput] = useState(params.mustSee ?? '');
   const [preferences, setPreferences] = useState('');
 
   const { data: quota } = useAiTripQuota();
@@ -89,6 +96,18 @@ export default function AiGenerateScreen() {
 
   // Dates are required: they are the only way to set the trip's length.
   const durationDays = startDate && endDate ? tripDayCount(startDate, endDate) : 0;
+  // Saved places near the chosen city, all ticked to start; added ones leave the card (they're must-sees now).
+  const { saves: wishSaves } = useWishlist();
+  const cityCentre = placeCoords ?? (params.lat && params.lng ? { lat: Number(params.lat), lng: Number(params.lng) } : null);
+  const savedNearby = useMemo(() => savesNear(cityCentre, wishSaves).filter((m) => !mustSeeInput.toLowerCase().includes(m.place.name.toLowerCase())),
+    [cityCentre?.lat, cityCentre?.lng, wishSaves, mustSeeInput]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [savedOff, setSavedOff] = useState<Set<string>>(new Set());
+  const savedPicked = useMemo(() => new Set(savedNearby.map((m) => `${m.save.videoId}:${m.place.id}`).filter((k) => !savedOff.has(k))), [savedNearby, savedOff]);
+  const toggleSaved = useCallback((k: string) => setSavedOff((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; }), []);
+  const addSavedToMustSees = useCallback(() => {
+    setMustSeeInput((cur) => mustSeeWith(cur, savedNearby.filter((m) => savedPicked.has(`${m.save.videoId}:${m.place.id}`)).map((m) => m.place.name)));
+  }, [savedNearby, savedPicked]);
+
   const isValid = destination.trim().length > 0 && durationDays >= 1;
 
   const handleBack = useCallback(() => {
@@ -183,6 +202,16 @@ export default function AiGenerateScreen() {
               <Text style={[styles.quotaBadgeText, { color: colors.brand.purple }]}>{quotaLabel(quota)}</Text>
             </View>
           ) : null}
+
+          {/* Your saved TikTok places near this city (owner, 2026-11-08) → must-sees, so Nova plans around them. */}
+          <SavedPlacesCard
+            city={destination.trim() || 'this city'}
+            matches={savedNearby}
+            selected={savedPicked}
+            onToggle={toggleSaved}
+            actionLabel="Add to must-sees"
+            onAction={addSavedToMustSees}
+          />
 
           <AiPromptForm
             destination={destination}

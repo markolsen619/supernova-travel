@@ -126,3 +126,22 @@ describe('device lookup and one sheet per share', () => {
     expect(isDuplicateShare(null, 'u', 2000)).toBe(false);
   });
 });
+
+import { savesNear, mustSeeWith, topSavedCity } from '@/utils/wishlist';
+describe('saved places when planning (owner, 2026-11-08)', () => {
+  const tokyoSave = save('t', [place('a', 'Ichiran Shibuya', 35.66, 139.7), { ...place('b', 'Already planned', 35.67, 139.7), addedTo: { tripId: 'x', dayId: 'd', activityId: 'y' } }, place('c', 'No position', null, null)], 'Tokyo', 2);
+  const kyotoSave = save('k', [place('g', 'Gion Kappa', 35.0, 135.77, 'Kyoto')], 'Kyoto', 1);
+  it('savesNear: saved places within 50 km of the city, not yet on a trip, with a position', () => {
+    expect(savesNear({ lat: 35.68, lng: 139.76 }, [tokyoSave, kyotoSave]).map((m) => m.place.name)).toEqual(['Ichiran Shibuya']);
+    expect(savesNear(null, [tokyoSave])).toEqual([]);
+  });
+  it('mustSeeWith adds names once, comma-separated', () => {
+    expect(mustSeeWith('', ['Ichiran Shibuya', 'Gion Kappa'])).toBe('Ichiran Shibuya, Gion Kappa');
+    expect(mustSeeWith('teamLab, ichiran shibuya', ['Ichiran Shibuya', 'Gion Kappa'])).toBe('teamLab, ichiran shibuya, Gion Kappa');
+  });
+  it('topSavedCity: the city with the most saved places not yet on a trip', () => {
+    const extra = save('t2', [place('d', 'Tsukiji', 35.66, 139.77)], 'Tokyo', 3);
+    expect(topSavedCity([tokyoSave, kyotoSave, extra])).toMatchObject({ city: 'Tokyo', count: 2, names: ['Tsukiji', 'Ichiran Shibuya'] });
+    expect(topSavedCity([])).toBeNull();
+  });
+});

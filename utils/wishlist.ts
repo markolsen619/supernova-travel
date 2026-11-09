@@ -151,3 +151,36 @@ export function parseOembed(json: unknown): { caption: string; author: string; a
 /** One sheet per share: the same link again within 10 s is the same share (it opened twice — device test). */
 export const isDuplicateShare = (last: { url: string; at: number } | null, url: string, nowMs: number) =>
   !!last && last.url === url && nowMs - last.at < 10_000;
+
+/** Saved places within `maxKm` of a city that aren't on a trip yet and have a position (planning a trip there). */
+export function savesNear(center: { lat: number; lng: number } | null, saves: WishSave[], maxKm = 50): { save: WishSave; place: WishPlace }[] {
+  if (!center) return [];
+  return saves.flatMap((save) => save.places
+    .filter((p) => !p.addedTo && p.lat != null && p.lng != null && km(center, { lat: p.lat!, lng: p.lng! }) <= maxKm)
+    .map((place) => ({ save, place })));
+}
+
+/** The must-see text with these names added once each (case-insensitive), comma-separated. */
+export function mustSeeWith(input: string, names: string[]): string {
+  const have = input.split(',').map((s) => s.trim()).filter(Boolean);
+  const lower = new Set(have.map((s) => s.toLowerCase()));
+  for (const n of names) if (!lower.has(n.toLowerCase())) { have.push(n); lower.add(n.toLowerCase()); }
+  return have.join(', ');
+}
+
+/** For Home's nudge: the city with the most saved places not yet on a trip (newest saves first), with its centre. */
+export function topSavedCity(saves: WishSave[]): { city: string; country: string | null; lat: number; lng: number; count: number; names: string[] } | null {
+  const by = new Map<string, { city: string; country: string | null; lat: number; lng: number; names: string[] }>();
+  for (const s of [...saves].sort((a, b) => b.savedAtMs - a.savedAtMs)) {
+    for (const p of s.places) {
+      if (p.addedTo || p.lat == null || p.lng == null) continue;
+      const city = p.city ?? s.city;
+      if (!city) continue;
+      const g = by.get(city) ?? { city, country: s.country, lat: (p.city && p.city !== s.city) ? p.lat : (s.cityLat ?? p.lat), lng: (p.city && p.city !== s.city) ? p.lng : (s.cityLng ?? p.lng), names: [] };
+      g.names.push(p.name);
+      by.set(city, g);
+    }
+  }
+  const best = [...by.values()].sort((a, b) => b.names.length - a.names.length)[0];
+  return best ? { ...best, count: best.names.length } : null;
+}
