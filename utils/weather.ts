@@ -1,39 +1,53 @@
 /**
- * Weather on trip days (owner, 2026-11-08): Open-Meteo's daily forecast (free, no key, up to 16 days). Only a city's
- * rounded position is sent — nothing about the traveler. Pure; hooks/useForecast fetches it once per city per day.
+ * Weather on trip days (owner, 2026-11-08; MET Norway since 2026-11-09 — Open-Meteo's free API is non-commercial).
+ * MET Norway's Locationforecast is free for commercial use under CC BY 4.0 (credited "Weather: MET Norway" in
+ * Settings → About and the privacy policy) and asks every request to identify the app (`MET_HEADERS`). Only a city's
+ * rounded position is sent. Its hourly UTC forecast (~9 days) becomes each local day's high, low and midday sky. Pure;
+ * hooks/useForecast fetches it once per city per day.
  */
 export type WeatherKind = 'sun' | 'partly' | 'cloud' | 'fog' | 'rain' | 'snow' | 'storm';
 export type DayWeather = { kind: WeatherKind; max: number; min: number };
 
-/** WMO weather codes (Open-Meteo `weather_code`) → one of a few icons. */
-export function weatherKind(code: number): WeatherKind {
-  if (code <= 1) return 'sun';
-  if (code === 2) return 'partly';
-  if (code === 3) return 'cloud';
-  if (code === 45 || code === 48) return 'fog';
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
-  if (code >= 95 && code <= 99) return 'storm';
+export const MET_HEADERS = { 'User-Agent': 'SupernovaTravel/1.1 (https://supernovatravel.xyz)' };
+
+/** MET Norway symbol codes ("clearsky_day", "lightrainshowers_night", "heavyrainandthunder") → one of a few icons. */
+export function symbolKind(symbol: string): WeatherKind {
+  const s = symbol.replace(/_(day|night|polartwilight)$/, '');
+  if (s.includes('thunder')) return 'storm';
+  if (s.includes('snow') || s.includes('sleet')) return 'snow';
+  if (s.includes('rain') || s.includes('drizzle')) return 'rain';
+  if (s === 'fog') return 'fog';
+  if (s === 'clearsky' || s === 'fair') return 'sun';
+  if (s === 'partlycloudy') return 'partly';
   return 'cloud';
 }
 
-export const forecastUrl = (lat: number, lng: number) => {
-  const p = new URLSearchParams({
-    latitude: lat.toFixed(2), longitude: lng.toFixed(2),
-    daily: 'weather_code,temperature_2m_max,temperature_2m_min', timezone: 'auto', forecast_days: '16',
-  });
-  return `https://api.open-meteo.com/v1/forecast?${p.toString()}`;
-};
+export const forecastUrl = (lat: number, lng: number) =>
+  `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(2)}&lon=${lng.toFixed(2)}`;
 
-/** The daily forecast keyed by the city's local date. */
-export function parseForecast(json: unknown): Record<string, DayWeather> {
-  const d = (json as { daily?: { time?: unknown; weather_code?: unknown; temperature_2m_max?: unknown; temperature_2m_min?: unknown } } | null)?.daily;
-  if (!d || !Array.isArray(d.time) || !Array.isArray(d.weather_code) || !Array.isArray(d.temperature_2m_max) || !Array.isArray(d.temperature_2m_min)) return {};
+type Point = { time?: unknown; data?: { instant?: { details?: { air_temperature?: unknown } }; next_1_hours?: { summary?: { symbol_code?: unknown } }; next_6_hours?: { summary?: { symbol_code?: unknown } }; next_12_hours?: { summary?: { symbol_code?: unknown } } } };
+
+/** Each local day's high, low and sky — the symbol nearest local noon; the local day from the city's longitude. */
+export function parseForecast(json: unknown, lng: number): Record<string, DayWeather> {
+  const series = (json as { properties?: { timeseries?: unknown } } | null)?.properties?.timeseries;
+  if (!Array.isArray(series)) return {};
+  const offsetMs = Math.round(lng / 15) * 3_600_000;
+  const days = new Map<string, { max: number; min: number; sym: string | null; symDist: number }>();
+  for (const p of series as Point[]) {
+    const t = typeof p.time === 'string' ? Date.parse(p.time) : NaN;
+    const temp = p.data?.instant?.details?.air_temperature;
+    if (!Number.isFinite(t) || typeof temp !== 'number') continue;
+    const local = new Date(t + offsetMs);
+    const day = local.toISOString().slice(0, 10);
+    const hour = local.getUTCHours();
+    const sym = [p.data?.next_1_hours, p.data?.next_6_hours, p.data?.next_12_hours].map((x) => x?.summary?.symbol_code).find((x): x is string => typeof x === 'string') ?? null;
+    const d = days.get(day) ?? { max: temp, min: temp, sym: null, symDist: 99 };
+    d.max = Math.max(d.max, temp); d.min = Math.min(d.min, temp);
+    if (sym && Math.abs(hour - 12) < d.symDist) { d.sym = sym; d.symDist = Math.abs(hour - 12); }
+    days.set(day, d);
+  }
   const out: Record<string, DayWeather> = {};
-  d.time.forEach((day, i) => {
-    const code = (d.weather_code as unknown[])[i], max = (d.temperature_2m_max as unknown[])[i], min = (d.temperature_2m_min as unknown[])[i];
-    if (typeof day === 'string' && typeof code === 'number' && typeof max === 'number' && typeof min === 'number') out[day] = { kind: weatherKind(code), max, min };
-  });
+  for (const [day, d] of days) out[day] = { kind: d.sym ? symbolKind(d.sym) : 'cloud', max: d.max, min: d.min };
   return out;
 }
 

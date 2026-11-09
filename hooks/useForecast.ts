@@ -1,7 +1,7 @@
-/** A city's daily forecast (utils/weather): one Open-Meteo request per city per day, kept for the session. */
+/** A city's daily forecast (utils/weather): one MET Norway request per city per day, kept for the session. */
 import { useQuery } from '@tanstack/react-query';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { forecastUrl, parseForecast, type DayWeather } from '@/utils/weather';
+import { forecastUrl, MET_HEADERS, parseForecast, type DayWeather } from '@/utils/weather';
 
 export function useForecast(lat: number | null | undefined, lng: number | null | undefined) {
   const ok = typeof lat === 'number' && typeof lng === 'number';
@@ -12,8 +12,8 @@ export function useForecast(lat: number | null | undefined, lng: number | null |
     gcTime: 24 * 60 * 60 * 1000,
     retry: 1,
     queryFn: async (): Promise<Record<string, DayWeather>> => {
-      const r = await fetch(forecastUrl(lat!, lng!));
-      return r.ok ? parseForecast(await r.json()) : {};
+      const r = await fetch(forecastUrl(lat!, lng!), { headers: MET_HEADERS });
+      return r.ok ? parseForecast(await r.json(), lng!) : {};
     },
   });
 }
