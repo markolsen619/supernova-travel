@@ -46,3 +46,4 @@ export {
 export { agent, getAgentQuota, onTripDeletedAgentThreads } from './agentFunctions';
 export { pastTripStory } from './pastTripStoryFunctions';
 export { readSocialPost } from './socialPostFunctions';
+export { ticketsReminder } from './ticketsReminderFunctions';

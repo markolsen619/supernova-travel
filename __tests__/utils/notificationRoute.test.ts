@@ -95,3 +95,7 @@ describe('day-of reminders (2026-11-01)', () => {
     expect(resolveNotificationRoute({ type: 'leave_by', passId: 'bp1' })).toBe('/(wallet)/boarding-pass/bp1');
   });
 });
+
+it('the "still need tickets" reminder opens its trip', () => {
+  expect(resolveNotificationRoute({ type: 'tickets_reminder', tripId: 't9' })).toBe('/trip/t9');
+});

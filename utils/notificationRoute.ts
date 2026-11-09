@@ -29,6 +29,7 @@ const ROUTES: Record<string, RouteSpec> = {
   follow_accepted: { idKey: 'profileUid', build: (id) => `/user/${id}` },
   trip_invite: { idKey: 'tripId', build: (id) => `/trip/${id}` },
   trip_invite_accepted: { idKey: 'tripId', build: (id) => `/trip/${id}` },
+  tickets_reminder: { idKey: 'tripId', build: (id) => `/trip/${id}` },
   direct: { idKey: 'threadId', build: (id) => `/messages/${id}` },
   flight_status: { idKey: 'passId', build: (id) => `/(wallet)/boarding-pass/${id}` },
   // Gate changes and delays (functions/src/flightLive.ts).
