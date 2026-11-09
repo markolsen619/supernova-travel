@@ -15,7 +15,7 @@ import {
 import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
-import { Check, Export, UsersThree, X, MapPin } from 'phosphor-react-native';
+import { Check, Export, UsersThree, X, MapPin, ImageSquare } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useLayout } from '@/hooks/useLayout';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -32,10 +32,14 @@ import { SPRING } from '@/constants/motion';
 import { containsObjectionableText, OBJECTIONABLE_TEXT_MESSAGE } from '@/utils/contentFilter';
 import { shareRecipients, tripShareUrl, type ShareableTrip } from '@/utils/tripShare';
 import { tripPlaceLabel } from '@/utils/tripRegion';
+import { TripStoryCard } from '@/components/trip/TripStoryCard';
+import * as Sharing from 'expo-sharing';
+import { captureRef } from 'react-native-view-shot';
 
 interface ShareTripSheetProps {
   visible: boolean;
-  trip: ShareableTrip;
+  /** `days` (from the trip page) feeds the Story image's highlight stops. */
+  trip: ShareableTrip & { days?: { dayNumber: number; activities: { title: string; type: string; order: number }[] }[] };
   onClose: () => void;
 }
 
@@ -57,6 +61,23 @@ export function ShareTripSheet({ visible, trip, onClose }: ShareTripSheetProps) 
   const { send, sending } = useShareTrip();
 
   const [selected, setSelected] = useState<string[]>([]);
+
+  // The Story image: the off-screen card captured at 1080 × 1920 (the Year in Travel way).
+  const storyRef = useRef<View>(null);
+  const [makingImage, setMakingImage] = useState(false);
+  const handleShareImage = useCallback(async () => {
+    if (!storyRef.current) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setMakingImage(true);
+    try {
+      const uri = await captureRef(storyRef, { format: 'png', quality: 1, width: 1080, height: 1920, result: 'tmpfile' });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: trip.title });
+    } catch {
+      // Cancelled or unavailable: nothing to tell.
+    } finally {
+      setMakingImage(false);
+    }
+  }, [trip.title]);
   const [note, setNote] = useState('');
   const [result, setResult] = useState<{
     message: string;
@@ -171,6 +192,21 @@ export function ShareTripSheet({ visible, trip, onClose }: ShareTripSheetProps) 
               {trip.title}
             </Text>
           </View>
+        </View>
+
+        {/* A Story image (owner, 2026-11-08): designed 9:16, shared through the system sheet (Instagram is one tap). */}
+        <TouchableOpacity
+          onPress={handleShareImage}
+          disabled={makingImage}
+          style={[styles.linkRow, { borderColor: colors.background.cardBorder }]}
+          accessibilityRole="button"
+          accessibilityLabel="Share as image for Instagram Stories"
+        >
+          <ImageSquare size={18} color={colors.text.primary} weight="bold" />
+          <Text style={[styles.linkText, { color: colors.text.primary }]}>{makingImage ? 'Making the image…' : 'Share as image'}</Text>
+        </TouchableOpacity>
+        <View style={styles.offscreen} pointerEvents="none">
+          <TripStoryCard ref={storyRef} trip={{ ...trip, days: trip.days ?? [] }} />
         </View>
 
         {/* With no one to message, the empty state below offers this instead. */}
@@ -306,6 +342,7 @@ export function ShareTripSheet({ visible, trip, onClose }: ShareTripSheetProps) 
 }
 
 const styles = StyleSheet.create({
+  offscreen: { position: 'absolute', left: -10000, top: 0 },
   root: { flex: 1, paddingHorizontal: Spacing['5'], paddingTop: Spacing['5'] },
   header: {
     flexDirection: 'row',
