@@ -1274,6 +1274,9 @@ export default function TripDetailScreen() {
                 contentFit="cover"
                 cachePolicy="disk"
               />
+              {trip.coverCredit ? (
+                <Text style={styles.coverCredit} numberOfLines={1}>{`Photo: ${trip.coverCredit}`}</Text>
+              ) : null}
               {/* Scrim: extra legibility margin for the header buttons over
                   unpredictable photo content — the buttons themselves don't
                   depend on it (see headerBtnCircle). */}
@@ -1874,6 +1877,8 @@ export default function TripDetailScreen() {
 const HEADER_IMAGE_HEIGHT = 280;
 
 const styles = StyleSheet.create({
+  // Google asks for the photographer's credit on a Places photo; over the photo, so white with a shadow.
+  coverCredit: { position: 'absolute', right: Spacing['3'], bottom: Spacing['2'], maxWidth: '60%', fontSize: 10, color: 'rgba(255,255,255,0.85)', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3, zIndex: 2 },
   container: {
     flex: 1,
   },

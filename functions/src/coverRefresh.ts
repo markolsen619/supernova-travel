@@ -69,3 +69,9 @@ export function photoUriFrom(json: unknown): string | null {
     return null;
   }
 }
+
+/** The first photo's author name (Google's terms ask apps to show "Photo: Name" with a Places photo), else null. */
+export function firstPhotoCredit(details: unknown): string | null {
+  const a = (details as { photos?: { authorAttributions?: { displayName?: unknown }[] }[] } | null)?.photos?.[0]?.authorAttributions?.[0]?.displayName;
+  return typeof a === 'string' && a.trim() ? a.trim().slice(0, 80) : null;
+}

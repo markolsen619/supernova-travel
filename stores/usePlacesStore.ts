@@ -28,6 +28,8 @@ export interface EnrichedPlace {
   openingHours?: string[];
   /** Photo resource names (places/{id}/photos/{ref}) — build URLs lazily via photoUrl(). */
   photoNames?: string[];
+  /** Each photo's author, lined up with photoNames ('' when unknown) — the "Photo: Name" credit. */
+  photoCredits?: string[];
   summary?: string;
 }
 

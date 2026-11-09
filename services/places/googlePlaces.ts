@@ -68,7 +68,7 @@ export const GROUNDING_LIST_FIELD_MASK = GROUNDING_FIELDS.map((f) => `places.${f
 type RawAddressComponent = { types?: string[]; shortText?: string };
 type RawLatLng = { latitude?: number; longitude?: number };
 export type RawViewport = { low?: RawLatLng; high?: RawLatLng };
-type RawPhoto = { name?: string };
+type RawPhoto = { name?: string; authorAttributions?: { displayName?: string }[] };
 
 export type PlaceViewportBounds = { ne: [number, number]; sw: [number, number] };
 
@@ -410,6 +410,10 @@ export function tier2FieldsFromRaw(place: RawTier2Place): Partial<EnrichedPlace>
     photoNames: place.photos
       ?.map((p) => p.name)
       .filter((n): n is string => !!n),
+    // The author of each photo, lined up with photoNames ('' when Google gives none) — shown as "Photo: Name".
+    photoCredits: place.photos
+      ?.filter((p) => !!p.name)
+      .map((p) => p.authorAttributions?.[0]?.displayName?.trim() ?? ''),
     summary: place.editorialSummary?.text,
   };
 }

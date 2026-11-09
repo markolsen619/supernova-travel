@@ -47,6 +47,8 @@ export interface Destination {
   popularity: number;
   center: { lat: number; lng: number };
   coverImageUrl: string | null;
+  /** "Photo: Name" for the cover (functions/src/coverRefresh.ts). */
+  coverCredit: string | null;
   placeId: string | null;
   topPlaces: TopPlace[];
   /** Public itineraries here, editorial + community. */
@@ -82,6 +84,7 @@ export function parseDestination(id: string, data: Record<string, unknown>): Des
     popularity: num(data.popularity) ?? 0,
     center: { lat, lng },
     coverImageUrl: str(data.coverImageUrl),
+    coverCredit: str(data.coverCredit),
     placeId: str(data.placeId),
     topPlaces: Array.isArray(data.topPlaces) ? data.topPlaces.map(parseTopPlace).filter((p): p is TopPlace => !!p) : [],
     itineraryCount: num(data.itineraryCount) ?? 0,

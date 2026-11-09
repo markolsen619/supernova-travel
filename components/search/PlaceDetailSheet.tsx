@@ -315,13 +315,19 @@ export function PlaceDetailSheet({
             data={photoUris}
             keyExtractor={(uri) => uri}
             showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <CachedImage
-                source={{ uri: item }}
-                style={styles.photo}
-                contentFit="cover"
-                cachePolicy="disk"
-              />
+            renderItem={({ item, index }) => (
+              <View>
+                <CachedImage
+                  source={{ uri: item }}
+                  style={styles.photo}
+                  contentFit="cover"
+                  cachePolicy="disk"
+                />
+                {/* Google asks apps to show each Places photo's author. */}
+                {displayPlace.photoCredits?.[index] ? (
+                  <Text style={styles.photoCredit} numberOfLines={1}>{`Photo: ${displayPlace.photoCredits[index]}`}</Text>
+                ) : null}
+              </View>
             )}
           />
         </View>
@@ -478,6 +484,7 @@ export function PlaceDetailSheet({
 }
 
 const styles = StyleSheet.create({
+  photoCredit: { position: 'absolute', left: 6, right: 6, bottom: 4, fontSize: 9, color: 'rgba(255,255,255,0.9)', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
   directionsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing['2'], minHeight: 44, borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth, marginTop: Spacing['2'] },
   directionsText: { fontSize: FontSize.base, fontWeight: FontWeight.medium },
   sheet: {

@@ -192,6 +192,9 @@ export default function DestinationScreen() {
                   transition={200}
                   onError={() => setPhotoFailed(true)}
                 />
+                {destination.coverCredit ? (
+                  <Text style={styles.coverCredit} numberOfLines={1}>{`Photo: ${destination.coverCredit}`}</Text>
+                ) : null}
                 <LinearGradient
                   colors={['rgba(0,0,0,0.25)', 'transparent'] as [string, string]}
                   locations={[0, 0.35] as [number, number]}
@@ -330,6 +333,8 @@ export default function DestinationScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Google asks for the photographer's credit on a Places photo.
+  coverCredit: { position: 'absolute', right: Spacing['3'], top: Spacing['2'], maxWidth: '60%', fontSize: 10, color: 'rgba(255,255,255,0.85)', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3, zIndex: 2 },
   toursRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], minHeight: 60, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing['4'], paddingVertical: Spacing['3'] },
   toursText: { flex: 1, gap: 2 },
   toursTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semiBold },

@@ -105,6 +105,8 @@ export interface Destination {
 
 export interface Trip {
   id: string;
+  /** "Photo: Name" for a Places cover (functions/src/coverRefresh.ts). */
+  coverCredit?: string | null;
   /** "Make it yours" (utils/tripCopy.ts): the trip this one was copied from, for the credit line. */
   copiedFrom?: { tripId: string; authorUid: string; authorName: string };
   /** Written only by the Admin SDK seed for the "Supernova" editorial account; rules forbid clients setting it. */
