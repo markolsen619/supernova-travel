@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { KeyboardLift } from '@/components/ui/KeyboardLift';
 import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
 import { readSocialPost } from '@/services/socialPost';
+import { happyMoment } from '@/services/reviewPrompt';
 import { searchPlaceInBounds } from '@/services/places/mapboxSearch';
 import { toCalendarDate } from '@/utils/calendarDate';
 import { afterLimitPaywall, fitsTrip, toTripForMatch, wishlistDoc, type WishPlace, type WishSave } from '@/utils/wishlist';
@@ -144,6 +145,7 @@ export default function SaveFromSocialScreen() {
       await save(wishlistDoc(preview, [...kept], extra));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
+      happyMoment('wishlist');
     } catch (e) {
       if ((e as Error).message !== 'offline') setError("Couldn't save. Try again.");
     } finally {
