@@ -115,8 +115,8 @@ import { parseOembed, isDuplicateShare } from '@/utils/wishlist';
 describe('device lookup and one sheet per share', () => {
   it('parseOembed reads caption, creator and an https cover', () => {
     expect(parseOembed({ title: ' Ramen ', author_name: 'Foodie', author_unique_id: 'foodie', thumbnail_url: 'https://p16.tiktokcdn.com/x.jpg' }))
-      .toEqual({ caption: 'Ramen', author: 'Foodie', authorHandle: 'foodie', coverUrl: 'https://p16.tiktokcdn.com/x.jpg' });
-    expect(parseOembed({ thumbnail_url: 'http://x' })).toEqual({ caption: '', author: '', authorHandle: '', coverUrl: null });
+      .toEqual({ caption: 'Ramen', author: 'Foodie', authorHandle: 'foodie', coverUrl: 'https://p16.tiktokcdn.com/x.jpg', videoId: null });
+    expect(parseOembed({ thumbnail_url: 'http://x' })).toEqual({ caption: '', author: '', authorHandle: '', coverUrl: null, videoId: null });
     expect(parseOembed(null)).toBeNull();
   });
   it('isDuplicateShare: the same link within 10 s opens once', () => {
@@ -144,4 +144,9 @@ describe('saved places when planning (owner, 2026-11-08)', () => {
     expect(topSavedCity([tokyoSave, kyotoSave, extra])).toMatchObject({ city: 'Tokyo', count: 2, names: ['Tsukiji', 'Ichiran Shibuya'] });
     expect(topSavedCity([])).toBeNull();
   });
+});
+
+it('parseOembed also reads the video id (embed_product_id) for the server', () => {
+  expect(parseOembed({ title: 'x', embed_product_id: '7300000000000000009' })?.videoId).toBe('7300000000000000009');
+  expect(parseOembed({ title: 'x' })?.videoId).toBeNull();
 });

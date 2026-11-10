@@ -139,3 +139,16 @@ export function postMeta(status: number, body: unknown, hint: PostHint | null): 
   if (!hint) return { caption: '', author: '', authorHandle: '', coverUrl: null, fromDevice: false };
   return { caption: trimCaption(hint.caption), author: shortText(hint.author, 80), authorHandle: shortText(hint.authorHandle, 40), coverUrl: httpsUrl(hint.coverUrl), fromDevice: true };
 }
+
+/**
+ * The post's video id (device test 2026-11-09: TikTok sent our servers' short-link requests somewhere without one):
+ * the server's own resolution, else the link the phone resolved (TikTok hosts only), else the id from TikTok's oEmbed
+ * on the phone (digits only). Used as the wish-list doc id; the post's words still come from oEmbed.
+ */
+export function chooseVideoId(serverUrl: string, hint: { resolvedUrl?: unknown; videoId?: unknown } | null): string | null {
+  const own = tiktokVideoId(serverUrl);
+  if (own) return own;
+  const resolved = typeof hint?.resolvedUrl === 'string' ? tiktokVideoId(hint.resolvedUrl) : null;
+  if (resolved) return resolved;
+  return typeof hint?.videoId === 'string' && /^\d{8,25}$/.test(hint.videoId) ? hint.videoId : null;
+}

@@ -114,3 +114,19 @@ describe('postMeta (device test 2026-11-08: TikTok\'s lookup came back empty fro
     expect(shouldCachePost({ oembedStatus: 200, aiFailed: false, fromDevice: false })).toBe(true);
   });
 });
+
+import { chooseVideoId } from '../../functions/src/socialPost';
+describe('chooseVideoId (device test 2026-11-09: short links resolved from Google\'s servers lost the video id)', () => {
+  it('the server\'s own resolution first', () => {
+    expect(chooseVideoId('https://www.tiktok.com/@a/video/7300000000000000001', null)).toBe('7300000000000000001');
+  });
+  it('then the link the phone resolved, only on a TikTok host', () => {
+    expect(chooseVideoId('https://www.tiktok.com/login', { resolvedUrl: 'https://www.tiktok.com/@a/video/7300000000000000002?x=1' })).toBe('7300000000000000002');
+    expect(chooseVideoId('https://www.tiktok.com/login', { resolvedUrl: 'https://evil.io/@a/video/7300000000000000003' })).toBeNull();
+  });
+  it('then the id TikTok\'s lookup gave the phone (digits only)', () => {
+    expect(chooseVideoId('https://www.tiktok.com/', { videoId: '7300000000000000004' })).toBe('7300000000000000004');
+    expect(chooseVideoId('https://www.tiktok.com/', { videoId: '../../x' })).toBeNull();
+    expect(chooseVideoId('https://www.tiktok.com/', null)).toBeNull();
+  });
+});

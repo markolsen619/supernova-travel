@@ -27,16 +27,30 @@ async function fetchJson(url: string, ms = 6000): Promise<unknown | null> {
  * The post as the phone reads it from TikTok's public oEmbed (device test 2026-11-08: TikTok answered our server with
  * nothing). A short link that oEmbed won't take is followed on the phone first. Null when TikTok can't be reached.
  */
-export async function readPostOnDevice(url: string): Promise<ReturnType<typeof parseOembed>> {
-  const direct = parseOembed(await fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`));
-  if (direct?.caption || direct?.coverUrl) return direct;
+/** A short link (vm./vt./tiktok.com/t/) followed on the phone, where TikTok treats it as a person, not a server. */
+async function resolveOnDevice(url: string): Promise<string | null> {
+  if (/\/video\/\d{8,}/.test(url)) return url;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 6000);
     const r = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
-    if (r.url && r.url !== url) return parseOembed(await fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(r.url)}`)) ?? direct;
-  } catch { /* offline or blocked */ }
-  return direct;
+    return r.url || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The post as the phone reads it — its resolved link, video id, caption, creator and cover from TikTok's public oEmbed
+ * (device tests 2026-11-08/09: TikTok answered our server with nothing, and sent its short-link requests to a page
+ * without the video). Null fields when TikTok can't be reached.
+ */
+export async function readPostOnDevice(url: string): Promise<(NonNullable<ReturnType<typeof parseOembed>> & { resolvedUrl: string | null }) | null> {
+  const resolvedUrl = await resolveOnDevice(url);
+  const meta = parseOembed(await fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(resolvedUrl ?? url)}`))
+    ?? (resolvedUrl && resolvedUrl !== url ? parseOembed(await fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`)) : null);
+  if (!meta && !resolvedUrl) return null;
+  return { caption: '', author: '', authorHandle: '', coverUrl: null, videoId: null, ...(meta ?? {}), resolvedUrl };
 }
 
 export async function readSocialPost(url: string): Promise<WishSave & { coverUrl: string | null }> {

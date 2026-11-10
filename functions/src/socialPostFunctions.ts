@@ -11,7 +11,7 @@ import { isPaidTier } from './flightPolling';
 import { generateJson } from './agentModel';
 import {
   PLACES_SCHEMA, PLACES_SYSTEM, cleanPlaces, isShortTikTok, monthKey, parsePlacesAnswer, pickByName, placesPrompt,
-  postMeta, shouldCachePost, tiktokVideoId, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
+  chooseVideoId, postMeta, shouldCachePost, tiktokVideoId, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
 } from './socialPost';
 
 const db = () => admin.firestore();
@@ -83,12 +83,18 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
     try {
       const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(5000), headers: { 'user-agent': 'Mozilla/5.0' } });
       canonical = r.url;
-    } catch {
-      throw new HttpsError('invalid-argument', "Couldn't open that TikTok link");
-    }
+    } catch { /* the phone's resolution below */ }
   }
-  const videoId = tiktokVideoId(canonical);
-  if (!videoId) throw new HttpsError('invalid-argument', 'Supernova can save TikTok posts for now');
+  // TikTok can send our servers' short-link requests somewhere without a video id (device test 2026-11-09): then the
+  // link the phone resolved, or the id from the phone's oEmbed, decides.
+  const hintObj = hint && typeof hint === 'object' ? (hint as { resolvedUrl?: unknown; videoId?: unknown }) : null;
+  const videoId = chooseVideoId(canonical, hintObj);
+  if (!videoId) {
+    const where = (() => { try { const u = new URL(canonical); return `${u.hostname}${u.pathname}`.slice(0, 120); } catch { return 'unparseable'; } })();
+    console.warn('readSocialPost: no video id', { short: isShortTikTok(url), landed: where, hadHint: !!hintObj });
+    throw new HttpsError('invalid-argument', 'Supernova can save TikTok posts for now');
+  }
+  if (!tiktokVideoId(canonical) && typeof hintObj?.resolvedUrl === 'string' && tiktokVideoId(hintObj.resolvedUrl)) canonical = hintObj.resolvedUrl;
 
   const userSnap = await db().doc(`users/${uid}`).get();
   if (!hasAiConsent(userSnap.data(), 'agent')) throw new HttpsError('failed-precondition', AI_CONSENT_REQUIRED_MESSAGE);
