@@ -26,7 +26,7 @@ async function getJson(url: string, ms = 5000): Promise<{ status: number; body: 
 }
 
 /** TikTok's public embed page for the post, parsed; null on any failure (it's only a fallback). */
-async function embedMeta(videoId: string) {
+export async function embedMeta(videoId: string) {
   try {
     const r = await fetch(`https://www.tiktok.com/embed/v2/${videoId}`, { signal: AbortSignal.timeout(5000), headers: { 'user-agent': 'Mozilla/5.0' } });
     return r.ok ? parseEmbedPage(await r.text()) : null;

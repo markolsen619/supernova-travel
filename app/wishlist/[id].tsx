@@ -2,7 +2,7 @@
  * A saved post (spec 2026-11-06 §2): its cover (fresh from TikTok, never stored), creator and caption, its places with
  * Add to a trip, Watch on TikTok, and delete. `id` = the TikTok video id; `place` = the place tapped, listed first.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
 import { AddWishToTripSheet } from '@/components/wishlist/AddWishToTripSheet';
-import { tiktokCover } from '@/services/socialPost';
+import { useWishCovers } from '@/hooks/useWishCovers';
 import type { WishPlace } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
@@ -26,14 +26,9 @@ export default function SavedPostScreen() {
   const insets = useSafeAreaInsets();
   const { saves, isLoading, remove, removePlace } = useWishlist();
   const save = saves.find((s) => s.videoId === id) ?? null;
-  const [cover, setCover] = useState<string | null>(null);
+  const cover = useWishCovers(save ? [save.videoId] : [])[save?.videoId ?? ''] ?? null;
   const [adding, setAdding] = useState<WishPlace | null>(null);
 
-  useEffect(() => {
-    let live = true;
-    if (save) tiktokCover(save.postUrl).then((c) => { if (live) setCover(c); });
-    return () => { live = false; };
-  }, [save]);
 
   const places = useMemo(() => {
     const list = save?.places ?? [];
