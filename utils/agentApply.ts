@@ -236,7 +236,7 @@ const asPlaced = (a: { id: string; order: number; lat?: number | null; lng?: num
   ({ id: a.id, order: a.order, lat: a.lat ?? null, lng: a.lng ?? null, type: a.type, title: a.title, startTime: a.startTime ?? null });
 
 /** The order value for a stop going in at `idx` of a sorted list. */
-function orderAt(list: { order: number }[], idx: number): number {
+export function orderAt(list: { order: number }[], idx: number): number {
   if (!list.length) return STEP;
   if (idx <= 0) return list[0].order / 2;
   if (idx >= list.length) return list[list.length - 1].order + STEP;
