@@ -7,7 +7,7 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'r
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Heart, Trash } from 'phosphor-react-native';
+import { CaretLeft, Heart, ImageSquare, Trash } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -56,6 +56,11 @@ export default function SavedPostScreen() {
     ]);
   }, [save, removePlace]);
 
+  const goBack = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (router.canGoBack()) router.back(); else router.replace('/(tabs)/profile');
+  }, []);
+
   const deleteSave = useCallback(() => {
     if (!save) return;
     Alert.alert('Delete this save?', 'Its places leave your wish list. Stops already on a trip stay there.', [
@@ -79,7 +84,11 @@ export default function SavedPostScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['8'] }}>
         {cover
           ? <Image source={{ uri: cover }} style={[styles.cover, { backgroundColor: colors.background.sunken }]} contentFit="cover" accessibilityLabel="The post's cover" />
-          : <View style={[styles.cover, { backgroundColor: colors.background.sunken }]} />}
+          : (
+            <View style={[styles.cover, styles.coverEmpty, { backgroundColor: colors.background.sunken }]}>
+              <ImageSquare size={32} weight="duotone" color={colors.text.disabled} />
+            </View>
+          )}
         <View style={styles.body}>
           <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{`TIKTOK · @${save.authorHandle || save.author}`.toUpperCase()}</Text>
           <Text style={[styles.caption, { color: colors.text.secondary }]}>{save.caption || 'No caption'}</Text>
@@ -97,6 +106,11 @@ export default function SavedPostScreen() {
           </Pressable>
         </View>
       </ScrollView>
+      {/* Back, over the cover (device test 2026-11-09: the screen had no way out but an edge swipe). Dark glass so it
+          reads on any photo and on the empty cover in both themes. */}
+      <Pressable onPress={goBack} style={[styles.back, { top: insets.top + Spacing['2'] }]} hitSlop={6} accessibilityRole="button" accessibilityLabel="Back">
+        <CaretLeft size={20} weight="bold" color="#FFFFFF" />
+      </Pressable>
       <AddWishToTripSheet target={adding ? { save, place: adding } : null} onClose={() => setAdding(null)} />
     </View>
   );
@@ -105,6 +119,8 @@ export default function SavedPostScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   cover: { width: '100%', aspectRatio: 4 / 5, borderBottomLeftRadius: BorderRadius.xl, borderBottomRightRadius: BorderRadius.xl },
+  coverEmpty: { alignItems: 'center', justifyContent: 'center' },
+  back: { position: 'absolute', left: Spacing['4'], width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(11,10,18,0.55)' },
   body: { paddingHorizontal: Spacing['5'], paddingTop: Spacing['5'], gap: Spacing['3'] },
   eyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   caption: { fontSize: FontSize.base, lineHeight: 22 },
