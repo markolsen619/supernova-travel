@@ -193,3 +193,29 @@ describe('wishByCity — saved places shown under the trip city they belong to (
     expect(wishByCity(trip, [{ save: s, place: s.places[0] }])[1]).toEqual([]);
   });
 });
+
+import { savesInCity, wishCardEyebrow, wishCityChips } from '@/utils/wishlist';
+describe('wish list grid rules (spec 2026-11-10 §1)', () => {
+  const mk = (id: string, city: string | null, places: { city: string | null; addedTo?: boolean }[], savedAtMs = 0) => ({
+    videoId: id, platform: 'tiktok' as const, postUrl: '', author: 'A', authorHandle: 'a', caption: '', city, country: null, cityLat: null, cityLng: null, savedAtMs,
+    places: places.map((p, i) => ({ id: `p${i}`, name: `P${i}`, kind: 'sight' as const, city: p.city, countryCode: null, lat: null, lng: null, ...(p.addedTo ? { addedTo: { tripId: 't', dayId: 'd', activityId: 'x' } } : {}) })),
+  });
+  const saves = [
+    mk('1', 'Budapest', [{ city: 'Budapest' }]),
+    mk('2', 'Lisbon', [{ city: 'Lisbon' }, { city: 'Sintra' }]),
+    mk('3', 'Lisbon', [{ city: 'Lisbon' }]),
+    mk('4', null, []),
+  ];
+  it('counts each post once per city it touches, most saved first, then by name', () => {
+    expect(wishCityChips(saves)).toEqual([{ city: 'Lisbon', count: 2 }, { city: 'Budapest', count: 1 }, { city: 'Sintra', count: 1 }]);
+  });
+  it('filters to posts touching the city; null is everything', () => {
+    expect(savesInCity(saves, 'Sintra').map((s) => s.videoId)).toEqual(['2']);
+    expect(savesInCity(saves, null)).toHaveLength(4);
+  });
+  it('builds the card eyebrow', () => {
+    expect(wishCardEyebrow(saves[0])).toBe('BUDAPEST · 1 PLACE');
+    expect(wishCardEyebrow(saves[1])).toBe('LISBON · 2 PLACES');
+    expect(wishCardEyebrow(saves[3])).toBe('TIKTOK');
+  });
+});

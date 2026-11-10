@@ -71,6 +71,29 @@ export function wishByCity(trip: TripForMatch, matches: { save: WishSave; place:
   return out;
 }
 
+/** The cities a post touches: its own city and its places' cities, each once. */
+function postCities(save: WishSave): string[] {
+  return [...new Set([save.city, ...save.places.map((p) => p.city)].filter((c): c is string => !!c && !!c.trim()))];
+}
+
+/** The grid's city chips (spec 2026-11-10 §1): each post counted once per city it touches, most saved first, then A–Z. */
+export function wishCityChips(saves: WishSave[]): { city: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const s of saves) for (const c of postCities(s)) counts.set(c, (counts.get(c) ?? 0) + 1);
+  return [...counts].map(([city, count]) => ({ city, count })).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city));
+}
+
+/** Posts that touch `city`; `null` = All. */
+export const savesInCity = (saves: WishSave[], city: string | null) => (city ? saves.filter((s) => postCities(s).includes(city)) : saves);
+
+/** `BUDAPEST · 1 PLACE` above a grid card; `TIKTOK` when the post has no city. */
+export function wishCardEyebrow(save: WishSave): string {
+  const city = save.city ?? save.places.find((p) => p.city)?.city ?? null;
+  if (!city) return 'TIKTOK';
+  const n = save.places.length;
+  return `${city.toUpperCase()} · ${n} ${n === 1 ? 'PLACE' : 'PLACES'}`;
+}
+
 /** The upcoming trip whose nearest city is closest to the place, within `maxKm` ("Fits your Tokyo trip"). */
 export function fitsTrip(place: Pick<WishPlace, 'lat' | 'lng'>, trips: TripForMatch[], today: string, maxKm = 50): TripForMatch | null {
   let best: { t: TripForMatch; d: number } | null = null;
