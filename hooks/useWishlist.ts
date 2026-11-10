@@ -58,5 +58,10 @@ export function useWishlist() {
   const markAdded = useCallback((videoId: string, placeId: string, addedTo: { tripId: string; dayId: string; activityId: string }) =>
     setPlaces(videoId, (ps) => ps.map((p) => (p.id === placeId ? { ...p, addedTo } : p))), [setPlaces]);
 
-  return { saves, isLoading, save, remove, removePlace, markAdded };
+  // Undo of a smart add (spec 2026-11-10 §2): the place goes back to waiting. The key is dropped, never set to undefined
+  // (Firestore refuses undefined).
+  const clearAdded = useCallback((videoId: string, placeId: string) =>
+    setPlaces(videoId, (ps) => ps.map((p) => { if (p.id !== placeId) return p; const { addedTo: _a, ...rest } = p; return rest; })), [setPlaces]);
+
+  return { saves, isLoading, save, remove, removePlace, markAdded, clearAdded };
 }

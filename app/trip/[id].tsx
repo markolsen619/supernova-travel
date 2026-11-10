@@ -87,7 +87,10 @@ import { useWishlist } from '@/hooks/useWishlist';
 import { TripWishlistSheet } from '@/components/wishlist/TripWishlistSheet';
 import { CityWishlistCard } from '@/components/wishlist/CityWishlistCard';
 import { AddWishToTripSheet } from '@/components/wishlist/AddWishToTripSheet';
-import { toTripForMatch, wishByCity, wishMatches, type WishPlace, type WishSave } from '@/utils/wishlist';
+import { SmartAddBanner } from '@/components/wishlist/SmartAddBanner';
+import { DayPickerSheet } from '@/components/trip/DayPickerSheet';
+import { useSmartAdd, type Match } from '@/hooks/useSmartAdd';
+import { toTripForMatch, wishByCity, wishMatches } from '@/utils/wishlist';
 import { ToursRow } from '@/components/trip/ToursRow';
 import { BookedSomethingSheet, type BookedTarget } from '@/components/trip/BookedSomethingSheet';
 import { dayDateFor, defaultDayIndex, tourCities } from '@/utils/tripTours';
@@ -182,7 +185,7 @@ function AnimatedDaySection({
 const HEADER_ICON = LightColors.text.primary;
 
 export default function TripDetailScreen() {
-  const { id, video } = useLocalSearchParams<{ id: string; video?: string }>();
+  const { id, video, wishVideo, wishPlace } = useLocalSearchParams<{ id: string; video?: string; wishVideo?: string; wishPlace?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -413,8 +416,8 @@ export default function TripDetailScreen() {
   // The same places under the city they belong to, in that city's part of the itinerary (owner 2026-11-09: the chip
   // alone was missed).
   const wishCities = useMemo(() => (trip ? wishByCity(toTripForMatch(trip), tripWishMatches) : []), [trip, tripWishMatches]);
-  const [wishAdding, setWishAdding] = useState<{ save: WishSave; place: WishPlace } | null>(null);
   const openWishlist = useCallback(() => setWishlistVisible(true), []);
+  const closeWishlist = useCallback(() => setWishlistVisible(false), []);
   // Your own wallet bookings linked to this trip — never anyone else's. Only
   // fetched when you're on the trip, the only trips a booking can link to;
   // anyone else opening it would pay two queries for nothing.
@@ -682,6 +685,24 @@ export default function TripDetailScreen() {
     () => (trip ? resolveDayDestinationIndices(trip.days, destinationNames) : []),
     [trip, destinationNames],
   );
+  // Smart add (spec 2026-11-10 §2): a saved place goes to its city's best day, then a banner with Change day and Undo.
+  const smart = useSmartAdd({ trip, dayCities: dayDestinationIndices, destinationNames });
+  const [changingDay, setChangingDay] = useState(false);
+  const smartAdd = useCallback((m: Match) => { smart.add(m); }, [smart]);
+  const openChangeDay = useCallback(() => { smart.hold(); setChangingDay(true); }, [smart]);
+  const closeChangeDay = useCallback(() => { setChangingDay(false); smart.dismiss(); }, [smart]);
+  const pickChangeDay = useCallback((dayId: string) => { setChangingDay(false); smart.changeDay(dayId); }, [smart]);
+  // Opened from a saved post with one fitting trip: add it once the trip and the wish list have loaded.
+  const wishParamDone = useRef(false);
+  useEffect(() => {
+    if (wishParamDone.current || !trip || !wishVideo || !wishPlace) return;
+    const save = wishSaves.find((s) => s.videoId === wishVideo);
+    const place = save?.places.find((p) => p.id === wishPlace);
+    if (!save || !place) return;
+    wishParamDone.current = true;
+    if (place.addedTo?.tripId === trip.id) return;
+    smart.add({ save, place });
+  }, [trip, wishVideo, wishPlace, wishSaves, smart]);
   // Day id → city, for the trip video's captions (TripMapView).
   const dayCities = useMemo(
     () => Object.fromEntries((trip?.days ?? []).map((d, i) => [d.id, destinationNames[dayDestinationIndices[i]] ?? null])),
@@ -1066,6 +1087,16 @@ export default function TripDetailScreen() {
       clearTimeout(clearTimer);
     };
   }, [viewMode, highlightActivityId, trip]);
+
+  // Show where a smart add landed (spec 2026-11-10 §2): once the refreshed trip has the stop, open its city, scroll to
+  // it and highlight it — the map's "View in timeline" path.
+  const smartShownFor = useRef<string | null>(null);
+  useEffect(() => {
+    const aid = smart.banner?.activityId;
+    if (!aid || smartShownFor.current === aid || !trip?.days.some((d) => d.activities.some((a) => a.id === aid))) return;
+    smartShownFor.current = aid;
+    handleViewInTimeline(aid);
+  }, [smart.banner, trip, handleViewInTimeline]);
 
   // ── Loading / empty states ─────────────────────────────────────────────────
 
@@ -1722,7 +1753,7 @@ export default function TripDetailScreen() {
                     onFindStay={range ? () => findStay(destinationNames[ci], range) : undefined}
                     onAddDay={canEditItinerary ? () => addDayInCity(ci) : undefined}
                   >
-                    <CityWishlistCard matches={wishCities[ci] ?? []} onAdd={setWishAdding} onSeeAll={openWishlist} />
+                    <CityWishlistCard matches={wishCities[ci] ?? []} onAdd={smartAdd} onSeeAll={openWishlist} />
                     {days.map((day, index) => renderDay(day, index, ci))}
                   </CitySection>
                   </View>
@@ -1743,7 +1774,7 @@ export default function TripDetailScreen() {
             )
           ) : (
             <>
-              <CityWishlistCard matches={wishCities[0] ?? []} onAdd={setWishAdding} onSeeAll={openWishlist} />
+              <CityWishlistCard matches={wishCities[0] ?? []} onAdd={smartAdd} onSeeAll={openWishlist} />
               {sortedDays.map((day, index) => renderDay(day, index))}
 
               {/* ── 6. Add Day — tertiary text link, not a competing action ──
@@ -1852,8 +1883,13 @@ export default function TripDetailScreen() {
 
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
-      <TripWishlistSheet visible={wishlistVisible} tripId={trip.id} matches={tripWishMatches} onClose={() => setWishlistVisible(false)} />
-      <AddWishToTripSheet target={wishAdding} tripId={trip.id} onClose={() => setWishAdding(null)} />
+      <TripWishlistSheet visible={wishlistVisible} tripId={trip.id} matches={tripWishMatches} onClose={closeWishlist} onAdd={smartAdd} />
+      <AddWishToTripSheet target={smart.fallback} tripId={trip.id} onClose={smart.clearFallback} />
+      {smart.banner ? (
+        <SmartAddBanner text={smart.banner.text} bottom={insets.bottom + Spacing['4']}
+          onChangeDay={openChangeDay} onUndo={smart.undo} onDismiss={smart.dismiss} />
+      ) : null}
+      <DayPickerSheet visible={changingDay} days={trip.days} colors={colors} onSelect={pickChangeDay} onClose={closeChangeDay} />
       <BookedSomethingSheet target={bookedTarget} tripId={trip.id} days={sortedDays} startDay={tripStartDay} onClose={() => setBookedTarget(null)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
       <CalendarSheet visible={calendarVisible} onClose={() => setCalendarVisible(false)} />
