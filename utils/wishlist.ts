@@ -51,6 +51,26 @@ export function wishMatches(trip: TripForMatch, saves: WishSave[], today: string
     .map((place) => ({ save, place })));
 }
 
+/**
+ * Each trip city's saved places (owner 2026-11-09: the trip's small Wish list chip was missed — they belong under the
+ * city you're planning): a place goes to its nearest located city, in the trip's city order; ones already on this trip
+ * are left out. Pass `wishMatches` output, so everything is already within reach of the trip.
+ */
+export function wishByCity(trip: TripForMatch, matches: { save: WishSave; place: WishPlace }[]): { save: WishSave; place: WishPlace }[][] {
+  const out: { save: WishSave; place: WishPlace }[][] = trip.cities.map(() => []);
+  for (const m of matches) {
+    if (m.place.addedTo?.tripId === trip.id || m.place.lat == null || m.place.lng == null) continue;
+    let best = -1, bestKm = Infinity;
+    trip.cities.forEach((c, i) => {
+      if (c.lat == null || c.lng == null) return;
+      const d = km({ lat: m.place.lat!, lng: m.place.lng! }, { lat: c.lat, lng: c.lng });
+      if (d < bestKm) { bestKm = d; best = i; }
+    });
+    if (best >= 0) out[best].push(m);
+  }
+  return out;
+}
+
 /** The upcoming trip whose nearest city is closest to the place, within `maxKm` ("Fits your Tokyo trip"). */
 export function fitsTrip(place: Pick<WishPlace, 'lat' | 'lng'>, trips: TripForMatch[], today: string, maxKm = 50): TripForMatch | null {
   let best: { t: TripForMatch; d: number } | null = null;

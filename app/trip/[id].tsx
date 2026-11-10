@@ -85,7 +85,9 @@ import { Image as CachedImage } from 'expo-image';
 import { MakeItYours } from '@/components/trip/MakeItYours';
 import { useWishlist } from '@/hooks/useWishlist';
 import { TripWishlistSheet } from '@/components/wishlist/TripWishlistSheet';
-import { toTripForMatch, wishMatches } from '@/utils/wishlist';
+import { CityWishlistCard } from '@/components/wishlist/CityWishlistCard';
+import { AddWishToTripSheet } from '@/components/wishlist/AddWishToTripSheet';
+import { toTripForMatch, wishByCity, wishMatches, type WishPlace, type WishSave } from '@/utils/wishlist';
 import { ToursRow } from '@/components/trip/ToursRow';
 import { BookedSomethingSheet, type BookedTarget } from '@/components/trip/BookedSomethingSheet';
 import { dayDateFor, defaultDayIndex, tourCities } from '@/utils/tripTours';
@@ -408,6 +410,11 @@ export default function TripDetailScreen() {
     () => (trip && (isOwner || isCollaborator) ? wishMatches(toTripForMatch(trip), wishSaves, toCalendarDate(new Date())) : []),
     [trip, isOwner, isCollaborator, wishSaves],
   );
+  // The same places under the city they belong to, in that city's part of the itinerary (owner 2026-11-09: the chip
+  // alone was missed).
+  const wishCities = useMemo(() => (trip ? wishByCity(toTripForMatch(trip), tripWishMatches) : []), [trip, tripWishMatches]);
+  const [wishAdding, setWishAdding] = useState<{ save: WishSave; place: WishPlace } | null>(null);
+  const openWishlist = useCallback(() => setWishlistVisible(true), []);
   // Your own wallet bookings linked to this trip — never anyone else's. Only
   // fetched when you're on the trip, the only trips a booking can link to;
   // anyone else opening it would pay two queries for nothing.
@@ -1715,6 +1722,7 @@ export default function TripDetailScreen() {
                     onFindStay={range ? () => findStay(destinationNames[ci], range) : undefined}
                     onAddDay={canEditItinerary ? () => addDayInCity(ci) : undefined}
                   >
+                    <CityWishlistCard matches={wishCities[ci] ?? []} onAdd={setWishAdding} onSeeAll={openWishlist} />
                     {days.map((day, index) => renderDay(day, index, ci))}
                   </CitySection>
                   </View>
@@ -1735,6 +1743,7 @@ export default function TripDetailScreen() {
             )
           ) : (
             <>
+              <CityWishlistCard matches={wishCities[0] ?? []} onAdd={setWishAdding} onSeeAll={openWishlist} />
               {sortedDays.map((day, index) => renderDay(day, index))}
 
               {/* ── 6. Add Day — tertiary text link, not a competing action ──
@@ -1844,6 +1853,7 @@ export default function TripDetailScreen() {
       {/* ── Invite friends (request/accept) ── */}
       <ShareTripSheet visible={shareVisible} trip={trip} onClose={() => setShareVisible(false)} />
       <TripWishlistSheet visible={wishlistVisible} tripId={trip.id} matches={tripWishMatches} onClose={() => setWishlistVisible(false)} />
+      <AddWishToTripSheet target={wishAdding} tripId={trip.id} onClose={() => setWishAdding(null)} />
       <BookedSomethingSheet target={bookedTarget} tripId={trip.id} days={sortedDays} startDay={tripStartDay} onClose={() => setBookedTarget(null)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
       <CalendarSheet visible={calendarVisible} onClose={() => setCalendarVisible(false)} />

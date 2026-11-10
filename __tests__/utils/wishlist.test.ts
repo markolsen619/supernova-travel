@@ -174,3 +174,22 @@ describe('photo posts on the phone (device test 2026-11-09: a TikTok slideshow c
     expect(embedMetaFromHtml('<html></html>', '1')).toBeNull();
   });
 });
+
+import { wishByCity } from '@/utils/wishlist';
+describe('wishByCity — saved places shown under the trip city they belong to (owner 2026-11-09: the chip was missed)', () => {
+  const trip = { id: 't1', title: 'Prague, Budapest, Vienna', start: '2026-11-18', end: '2026-12-05', cities: [
+    { name: 'Prague', lat: 50.0755, lng: 14.4378 }, { name: 'Budapest', lat: 47.4979, lng: 19.0402 }, { name: 'Vienna', lat: 48.2082, lng: 16.3738 }, { name: 'Nowhere', lat: null, lng: null },
+  ] };
+  const save = (id: string, places: Partial<import('@/utils/wishlist').WishPlace>[]) =>
+    ({ videoId: id, platform: 'tiktok', postUrl: '', author: '', authorHandle: 'h', caption: '', city: null, country: null, cityLat: null, cityLng: null, savedAtMs: 0,
+      places: places.map((p, i) => ({ id: `p${i}`, name: `P${i}`, kind: 'sight', city: null, countryCode: null, lat: null, lng: null, ...p })) }) as import('@/utils/wishlist').WishSave;
+  it('puts each place under its nearest city, in the trip\'s city order', () => {
+    const s = save('v1', [{ name: 'Christmas markets', lat: 47.5468, lng: 19.0717 }, { name: 'Prague Castle', lat: 50.0909, lng: 14.4005 }]);
+    const by = wishByCity(trip, [{ save: s, place: s.places[0] }, { save: s, place: s.places[1] }]);
+    expect(by.map((list) => list.map((m) => m.place.name))).toEqual([['Prague Castle'], ['Christmas markets'], [], []]);
+  });
+  it('leaves out places already on this trip (the card invites; the stop is already there)', () => {
+    const s = save('v1', [{ lat: 47.5468, lng: 19.0717, addedTo: { tripId: 't1', dayId: 'd', activityId: 'a' } as never }]);
+    expect(wishByCity(trip, [{ save: s, place: s.places[0] }])[1]).toEqual([]);
+  });
+});
