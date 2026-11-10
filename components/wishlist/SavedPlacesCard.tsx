@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { Heart } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
-import type { WishPlace, WishSave } from '@/utils/wishlist';
+import { fromCreator, type WishPlace, type WishSave } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -34,7 +34,7 @@ export function SavedPlacesCard({ city, matches, selected, onToggle, actionLabel
       {matches.map(({ save, place }) => {
         const key = `${save.videoId}:${place.id}`;
         return (
-          <WishPlaceRow key={key} place={place} meta={`from @${save.authorHandle || save.author}`} selected={selected && onToggle ? selected.has(key) : undefined}
+          <WishPlaceRow key={key} place={place} meta={fromCreator(save)} selected={selected && onToggle ? selected.has(key) : undefined}
             onPress={selected && onToggle ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onToggle(key); } : undefined}
             accessibilityLabel={selected && onToggle ? `${place.name}${selected.has(key) ? ', included' : ', left out'}. Tap to change` : place.name} />
         );

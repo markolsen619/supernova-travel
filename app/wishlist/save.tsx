@@ -8,7 +8,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
+import { ImageSquare, MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -23,7 +23,7 @@ import { readSocialPost } from '@/services/socialPost';
 import { happyMoment } from '@/services/reviewPrompt';
 import { searchPlaceInBounds } from '@/services/places/mapboxSearch';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { afterLimitPaywall, fitsTrip, toTripForMatch, wishlistDoc, type WishPlace, type WishSave } from '@/utils/wishlist';
+import { afterLimitPaywall, fitsTrip, postHasDetails, tiktokEyebrow, toTripForMatch, wishlistDoc, type WishPlace, type WishSave } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -193,17 +193,24 @@ export default function SaveFromSocialScreen() {
           <View style={styles.postRow}>
             {preview.coverUrl
               ? <Image source={{ uri: preview.coverUrl }} style={[styles.cover, { backgroundColor: colors.background.sunken }]} contentFit="cover" accessibilityLabel="The post's cover" />
-              : <View style={[styles.cover, { backgroundColor: colors.background.sunken }]} />}
+              : (
+                <View style={[styles.cover, styles.coverEmpty, { backgroundColor: colors.background.sunken }]}>
+                  <ImageSquare size={24} weight="duotone" color={colors.text.disabled} />
+                </View>
+              )}
             <View style={styles.postText}>
-              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{`TIKTOK · @${preview.authorHandle || preview.author}`.toUpperCase()}</Text>
-              <Text style={[styles.caption, { color: colors.text.secondary }]} numberOfLines={4}>{preview.caption || 'No caption'}</Text>
+              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{tiktokEyebrow(preview)}</Text>
+              {preview.caption ? <Text style={[styles.caption, { color: colors.text.secondary }]} numberOfLines={4}>{preview.caption}</Text> : null}
             </View>
           </View>
 
           <Text style={[styles.title, { color: colors.text.primary }]}>Save to wish list</Text>
           {preview.places.length === 0 ? (
             <Text style={[styles.body, { color: colors.text.secondary }]}>
-              {'No places named in this post. Add the place by name and it\'s saved with the video.'}
+              {postHasDetails(preview)
+                ? 'No places named in this post. Add the place by name and it\'s saved with the video.'
+                // TikTok stopped sharing post details for some posts (device test 2026-11-10): say so, don't blame the post.
+                : "TikTok didn't share this post's details. Add the places you saw and they're saved with the video."}
             </Text>
           ) : null}
 
@@ -230,6 +237,7 @@ export default function SaveFromSocialScreen() {
               placeholder={preview.city ? `A place in ${preview.city}` : 'A place and its city'}
               placeholderTextColor={colors.text.tertiary}
               returnKeyType="search"
+              autoFocus={preview.places.length === 0 && !postHasDetails(preview)}
               style={[styles.input, { color: colors.text.primary }]}
               accessibilityLabel="Add a place by name"
             />
@@ -254,6 +262,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing['5'], paddingTop: Spacing['6'], gap: Spacing['2'] },
   postRow: { flexDirection: 'row', gap: Spacing['3'], marginBottom: Spacing['4'], paddingRight: 44 },
   cover: { width: 84, height: 120, borderRadius: BorderRadius.md },
+  coverEmpty: { alignItems: 'center', justifyContent: 'center' },
   postText: { flex: 1, gap: Spacing['1'] },
   eyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   caption: { fontSize: FontSize.sm, lineHeight: 19 },

@@ -7,17 +7,17 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { ImageSquare } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { wishCardEyebrow, type WishSave } from '@/utils/wishlist';
+import { creatorLabel, wishCardEyebrow, type WishSave } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
 export const WishCard = memo(function WishCard({ save, cover, onPress }: { save: WishSave; cover: string | null; onPress: (save: WishSave) => void }) {
   const { colors } = useTheme();
   const onTrip = save.places.some((p) => p.addedTo);
-  const handle = save.authorHandle || save.author;
+  const creator = creatorLabel(save);
   return (
     <Pressable onPress={() => onPress(save)} style={styles.card} accessibilityRole="button"
-      accessibilityLabel={`${wishCardEyebrow(save).toLowerCase()}, from @${handle}${onTrip ? ', on a trip' : ''}. Open`}>
+      accessibilityLabel={`${wishCardEyebrow(save).toLowerCase()}, by ${creator}${onTrip ? ', on a trip' : ''}. Open`}>
       <View style={[styles.cover, { backgroundColor: colors.background.sunken }]}>
         {cover
           ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" recyclingKey={save.videoId} />
@@ -29,7 +29,7 @@ export const WishCard = memo(function WishCard({ save, cover, onPress }: { save:
         ) : null}
       </View>
       <Text style={[styles.eyebrow, { color: colors.text.tertiary }]} numberOfLines={1}>{wishCardEyebrow(save)}</Text>
-      <Text style={[styles.handle, { color: colors.text.primary }]} numberOfLines={1}>{`@${handle}`}</Text>
+      <Text style={[styles.handle, { color: colors.text.primary }]} numberOfLines={1}>{creator}</Text>
     </Pressable>
   );
 });

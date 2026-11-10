@@ -249,6 +249,29 @@ export function coverQuery(videoIds: string[]): { ids: string[]; key: string } {
   return { ids, key: [...ids].sort().join(',') };
 }
 
+/**
+ * Whether TikTok shared anything about the post (device test 2026-11-10: TikTok stopped returning captions, creators and
+ * covers). False → the save sheet says so and asks for the places by name.
+ */
+export const postHasDetails = (p: { caption: string; author: string; authorHandle: string; coverUrl: string | null }) =>
+  !!(p.caption.trim() || p.author.trim() || p.authorHandle.trim() || p.coverUrl);
+
+/** `@handle`, else the creator's name, else "TikTok post" — never a bare "@". */
+export const creatorLabel = (p: { author: string; authorHandle: string }) =>
+  (p.authorHandle.trim() ? `@${p.authorHandle.trim()}` : p.author.trim() || 'TikTok post');
+
+/** "from @handle" under a saved place; "from TikTok" when TikTok didn't say who. */
+export const fromCreator = (p: { author: string; authorHandle: string }) => {
+  const c = creatorLabel(p);
+  return c === 'TikTok post' ? 'from TikTok' : `from ${c}`;
+};
+
+/** `TIKTOK · @HANDLE` above a post; just `TIKTOK` when the creator is unknown. */
+export const tiktokEyebrow = (p: { author: string; authorHandle: string }) => {
+  const c = creatorLabel(p);
+  return (c === 'TikTok post' ? 'TikTok' : `TikTok · ${c}`).toUpperCase();
+};
+
 /** One sheet per share: the same link again within 10 s is the same share (it opened twice — device test). */
 export const isDuplicateShare = (last: { url: string; at: number } | null, url: string, nowMs: number) =>
   !!last && last.url === url && nowMs - last.at < 10_000;

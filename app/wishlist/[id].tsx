@@ -19,7 +19,7 @@ import { useWishCovers } from '@/hooks/useWishCovers';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useOwnAndJoinedTrips } from '@/hooks/useTripList';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { toTripForMatch, tripsFitting, type WishPlace } from '@/utils/wishlist';
+import { tiktokEyebrow, toTripForMatch, tripsFitting, type WishPlace } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -103,8 +103,8 @@ export default function SavedPostScreen() {
             </View>
           )}
         <View style={styles.body}>
-          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{`TIKTOK · @${save.authorHandle || save.author}`.toUpperCase()}</Text>
-          <Text style={[styles.caption, { color: colors.text.secondary }]}>{save.caption || 'No caption'}</Text>
+          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{tiktokEyebrow(save)}</Text>
+          {save.caption ? <Text style={[styles.caption, { color: colors.text.secondary }]}>{save.caption}</Text> : null}
           <Button label="Watch on TikTok" onPress={watch} fullWidth />
 
           <Text style={[styles.section, { color: colors.text.primary }]}>{places.length ? 'Places in this video' : 'No place named yet'}</Text>
