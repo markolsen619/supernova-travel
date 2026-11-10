@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -8,6 +8,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { TripDay } from '@/types';
+import { dayPickerHeight } from '@/utils/dayPickerHeight';
 
 interface DayPickerSheetProps {
   visible: boolean;
@@ -32,6 +33,7 @@ function formatDayLabel(day: TripDay): string {
  */
 export function DayPickerSheet({ visible, days, onSelect, onClose, colors }: DayPickerSheetProps) {
   const sorted = [...days].sort((a, b) => a.dayNumber - b.dayNumber);
+  const { height: windowHeight } = useWindowDimensions();
 
   const handleSelect = useCallback(
     (dayId: string) => {
@@ -63,7 +65,7 @@ export function DayPickerSheet({ visible, days, onSelect, onClose, colors }: Day
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheetWrap}>
+        <View style={[styles.sheetWrap, { height: dayPickerHeight(sorted.length, windowHeight) }]}>
           {Platform.OS === 'ios' ? (
             <BlurView intensity={90} tint="dark" style={styles.fill}>
               <SheetBody onClose={onClose} colors={colors}>
@@ -102,14 +104,13 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheetWrap: {
-    maxHeight: '60%',
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
     overflow: 'hidden',
   },
   fill: { flex: 1 },
   androidBg: { backgroundColor: 'rgba(10,10,26,0.97)' },
-  body: { padding: Spacing['5'], gap: Spacing['4'], minHeight: 180 },
+  body: { flex: 1, padding: Spacing['5'], gap: Spacing['4'] },
   handle: {
     width: 36,
     height: 4,
