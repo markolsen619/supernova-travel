@@ -52,7 +52,7 @@ import { beenThereSummary } from '@/utils/beenThere';
 import { pastTripsSupported } from '@/utils/pastTrip';
 import { hasTripThisYear } from '@/utils/yearInTravel';
 import { profileTripOrder } from '@/utils/homeState';
-import { WishlistList } from '@/components/wishlist/WishlistList';
+import { WishlistGrid } from '@/components/wishlist/WishlistGrid';
 
 const canAddPast = pastTripsSupported(Platform.OS);
 
@@ -409,7 +409,7 @@ function ProfileScreenContent() {
     if (tripFilter === 'Wish list') {
       return (
         <View style={[styles.screen, { backgroundColor: colors.background.primary }]}>
-          <WishlistList header={headerComponent} />
+          <WishlistGrid header={headerComponent} />
           <EditProfileSheet visible={editSheetVisible} onClose={closeEditSheet} />
         </View>
       );
