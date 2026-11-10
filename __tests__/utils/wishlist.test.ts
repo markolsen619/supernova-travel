@@ -219,3 +219,16 @@ describe('wish list grid rules (spec 2026-11-10 §1)', () => {
     expect(wishCardEyebrow(saves[3])).toBe('TIKTOK');
   });
 });
+
+import { tripsFitting } from '@/utils/wishlist';
+describe('tripsFitting (saved-post screen: one fitting trip → smart add straight there)', () => {
+  const t = (id: string, lat: number, lng: number, end: string | null = '2026-12-05') => ({ id, title: id, start: '2026-11-18', end, cities: [{ name: id, lat, lng }] });
+  const market = { lat: 47.4965, lng: 19.051 };
+  it('lists upcoming trips near the place, nearest first; ended and far trips are out', () => {
+    const trips = [t('far', 40.4, -3.7), t('vienna-ish', 47.8, 19.2), t('budapest', 47.4979, 19.0402), t('old', 47.5, 19.05, '2025-01-01')];
+    expect(tripsFitting(market, trips, '2026-11-10').map((x) => x.id)).toEqual(['budapest', 'vienna-ish']);
+  });
+  it('is empty for a place with no position', () => {
+    expect(tripsFitting({ lat: null, lng: null }, [t('budapest', 47.4979, 19.0402)], '2026-11-10')).toEqual([]);
+  });
+});

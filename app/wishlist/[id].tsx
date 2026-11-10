@@ -16,7 +16,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
 import { AddWishToTripSheet } from '@/components/wishlist/AddWishToTripSheet';
 import { useWishCovers } from '@/hooks/useWishCovers';
-import type { WishPlace } from '@/utils/wishlist';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useOwnAndJoinedTrips } from '@/hooks/useTripList';
+import { toCalendarDate } from '@/utils/calendarDate';
+import { toTripForMatch, tripsFitting, type WishPlace } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -41,15 +44,30 @@ export default function SavedPostScreen() {
     Linking.openURL(save.postUrl).catch(() => {});
   }, [save]);
 
+  // Smart add (spec 2026-11-10 §2): one fitting trip → open it and let the trip page place the stop; else pick the trip.
+  const uid = useAuthStore((s) => s.user?.uid ?? null);
+  const { data: trips = [] } = useOwnAndJoinedTrips(uid);
+  const openSmartAdd = useCallback((p: WishPlace, tripId: string) => {
+    if (!save) return;
+    setAdding(null);
+    router.push({ pathname: '/trip/[id]' as never, params: { id: tripId, wishVideo: save.videoId, wishPlace: p.id } });
+  }, [save]);
+  const addToTrip = useCallback((p: WishPlace) => {
+    const fitting = tripsFitting(p, trips.map((t) => toTripForMatch(t)), toCalendarDate(new Date()));
+    if (fitting.length === 1) openSmartAdd(p, fitting[0].id);
+    else setAdding(p);
+  }, [trips, openSmartAdd]);
+  const chooseTrip = useCallback((tripId: string) => { if (adding) openSmartAdd(adding, tripId); }, [adding, openSmartAdd]);
+
   const placeActions = useCallback((p: WishPlace) => {
     if (!save) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert(p.name, p.addedTo ? "It's on one of your trips." : undefined, [
-      { text: 'Add to a trip', onPress: () => setAdding(p) },
+      { text: 'Add to a trip', onPress: () => addToTrip(p) },
       { text: 'Remove from wish list', style: 'destructive', onPress: () => removePlace(save.videoId, p.id) },
       { text: 'Cancel', style: 'cancel' },
     ]);
-  }, [save, removePlace]);
+  }, [save, removePlace, addToTrip]);
 
   const goBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -106,7 +124,7 @@ export default function SavedPostScreen() {
       <Pressable onPress={goBack} style={[styles.back, { top: insets.top + Spacing['2'] }]} hitSlop={6} accessibilityRole="button" accessibilityLabel="Back">
         <CaretLeft size={20} weight="bold" color="#FFFFFF" />
       </Pressable>
-      <AddWishToTripSheet target={adding ? { save, place: adding } : null} onClose={() => setAdding(null)} />
+      <AddWishToTripSheet target={adding ? { save, place: adding } : null} onTripChosen={chooseTrip} onClose={() => setAdding(null)} />
     </View>
   );
 }

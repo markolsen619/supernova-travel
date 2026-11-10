@@ -105,6 +105,16 @@ export function fitsTrip(place: Pick<WishPlace, 'lat' | 'lng'>, trips: TripForMa
   return best?.t ?? null;
 }
 
+/** Every upcoming or current trip with a city within `maxKm` of the place, nearest first (saved-post screen). */
+export function tripsFitting(place: Pick<WishPlace, 'lat' | 'lng'>, trips: TripForMatch[], today: string, maxKm = 50): TripForMatch[] {
+  return trips
+    .filter((t) => active(t, today))
+    .map((t) => ({ t, d: nearestKm(place, t) }))
+    .filter((x): x is { t: TripForMatch; d: number } => x.d != null && x.d <= maxKm)
+    .sort((a, b) => a.d - b.d)
+    .map((x) => x.t);
+}
+
 export function kindToActivityType(kind: WishKind): 'restaurant' | 'hotel' | 'activity' {
   if (kind === 'restaurant' || kind === 'bar' || kind === 'cafe') return 'restaurant';
   return kind === 'hotel' ? 'hotel' : 'activity';

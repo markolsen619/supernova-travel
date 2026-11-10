@@ -20,10 +20,12 @@ import { fitsTrip, singleFlight, toTripForMatch, wishActivity, type WishPlace, t
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
-export function AddWishToTripSheet({ target, tripId: fixedTripId, onClose }: {
+export function AddWishToTripSheet({ target, tripId: fixedTripId, onClose, onTripChosen }: {
   target: { save: WishSave; place: WishPlace } | null;
   tripId?: string;
   onClose: () => void;
+  /** Smart add (spec 2026-11-10 §2): hand the chosen trip back instead of asking for a day here. */
+  onTripChosen?: (tripId: string) => void;
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -44,7 +46,11 @@ export function AddWishToTripSheet({ target, tripId: fixedTripId, onClose }: {
   }, [trips, today, target]);
 
   const close = useCallback(() => { setChosen(null); setError(null); onClose(); }, [onClose]);
-  const pickTrip = useCallback((id: string) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setChosen(id); }, []);
+  const pickTrip = useCallback((id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onTripChosen) { onTripChosen(id); return; }
+    setChosen(id);
+  }, [onTripChosen]);
   // One add at a time (a double tap added two stops), and a failure says so — the trip list holding `error` is hidden here.
   const pickDayOnce = useMemo(() => singleFlight(async (dayId: string) => {
     if (!target || !tripId) return;

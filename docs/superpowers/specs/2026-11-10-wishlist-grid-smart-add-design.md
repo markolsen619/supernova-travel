@@ -91,7 +91,7 @@ The write is the ordinary stop add (`useCreateTrip().addActivity` with `wishActi
 - **Change day** opens `DayPickerSheet`. Picking a day moves the stop there: deleted and re-added at that day's best spot, with the wish list's `addedTo` updated.
 - **Undo** deletes the stop and clears `addedTo`.
 - **The banner** stays 6 s, or until it's tapped. It uses the house spring, and the page scrolls to the new stop.
-- **Started outside the trip page:** smart add from the saved-post screen opens the trip (`/trip/{id}`) and the banner shows there. Params: `wishAdded={activityId}`, `wishDay={dayId}`.
+- **Started outside the trip page:** smart add from the saved-post screen opens the trip (`/trip/{id}`) and the banner shows there. Params: `wishVideo={videoId}`, `wishPlace={placeId}`; the trip page performs the add once its days are loaded (only it has them).
 
 Afterwards the place leaves the city card (`wishByCity` already drops places on the trip) and reads **On this trip** in the chip sheet. On a shared trip it is an ordinary stop the members see. The wish list itself is never shared.
 
