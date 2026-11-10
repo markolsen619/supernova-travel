@@ -6,9 +6,29 @@
 import { httpsCallable } from 'firebase/functions';
 import { collection, doc } from 'firebase/firestore';
 import { db, functions } from '@/services/firebase';
-import { parseOembed, type WishSave } from '@/utils/wishlist';
+import { embedMetaFromHtml, oembedLink, parseOembed, tiktokPostId, type WishSave } from '@/utils/wishlist';
 
 type ReadResult = Omit<WishSave, 'savedAtMs' | 'platform'> & { coverUrl: string | null };
+
+async function fetchText(url: string, ms = 6000): Promise<string | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    return r.ok ? await r.text() : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** The post as TikTok's embed page shows it — photo posts get only their id from oEmbed (device test 2026-11-09). */
+async function readEmbed(videoId: string | null) {
+  if (!videoId) return null;
+  const html = await fetchText(`https://www.tiktok.com/embed/v2/${videoId}`);
+  return html ? embedMetaFromHtml(html, videoId) : null;
+}
 
 async function fetchJson(url: string, ms = 6000): Promise<unknown | null> {
   const ctrl = new AbortController();
@@ -23,13 +43,9 @@ async function fetchJson(url: string, ms = 6000): Promise<unknown | null> {
   }
 }
 
-/**
- * The post as the phone reads it from TikTok's public oEmbed (device test 2026-11-08: TikTok answered our server with
- * nothing). A short link that oEmbed won't take is followed on the phone first. Null when TikTok can't be reached.
- */
 /** A short link (vm./vt./tiktok.com/t/) followed on the phone, where TikTok treats it as a person, not a server. */
 async function resolveOnDevice(url: string): Promise<string | null> {
-  if (/\/video\/\d{8,}/.test(url)) return url;
+  if (tiktokPostId(url)) return url;
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 6000);
@@ -47,8 +63,10 @@ async function resolveOnDevice(url: string): Promise<string | null> {
  */
 export async function readPostOnDevice(url: string): Promise<(NonNullable<ReturnType<typeof parseOembed>> & { resolvedUrl: string | null }) | null> {
   const resolvedUrl = await resolveOnDevice(url);
-  const meta = parseOembed(await fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(resolvedUrl ?? url)}`))
+  const oembed = parseOembed(await fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(oembedLink(resolvedUrl ?? url))}`))
     ?? (resolvedUrl && resolvedUrl !== url ? parseOembed(await fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`)) : null);
+  const embed = oembed?.caption ? null : await readEmbed(oembed?.videoId ?? (resolvedUrl ? tiktokPostId(resolvedUrl) : null));
+  const meta = embed?.caption ? embed : oembed;
   if (!meta && !resolvedUrl) return null;
   return { caption: '', author: '', authorHandle: '', coverUrl: null, videoId: null, ...(meta ?? {}), resolvedUrl };
 }
@@ -65,9 +83,8 @@ const covers = new Map<string, Promise<string | null>>();
 /** The post's current cover image, or null; asked once per post per session. */
 export function tiktokCover(postUrl: string): Promise<string | null> {
   if (!covers.has(postUrl)) {
-    covers.set(postUrl, fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(postUrl)}`)
-      .then(async (r) => (r.ok ? ((await r.json()) as { thumbnail_url?: unknown }).thumbnail_url : null))
-      .then((u) => (typeof u === 'string' && u.startsWith('https://') ? u : null))
+    covers.set(postUrl, fetchJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(oembedLink(postUrl))}`)
+      .then(async (json) => parseOembed(json)?.coverUrl ?? (await readEmbed(tiktokPostId(postUrl)))?.coverUrl ?? null)
       .catch(() => null));
   }
   return covers.get(postUrl)!;

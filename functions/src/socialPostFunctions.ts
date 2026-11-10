@@ -11,7 +11,7 @@ import { isPaidTier } from './flightPolling';
 import { generateJson } from './agentModel';
 import {
   PLACES_SCHEMA, PLACES_SYSTEM, cleanPlaces, isShortTikTok, monthKey, parsePlacesAnswer, pickByName, placesPrompt,
-  chooseVideoId, postMeta, shouldCachePost, tiktokVideoId, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
+  chooseVideoId, oembedTarget, parseEmbedPage, postMeta, shouldCachePost, tiktokVideoId, wishQuota, type PlaceKind, type PlacesAnswer, type QuotaDoc,
 } from './socialPost';
 
 const db = () => admin.firestore();
@@ -23,6 +23,16 @@ interface Cached { caption: string; author: string; authorHandle: string; city: 
 async function getJson(url: string, ms = 5000): Promise<{ status: number; body: unknown }> {
   const r = await fetch(url, { signal: AbortSignal.timeout(ms) });
   return { status: r.status, body: r.ok ? await r.json() : null };
+}
+
+/** TikTok's public embed page for the post, parsed; null on any failure (it's only a fallback). */
+async function embedMeta(videoId: string) {
+  try {
+    const r = await fetch(`https://www.tiktok.com/embed/v2/${videoId}`, { signal: AbortSignal.timeout(5000), headers: { 'user-agent': 'Mozilla/5.0' } });
+    return r.ok ? parseEmbedPage(await r.text()) : null;
+  } catch {
+    return null;
+  }
 }
 
 type Feature = { name: string; lat: number; lng: number; countryCode: string | null };
@@ -117,12 +127,14 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
   const cached = (await cacheRef.get()).data() as Cached | undefined;
 
   // oEmbed every time: the cover link expires and is never stored, and a deleted video should say so.
-  const oe = await getJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(canonical)}`).catch(() => ({ status: 0, body: null }));
+  const oe = await getJson(`https://www.tiktok.com/oembed?url=${encodeURIComponent(oembedTarget(canonical))}`).catch(() => ({ status: 0, body: null }));
   if (oe.status === 400 || oe.status === 404) throw new HttpsError('not-found', "That video isn't available. It may be private or deleted.");
-  // TikTok can answer servers with nothing (device test 2026-11-08); then the phone's own reading of the same public
-  // oEmbed is used — never cached, so no one can plant places for others.
-  const meta = postMeta(oe.status, oe.body, hint && typeof hint === 'object' ? hint : null);
-  if (oe.status !== 200) console.warn('readSocialPost: oEmbed', { videoId, status: oe.status, usedDevice: meta.fromDevice });
+  // Photo posts come back from oEmbed with only their id (device test 2026-11-09): then TikTok's embed page. TikTok can
+  // also answer servers with nothing (2026-11-08): then the phone's own reading — never cached, so no one can plant places.
+  const oeTitle = (oe.body as { title?: unknown } | null)?.title;
+  const embed = typeof oeTitle === 'string' && oeTitle.trim() ? null : await embedMeta(videoId);
+  const meta = postMeta(oe.status, oe.body, hint && typeof hint === 'object' ? hint : null, embed);
+  if (oe.status !== 200 || !meta.caption || embed) console.warn('readSocialPost: oEmbed', { videoId, status: oe.status, embed: embed ? (embed.caption ? 'caption' : 'empty') : 'unused', usedDevice: meta.fromDevice, hasCaption: !!meta.caption });
   const coverUrl = meta.coverUrl;
 
   if (cached && now - cached.at < CACHE_MS) {
@@ -148,6 +160,6 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
   }
   const placed = await placeAll(answer);
   const out: Cached = { caption, author, authorHandle, city: answer.city, country: answer.country, cityLat: placed.cityLat, cityLng: placed.cityLng, places: placed.places, at: now };
-  if (shouldCachePost({ oembedStatus: oe.status, aiFailed: aiFailed || (!apiKey && !!caption), fromDevice: meta.fromDevice })) await cacheRef.set(out).catch(() => {});
+  if (shouldCachePost({ oembedStatus: oe.status, aiFailed: aiFailed || (!apiKey && !!caption), fromDevice: meta.fromDevice, hasCaption: !!caption })) await cacheRef.set(out).catch(() => {});
   return { videoId, postUrl: canonical, coverUrl, caption, author, authorHandle, city: answer.city, country: answer.country, cityLat: placed.cityLat, cityLng: placed.cityLng, places: placed.places };
 });

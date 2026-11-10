@@ -152,6 +152,41 @@ export function parseOembed(json: unknown): { caption: string; author: string; a
   };
 }
 
+/** A TikTok post's id from a full /video/ or /photo/ link (photo posts are slideshows, device test 2026-11-09). */
+export function tiktokPostId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!TIKTOK_HOST.test(u.hostname)) return null;
+    return /\/(?:video|photo)\/(\d{8,25})/.exec(u.pathname)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** oEmbed refuses /photo/ links (400) but answers the same post written as /video/. */
+export const oembedLink = (url: string) => url.replace(/\/photo\/(\d{8,25})/, '/video/$1');
+
+/**
+ * Caption, creator and cover from TikTok's public embed page (`/embed/v2/{id}`), shaped like `parseOembed` — for photo
+ * posts oEmbed gives only the id. Mirrors functions/src/socialPost.ts `parseEmbedPage` (separate TypeScript projects).
+ */
+export function embedMetaFromHtml(html: string, videoId: string): NonNullable<ReturnType<typeof parseOembed>> | null {
+  const m = /<script id="__FRONTITY_CONNECT_STATE__"[^>]*>([\s\S]*?)<\/script>/.exec(html);
+  if (!m) return null;
+  let state: unknown;
+  try { state = JSON.parse(m[1]); } catch { return null; }
+  const data = (state as { source?: { data?: Record<string, { videoData?: unknown }> } })?.source?.data ?? {};
+  const entry = Object.entries(data).find(([k, v]) => k.startsWith('/embed/v2/') && !!v?.videoData);
+  if (!entry) return null;
+  const vd = entry[1].videoData as { itemInfos?: { text?: unknown; covers?: unknown }; authorInfos?: { uniqueId?: unknown; nickName?: unknown } };
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const cover = Array.isArray(vd.itemInfos?.covers) ? str(vd.itemInfos!.covers[0]) : '';
+  return {
+    caption: str(vd.itemInfos?.text), author: str(vd.authorInfos?.nickName), authorHandle: str(vd.authorInfos?.uniqueId),
+    coverUrl: /^https:\/\/\S+$/.test(cover) ? cover : null, videoId: /^\d{8,25}$/.test(videoId) ? videoId : null,
+  };
+}
+
 /** One sheet per share: the same link again within 10 s is the same share (it opened twice — device test). */
 export const isDuplicateShare = (last: { url: string; at: number } | null, url: string, nowMs: number) =>
   !!last && last.url === url && nowMs - last.at < 10_000;

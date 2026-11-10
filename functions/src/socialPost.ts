@@ -14,8 +14,35 @@ function parse(url: string): URL | null { try { return new URL(url); } catch { r
 export function tiktokVideoId(url: string): string | null {
   const u = parse(url);
   if (!u || !isTikTokHost(u.hostname)) return null;
-  const m = /\/video\/(\d{8,25})/.exec(u.pathname) ?? /\/v\/(\d{8,25})\.html/.exec(u.pathname);
+  // Photo posts (slideshows) live at /@user/photo/{id} (device test 2026-11-09) — the same id space as videos.
+  const m = /\/(?:video|photo)\/(\d{8,25})/.exec(u.pathname) ?? /\/v\/(\d{8,25})\.html/.exec(u.pathname);
   return m ? m[1] : null;
+}
+
+/** The link to give oEmbed: it refuses /photo/ links (400) but answers the same post written as /video/. */
+export const oembedTarget = (url: string) => url.replace(/\/photo\/(\d{8,25})/, '/video/$1');
+
+export interface EmbedMeta { caption: string; author: string; authorHandle: string; coverUrl: string | null }
+
+/**
+ * Caption, creator and cover from TikTok's public embed page (`/embed/v2/{id}`) — for photo posts oEmbed gives only
+ * the id (device test 2026-11-09). Null when the page doesn't carry the post.
+ */
+export function parseEmbedPage(html: string): EmbedMeta | null {
+  const m = /<script id="__FRONTITY_CONNECT_STATE__"[^>]*>([\s\S]*?)<\/script>/.exec(html);
+  if (!m) return null;
+  let state: unknown;
+  try { state = JSON.parse(m[1]); } catch { return null; }
+  const data = (state as { source?: { data?: Record<string, { videoData?: unknown }> } })?.source?.data ?? {};
+  const entry = Object.entries(data).find(([k, v]) => k.startsWith('/embed/v2/') && v && typeof v === 'object' && v.videoData);
+  if (!entry) return null;
+  const vd = entry[1].videoData as { itemInfos?: { text?: unknown; covers?: unknown }; authorInfos?: { uniqueId?: unknown; nickName?: unknown } };
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const cover = Array.isArray(vd.itemInfos?.covers) ? str(vd.itemInfos!.covers[0]) : '';
+  return {
+    caption: str(vd.itemInfos?.text), author: str(vd.authorInfos?.nickName), authorHandle: str(vd.authorInfos?.uniqueId),
+    coverUrl: /^https:\/\/\S+$/.test(cover) ? cover : null,
+  };
 }
 
 export function isShortTikTok(url: string): boolean {
@@ -117,8 +144,8 @@ export function pickByName(name: string, features: { name: string; lat: number; 
  * Only a real read goes in the shared cache (final review): with TikTok unreachable, rate-limited or the AI failing,
  * the empty answer would have told everyone who shared that video "No places named" for 30 days.
  */
-export const shouldCachePost = (r: { oembedStatus: number; aiFailed: boolean; fromDevice?: boolean }) =>
-  r.oembedStatus === 200 && !r.aiFailed && !r.fromDevice;
+export const shouldCachePost = (r: { oembedStatus: number; aiFailed: boolean; fromDevice?: boolean; hasCaption?: boolean }) =>
+  r.oembedStatus === 200 && !r.aiFailed && !r.fromDevice && r.hasCaption !== false;
 
 export interface PostHint { caption?: unknown; author?: unknown; authorHandle?: unknown; coverUrl?: unknown }
 export interface PostMeta { caption: string; author: string; authorHandle: string; coverUrl: string | null; fromDevice: boolean }
@@ -131,13 +158,19 @@ const httpsUrl = (v: unknown) => (typeof v === 'string' && /^https:\/\/[^\s]+$/.
  * sheet had no cover, caption or places). The server's own lookup when it worked; else what the phone read from the same
  * public oEmbed — cleaned, and marked `fromDevice` so it never enters the shared cache.
  */
-export function postMeta(status: number, body: unknown, hint: PostHint | null): PostMeta {
+export function postMeta(status: number, body: unknown, hint: PostHint | null, embed: EmbedMeta | null = null): PostMeta {
   const b = (body ?? {}) as { title?: unknown; author_name?: unknown; author_unique_id?: unknown; thumbnail_url?: unknown };
-  if (status === 200 && body) {
-    return { caption: trimCaption(b.title), author: shortText(b.author_name, 80), authorHandle: shortText(b.author_unique_id, 40), coverUrl: httpsUrl(b.thumbnail_url), fromDevice: false };
-  }
-  if (!hint) return { caption: '', author: '', authorHandle: '', coverUrl: null, fromDevice: false };
-  return { caption: trimCaption(hint.caption), author: shortText(hint.author, 80), authorHandle: shortText(hint.authorHandle, 40), coverUrl: httpsUrl(hint.coverUrl), fromDevice: true };
+  const server: PostMeta | null = status === 200 && body
+    ? { caption: trimCaption(b.title), author: shortText(b.author_name, 80), authorHandle: shortText(b.author_unique_id, 40), coverUrl: httpsUrl(b.thumbnail_url), fromDevice: false }
+    : null;
+  if (server?.caption) return server;
+  // oEmbed answered without a caption (photo posts): TikTok's embed page, read by the server, then the phone.
+  if (embed?.caption) return { caption: trimCaption(embed.caption), author: shortText(embed.author, 80), authorHandle: shortText(embed.authorHandle, 40), coverUrl: httpsUrl(embed.coverUrl), fromDevice: false };
+  const phone: PostMeta | null = hint
+    ? { caption: trimCaption(hint.caption), author: shortText(hint.author, 80), authorHandle: shortText(hint.authorHandle, 40), coverUrl: httpsUrl(hint.coverUrl), fromDevice: true }
+    : null;
+  if (phone?.caption || !server) return phone ?? { caption: '', author: '', authorHandle: '', coverUrl: null, fromDevice: false };
+  return { ...server, coverUrl: server.coverUrl ?? httpsUrl(embed?.coverUrl) ?? phone?.coverUrl ?? null };
 }
 
 /**

@@ -130,3 +130,53 @@ describe('chooseVideoId (device test 2026-11-09: short links resolved from Googl
     expect(chooseVideoId('https://www.tiktok.com/', null)).toBeNull();
   });
 });
+
+import { oembedTarget, parseEmbedPage } from '../../functions/src/socialPost';
+const embedHtml = (videoData: unknown, id = '7666811080135445782') =>
+  `<html><script id="__FRONTITY_CONNECT_STATE__" type="application/json">${JSON.stringify({ source: { data: { [`/embed/v2/${id}`]: { videoData } } } })}</script></html>`;
+const photoVideoData = {
+  itemInfos: { id: '7666811080135445782', text: 'A quick snap shot guide to Budapest Christmas Markets for 2026', covers: ['https://p16-common-sign.tiktokcdn-us.com/photomode/cover.jpeg?x-expires=1'] },
+  authorInfos: { uniqueId: 'gigsntravel', nickName: 'Lauren | gigs & travel' },
+};
+
+describe('TikTok photo posts (device test 2026-11-09: a slideshow link landed on /photo/ and was refused)', () => {
+  it('reads the id from a /photo/ link', () => {
+    expect(tiktokVideoId('https://www.tiktok.com/@gigsntravel/photo/7666811080135445782')).toBe('7666811080135445782');
+    expect(tiktokVideoId('https://evil.io/@x/photo/7666811080135445782')).toBeNull();
+  });
+  it('asks oEmbed with the /video/ form, which TikTok accepts for photo posts (a /photo/ link is a 400)', () => {
+    expect(oembedTarget('https://www.tiktok.com/@gigsntravel/photo/7666811080135445782?_r=1')).toBe('https://www.tiktok.com/@gigsntravel/video/7666811080135445782?_r=1');
+    expect(oembedTarget('https://www.tiktok.com/@a/video/7300000000000000001')).toBe('https://www.tiktok.com/@a/video/7300000000000000001');
+  });
+  it('reads caption, creator and cover from the embed page, which has them when oEmbed has none', () => {
+    expect(parseEmbedPage(embedHtml(photoVideoData))).toEqual({
+      caption: 'A quick snap shot guide to Budapest Christmas Markets for 2026', author: 'Lauren | gigs & travel', authorHandle: 'gigsntravel',
+      coverUrl: 'https://p16-common-sign.tiktokcdn-us.com/photomode/cover.jpeg?x-expires=1',
+    });
+  });
+  it('gives null for a page without the post, broken JSON or a non-https cover', () => {
+    expect(parseEmbedPage('<html>blocked</html>')).toBeNull();
+    expect(parseEmbedPage('<script id="__FRONTITY_CONNECT_STATE__" type="application/json">{nope</script>')).toBeNull();
+    expect(parseEmbedPage(embedHtml({ itemInfos: { text: 'x', covers: ['http://evil/x.jpg'] }, authorInfos: {} }))?.coverUrl).toBeNull();
+  });
+});
+
+describe('postMeta falls through to the embed page and then the phone when oEmbed answers without a caption', () => {
+  const embed = { caption: 'Embed caption', author: 'E', authorHandle: 'e', coverUrl: 'https://p16.tiktokcdn.com/e.jpg' };
+  it('uses the embed page (from TikTok, so cacheable) when oEmbed is 200 but empty', () => {
+    expect(postMeta(200, { type: 'video', embed_product_id: '1' }, { caption: 'Phone' }, embed)).toEqual({ ...embed, fromDevice: false });
+  });
+  it('uses the phone when neither server read has a caption', () => {
+    expect(postMeta(200, { type: 'video' }, { caption: 'Phone caption', authorHandle: 'p' }, null)).toMatchObject({ caption: 'Phone caption', authorHandle: 'p', fromDevice: true });
+  });
+  it('keeps the oEmbed caption first when there is one', () => {
+    expect(postMeta(200, { title: 'OE' }, { caption: 'Phone' }, embed).caption).toBe('OE');
+  });
+});
+
+describe('shouldCachePost never caches a read with no caption (it would say "no places" for 30 days)', () => {
+  it('refuses an empty caption', () => {
+    expect(shouldCachePost({ oembedStatus: 200, aiFailed: false, hasCaption: false })).toBe(false);
+    expect(shouldCachePost({ oembedStatus: 200, aiFailed: false, hasCaption: true })).toBe(true);
+  });
+});

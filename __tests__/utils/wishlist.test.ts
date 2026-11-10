@@ -150,3 +150,27 @@ it('parseOembed also reads the video id (embed_product_id) for the server', () =
   expect(parseOembed({ title: 'x', embed_product_id: '7300000000000000009' })?.videoId).toBe('7300000000000000009');
   expect(parseOembed({ title: 'x' })?.videoId).toBeNull();
 });
+
+import { embedMetaFromHtml, oembedLink, tiktokPostId } from '@/utils/wishlist';
+describe('photo posts on the phone (device test 2026-11-09: a TikTok slideshow could not be saved)', () => {
+  const html = `<script id="__FRONTITY_CONNECT_STATE__" type="application/json">${JSON.stringify({ source: { data: { '/embed/v2/7666811080135445782': { videoData: {
+    itemInfos: { text: ' Budapest Christmas Markets guide ', covers: ['https://p16-common-sign.tiktokcdn-us.com/c.jpeg?x=1'] },
+    authorInfos: { uniqueId: 'gigsntravel', nickName: 'Lauren' },
+  } } } } })}</script>`;
+  it('finds the post id in /video/ and /photo/ links, TikTok hosts only', () => {
+    expect(tiktokPostId('https://www.tiktok.com/@gigsntravel/photo/7666811080135445782?_r=1')).toBe('7666811080135445782');
+    expect(tiktokPostId('https://www.tiktok.com/@a/video/7300000000000000001')).toBe('7300000000000000001');
+    expect(tiktokPostId('https://vm.tiktok.com/ZM8xAbc/')).toBeNull();
+    expect(tiktokPostId('https://evil.io/@a/photo/7666811080135445782')).toBeNull();
+  });
+  it('gives oEmbed the /video/ form of a photo link', () => {
+    expect(oembedLink('https://www.tiktok.com/@g/photo/7666811080135445782')).toBe('https://www.tiktok.com/@g/video/7666811080135445782');
+  });
+  it('reads the embed page in the same shape as parseOembed', () => {
+    expect(embedMetaFromHtml(html, '7666811080135445782')).toEqual({
+      caption: 'Budapest Christmas Markets guide', author: 'Lauren', authorHandle: 'gigsntravel',
+      coverUrl: 'https://p16-common-sign.tiktokcdn-us.com/c.jpeg?x=1', videoId: '7666811080135445782',
+    });
+    expect(embedMetaFromHtml('<html></html>', '1')).toBeNull();
+  });
+});
