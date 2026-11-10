@@ -11,6 +11,7 @@ import { useWishlist } from '@/hooks/useWishlist';
 import { requireOnline } from '@/services/offline';
 import { toCalendarDate } from '@/utils/calendarDate';
 import { placementInDay, smartAddBanner, smartPlacement } from '@/utils/smartAdd';
+import { moveSmartAdd, undoSmartAdd } from '@/utils/smartAddFlow';
 import { toTripForMatch, wishActivity, wishByCity, type WishPlace, type WishSave } from '@/utils/wishlist';
 import type { TripWithDays } from '@/types';
 
@@ -71,25 +72,47 @@ export function useSmartAdd({ trip, dayCities, destinationNames }: { trip: TripW
   }, [trip, dayCities, destinationNames, cityOf, write, show]);
 
   const undo = useCallback(async () => {
-    if (!trip || !banner || !requireOnline()) return;
+    if (!trip || !banner || busy.current || !requireOnline()) return;
     const b = banner;
+    busy.current = true;
     dismiss();
-    await deleteActivity(trip.id, b.dayId, b.activityId).catch(() => {});
-    await clearAdded(b.match.save.videoId, b.match.place.id);
+    try {
+      const r = await undoSmartAdd({
+        deleteStop: () => deleteActivity(trip.id, b.dayId, b.activityId),
+        clearAdded: () => clearAdded(b.match.save.videoId, b.match.place.id),
+      });
+      if (r === 'failed') Alert.alert("Couldn't undo", 'The stop is still on your trip. Check your connection and try again.');
+    } finally {
+      busy.current = false;
+    }
   }, [trip, banner, dismiss, deleteActivity, clearAdded]);
 
   const changeDay = useCallback(async (dayId: string) => {
-    if (!trip || !banner || !requireOnline() || dayId === banner.dayId) { dismiss(); return; }
+    if (!trip || !banner || busy.current || !requireOnline() || dayId === banner.dayId) { dismiss(); return; }
     const b = banner;
     const day = trip.days.find((d) => d.id === dayId);
-    if (!day) return;
+    if (!day) { dismiss(); return; }
+    busy.current = true;
     dismiss();
-    await deleteActivity(trip.id, b.dayId, b.activityId).catch(() => {});
-    const spot = placementInDay({ ...day, activities: day.activities.filter((a) => a.id !== b.activityId) }, { lat: b.match.place.lat, lng: b.match.place.lng, title: b.match.place.name });
-    const activityId = await write(b.match, dayId, spot.order);
-    const ci = dayCities[trip.days.findIndex((d) => d.id === dayId)] ?? 0;
-    show({ text: smartAddBanner({ dayNumber: day.dayNumber, city: destinationNames[ci] ?? '', afterTitle: spot.afterTitle, multiCity: destinationNames.length > 1 }), activityId, dayId, match: b.match });
-  }, [trip, banner, dismiss, deleteActivity, write, dayCities, destinationNames, show]);
+    try {
+      const spot = placementInDay({ ...day, activities: day.activities.filter((a) => a.id !== b.activityId) }, { lat: b.match.place.lat, lng: b.match.place.lng, title: b.match.place.name });
+      const r = await moveSmartAdd({
+        deleteStop: () => deleteActivity(trip.id, b.dayId, b.activityId),
+        writeStop: () => write(b.match, dayId, spot.order),
+        clearAdded: () => clearAdded(b.match.save.videoId, b.match.place.id),
+      });
+      if (r.status === 'moved') {
+        const ci = dayCities[trip.days.findIndex((d) => d.id === dayId)] ?? 0;
+        show({ text: smartAddBanner({ dayNumber: day.dayNumber, city: destinationNames[ci] ?? '', afterTitle: spot.afterTitle, multiCity: destinationNames.length > 1 }), activityId: r.activityId, dayId, match: b.match });
+      } else if (r.status === 'failed') {
+        Alert.alert("Couldn't move it", 'It stayed where it was. Check your connection and try again.');
+      } else {
+        Alert.alert("Couldn't move it", "It's back in your wish list. Check your connection and add it again.");
+      }
+    } finally {
+      busy.current = false;
+    }
+  }, [trip, banner, dismiss, deleteActivity, write, clearAdded, dayCities, destinationNames, show]);
 
   const clearFallback = useCallback(() => setFallback(null), []);
   return { add, banner, changeDay, undo, dismiss, hold, fallback, clearFallback };

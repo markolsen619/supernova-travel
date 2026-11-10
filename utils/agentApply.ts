@@ -238,7 +238,8 @@ const asPlaced = (a: { id: string; order: number; lat?: number | null; lng?: num
 /** The order value for a stop going in at `idx` of a sorted list. */
 export function orderAt(list: { order: number }[], idx: number): number {
   if (!list.length) return STEP;
-  if (idx <= 0) return list[0].order / 2;
+  // Strictly before the first stop: AI-made days start at order 0, and 0 / 2 tied with it (final review 2026-11-10).
+  if (idx <= 0) return list[0].order - STEP;
   if (idx >= list.length) return list[list.length - 1].order + STEP;
   return (list[idx - 1].order + list[idx].order) / 2;
 }

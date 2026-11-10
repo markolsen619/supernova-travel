@@ -240,6 +240,15 @@ export function embedMetaFromHtml(html: string, videoId: string): NonNullable<Re
   };
 }
 
+/**
+ * The posts whose covers to ask for, and the query key (final review 2026-11-10: sorting before the 30-cap picked the
+ * lowest ids — the oldest posts — so the newest saves at the top stayed blank). Keeps the caller's order; sorts the key only.
+ */
+export function coverQuery(videoIds: string[]): { ids: string[]; key: string } {
+  const ids = [...new Set(videoIds)].slice(0, 30);
+  return { ids, key: [...ids].sort().join(',') };
+}
+
 /** One sheet per share: the same link again within 10 s is the same share (it opened twice — device test). */
 export const isDuplicateShare = (last: { url: string; at: number } | null, url: string, nowMs: number) =>
   !!last && last.url === url && nowMs - last.at < 10_000;

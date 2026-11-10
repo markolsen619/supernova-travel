@@ -232,3 +232,16 @@ describe('tripsFitting (saved-post screen: one fitting trip → smart add straig
     expect(tripsFitting({ lat: null, lng: null }, [t('budapest', 47.4979, 19.0402)], '2026-11-10')).toEqual([]);
   });
 });
+
+import { coverQuery } from '@/utils/wishlist';
+describe('coverQuery (final review I1: covers went to the 30 lowest ids, not the newest saves)', () => {
+  it('keeps the caller\'s first 30 (newest first), sorting only the key', () => {
+    const ids = Array.from({ length: 40 }, (_, i) => String(7700000000000000000n - BigInt(i))); // newest = highest, first
+    const q = coverQuery(ids);
+    expect(q.ids).toEqual(ids.slice(0, 30));
+    expect(q.key).toBe([...ids.slice(0, 30)].sort().join(','));
+  });
+  it('drops duplicates', () => {
+    expect(coverQuery(['2', '1', '2']).ids).toEqual(['2', '1']);
+  });
+});

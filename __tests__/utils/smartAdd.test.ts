@@ -79,3 +79,54 @@ describe('smartAddBanner', () => {
     expect(smartAddBanner({ dayNumber: 2, city: 'Lisbon', afterTitle: 'Alfama', multiCity: false })).toBe('Added to Day 2, after Alfama');
   });
 });
+
+import { orderAt } from '@/utils/agentApply';
+describe('first-stop order (final review I3: AI days start at order 0, and 0/2 tied with the first stop)', () => {
+  it('goes strictly before the first stop, even at order 0', () => {
+    expect(orderAt([{ order: 0 }, { order: 1000 }], 0)).toBeLessThan(0);
+    const d = { id: 'd', dayNumber: 1, destinationIndex: 1, date: null, title: '', notes: '', activities: [
+      { id: 'a', title: 'Vörösmarty Square', type: 'activity', lat: 47.4966, lng: 19.0508, order: 0, startTime: null },
+      { id: 'b', title: 'Far east', type: 'activity', lat: 47.50, lng: 19.20, order: 1000, startTime: null },
+    ] };
+    const r = placementInDay(d as never, { lat: 47.4960, lng: 19.0300, title: 'West of both' });
+    expect(r.afterTitle).toBeNull();
+    expect(r.order).toBeLessThan(0);
+  });
+});
+
+import { moveSmartAdd, undoSmartAdd } from '@/utils/smartAddFlow';
+describe('Change day / Undo failure paths (final review I2: silent failures left trip and wish list out of step)', () => {
+  const fakes = (fail: { del?: boolean; write?: boolean } = {}) => {
+    const calls: string[] = [];
+    return { calls, deps: {
+      deleteStop: async () => { calls.push('delete'); if (fail.del) throw new Error('x'); },
+      writeStop: async () => { calls.push('write'); if (fail.write) throw new Error('x'); return 'new1'; },
+      clearAdded: async () => { calls.push('clear'); },
+    } };
+  };
+  it('undo: deletes then clears the mark', async () => {
+    const f = fakes();
+    expect(await undoSmartAdd(f.deps)).toBe('undone');
+    expect(f.calls).toEqual(['delete', 'clear']);
+  });
+  it('undo: a failed delete keeps the mark (the stop is still on the trip)', async () => {
+    const f = fakes({ del: true });
+    expect(await undoSmartAdd(f.deps)).toBe('failed');
+    expect(f.calls).toEqual(['delete']);
+  });
+  it('move: deletes, then writes on the new day', async () => {
+    const f = fakes();
+    expect(await moveSmartAdd(f.deps)).toEqual({ status: 'moved', activityId: 'new1' });
+    expect(f.calls).toEqual(['delete', 'write']);
+  });
+  it('move: a failed delete writes nothing (no second copy)', async () => {
+    const f = fakes({ del: true });
+    expect(await moveSmartAdd(f.deps)).toEqual({ status: 'failed' });
+    expect(f.calls).toEqual(['delete']);
+  });
+  it('move: a failed write after the delete clears the mark (the wish list tells the truth)', async () => {
+    const f = fakes({ write: true });
+    expect(await moveSmartAdd(f.deps)).toEqual({ status: 'lost' });
+    expect(f.calls).toEqual(['delete', 'write', 'clear']);
+  });
+});

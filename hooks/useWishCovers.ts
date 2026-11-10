@@ -7,12 +7,13 @@ import { useQuery } from '@tanstack/react-query';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/services/firebase';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { coverQuery } from '@/utils/wishlist';
 
 export function useWishCovers(videoIds: string[]): Record<string, string | null> {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
-  const ids = [...new Set(videoIds)].sort().slice(0, 30);
+  const { ids, key } = coverQuery(videoIds);
   const { data } = useQuery({
-    queryKey: ['wishCovers', uid, ids.join(',')],
+    queryKey: ['wishCovers', uid, key],
     enabled: !!uid && ids.length > 0,
     staleTime: 60 * 60 * 1000,
     queryFn: async () => {
