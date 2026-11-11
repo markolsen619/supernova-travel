@@ -46,3 +46,26 @@ describe('data/destinations.json', () => {
     }
   });
 });
+
+describe('coverage (spec 2026-11-11: few destinations in Africa, the Middle East, East Asia and South Asia)', () => {
+  type Box = { sw: [number, number]; ne: [number, number] };
+  const entries = catalog as (CatalogEntry & { bbox?: Box; center?: { lat: number; lng: number } })[];
+  it('has the new destinations', () => {
+    const slugs = new Set(entries.map((e) => e.slug));
+    for (const s of ['serengeti', 'nairobi', 'victoria-falls', 'okavango-delta', 'kruger', 'essaouira', 'mauritius', 'seychelles',
+      'petra', 'wadi-rum', 'abu-dhabi', 'doha', 'muscat', 'jerusalem', 'amman',
+      'chengdu', 'osaka', 'beijing', 'shanghai', 'taipei', 'busan', 'hokkaido', 'guilin',
+      'jaipur', 'goa', 'kathmandu', 'sri-lanka', 'maldives', 'kerala']) expect(slugs.has(s)).toBe(true);
+    expect(entries.length).toBeGreaterThanOrEqual(89);
+  });
+  it('explicit boxes are city-sized and hold their centre (review focus 3)', () => {
+    for (const e of entries.filter((x) => x.bbox)) {
+      expect(e.bbox!.ne[0] - e.bbox!.sw[0]).toBeLessThanOrEqual(1.6);
+      expect(e.bbox!.ne[1] - e.bbox!.sw[1]).toBeLessThanOrEqual(1.6);
+      expect(e.center!.lng).toBeGreaterThanOrEqual(e.bbox!.sw[0]);
+      expect(e.center!.lng).toBeLessThanOrEqual(e.bbox!.ne[0]);
+      expect(e.center!.lat).toBeGreaterThanOrEqual(e.bbox!.sw[1]);
+      expect(e.center!.lat).toBeLessThanOrEqual(e.bbox!.ne[1]);
+    }
+  });
+});
