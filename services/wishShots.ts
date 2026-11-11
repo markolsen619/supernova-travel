@@ -5,6 +5,7 @@
 import { ref, uploadBytes, deleteObject } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { functions, storage } from '@/services/firebase';
 import { PHOTO_QUALITY, SHOT_MAX_PX, uploadResize } from '@/utils/photoUpload';
 import type { WishPlace } from '@/utils/wishlist';
@@ -36,4 +37,10 @@ export async function readScreenshots(saveId: string, count: number) {
 
 export async function deleteShots(paths: string[]): Promise<void> {
   await Promise.allSettled(paths.map((p) => deleteObject(ref(storage, p))));
+}
+
+/** Pick up to 5 screenshots (the system picker; never full library access). [] when cancelled. */
+export async function pickShots(): Promise<string[]> {
+  const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 5, quality: 1 });
+  return r.canceled ? [] : r.assets.map((a) => a.uri).slice(0, 5);
 }
