@@ -72,3 +72,15 @@ describe('review fixes', () => {
     expect(walletSaveAllowed({ date: '2026-12-02', canAdd: false })).toBe(false);
   });
 });
+
+import { toursForCity } from '@/utils/tripTours';
+describe('toursForCity (owner 2026-11-11: one "Things to do" per city section, not a row of every city)', () => {
+  const cities = [{ index: 0, name: 'Prague', countryCode: 'CZ' }, { index: 1, name: 'Budapest', countryCode: 'HU' }, { index: 2, name: 'Vienna', countryCode: 'AT' }];
+  it('gives only that city', () => {
+    expect(toursForCity(cities, 1)).toEqual([{ index: 1, name: 'Budapest', countryCode: 'HU' }]);
+  });
+  it('nothing for a city not offered (past trip, non-member)', () => {
+    expect(toursForCity([], 1)).toEqual([]);
+    expect(toursForCity(cities, 7)).toEqual([]);
+  });
+});

@@ -22,7 +22,7 @@ const ids = () => partnerIdsFromEnv({
   EXPO_PUBLIC_VIATOR_MCID: process.env.EXPO_PUBLIC_VIATOR_MCID,
 });
 
-export function ToursRow({ cities, onReturn }: { cities: City[]; onReturn: (city: City, partner: string) => void }) {
+export function ToursRow({ cities, onReturn, inset = false }: { cities: City[]; onReturn: (city: City, partner: string) => void; /** Inside a city section, which already has the page's margins. */ inset?: boolean }) {
   const { colors } = useTheme();
   const open = useCallback(async (c: City) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -32,7 +32,7 @@ export function ToursRow({ cities, onReturn }: { cities: City[]; onReturn: (city
   }, [onReturn]);
   if (!cities.length) return null;
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.row, inset && styles.inset]} scrollEnabled={cities.length > 1}>
       {cities.map((c) => {
         const partner = PARTNER_NAME[activityPartner(c.countryCode)];
         return (
@@ -57,6 +57,7 @@ const styles = StyleSheet.create({
   row: { gap: Spacing['3'], paddingHorizontal: Spacing['5'], paddingVertical: Spacing['2'] },
   card: { flexDirection: 'row', alignItems: 'center', gap: Spacing['3'], width: 290, minHeight: 72, padding: Spacing['3'], borderRadius: BorderRadius.lg, borderWidth: StyleSheet.hairlineWidth },
   single: { width: undefined, minWidth: '100%' },
+  inset: { paddingHorizontal: 0, flexGrow: 1 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   text: { flex: 1 },
   eyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },

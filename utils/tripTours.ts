@@ -21,6 +21,9 @@ export function tourCities(trip: TourTrip, today: string, isMember: boolean): { 
   return [trip.destination, ...(trip.additionalDestinations ?? [])].map((c, index) => ({ index, name: c.name, countryCode: c.countryCode ?? null }));
 }
 
+/** One city's "Things to do" card, shown in that city's section of a multi-city trip (owner 2026-11-11). */
+export const toursForCity = <T extends { index: number }>(cities: T[], index: number): T[] => cities.filter((c) => c.index === index);
+
 /** "9:30", "14:05", "7:30 pm", "12 am" → "HH:MM"; anything else → null. */
 export function normalizeTime(raw: string): string | null {
   const m = /^\s*(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?\s*$/i.exec(raw);

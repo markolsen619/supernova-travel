@@ -93,7 +93,7 @@ import { useSmartAdd, type Match } from '@/hooks/useSmartAdd';
 import { toTripForMatch, wishByCity, wishMatches } from '@/utils/wishlist';
 import { ToursRow } from '@/components/trip/ToursRow';
 import { BookedSomethingSheet, type BookedTarget } from '@/components/trip/BookedSomethingSheet';
-import { dayDateFor, defaultDayIndex, tourCities } from '@/utils/tripTours';
+import { dayDateFor, defaultDayIndex, tourCities, toursForCity } from '@/utils/tripTours';
 import { DayWeatherBadge } from '@/components/ui/DayWeatherBadge';
 import { activityPartner, activityPartnerUrl, partnerIdsFromEnv, PARTNER_NAME } from '@/utils/activityBooking';
 import { tripSpan } from '@/utils/homeState';
@@ -1672,7 +1672,9 @@ export default function TripDetailScreen() {
         </ScrollView>
 
         {/* Tours & tickets — one card per city (owner, 2026-11-08). */}
-        <ToursRow cities={tripTourCities} onReturn={handleToursReturn} />
+        {/* Single-city trips: one card here. Multi-city trips show each city's card in its own section below, so a
+            months-long trip isn't a long row to scroll (owner 2026-11-11). */}
+        {multiCity ? null : <ToursRow cities={tripTourCities} onReturn={handleToursReturn} />}
 
         {/* Ask Nova (docs/superpowers/specs/2026-10-14-trip-agent-design.md) — members who can edit.
             A quiet card with Nova's face (it was a gradient sparkle button, which read as generic AI). */}
@@ -1753,6 +1755,7 @@ export default function TripDetailScreen() {
                     onFindStay={range ? () => findStay(destinationNames[ci], range) : undefined}
                     onAddDay={canEditItinerary ? () => addDayInCity(ci) : undefined}
                   >
+                    <ToursRow cities={toursForCity(tripTourCities, ci)} onReturn={handleToursReturn} inset />
                     <CityWishlistCard matches={wishCities[ci] ?? []} onAdd={smartAdd} onSeeAll={openWishlist} />
                     {days.map((day, index) => renderDay(day, index, ci))}
                   </CitySection>
