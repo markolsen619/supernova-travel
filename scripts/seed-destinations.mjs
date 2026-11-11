@@ -50,6 +50,7 @@ const { buildPrompt } = lib('generateTrip.js');
 const { parseGeneratedTrip, tripDocuments } = lib('tripDocs.js');
 const { validateCatalog } = lib('catalog.js');
 const S = lib('seedSupport.js');
+const C = lib('coverRefresh.js');
 const { runAggregation } = lib('discoveryFunctions.js');
 const catalog = JSON.parse(readFileSync(join(root, 'data/destinations.json'), 'utf8'));
 const problems = validateCatalog(catalog);
@@ -133,7 +134,12 @@ async function seedDestination(entry, uid, gemini) {
   let placeId = existing.placeId ?? null;
   if (!coverImageUrl && !DRY) {
     const g = await googleSearch(entry.query, [center.lng, center.lat], S.GOOGLE_COVER_MASK);
-    if (g?.photoName) coverImageUrl = S.coverPhotoUrl(g.photoName, GOOGLE);
+    // Google's key-less photo address (one billed lookup, then free to view) — never a keyed …/media?key= URL, which
+    // bills a Place Photo on every phone, every view (October 2026's $45 bill; 2026-11-11 seed wrote keyed ones).
+    if (g?.photoName) {
+      const r = await fetch(C.photoUriRequest(g.photoName, GOOGLE, 1600)).catch(() => null);
+      coverImageUrl = r?.ok ? C.photoUriFrom(await r.json()) : null;
+    }
     placeId = g?.placeId ?? placeId;
   }
 
@@ -141,6 +147,7 @@ async function seedDestination(entry, uid, gemini) {
     slug: entry.slug, name: entry.name, countryCode: entry.countryCode, countryName: entry.countryName,
     continentChip: entry.continentChip, vibes: entry.vibes, popularity: entry.popularity,
     center, bbox, coverImageUrl, placeId, order: entry.popularity,
+    ...(coverImageUrl && placeId ? { coverPlaceId: placeId, coverRefreshedAtMs: Date.now() } : {}),
   };
   if (DRY) {
     console.log(`  would write destinations/${entry.slug}`, { center, coverImageUrl: !!coverImageUrl });
@@ -184,7 +191,8 @@ async function seedDestination(entry, uid, gemini) {
     // two writes left day-less trips that the idempotent re-run then skipped).
     const tripRef = db.collection('trips').doc();
     const batch = db.batch();
-    batch.set(tripRef, docs.trip);
+    // The cover's place id travels with it, so the daily job can refresh the short-lived photo address.
+    batch.set(tripRef, coverImageUrl && placeId ? { ...docs.trip, coverPlaceId: placeId, coverRefreshedAtMs: Date.now() } : docs.trip);
     for (const { day, activities } of docs.days) {
       const dayRef = tripRef.collection('days').doc();
       batch.set(dayRef, day);
