@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 import { useShareIntent } from 'expo-share-intent';
 import { onPendingShare, setPendingShare, takePendingShare } from '@/services/pendingShare';
 import { isDuplicateShare } from '@/utils/wishlist';
-import { shareKind } from '@/utils/wishShots';
+import { shareKey, shareKind } from '@/utils/wishShots';
 import { setShotDraft } from '@/services/shotDraft';
 
 let lastShare: { url: string; at: number } | null = null;
@@ -20,10 +20,12 @@ export function useShareIntentCatcher(): void {
   useEffect(() => {
     if (!hasShareIntent) return;
     const kind = shareKind({ webUrl: shareIntent.webUrl, text: shareIntent.text, files: shareIntent.files });
-    if (kind?.kind === 'link') {
-      // One sheet per share: the same link again within 10 s is the same share (it opened twice — device test).
-      if (isDuplicateShare(lastShare, kind.url, Date.now())) { resetShareIntent(); return; }
-      lastShare = { url: kind.url, at: Date.now() };
+    if (kind) {
+      // One sheet per share: the same share again within 10 s is the same share (links and screenshots both fired
+      // twice — device test; fresh review I-5).
+      const key = shareKey(kind);
+      if (isDuplicateShare(lastShare, key, Date.now())) { resetShareIntent(); return; }
+      lastShare = { url: key, at: Date.now() };
     }
     if (kind) setPendingShare(kind);
     else Alert.alert('Share screenshots or a TikTok link', 'Supernova finds the places in screenshots of any post, or in a TikTok link.');

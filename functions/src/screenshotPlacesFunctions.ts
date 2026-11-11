@@ -9,7 +9,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { AI_CONSENT_REQUIRED_MESSAGE, hasAiConsent } from './aiConsent';
 import { isPaidTier } from './flightPolling';
 import { generateJson } from './agentModel';
-import { PLACES_SCHEMA, cleanPlaces, monthKey, parsePlacesAnswer, releaseQuota, wishQuota, type QuotaDoc } from './socialPost';
+import { PLACES_SCHEMA, cleanPlaces, monthKey, parsePlacesAnswer, releaseQuota, shotQuota, type QuotaDoc } from './socialPost';
 import { SHOTS_PROMPT, SHOTS_SYSTEM, shotPaths, validShotsRequest } from './screenshotPlaces';
 import { placeAll } from './socialPostFunctions';
 
@@ -28,21 +28,21 @@ export const readScreenshots = onCall({ region: 'us-central1', timeoutSeconds: 6
 
   const now = Date.now();
   const quotaRef = db().doc(`usage_quotas/${uid}/wishlist/${monthKey(now)}`);
-  let counted = false;
+  // Every read counts toward the hour (a re-read is a new Gemini call); the month counts the save once (fresh review I-1).
+  let monthNew = false;
   await db().runTransaction(async (tx) => {
-    const q = wishQuota(((await tx.get(quotaRef)).data() ?? {}) as QuotaDoc, ask.saveId, paid, now);
+    const q = shotQuota(((await tx.get(quotaRef)).data() ?? {}) as QuotaDoc, ask.saveId, paid, now);
     if (!q.ok) {
       throw new HttpsError('resource-exhausted', q.reason === 'monthly'
         ? 'Free accounts save 20 places a month. Pro saves as many as you like.'
         : "That's a lot of saving. Try again in a few minutes.", { reason: q.reason });
     }
-    counted = q.counted;
-    if (q.counted) tx.set(quotaRef, q.patch, { merge: true });
+    monthNew = q.monthNew;
+    tx.set(quotaRef, q.patch, { merge: true });
   });
   const giveBack = async () => {
-    if (!counted) return;
     await db().runTransaction(async (tx) => {
-      tx.set(quotaRef, releaseQuota(((await tx.get(quotaRef)).data() ?? {}) as QuotaDoc, ask.saveId, now));
+      tx.set(quotaRef, releaseQuota(((await tx.get(quotaRef)).data() ?? {}) as QuotaDoc, ask.saveId, now, { month: monthNew }));
     }).catch(() => {});
   };
 

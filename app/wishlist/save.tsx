@@ -36,10 +36,11 @@ import { BorderRadius, Spacing } from '@/constants/spacing';
 type Preview = WishSave & { coverUrl: string | null };
 
 /** Close, top right, in every state (device test 2026-11-08: there was no way out). */
-function CloseButton({ color, background }: { color: string; background: string }) {
+function CloseButton({ color, background, disabled = false }: { color: string; background: string; disabled?: boolean }) {
   return (
     <Pressable
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+      disabled={disabled}
       style={[closeStyles.btn, { backgroundColor: background }]}
       hitSlop={8}
       accessibilityRole="button"
@@ -86,6 +87,8 @@ export default function SaveFromSocialScreen() {
   const [saveId] = useState(() => newShotSaveId(doc(collection(db, '_')).id));
   const uploaded = useRef<string[]>([]);
   const saved = useRef(false);
+  // Set when the sheet closes (fresh review I-3): uploads still in flight stop and delete what they wrote.
+  const closed = useRef(false);
 
   const today = toCalendarDate(new Date());
   const tripsForMatch = useMemo(() => trips.map((t) => toTripForMatch(t)), [trips]);
@@ -119,11 +122,13 @@ export default function SaveFromSocialScreen() {
     setLoading(true); setError(null);
     try {
       // Each image is recorded as it lands, so a retry uploads only what's missing and cleanup sees every file.
-      await uploadShots(uid, saveId, uris, uploaded.current, (path) => { uploaded.current = [...uploaded.current, path]; });
+      await uploadShots(uid, saveId, uris, uploaded.current, (path) => { uploaded.current = [...uploaded.current, path]; }, () => closed.current);
+      if (closed.current) return;
       const r = await readScreenshots(saveId, uploaded.current.length);
       setPreview({ videoId: saveId, platform: 'screenshot', postUrl: '', author: '', authorHandle: '', caption: '', coverUrl: null, savedAtMs: 0, shots: uploaded.current, ...r });
       setKept(new Set(r.places.map((x) => x.id)));
     } catch (e) {
+      if (closed.current) return;
       const err = e as { code?: string; details?: { reason?: unknown } };
       if (err.code?.endsWith('resource-exhausted') && err.details?.reason === 'monthly') { openPaywall(); return; }
       if (err.code?.endsWith('failed-precondition')) {
@@ -139,14 +144,18 @@ export default function SaveFromSocialScreen() {
   }, [uid, saveId, requireConsent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const retry = useCallback(() => { if (usingShots) runShots(shotUris); else run(); }, [usingShots, runShots, shotUris, run]);
+  // The paywall callback was captured when the sheet opened; read the current reader through a ref, so a purchase after
+  // "Add a screenshot" re-reads the screenshots, not the link (fresh review I-2).
+  const retryRef = useRef(retry);
+  retryRef.current = retry;
 
   // Retry only once the account is paid; a cancel shows why it stopped (it reopened the paywall forever before).
   const onPaywallClosed = useCallback(() => {
     const { serverTier, tier } = useAuthStore.getState();
-    if (afterLimitPaywall(serverTier ?? tier) === 'retry') { retry(); return; }
+    if (afterLimitPaywall(serverTier ?? tier) === 'retry') { retryRef.current(); return; }
     setError('Free accounts save 20 videos a month. Pro saves as many as you like.');
     setLoading(false);
-  }, [retry]);
+  }, []);
   const openPaywall = useLimitPaywall(onPaywallClosed);
 
   useEffect(() => {
@@ -157,7 +166,7 @@ export default function SaveFromSocialScreen() {
   }, [requireConsent, run, runShots, usingShots, shotUris]);
 
   // Nothing uploaded outlives an unsaved sheet (spec 2026-11-11).
-  useEffect(() => () => { if (!saved.current && uploaded.current.length) deleteShots(uploaded.current); }, []);
+  useEffect(() => () => { closed.current = true; if (!saved.current && uploaded.current.length) deleteShots(uploaded.current); }, []);
 
   // An empty link read (TikTok shared nothing): read screenshots of the post instead.
   const addScreenshotsInstead = useCallback(async () => {
@@ -318,7 +327,7 @@ export default function SaveFromSocialScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing['3'], backgroundColor: colors.background.primary, borderTopColor: colors.background.cardBorder }]}>
         <Button label={count ? `Save ${count} ${count === 1 ? 'place' : 'places'}` : (preview.platform === 'screenshot' ? 'Save the screenshots' : 'Save the video')} onPress={onSave} loading={saving} fullWidth />
       </View>
-      <CloseButton color={colors.text.primary} background={colors.background.sunken} />
+      <CloseButton color={colors.text.primary} background={colors.background.sunken} disabled={saving} />
       {consentSheet}
     </View>
   );

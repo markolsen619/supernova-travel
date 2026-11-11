@@ -56,3 +56,6 @@ export function shotUploadPlan(uid: string, saveId: string, uris: string[], uplo
     .map((uri, i) => ({ uri, path: `wish_shots/${uid}/${saveId}/${i}.jpg` }))
     .filter((x) => !uploaded.includes(x.path));
 }
+
+/** What makes two shares "the same share" for the 10 s duplicate guard (fresh review I-5: screenshots fired twice too). */
+export const shareKey = (p: ShareKind) => (p.kind === 'link' ? p.url : `shots:${p.uris.join('|')}`);

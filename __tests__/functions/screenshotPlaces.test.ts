@@ -37,3 +37,33 @@ describe('releaseQuota (review focus 3: a failed read is not charged)', () => {
     expect(back.hours?.['2026-11-11T10']).toBe(0);
   });
 });
+
+import { shotQuota } from '../../functions/src/socialPost';
+describe('shotQuota (fresh review I-1: re-reading a counted save skipped the hourly cap — free Gemini calls)', () => {
+  const now = Date.parse('2026-11-11T10:00:00Z');
+  const SID = 'sAbCdEfGhIjKlMnOpQrSt';
+  it('a re-read of a counted save still counts toward the hour', () => {
+    const first = shotQuota({}, SID, false, now);
+    if (!first.ok) throw new Error('first');
+    expect(first.monthNew).toBe(true);
+    const again = shotQuota(first.patch, SID, false, now);
+    if (!again.ok) throw new Error('again');
+    expect(again.monthNew).toBe(false);
+    expect(again.patch.hours?.['2026-11-11T10']).toBe(2);
+  });
+  it('caps re-reads of one save at 3', () => {
+    let doc = {};
+    for (let i = 0; i < 3; i++) { const q = shotQuota(doc, SID, true, now); if (!q.ok) throw new Error(String(i)); doc = q.patch; }
+    expect(shotQuota(doc, SID, true, now)).toEqual({ ok: false, reason: 'hourly' });
+  });
+  it('the hourly cap applies to re-reads too', () => {
+    const full = { videos: [SID], hours: { '2026-11-11T10': 30 } };
+    expect(shotQuota(full, SID, true, now)).toEqual({ ok: false, reason: 'hourly' });
+  });
+  it('giving back a re-read refunds the hour but keeps the month counted', () => {
+    const doc = { videos: [SID], hours: { '2026-11-11T10': 2 }, reads: { [SID]: 2 } };
+    const back = releaseQuota(doc, SID, now, { month: false });
+    expect(back.videos).toEqual([SID]);
+    expect(back.hours?.['2026-11-11T10']).toBe(1);
+  });
+});

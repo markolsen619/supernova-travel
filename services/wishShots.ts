@@ -22,11 +22,14 @@ async function shotJpeg(uri: string): Promise<string> {
  * Uploads what isn't up yet (`shotUploadPlan`), reporting each image as it lands so a dropped connection never leaves an
  * unrecorded file (it would be orphaned, and its re-upload refused). Returns every uploaded path, in order.
  */
-export async function uploadShots(uid: string, saveId: string, uris: string[], done: string[], onUploaded: (path: string) => void): Promise<string[]> {
+export async function uploadShots(uid: string, saveId: string, uris: string[], done: string[], onUploaded: (path: string) => void, stopped: () => boolean = () => false): Promise<string[]> {
   for (const { uri, path } of shotUploadPlan(uid, saveId, uris, done)) {
+    if (stopped()) throw new Error('closed');
     const jpeg = await shotJpeg(uri); // throws rather than uploading the original (it may carry a location)
     const blob = await fetch(jpeg).then((r) => r.blob());
     await uploadBytes(ref(storage, path), blob, { contentType: 'image/jpeg' });
+    // Closed while this one was uploading (fresh review I-3): the sheet's cleanup already ran, so delete it here.
+    if (stopped()) { await deleteObject(ref(storage, path)).catch(() => {}); throw new Error('closed'); }
     onUploaded(path);
   }
   return shotUploadPlan(uid, saveId, uris, []).map((x) => x.path);

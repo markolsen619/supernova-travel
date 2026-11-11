@@ -107,7 +107,7 @@ export function cleanPlaces(a: PlacesAnswer): PlacesAnswer {
 
 export const monthKey = (ms: number) => new Date(ms).toISOString().slice(0, 7);
 export const hourKey = (ms: number) => new Date(ms).toISOString().slice(0, 13);
-export type QuotaDoc = { videos?: string[]; hours?: Record<string, number> };
+export type QuotaDoc = { videos?: string[]; hours?: Record<string, number>; reads?: Record<string, number> };
 export const FREE_MONTHLY = 20;
 export const HOURLY = 30;
 
@@ -122,12 +122,35 @@ export function wishQuota(doc: QuotaDoc, videoId: string, paid: boolean, nowMs: 
   return { ok: true, counted: true, patch: { videos: [...videos, videoId], hours: { [h]: inHour + 1 } } };
 }
 
-/** Give back a claim from `wishQuota` — a screenshot read that failed after the claim is not charged (spec 2026-11-11). */
-export function releaseQuota(doc: QuotaDoc, id: string, nowMs = Date.now()): QuotaDoc {
+/**
+ * Screenshot reads (fresh review 2026-11-11, I-1): unlike a TikTok repeat — free from the shared cache — every screenshot
+ * read is a Gemini call, so every read counts toward the hour, and one save is read at most 3 times. The month counts a
+ * save once (`monthNew`).
+ */
+export const SHOT_READS_MAX = 3;
+export function shotQuota(doc: QuotaDoc, saveId: string, paid: boolean, nowMs: number):
+  { ok: true; monthNew: boolean; patch: QuotaDoc } | { ok: false; reason: 'monthly' | 'hourly' } {
+  const videos = doc.videos ?? [];
+  const h = hourKey(nowMs);
+  const inHour = doc.hours?.[h] ?? 0;
+  const reads = doc.reads?.[saveId] ?? 0;
+  if (inHour >= HOURLY || reads >= SHOT_READS_MAX) return { ok: false, reason: 'hourly' };
+  const monthNew = !videos.includes(saveId);
+  if (monthNew && !paid && videos.length >= FREE_MONTHLY) return { ok: false, reason: 'monthly' };
+  return { ok: true, monthNew, patch: { videos: monthNew ? [...videos, saveId] : videos, hours: { [h]: inHour + 1 }, reads: { [saveId]: reads + 1 } } };
+}
+
+/**
+ * Give back a claim — a screenshot read that failed is not charged (spec 2026-11-11). The hour is always refunded; the
+ * month only when this read was the one that counted the save (`month`).
+ */
+export function releaseQuota(doc: QuotaDoc, id: string, nowMs = Date.now(), o: { month: boolean } = { month: true }): QuotaDoc {
   const h = hourKey(nowMs);
   const hours = { ...(doc.hours ?? {}) };
   if (hours[h]) hours[h] = Math.max(0, hours[h] - 1);
-  return { ...doc, videos: (doc.videos ?? []).filter((v) => v !== id), hours };
+  const reads = { ...(doc.reads ?? {}) };
+  if (reads[id]) reads[id] = Math.max(0, reads[id] - 1);
+  return { ...doc, videos: o.month ? (doc.videos ?? []).filter((v) => v !== id) : (doc.videos ?? []), hours, reads };
 }
 
 function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {

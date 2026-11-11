@@ -80,3 +80,12 @@ describe('shotUploadPlan (self-review: a dropped upload left 0.jpg behind, and t
     expect(shotUploadPlan('u1', SID, Array.from({ length: 7 }, (_, i) => `file:///${i}.png`), [])).toHaveLength(5);
   });
 });
+
+import { shareKey } from '@/utils/wishShots';
+describe('shareKey (fresh review I-5: a double-fired screenshot share opened two sheets and used two free reads)', () => {
+  it('the same screenshots give the same key; a link keys by its url', () => {
+    expect(shareKey({ kind: 'shots', uris: ['file:///a.png', 'file:///b.png'] })).toBe(shareKey({ kind: 'shots', uris: ['file:///a.png', 'file:///b.png'] }));
+    expect(shareKey({ kind: 'shots', uris: ['file:///a.png'] })).not.toBe(shareKey({ kind: 'shots', uris: ['file:///b.png'] }));
+    expect(shareKey({ kind: 'link', url: 'https://vm.tiktok.com/x/' })).toBe('https://vm.tiktok.com/x/');
+  });
+});
