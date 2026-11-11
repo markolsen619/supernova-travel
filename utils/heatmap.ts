@@ -20,13 +20,13 @@ export function heatFeatures(points: unknown, stride: unknown): GeoJSON.FeatureC
   return { type: 'FeatureCollection', features };
 }
 
-export function destinationPinFeatures(list: Destination[]): GeoJSON.FeatureCollection<GeoJSON.Point, { slug: string; name: string; weight: number }> {
+export function destinationPinFeatures(list: Destination[]): GeoJSON.FeatureCollection<GeoJSON.Point, { slug: string; name: string; weight: number; popularity: number }> {
   return {
     type: 'FeatureCollection',
     features: list.map((d) => ({
       type: 'Feature' as const,
       id: d.slug,
-      properties: { slug: d.slug, name: d.name, weight: d.popularity },
+      properties: { slug: d.slug, name: d.name, weight: d.popularity ?? 0, popularity: d.popularity ?? 0 },
       geometry: { type: 'Point' as const, coordinates: [d.center.lng, d.center.lat] },
     })),
   };
@@ -47,7 +47,27 @@ export function destinationSlugFromFeatures(fc: GeoJSON.FeatureCollection | unde
  * the halo, and its feature carries a `name` — missed here, it would be taken
  * for a POI and sent to a billed Text Search.
  */
-export const DESTINATION_PIN_LAYERS = ['destination-halo', 'destination-pin', 'destination-label'];
+export const DESTINATION_PIN_LAYERS = ['destination-cluster', 'destination-cluster-count', 'destination-halo', 'destination-pin', 'destination-label'];
+
+export type GlobeTap = { kind: 'cluster'; clusterId: number; coordinates: [number, number]; count: number } | { kind: 'destination'; slug: string };
+
+/** What a globe tap hit (spec 2026-11-11): a bubble wins over a pin under it; friends are native markers and never reach here. */
+export function globeTapTarget(fc: GeoJSON.FeatureCollection | null | undefined): GlobeTap | null {
+  for (const f of fc?.features ?? []) {
+    const p = (f.properties ?? {}) as { cluster_id?: unknown; point_count?: unknown };
+    if (typeof p.cluster_id === 'number' && f.geometry?.type === 'Point') {
+      const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates;
+      return { kind: 'cluster', clusterId: p.cluster_id, coordinates: [lng, lat], count: typeof p.point_count === 'number' ? p.point_count : 0 };
+    }
+  }
+  const slug = destinationSlugFromFeatures(fc ?? null);
+  return slug ? { kind: 'destination', slug } : null;
+}
+
+/** Where a bubble tap flies: just past the zoom where it splits, else two levels closer; never past street level. */
+export function clusterFlyZoom(expansionZoom: number | null, currentZoom: number): number {
+  return Math.min(12, expansionZoom != null ? expansionZoom + 0.2 : currentZoom + 2);
+}
 
 /**
  * The destination under a tap, or null. A failed query (layers not mounted

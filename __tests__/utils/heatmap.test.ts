@@ -1,4 +1,4 @@
-import { heatFeatures, destinationPinFeatures, destinationSlugFromFeatures, findDestinationAt, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
+import { heatFeatures, destinationPinFeatures, destinationSlugFromFeatures, findDestinationAt, DESTINATION_PIN_LAYERS, clusterFlyZoom, globeTapTarget } from '@/utils/heatmap';
 import { parseDestination } from '@/utils/destinations';
 
 describe('heatFeatures', () => {
@@ -46,5 +46,32 @@ describe('findDestinationAt', () => {
   it('treats a failed or empty query as no pin, so the tap carries on to the POI lookup', async () => {
     await expect(findDestinationAt(async () => { throw new Error('no such layer'); })).resolves.toBeNull();
     await expect(findDestinationAt(async () => undefined)).resolves.toBeNull();
+  });
+});
+
+describe('globe taps at any distance (spec 2026-11-11)', () => {
+  const pin = { type: 'Feature', properties: { slug: 'lisbon', name: 'Lisbon' }, geometry: { type: 'Point', coordinates: [-9.1, 38.7] } };
+  const bubble = { type: 'Feature', properties: { cluster: true, cluster_id: 42, point_count: 24 }, geometry: { type: 'Point', coordinates: [10, 50] } };
+  it('a bubble wins over a pin under the same tap (review focus 4)', () => {
+    expect(globeTapTarget({ type: 'FeatureCollection', features: [pin, bubble] } as never)).toEqual({ kind: 'cluster', clusterId: 42, coordinates: [10, 50], count: 24 });
+  });
+  it('a lone pin opens its destination', () => {
+    expect(globeTapTarget({ type: 'FeatureCollection', features: [pin] } as never)).toEqual({ kind: 'destination', slug: 'lisbon' });
+  });
+  it('nothing for an empty tap', () => {
+    expect(globeTapTarget(null)).toBeNull();
+    expect(globeTapTarget({ type: 'FeatureCollection', features: [] })).toBeNull();
+  });
+  it('the tap layers include the bubble layers', () => {
+    expect(DESTINATION_PIN_LAYERS).toEqual(expect.arrayContaining(['destination-cluster', 'destination-cluster-count', 'destination-pin']));
+  });
+  it('clusterFlyZoom: expansion + 0.2, else +2, never past 12 (review focus 1)', () => {
+    expect(clusterFlyZoom(4, 1.5)).toBeCloseTo(4.2);
+    expect(clusterFlyZoom(null, 1.5)).toBe(3.5);
+    expect(clusterFlyZoom(13, 11)).toBe(12);
+  });
+  it('pin features carry popularity, 0 when missing (review focus 5)', () => {
+    const fc = destinationPinFeatures([{ slug: 'a', name: 'A', popularity: 80, center: { lat: 1, lng: 2 } }, { slug: 'b', name: 'B', center: { lat: 3, lng: 4 } }] as never);
+    expect(fc.features.map((f) => (f.properties as { popularity?: number }).popularity)).toEqual([80, 0]);
   });
 });
