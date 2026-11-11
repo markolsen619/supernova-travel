@@ -307,3 +307,25 @@ describe('every leg gets at least 3 s of drawing (owner 2026-10-26: playback "ju
     expect(filmTiming(Array(8).fill(10000), Array(8).fill(4)).timing.legMinMs ?? 0).toBe(0);
   });
 });
+
+import { profileSpeed } from '@/utils/flyover';
+describe('speed profiles and per-day intros (flyover director, 2026-11-11)', () => {
+  const profile = [{ to: 0.25, ms: 1000 }, { to: 1, ms: 3000 }];
+  it('profileSpeed is the region span over its time', () => {
+    expect(profileSpeed(profile, 0.1)).toBeCloseTo(0.25 / 1000);
+    expect(profileSpeed(profile, 0.5)).toBeCloseTo(0.75 / 3000);
+    expect(profileSpeed([], 0.5)).toBe(0);
+  });
+  it('a day opens with its own intro', () => {
+    const timing = { ...DEFAULT_TIMING, intros: [1500, 6000] };
+    const s = flyoverReducer(initialFlyover, { type: 'play', timing });
+    expect(s.hold).toBe(1500);
+    expect(flyoverReducer(s, { type: 'jump', dayIndex: 1, timing }).hold).toBe(6000);
+  });
+  it('the head follows the profile, not the day duration', () => {
+    const timing = { ...DEFAULT_TIMING, intros: [0], dwells: [[0, 0]], profiles: [profile], legMinMs: 3000 };
+    let s = flyoverReducer(initialFlyover, { type: 'play', timing });
+    s = flyoverReducer(s, { type: 'tick', dt: 100, durations: [99_999], stopFractions: [[0, 1]], timing });
+    expect(s.progress).toBeCloseTo(0.025, 3);
+  });
+});

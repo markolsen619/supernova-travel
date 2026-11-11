@@ -10,6 +10,11 @@ import { stopPhotos, type StopPhoto } from '@/utils/playback';
  * Photos the trip's members took at each stop, for the playback card (owner, 2026-10-17): the stop's journal
  * photos and members' place-review photos. Loaded only while a playback runs (`enabled`), then cached.
  */
+// Stable empties (final review I7): offline or before the queries answer, a fresh `{}` each render changed every memo
+// downstream on every flyover tick — the whole flyover was re-planned 30 times a second.
+const NO_PROFILES = {} as Record<string, never>;
+const NO_PHOTOS: Record<string, StopPhoto[]> = {};
+
 export function useStopPhotos(a: {
   tripId: string;
   stops: { id: string; dayId: string; placeId: string | null }[];
@@ -18,7 +23,7 @@ export function useStopPhotos(a: {
   enabled: boolean;
 }): Record<string, StopPhoto[]> {
   const blocked = useModerationStore((s) => s.blockedUids);
-  const { data: profiles = {} } = useAuthorProfiles(a.memberUids);
+  const { data: profiles = NO_PROFILES } = useAuthorProfiles(a.memberUids);
   const { data } = useQuery({
     queryKey: ['stopPhotos', a.tripId, a.stops.map((s) => s.id).join(','), a.memberUids.join(',')],
     enabled: a.enabled && a.stops.length > 0 && !!a.organizerUid,
@@ -50,7 +55,7 @@ export function useStopPhotos(a: {
   const stopsKey = a.stops.map((s) => `${s.id}:${s.placeId ?? ''}`).join(',');
   const membersKey = a.memberUids.join(',');
   return useMemo(() => {
-    if (!data || !a.organizerUid) return {};
+    if (!data || !a.organizerUid) return NO_PHOTOS;
     return stopPhotos(a.stops, data.journals, a.organizerUid, data.reviews, a.memberUids, profiles, new Set(blocked));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the stops' and members' contents, not their array identity
   }, [data, a.organizerUid, stopsKey, membersKey, profiles, blocked]);

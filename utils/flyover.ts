@@ -42,7 +42,21 @@ export type FlyoverTiming = {
   dwells?: number[][];
   /** The shortest time a leg between two stops is drawn (0: by distance only — the squeezed video). */
   legMinMs?: number;
+  /** Per day: how long it opens (director: transfer, establish, a stop-0 feature) — overrides `introMs`. */
+  intros?: number[];
+  /** Per day: consecutive path-fraction regions and how long each is drawn — overrides the day duration and `legMinMs`. */
+  profiles?: { to: number; ms: number }[][];
 };
+
+/** Drawing speed in the profile region holding `progress` (path fraction per ms); 0 with no profile (flyover director). */
+export function profileSpeed(profile: { to: number; ms: number }[], progress: number): number {
+  let from = 0;
+  for (const r of profile) {
+    if (progress < r.to || r === profile[profile.length - 1]) return r.ms > 0 ? (r.to - from) / r.ms : 1;
+    from = r.to;
+  }
+  return 0;
+}
 
 /**
  * Every leg between two stops is drawn for at least this long (owner, 2026-10-26): by distance alone, London's
@@ -67,7 +81,7 @@ export function legSpeed(stopFractions: number[], stopIndex: number, durationMs:
 
 export const initialFlyover: FlyoverState = { status: 'idle', dayIndex: 0, progress: 0, hold: 0, stopIndex: -1 };
 
-const startOfDay = (dayIndex: number, timing: FlyoverTiming = DEFAULT_TIMING): FlyoverState => ({ status: 'playing', dayIndex, progress: 0, hold: timing.introMs, stopIndex: 0 });
+const startOfDay = (dayIndex: number, timing: FlyoverTiming = DEFAULT_TIMING): FlyoverState => ({ status: 'playing', dayIndex, progress: 0, hold: timing.intros?.[dayIndex] ?? timing.introMs, stopIndex: 0 });
 
 function nextDay(state: FlyoverState, durations: number[], timing: FlyoverTiming = DEFAULT_TIMING): FlyoverState {
   if (state.dayIndex >= durations.length - 1) return { ...state, status: 'done', progress: 1, hold: 0 };
@@ -111,7 +125,8 @@ export function flyoverReducer(state: FlyoverState, action: FlyoverAction): Flyo
         if (hold > 0 || dt <= 0) return { ...state, hold };
       }
       if (state.progress >= 1) return nextDay(state, action.durations, timing);
-      const speed = legSpeed(action.stopFractions[state.dayIndex] ?? [], state.stopIndex, duration, timing.legMinMs ?? 0);
+      const profile = timing.profiles?.[state.dayIndex];
+      const speed = profile?.length ? profileSpeed(profile, state.progress) : legSpeed(action.stopFractions[state.dayIndex] ?? [], state.stopIndex, duration, timing.legMinMs ?? 0);
       const progress = Math.min(1, state.progress + dt * speed);
       // The next stop on the line: stop the head there and dwell. One stop per
       // tick, so two stops at the same spot each get their own pause.
