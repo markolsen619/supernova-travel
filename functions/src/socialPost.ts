@@ -122,6 +122,14 @@ export function wishQuota(doc: QuotaDoc, videoId: string, paid: boolean, nowMs: 
   return { ok: true, counted: true, patch: { videos: [...videos, videoId], hours: { [h]: inHour + 1 } } };
 }
 
+/** Give back a claim from `wishQuota` — a screenshot read that failed after the claim is not charged (spec 2026-11-11). */
+export function releaseQuota(doc: QuotaDoc, id: string, nowMs = Date.now()): QuotaDoc {
+  const h = hourKey(nowMs);
+  const hours = { ...(doc.hours ?? {}) };
+  if (hours[h]) hours[h] = Math.max(0, hours[h] - 1);
+  return { ...doc, videos: (doc.videos ?? []).filter((v) => v !== id), hours };
+}
+
 function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;

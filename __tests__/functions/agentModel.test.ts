@@ -3,6 +3,11 @@ import { generate, geminiRequestBody, parseModelText, AGENT_MODEL, AGENT_THINKIN
 import { AGENT_RESPONSE_SCHEMA, TRIP_SYSTEM_PROMPT } from '../../functions/src/agentPrompt';
 
 describe('geminiRequestBody', () => {
+  it('sends images as inline parts before the turn text', () => {
+    const body = geminiRequestBody({ system: 'S', schema: {}, thinkingBudget: 0,
+      turns: [{ role: 'user', text: 'find places', images: [{ mimeType: 'image/jpeg', data: 'QUJD' }] }] }) as any;
+    expect(body.contents[0].parts).toEqual([{ inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } }, { text: 'find places' }]);
+  });
   it('asks for JSON in our schema, thinking off, with the system prompt and turns', () => {
     const body = geminiRequestBody({
       system: 'SYS', schema: AGENT_RESPONSE_SCHEMA, thinkingBudget: AGENT_THINKING_BUDGET,

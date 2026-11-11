@@ -7,13 +7,14 @@
 export const AGENT_MODEL = 'gemini-2.5-flash';
 export const AGENT_THINKING_BUDGET = 0;
 
-export interface ModelTurn { role: 'user' | 'model'; text: string }
+export interface ModelTurn { role: 'user' | 'model'; text: string; images?: { mimeType: string; data: string }[] }
 export interface ModelResult { json: { reply: string; operations: unknown[] }; inputTokens: number; outputTokens: number; latencyMs: number }
 
 export function geminiRequestBody(a: { system: string; turns: ModelTurn[]; schema: object; thinkingBudget: number }): object {
   return {
     systemInstruction: { parts: [{ text: a.system }] },
-    contents: a.turns.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
+    // Screenshots (spec 2026-11-11) go as inline parts before the turn's text.
+    contents: a.turns.map((t) => ({ role: t.role, parts: [...(t.images ?? []).map((im) => ({ inlineData: { mimeType: im.mimeType, data: im.data } })), { text: t.text }] })),
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: a.schema,
