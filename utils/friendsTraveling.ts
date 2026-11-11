@@ -27,7 +27,17 @@ export function spreadCluster<T extends { uid: string; lat: number; lng: number 
 
 export const STACK_MAX_ZOOM = 4;
 const STACK_PX = 60;
-export type FriendStack<T> = { key: string; lat: number; lng: number; faces: T[]; extra: number };
+/** `spanDeg`: the members' widest spread in degrees (longitude scaled by latitude), for flying in until they separate. */
+export type FriendStack<T> = { key: string; lat: number; lng: number; faces: T[]; extra: number; spanDeg: number };
+
+/**
+ * Where a stack tap flies (final review): the zoom at which the members sit ~200 px apart — on screen, and well past
+ * the 60 px that stacks them — never past 6, and always a little closer than now. Same spot → 6 (spread there).
+ */
+export function stackFlyZoom(spanDeg: number, currentZoom: number): number {
+  const fit = spanDeg > 0 ? Math.log2((200 * 360) / (512 * spanDeg)) : Infinity;
+  return Math.min(6, Math.max(currentZoom + 0.5, fit));
+}
 
 /**
  * Friends at world view (spec 2026-11-11): friends within ~60 px merge into one stack (≤ 3 faces + "+N"), so avatars
@@ -54,7 +64,13 @@ export function friendStacks<T extends { uid: string; lat: number; lng: number }
       singles.push(g.members[0]);
       continue;
     }
-    stacks.push({ key: g.members.map((m) => m.uid).join('|'), lat: g.lat, lng: g.lng, faces: g.members.slice(0, 3), extra: Math.max(0, g.members.length - 3) });
+    const lats = g.members.map((m) => m.lat);
+    const lngs = g.members.map((m) => m.lng);
+    const spanDeg = Math.max(
+      (Math.max(...lngs) - Math.min(...lngs)) * Math.cos((g.lat * Math.PI) / 180),
+      Math.max(...lats) - Math.min(...lats),
+    );
+    stacks.push({ key: g.members.map((m) => m.uid).join('|'), lat: g.lat, lng: g.lng, faces: g.members.slice(0, 3), extra: Math.max(0, g.members.length - 3), spanDeg });
   }
   return { stacks, singles };
 }

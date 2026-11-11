@@ -34,7 +34,7 @@ import { useHeatmap } from '@/hooks/useHeatmap';
 import { useFriendsTraveling, type FriendTraveling } from '@/hooks/useFriendsTraveling';
 import { matchDestinations } from '@/utils/destinations';
 import { clusterFlyZoom, globeTapTarget, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
-import type { FriendStack } from '@/utils/friendsTraveling';
+import { stackFlyZoom, type FriendStack } from '@/utils/friendsTraveling';
 import { DestinationResult } from '@/components/search/DestinationResult';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -219,9 +219,9 @@ export default function SearchScreen() {
   const handleFriendPress = useCallback((f: FriendTraveling) => {
     router.push(`/trip/${f.tripId}` as Href);
   }, []);
-  // A stack of friends at world view: fly in until they separate (friendStacks stops stacking at zoom 4).
+  // A stack of friends at world view: fly in just far enough that they separate and all stay on screen.
   const handleFriendStackPress = useCallback((stack: FriendStack<FriendTraveling>) => {
-    flyTo(stack.lng, stack.lat, clusterFlyZoom(null, Math.max(zoomRef.current, 2.5)), 900);
+    flyTo(stack.lng, stack.lat, stackFlyZoom(stack.spanDeg, zoomRef.current), 900);
   }, [flyTo]);
 
   const handleDestinationResult = useCallback((slug: string) => {

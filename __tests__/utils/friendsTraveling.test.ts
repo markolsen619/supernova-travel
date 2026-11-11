@@ -1,4 +1,4 @@
-import { friendStacks, isCurrentEntry, spreadCluster } from '@/utils/friendsTraveling';
+import { friendStacks, isCurrentEntry, spreadCluster, stackFlyZoom } from '@/utils/friendsTraveling';
 
 describe('isCurrentEntry', () => {
   const now = new Date('2026-11-22T10:00:00Z');
@@ -55,5 +55,22 @@ describe('friendStacks (spec 2026-11-11; review focus 2)', () => {
     expect(r.stacks).toEqual([]);
     expect(r.singles).toHaveLength(2);
     expect(r.singles[0].lng).not.toBe(r.singles[1].lng);
+  });
+});
+
+describe('stackFlyZoom (final review: a stack tap must land with its friends on screen)', () => {
+  const pxApart = (spanDeg: number, zoom: number) => spanDeg / (360 / (512 * 2 ** zoom));
+  it('Lisbon + Berlin stacked at zoom 1 land ≤ 220 px apart, and far enough to separate (> 60 px)', () => {
+    const r = friendStacks([{ uid: 'a', lat: 38.72, lng: -9.14 }, { uid: 'b', lat: 52.52, lng: 13.4 }], 1);
+    expect(r.stacks).toHaveLength(1);
+    const z = stackFlyZoom(r.stacks[0].spanDeg, 1);
+    expect(pxApart(r.stacks[0].spanDeg, z)).toBeLessThanOrEqual(220);
+    expect(pxApart(r.stacks[0].spanDeg, z)).toBeGreaterThan(60);
+  });
+  it('friends at the same spot fly to street-of-the-city level (spread from zoom 4)', () => {
+    expect(stackFlyZoom(0, 1)).toBe(6);
+  });
+  it('always zooms in at least a little', () => {
+    expect(stackFlyZoom(40, 3)).toBeGreaterThan(3);
   });
 });

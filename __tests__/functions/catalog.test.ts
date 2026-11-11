@@ -69,3 +69,20 @@ describe('coverage (spec 2026-11-11: few destinations in Africa, the Middle East
     }
   });
 });
+
+describe('boxes cover where visitors actually go (final review)', () => {
+  type Box = { sw: [number, number]; ne: [number, number] };
+  const bySlug = new Map((catalog as (CatalogEntry & { bbox?: Box })[]).map((e) => [e.slug, e]));
+  const holds = (slug: string, lat: number, lng: number) => {
+    const b = bySlug.get(slug)!.bbox!;
+    return lng >= b.sw[0] && lng <= b.ne[0] && lat >= b.sw[1] && lat <= b.ne[1];
+  };
+  it('Kruger includes the southern camps (Skukuza, Lower Sabie, Crocodile Bridge)', () => {
+    expect(holds('kruger', -24.996, 31.592)).toBe(true);
+    expect(holds('kruger', -25.12, 31.92)).toBe(true);
+    expect(holds('kruger', -25.36, 31.89)).toBe(true);
+  });
+  it('Okavango includes Maun, its base', () => {
+    expect(holds('okavango-delta', -19.98, 23.42)).toBe(true);
+  });
+});
