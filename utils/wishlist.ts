@@ -10,8 +10,10 @@ export interface WishPlace {
   addedTo?: { tripId: string; dayId: string; activityId: string };
 }
 export interface WishSave {
-  videoId: string; platform: 'tiktok'; postUrl: string; author: string; authorHandle: string; caption: string;
+  videoId: string; platform: 'tiktok' | 'screenshot'; postUrl: string; author: string; authorHandle: string; caption: string;
   city: string | null; country: string | null; cityLat: number | null; cityLng: number | null; savedAtMs: number; places: WishPlace[];
+  /** Screenshot saves (spec 2026-11-11): 1–5 storage paths in `wish_shots/{uid}/{saveId}/`; the first is the cover. */
+  shots?: string[];
 }
 export interface TripForMatch { id: string; title: string; start: string | null; end: string | null; cities: { name: string; lat: number | null; lng: number | null }[] }
 
@@ -257,17 +259,19 @@ export const postHasDetails = (p: { caption: string; author: string; authorHandl
   !!(p.caption.trim() || p.author.trim() || p.authorHandle.trim() || p.coverUrl);
 
 /** `@handle`, else the creator's name, else "TikTok post" — never a bare "@". */
-export const creatorLabel = (p: { author: string; authorHandle: string }) =>
-  (p.authorHandle.trim() ? `@${p.authorHandle.trim()}` : p.author.trim() || 'TikTok post');
+export const creatorLabel = (p: { author: string; authorHandle: string; platform?: string }) =>
+  (p.platform === 'screenshot' ? 'Screenshots' : p.authorHandle.trim() ? `@${p.authorHandle.trim()}` : p.author.trim() || 'TikTok post');
 
 /** "from @handle" under a saved place; "from TikTok" when TikTok didn't say who. */
-export const fromCreator = (p: { author: string; authorHandle: string }) => {
+export const fromCreator = (p: { author: string; authorHandle: string; platform?: string }) => {
+  if (p.platform === 'screenshot') return 'from your screenshots';
   const c = creatorLabel(p);
   return c === 'TikTok post' ? 'from TikTok' : `from ${c}`;
 };
 
 /** `TIKTOK · @HANDLE` above a post; just `TIKTOK` when the creator is unknown. */
-export const tiktokEyebrow = (p: { author: string; authorHandle: string }) => {
+export const tiktokEyebrow = (p: { author: string; authorHandle: string; platform?: string }) => {
+  if (p.platform === 'screenshot') return 'SCREENSHOTS';
   const c = creatorLabel(p);
   return (c === 'TikTok post' ? 'TikTok' : `TikTok · ${c}`).toUpperCase();
 };

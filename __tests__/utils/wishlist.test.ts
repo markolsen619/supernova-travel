@@ -272,3 +272,13 @@ describe('creator lines without a bare "@"', () => {
     expect(tiktokEyebrow({ author: '', authorHandle: '' })).toBe('TIKTOK');
   });
 });
+
+import { creatorLabel as creatorLabelS, fromCreator as fromCreatorS, tiktokEyebrow as tiktokEyebrowS } from '@/utils/wishlist';
+describe('labels for screenshot saves', () => {
+  it('read Screenshots', () => {
+    expect(creatorLabelS({ author: '', authorHandle: '', platform: 'screenshot' })).toBe('Screenshots');
+    expect(creatorLabelS({ author: '', authorHandle: 'a', platform: 'tiktok' })).toBe('@a');
+    expect(fromCreatorS({ author: '', authorHandle: '', platform: 'screenshot' })).toBe('from your screenshots');
+    expect(tiktokEyebrowS({ author: '', authorHandle: '', platform: 'screenshot' })).toBe('SCREENSHOTS');
+  });
+});
