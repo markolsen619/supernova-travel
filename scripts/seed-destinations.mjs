@@ -117,6 +117,9 @@ async function seedDestination(entry, uid, gemini) {
 
   // 1. Centre and box, once.
   let { center, bbox } = existing;
+  // An explicit centre and box in data/destinations.json, for places the geocoder only finds at province size
+  // (Ho Chi Minh City, Patagonia — 2026-11-11).
+  if ((!center || !bbox) && entry.center && entry.bbox) { center = entry.center; bbox = entry.bbox; }
   if (!center || !bbox) {
     const place = S.parsePlaceFeature(await getJson(S.mapboxPlaceUrl(entry.query, MAPBOX, entry.countryCode)));
     if (!place) throw new Error('Mapbox could not place it');

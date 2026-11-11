@@ -506,7 +506,7 @@
       "adventure"
     ],
     "popularity": 66,
-    "query": "Chiang Mai, Thailand",
+    "query": "Mueang Chiang Mai, Thailand",
     "styles": [
       "adventure",
       "budget"
@@ -580,7 +580,21 @@
     "styles": [
       "budget",
       "cultural"
-    ]
+    ],
+    "center": {
+      "lat": 10.7769,
+      "lng": 106.7009
+    },
+    "bbox": {
+      "sw": [
+        106.62,
+        10.7
+      ],
+      "ne": [
+        106.8,
+        10.86
+      ]
+    }
   },
   {
     "slug": "hong-kong",
@@ -790,7 +804,7 @@
       "nature"
     ],
     "popularity": 70,
-    "query": "Baja California Sur, Mexico",
+    "query": "Cabo San Lucas, Baja California Sur, Mexico",
     "styles": [
       "adventure",
       "luxury"
@@ -883,7 +897,21 @@
     "styles": [
       "adventure",
       "luxury"
-    ]
+    ],
+    "center": {
+      "lat": -50.3379,
+      "lng": -72.2648
+    },
+    "bbox": {
+      "sw": [
+        -73.3,
+        -50.6
+      ],
+      "ne": [
+        -72.0,
+        -49.25
+      ]
+    }
   },
   {
     "slug": "marrakech",
