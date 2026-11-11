@@ -12,7 +12,7 @@ import {
   Keyboard,
   type LayoutChangeEvent,
 } from 'react-native';
-import { MapView } from '@rnmapbox/maps';
+import { MapView, type ShapeSource } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
@@ -33,7 +33,8 @@ import { useDestinations } from '@/hooks/useDestinations';
 import { useHeatmap } from '@/hooks/useHeatmap';
 import { useFriendsTraveling, type FriendTraveling } from '@/hooks/useFriendsTraveling';
 import { matchDestinations } from '@/utils/destinations';
-import { findDestinationAt, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
+import { clusterFlyZoom, globeTapTarget, DESTINATION_PIN_LAYERS } from '@/utils/heatmap';
+import type { FriendStack } from '@/utils/friendsTraveling';
 import { DestinationResult } from '@/components/search/DestinationResult';
 import { usePlaceAutocomplete, type PlaceSelection } from '@/hooks/usePlaceAutocomplete';
 import { useFlyTo } from '@/hooks/useFlyTo';
@@ -89,6 +90,7 @@ export default function SearchScreen() {
   const colors = DarkColors;
   const { cameraRef, flyTo, flyToBounds } = useFlyTo();
   const mapRef = useRef<InstanceType<typeof MapView>>(null);
+  const destinationSourceRef = useRef<ShapeSource | null>(null);
   const { width, height, isLarge } = useLayout();
   // On large screens the results sheet matches the capped search bar (640pt)
   // instead of spanning the whole iPad. 0 on phones: unchanged.
@@ -217,6 +219,10 @@ export default function SearchScreen() {
   const handleFriendPress = useCallback((f: FriendTraveling) => {
     router.push(`/trip/${f.tripId}` as Href);
   }, []);
+  // A stack of friends at world view: fly in until they separate (friendStacks stops stacking at zoom 4).
+  const handleFriendStackPress = useCallback((stack: FriendStack<FriendTraveling>) => {
+    flyTo(stack.lng, stack.lat, clusterFlyZoom(null, Math.max(zoomRef.current, 2.5)), 900);
+  }, [flyTo]);
 
   const handleDestinationResult = useCallback((slug: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -564,13 +570,36 @@ export default function SearchScreen() {
       // labels), which previously looked identical from the outside.
       mapLog('[Map tap]', { screenPointX, screenPointY, tapLat, tapLng, hasRef: !!mapRef.current });
 
-      // A destination pin opens its page — checked first, so it never falls
-      // through to a (billed) POI or nearby lookup.
-      const pinSlug = destinations.length === 0 ? null : await findDestinationAt(async () =>
-        mapRef.current?.queryRenderedFeaturesInRect(tapBbox(screenPointX, screenPointY), [], DESTINATION_PIN_LAYERS),
-      );
-      if (pinSlug) {
-        router.push(`/destination/${pinSlug}`);
+      // A bubble flies in until it splits; a city pin opens its page — both
+      // checked first, so they never fall through to a (billed) POI lookup.
+      // A failed query counts as "nothing here" and the tap carries on.
+      let hit = null;
+      if (destinations.length > 0) {
+        try {
+          hit = globeTapTarget(
+            await mapRef.current?.queryRenderedFeaturesInRect(tapBbox(screenPointX, screenPointY), [], DESTINATION_PIN_LAYERS),
+          );
+        } catch {
+          hit = null;
+        }
+      }
+      if (hit?.kind === 'cluster') {
+        const bubble: GeoJSON.Feature = {
+          type: 'Feature',
+          properties: { cluster: true, cluster_id: hit.clusterId, point_count: hit.count },
+          geometry: { type: 'Point', coordinates: hit.coordinates },
+        };
+        let expansion: number | null = null;
+        try {
+          expansion = (await destinationSourceRef.current?.getClusterExpansionZoom(bubble)) ?? null;
+        } catch {
+          expansion = null;
+        }
+        flyTo(hit.coordinates[0], hit.coordinates[1], clusterFlyZoom(expansion, zoomRef.current), 900);
+        return;
+      }
+      if (hit?.kind === 'destination') {
+        router.push(`/destination/${hit.slug}`);
         return;
       }
 
@@ -838,6 +867,8 @@ export default function SearchScreen() {
           friends={friendsTraveling}
           zoomBucket={zoomBucket}
           onFriendPress={handleFriendPress}
+          onFriendStackPress={handleFriendStackPress}
+          destinationSourceRef={destinationSourceRef}
         />
       </Animated.View>
 

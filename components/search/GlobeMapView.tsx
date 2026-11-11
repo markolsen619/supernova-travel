@@ -21,9 +21,9 @@ import type { Destination } from '@/utils/destinations';
 import type { LightPreset } from '@/services/mapLighting';
 import { basemapConfig } from '@/utils/mapLook';
 import { DarkColors } from '@/constants/colors';
-import { FriendTravelMarker } from '@/components/search/FriendTravelMarker';
+import { FriendStackMarker, FriendTravelMarker } from '@/components/search/FriendTravelMarker';
 import type { FriendTraveling } from '@/hooks/useFriendsTraveling';
-import { spreadCluster } from '@/utils/friendsTraveling';
+import { friendStacks, type FriendStack } from '@/utils/friendsTraveling';
 import type * as GeoJSON from 'geojson';
 
 // ScreenPointPayload is not re-exported from the @rnmapbox/maps public index
@@ -63,6 +63,10 @@ interface GlobeMapViewProps {
   /** Whole-number zoom, for spreading friends who share a city. */
   zoomBucket?: number;
   onFriendPress?: (friend: FriendTraveling) => void;
+  /** A stack of friends at world view was tapped (fly in until they separate). */
+  onFriendStackPress?: (stack: FriendStack<FriendTraveling>) => void;
+  /** The clustered catalog source, so a bubble tap can ask where it splits. */
+  destinationSourceRef?: React.RefObject<ShapeSource | null>;
 }
 
 export function GlobeMapView({
@@ -77,9 +81,13 @@ export function GlobeMapView({
   friends,
   zoomBucket = 2,
   onFriendPress,
+  onFriendStackPress,
+  destinationSourceRef,
 }: GlobeMapViewProps) {
-  const friendMarkers = useMemo(() => spreadCluster(friends ?? [], zoomBucket), [friends, zoomBucket]);
+  // Friends at any distance (spec 2026-11-11): stacked at world view, spread around shared cities closer in.
+  const friendLayout = useMemo(() => friendStacks(friends ?? [], zoomBucket), [friends, zoomBucket]);
   const handleFriendPress = React.useCallback((f: FriendTraveling) => onFriendPress?.(f), [onFriendPress]);
+  const handleStackPress = React.useCallback((s: FriendStack<FriendTraveling>) => onFriendStackPress?.(s), [onFriendStackPress]);
 
   const handleMapLoadingError = React.useCallback(() => {
     console.error('[SearchMap] Mapbox Standard style failed to load — check EXPO_PUBLIC_MAPBOX_TOKEN and network.');
@@ -164,17 +172,18 @@ export function GlobeMapView({
             maxZoomLevel={10}
             style={{
               heatmapWeight: ['interpolate', ['linear'], ['get', 'w'], 0, 0, 20, 1],
-              heatmapIntensity: ['interpolate', ['linear'], ['zoom'], 0, 0.6, 7, 1.6],
-              heatmapRadius: ['interpolate', ['linear'], ['zoom'], 0, 6, 4, 18, 7, 30],
+              heatmapIntensity: ['interpolate', ['linear'], ['zoom'], 0, 0.35, 6, 1.2],
+              // Tight at world view so Europe stays a glow with pins on it, not one blob (spec 2026-11-11).
+              heatmapRadius: ['interpolate', ['linear'], ['zoom'], 0, 4, 3, 10, 6, 22],
               // Fades out as the map closes in, so pins and POIs take over (spec: 7 → 10).
               heatmapOpacity: ['interpolate', ['linear'], ['zoom'], 7, 0.85, 10, 0],
               heatmapColor: [
                 'interpolate', ['linear'], ['heatmap-density'],
                 0, 'rgba(76,63,168,0)',
-                0.2, 'rgba(76,63,168,0.55)', // deep violet
-                0.5, '#7F77DD', // brand purple
-                0.8, '#D4537E', // brand pink
-                1, '#FDE7B0', // pale amber
+                0.25, 'rgba(76,63,168,0.45)', // deep violet
+                0.55, '#7F77DD', // brand purple
+                0.85, '#D4537E', // brand pink
+                0.95, '#FDE7B0', // pale amber, only at the very densest
               ],
             }}
           />
@@ -182,16 +191,50 @@ export function GlobeMapView({
       ) : null}
 
       {destinationCollection.features.length > 0 && (
-        <ShapeSource id="destination-places" shape={destinationCollection}>
+        <ShapeSource
+          id="destination-places"
+          ref={destinationSourceRef}
+          shape={destinationCollection}
+          cluster
+          clusterRadius={50}
+          clusterMaxZoomLevel={5}
+        >
+          {/* Crowded regions group into a bubble with a count; it splits as you zoom (spec 2026-11-11). */}
+          <CircleLayer
+            id="destination-cluster"
+            filter={['has', 'point_count']}
+            style={{
+              circleRadius: ['interpolate', ['linear'], ['get', 'point_count'], 2, 16, 25, 28],
+              circleColor: DarkColors.brand.purple,
+              circleOpacity: 0.85,
+              circleStrokeWidth: 1.5,
+              circleStrokeColor: '#ffffff',
+              circleEmissiveStrength: 1,
+            }}
+          />
+          <SymbolLayer
+            id="destination-cluster-count"
+            filter={['has', 'point_count']}
+            style={{
+              textField: ['get', 'point_count_abbreviated'],
+              textSize: 12,
+              textColor: '#ffffff',
+              textAllowOverlap: true,
+              textIgnorePlacement: true,
+              textPitchAlignment: 'viewport',
+              textRotationAlignment: 'viewport',
+            }}
+          />
           {/* Halo first, so it sits beneath the pin. A static ring rather
               than an animated pulse: Mapbox layer props cannot be driven by
-              Animated without per-frame setState, which is a real cost for
-              a decorative effect. */}
+              Animated without per-frame setState. Pin and halo grow with zoom
+              so world view stays uncluttered. */}
           <CircleLayer
             id="destination-halo"
             maxZoomLevel={TRENDING_MAX_ZOOM}
+            filter={['!', ['has', 'point_count']]}
             style={{
-              circleRadius: ['interpolate', ['linear'], ['get', 'weight'], 0, 11, 100, 19],
+              circleRadius: ['interpolate', ['linear'], ['zoom'], 2, 9, 8, 16],
               circleColor: DarkColors.brand.purple,
               circleOpacity: 0.18,
               circleEmissiveStrength: 1,
@@ -200,8 +243,13 @@ export function GlobeMapView({
           <CircleLayer
             id="destination-pin"
             maxZoomLevel={TRENDING_MAX_ZOOM}
+            filter={['!', ['has', 'point_count']]}
             style={{
-              circleRadius: ['interpolate', ['linear'], ['get', 'weight'], 0, 5, 100, 11],
+              circleRadius: [
+                '+',
+                ['interpolate', ['linear'], ['zoom'], 2, 4, 8, 8],
+                ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 100, 3],
+              ],
               circleColor: DarkColors.brand.purple,
               circleStrokeWidth: 1.5,
               circleStrokeColor: '#ffffff',
@@ -211,14 +259,20 @@ export function GlobeMapView({
           <SymbolLayer
             id="destination-label"
             maxZoomLevel={TRENDING_MAX_ZOOM}
+            filter={['!', ['has', 'point_count']]}
             style={{
               textField: ['get', 'name'],
-              textSize: 11,
+              textSize: ['interpolate', ['linear'], ['zoom'], 2, 10, 8, 12],
               textColor: '#ffffff',
               textHaloColor: 'rgba(0,0,0,0.6)',
               textHaloWidth: 1,
               textOffset: [0, 1.4],
               textAnchor: 'top',
+              // The more popular name wins a collision; the other appears as you zoom in.
+              symbolSortKey: ['*', -1, ['coalesce', ['get', 'popularity'], 0]],
+              // Upright and readable however the globe is tilted or turned.
+              textPitchAlignment: 'viewport',
+              textRotationAlignment: 'viewport',
             }}
           />
         </ShapeSource>
@@ -239,10 +293,15 @@ export function GlobeMapView({
           />
         </ShapeSource>
       )}
-      {/* Friends on a trip — above the heat and the catalog pins; spread apart when they share a city. */}
-      {friendMarkers.map((f) => (
+      {/* Friends on a trip — above the heat and the catalog pins: stacked at world view, spread apart when they share a city. */}
+      {friendLayout.singles.map((f) => (
         <MarkerView key={`friend-${f.uid}`} coordinate={[f.lng, f.lat]} anchor={{ x: 0.5, y: 0.3 }} allowOverlap>
           <FriendTravelMarker friend={f} onPress={handleFriendPress} />
+        </MarkerView>
+      ))}
+      {friendLayout.stacks.map((st) => (
+        <MarkerView key={`stack-${st.key}`} coordinate={[st.lng, st.lat]} anchor={{ x: 0.5, y: 0.5 }} allowOverlap>
+          <FriendStackMarker stack={st} onPress={handleStackPress} />
         </MarkerView>
       ))}
     </MapView>

@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { DarkColors } from '@/constants/colors';
 import { FontWeight } from '@/constants/typography';
 import type { FriendTraveling } from '@/hooks/useFriendsTraveling';
+import type { FriendStack } from '@/utils/friendsTraveling';
 
 interface Props {
   friend: FriendTraveling;
@@ -43,12 +44,63 @@ function FriendTravelMarkerInner({ friend, onPress }: Props) {
 
 export const FriendTravelMarker = memo(FriendTravelMarkerInner);
 
+interface StackProps {
+  stack: FriendStack<FriendTraveling>;
+  onPress: (stack: FriendStack<FriendTraveling>) => void;
+}
+
+/** Several friends close together at world view: overlapping faces and "+N"; a tap flies in until they separate. */
+function FriendStackMarkerInner({ stack, onPress }: StackProps) {
+  const handlePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress(stack);
+  }, [stack, onPress]);
+  const names = stack.faces.map((f) => firstName(f.name)).join(', ');
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      style={styles.stackWrap}
+      accessibilityRole="button"
+      accessibilityLabel={`${names}${stack.extra ? ` and ${stack.extra} more` : ''} are travelling here — zoom in`}
+      hitSlop={6}
+    >
+      {stack.faces.map((f, i) => (
+        <View key={f.uid} style={[styles.stackRing, i > 0 && styles.stackOverlap]}>
+          {f.avatarUrl ? (
+            <Image source={{ uri: f.avatarUrl }} style={styles.stackPhoto} />
+          ) : (
+            <View style={[styles.stackPhoto, styles.fallback]}>
+              <Text style={styles.initials}>{initials(f.name)}</Text>
+            </View>
+          )}
+        </View>
+      ))}
+      {stack.extra > 0 && (
+        <View style={[styles.extraPill, styles.stackOverlap]}>
+          <Text style={styles.extraText}>+{stack.extra}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+export const FriendStackMarker = memo(FriendStackMarkerInner);
+
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', minWidth: 44, minHeight: 44 },
   ring: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: DarkColors.brand.purple, padding: 2, backgroundColor: DarkColors.background.primary },
   photo: { width: '100%', height: '100%', borderRadius: 16 },
   fallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: DarkColors.background.elevated },
   initials: { color: DarkColors.text.primary, fontSize: 12, fontWeight: FontWeight.semiBold },
+  stackWrap: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 4 },
+  stackRing: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: DarkColors.brand.purple, padding: 1.5, backgroundColor: DarkColors.background.primary },
+  stackOverlap: { marginLeft: -10 },
+  stackPhoto: { width: '100%', height: '100%', borderRadius: 13 },
+  extraPill: {
+    minWidth: 32, height: 32, borderRadius: 16, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: DarkColors.brand.purple, borderWidth: 2, borderColor: DarkColors.background.primary,
+  },
+  extraText: { color: '#ffffff', fontSize: 12, fontWeight: FontWeight.semiBold },
   name: {
     marginTop: 3, maxWidth: 80, color: DarkColors.text.primary, fontSize: 11, fontWeight: FontWeight.medium,
     textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 },
