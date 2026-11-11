@@ -3,6 +3,7 @@ import { Animated, ImageSourcePropType, StyleSheet, View, ViewStyle } from 'reac
 import { useTheme } from '@/hooks/useTheme';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { StarMark } from '@/components/ui/StarMark';
+import { imageSourceKey } from '@/utils/imageSourceKey';
 
 interface KenBurnsImageProps {
   source: ImageSourcePropType | null;
@@ -47,12 +48,15 @@ export function KenBurnsImage({ source, active, style, parallaxScale }: KenBurns
     return () => loop.stop();
   }, [active, reduceMotion, scale, translateY]);
 
+  // Fade in once per photo — keyed on its address, not the source object, so a parent re-rendering with an inline
+  // `{ uri }` doesn't flash it (the AI generating screen re-renders every second).
+  const sourceKey = imageSourceKey(source);
   useEffect(() => {
     fade.setValue(0);
-    if (source) {
+    if (sourceKey) {
       Animated.timing(fade, { toValue: 1, duration: 300, useNativeDriver: true }).start();
     }
-  }, [source, fade]);
+  }, [sourceKey, fade]);
 
   const transform = parallaxScale
     ? [{ scale }, { translateY }, { scale: parallaxScale }]

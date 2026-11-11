@@ -82,6 +82,8 @@ export default function AiGeneratingScreen() {
     () => catalogFor(destinations, params.destination ?? '', params.lat ? Number(params.lat) : null, params.lng ? Number(params.lng) : null),
     [destinations, params.destination, params.lat, params.lng],
   );
+  // One object per cover: this screen re-renders every second for its timer (the background used to flash).
+  const coverSource = useMemo(() => (catalog?.coverImageUrl ? { uri: catalog.coverImageUrl } : null), [catalog?.coverImageUrl]);
   const messages = useMemo(
     () => generatingMessages(params.destination || 'your destination', parseTravelStyles(params.travelStyles, params.travelStyle)),
     [params.destination, params.travelStyles, params.travelStyle],
@@ -252,7 +254,7 @@ export default function AiGeneratingScreen() {
       {/* Where they're going, slowly drifting under a dark veil — catalog cover only (no Places cost). */}
       {catalog?.coverImageUrl ? (
         <>
-          <KenBurnsImage source={{ uri: catalog.coverImageUrl }} active style={StyleSheet.absoluteFillObject} />
+          <KenBurnsImage source={coverSource} active style={StyleSheet.absoluteFillObject} />
           <View style={[StyleSheet.absoluteFill, styles.coverVeil]} pointerEvents="none" />
         </>
       ) : null}

@@ -1671,11 +1671,6 @@ export default function TripDetailScreen() {
           )}
         </ScrollView>
 
-        {/* Tours & tickets — one card per city (owner, 2026-11-08). */}
-        {/* Single-city trips: one card here. Multi-city trips show each city's card in its own section below, so a
-            months-long trip isn't a long row to scroll (owner 2026-11-11). */}
-        {multiCity ? null : <ToursRow cities={tripTourCities} onReturn={handleToursReturn} />}
-
         {/* Ask Nova (docs/superpowers/specs/2026-10-14-trip-agent-design.md) — members who can edit.
             A quiet card with Nova's face (it was a gradient sparkle button, which read as generic AI). */}
         {canEditItinerary && (
@@ -1683,6 +1678,10 @@ export default function TripDetailScreen() {
             <NovaCard onPress={openNova} />
           </View>
         )}
+
+        {/* Tours & tickets, directly under Ask Nova (owner, 2026-11-11). Single-city trips: one card here. Multi-city
+            trips show each city's card in its own section below, so a months-long trip isn't a long row to scroll. */}
+        {multiCity ? null : <ToursRow cities={tripTourCities} onReturn={handleToursReturn} />}
 
         {/* ── 4. Description ── */}
         {hasDescription && (
