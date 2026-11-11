@@ -16,6 +16,7 @@ export function userStoragePrefixes(uid: string): string[] {
     `journal_photos/${uid}/`,
     `reservations/${uid}/`,
     `place_photos/${uid}/`,
+    `wish_shots/${uid}/`, // wish-list screenshots (spec 2026-11-11)
   ];
 }
 

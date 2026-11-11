@@ -17,7 +17,7 @@ import {
 const db = () => admin.firestore();
 const CACHE_MS = 30 * 86_400_000;
 
-interface OutPlace { id: string; name: string; kind: PlaceKind; city: string | null; countryCode: string | null; lat: number | null; lng: number | null }
+export interface OutPlace { id: string; name: string; kind: PlaceKind; city: string | null; countryCode: string | null; lat: number | null; lng: number | null }
 interface Cached { caption: string; author: string; authorHandle: string; city: string | null; country: string | null; cityLat: number | null; cityLng: number | null; places: OutPlace[]; at: number }
 
 async function getJson(url: string, ms = 5000): Promise<{ status: number; body: unknown }> {
@@ -57,7 +57,7 @@ async function geocode(q: string, opts: { types?: string; proximity?: { lat: num
 }
 
 /** Each place in its own city (a Tokyo video can name a Kyoto bar); city centres looked up once each. */
-async function placeAll(a: PlacesAnswer): Promise<{ cityLat: number | null; cityLng: number | null; countryCode: string | null; places: OutPlace[] }> {
+export async function placeAll(a: PlacesAnswer): Promise<{ cityLat: number | null; cityLng: number | null; countryCode: string | null; places: OutPlace[] }> {
   const centres = new Map<string, Feature | null>();
   const centre = async (city: string | null) => {
     if (!city) return null;

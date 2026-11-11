@@ -16,6 +16,7 @@ describe('userStoragePrefixes', () => {
       'journal_photos/abc/',
       'reservations/abc/',
       'place_photos/abc/',
+      'wish_shots/abc/',
     ]);
   });
 

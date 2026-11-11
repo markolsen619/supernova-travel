@@ -131,13 +131,26 @@ service cloud.firestore {
       }
       // Live Activity push tokens (day-of assistant): the owner's phone writes, the server reads.
       // Social wish list (spec 2026-11-06): private to its owner; the app writes it after the traveler confirms.
+      // Wish-list screenshots (spec 2026-11-11): `shots` may only name files in the owner's own folder for this save.
+      function shotIn(s, owner, id) { return s is string && s.matches('wish_shots/' + owner + '/' + id + '/[0-4][.]jpg'); }
+      function shotsInFolder(shots, owner, id) {
+        return shotIn(shots[0], owner, id)
+          && (shots.size() < 2 || shotIn(shots[1], owner, id))
+          && (shots.size() < 3 || shotIn(shots[2], owner, id))
+          && (shots.size() < 4 || shotIn(shots[3], owner, id))
+          && (shots.size() < 5 || shotIn(shots[4], owner, id));
+      }
       match /wishlist/{videoId} {
         allow read, delete: if isOwner(uid);
         allow create, update: if isOwner(uid)
-          && request.resource.data.keys().hasOnly(['platform', 'videoId', 'postUrl', 'author', 'authorHandle', 'caption', 'city', 'country', 'cityLat', 'cityLng', 'savedAt', 'places'])
-          && request.resource.data.platform == 'tiktok' && request.resource.data.videoId == videoId
+          && request.resource.data.keys().hasOnly(['platform', 'videoId', 'postUrl', 'author', 'authorHandle', 'caption', 'city', 'country', 'cityLat', 'cityLng', 'savedAt', 'places', 'shots'])
+          && request.resource.data.platform in ['tiktok', 'screenshot'] && request.resource.data.videoId == videoId
           && request.resource.data.caption is string && request.resource.data.caption.size() <= 300
-          && request.resource.data.places is list && request.resource.data.places.size() <= 10;
+          && request.resource.data.places is list && request.resource.data.places.size() <= 10
+          && (!('shots' in request.resource.data) || (
+            request.resource.data.platform == 'screenshot'
+            && request.resource.data.shots is list && request.resource.data.shots.size() >= 1 && request.resource.data.shots.size() <= 5
+            && shotsInFolder(request.resource.data.shots, uid, videoId)));
       }
 
       match /liveActivities/{passId} {
