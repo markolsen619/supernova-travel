@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { Heart } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
-import type { WishPlace, WishSave } from '@/utils/wishlist';
+import { fromCreator, type WishPlace, type WishSave } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -40,9 +40,9 @@ export function CityWishlistCard({ matches, onAdd, onSeeAll }: {
         <WishPlaceRow
           key={`${m.save.videoId}-${m.place.id}`}
           place={m.place}
-          meta={`Add to a day · from @${m.save.authorHandle || m.save.author}`}
+          meta={`Add to a day · ${fromCreator(m.save)}`}
           onPress={() => add(m)}
-          accessibilityLabel={`Add ${m.place.name} to a day. Saved from @${m.save.authorHandle || m.save.author} on TikTok`}
+          accessibilityLabel={`Add ${m.place.name} to a day. Saved ${fromCreator(m.save)}`}
         />
       ))}
       {shown.length < n ? (

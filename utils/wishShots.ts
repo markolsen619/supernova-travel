@@ -1,0 +1,61 @@
+/**
+ * Save places from screenshots (spec 2026-11-11): the app's pure rules — the save's id and document, what a share is,
+ * and how a share waits for sign-in. A screenshot save is an ordinary wish-list save keyed by `videoId` (= saveId).
+ */
+import { tiktokUrlFromShare, type WishPlace, type WishSave } from '@/utils/wishlist';
+
+export const newShotSaveId = (randomId: string) => `s${randomId}`;
+
+export function screenshotSaveDoc(
+  uid: string, saveId: string,
+  read: { city: string | null; country: string | null; cityLat: number | null; cityLng: number | null; places: WishPlace[] },
+  keepIds: string[], extra: WishPlace[], shots: string[],
+): Omit<WishSave, 'savedAtMs'> {
+  const folder = `wish_shots/${uid}/${saveId}/`;
+  if (!shots.length || shots.length > 5 || shots.some((s) => !s.startsWith(folder) || !/^[0-4]\.jpg$/.test(s.slice(folder.length)))) throw new Error('bad shots');
+  return {
+    platform: 'screenshot', videoId: saveId, postUrl: '', author: '', authorHandle: '', caption: '',
+    city: read.city, country: read.country, cityLat: read.cityLat, cityLng: read.cityLng,
+    places: [...read.places.filter((p) => keepIds.includes(p.id)), ...extra].slice(0, 10), shots,
+  };
+}
+
+export type ShareKind = { kind: 'link'; url: string } | { kind: 'shots'; uris: string[] };
+
+/** What a share holds: up to 5 images (they win), else a TikTok link, else nothing. */
+export function shareKind(share: { webUrl?: string | null; text?: string | null; files?: { path: string; mimeType: string }[] | null }): ShareKind | null {
+  const images = (share.files ?? []).filter((f) => f.mimeType?.startsWith('image/') && !!f.path).map((f) => f.path).slice(0, 5);
+  if (images.length) return { kind: 'shots', uris: images };
+  const url = tiktokUrlFromShare([share.webUrl, share.text].filter(Boolean).join(' '));
+  return url ? { kind: 'link', url } : null;
+}
+
+export const encodePendingShare = (p: ShareKind) => JSON.stringify(p);
+
+/** A parked share; a plain string (parked by builds before screenshots) is a link. */
+export function parsePendingShare(s: string | null): ShareKind | null {
+  if (!s) return null;
+  if (!s.startsWith('{')) return { kind: 'link', url: s };
+  try {
+    const p = JSON.parse(s) as { kind?: unknown; url?: unknown; uris?: unknown };
+    if (p.kind === 'link' && typeof p.url === 'string') return { kind: 'link', url: p.url };
+    if (p.kind === 'shots' && Array.isArray(p.uris)) {
+      const uris = p.uris.filter((u): u is string => typeof u === 'string').slice(0, 5);
+      if (uris.length) return { kind: 'shots', uris };
+    }
+  } catch { /* garbage */ }
+  return null;
+}
+
+/**
+ * What still needs uploading (self-review 2026-11-11): each image is recorded as it lands, and a retry uploads only the
+ * missing ones — storage rules allow no update, so re-uploading 0.jpg after a dropped connection was refused forever.
+ */
+export function shotUploadPlan(uid: string, saveId: string, uris: string[], uploaded: string[]): { uri: string; path: string }[] {
+  return uris.slice(0, 5)
+    .map((uri, i) => ({ uri, path: `wish_shots/${uid}/${saveId}/${i}.jpg` }))
+    .filter((x) => !uploaded.includes(x.path));
+}
+
+/** What makes two shares "the same share" for the 10 s duplicate guard (fresh review I-5: screenshots fired twice too). */
+export const shareKey = (p: ShareKind) => (p.kind === 'link' ? p.url : `shots:${p.uris.join('|')}`);

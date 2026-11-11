@@ -37,6 +37,15 @@ service firebase.storage {
             || (request.resource.size <= 10 * 1024 * 1024 && request.resource.contentType.matches('image/.*')));
     }
 
+    // Wish-list screenshots (spec 2026-11-11) — private to the owner; 0.jpg…4.jpg caps a save at 5; JPEG under 2 MB; no update.
+    match /wish_shots/{userId}/{saveId}/{file} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+        && file.matches('[0-4][.]jpg')
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size < 2 * 1024 * 1024;
+    }
+
     // Place photos — max 5 MB, images only
     match /places/{placeId}/{allPaths=**} {
       allow read: if true;

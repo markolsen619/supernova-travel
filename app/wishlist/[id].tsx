@@ -1,13 +1,13 @@
 /**
  * A saved post (spec 2026-11-06 §2): its cover (fresh from TikTok, never stored), creator and caption, its places with
- * Add to a trip, Watch on TikTok, and delete. `id` = the TikTok video id; `place` = the place tapped, listed first.
+ * Add to a trip, Watch on TikTok (screenshot saves: their screenshots instead — spec 2026-11-11), and delete. `id` = the TikTok video id; `place` = the place tapped, listed first.
  */
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { CaretLeft, Heart, ImageSquare, Trash } from 'phosphor-react-native';
+import { CaretLeft, Heart, ImageSquare, Trash, X } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -16,10 +16,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
 import { AddWishToTripSheet } from '@/components/wishlist/AddWishToTripSheet';
 import { useWishCovers } from '@/hooks/useWishCovers';
+import { useShotUrls } from '@/hooks/useShotUrls';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useOwnAndJoinedTrips } from '@/hooks/useTripList';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { toTripForMatch, tripsFitting, type WishPlace } from '@/utils/wishlist';
+import { tiktokEyebrow, toTripForMatch, tripsFitting, type WishPlace } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
@@ -29,7 +30,12 @@ export default function SavedPostScreen() {
   const insets = useSafeAreaInsets();
   const { saves, isLoading, remove, removePlace } = useWishlist();
   const save = saves.find((s) => s.videoId === id) ?? null;
-  const cover = useWishCovers(save ? [save.videoId] : [])[save?.videoId ?? ''] ?? null;
+  const cover = useWishCovers(save && save.platform !== 'screenshot' ? [save.videoId] : [])[save?.videoId ?? ''] ?? null;
+  // Screenshot saves (spec 2026-11-11): their screenshots, paged, and full screen on a tap.
+  const shotUrls = useShotUrls(save?.shots ?? []);
+  const { width } = useWindowDimensions();
+  const [fullShot, setFullShot] = useState<string | null>(null);
+  const closeFull = useCallback(() => setFullShot(null), []);
   const [adding, setAdding] = useState<WishPlace | null>(null);
 
 
@@ -95,7 +101,18 @@ export default function SavedPostScreen() {
   return (
     <View style={[styles.fill, { backgroundColor: colors.background.primary }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + Spacing['8'] }}>
-        {cover
+        {save.platform === 'screenshot' ? (
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+            {(save.shots ?? []).map((path, i, all) => (
+              <Pressable key={path} onPress={() => shotUrls[path] && setFullShot(shotUrls[path])} accessibilityRole="imagebutton"
+                accessibilityLabel={`Screenshot ${i + 1} of ${all.length}. Open full screen`}>
+                {shotUrls[path]
+                  ? <Image source={{ uri: shotUrls[path] }} style={[styles.cover, { width, backgroundColor: colors.background.sunken }]} contentFit="cover" />
+                  : <View style={[styles.cover, styles.coverEmpty, { width, backgroundColor: colors.background.sunken }]}><ImageSquare size={32} weight="duotone" color={colors.text.disabled} /></View>}
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : cover
           ? <Image source={{ uri: cover }} style={[styles.cover, { backgroundColor: colors.background.sunken }]} contentFit="cover" accessibilityLabel="The post's cover" />
           : (
             <View style={[styles.cover, styles.coverEmpty, { backgroundColor: colors.background.sunken }]}>
@@ -103,11 +120,11 @@ export default function SavedPostScreen() {
             </View>
           )}
         <View style={styles.body}>
-          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{`TIKTOK · @${save.authorHandle || save.author}`.toUpperCase()}</Text>
-          <Text style={[styles.caption, { color: colors.text.secondary }]}>{save.caption || 'No caption'}</Text>
-          <Button label="Watch on TikTok" onPress={watch} fullWidth />
+          <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{tiktokEyebrow(save)}</Text>
+          {save.caption ? <Text style={[styles.caption, { color: colors.text.secondary }]}>{save.caption}</Text> : null}
+          {save.platform === 'screenshot' ? null : <Button label="Watch on TikTok" onPress={watch} fullWidth />}
 
-          <Text style={[styles.section, { color: colors.text.primary }]}>{places.length ? 'Places in this video' : 'No place named yet'}</Text>
+          <Text style={[styles.section, { color: colors.text.primary }]}>{places.length ? (save.platform === 'screenshot' ? 'Places in these screenshots' : 'Places in this video') : 'No place named yet'}</Text>
           {places.map((p) => (
             <WishPlaceRow key={p.id} place={p} meta={p.addedTo ? 'On a trip' : p.city} onPress={() => placeActions(p)}
               accessibilityLabel={`${p.name}${p.addedTo ? ', on a trip' : ''}. Add to a trip or remove`} />
@@ -125,6 +142,14 @@ export default function SavedPostScreen() {
         <CaretLeft size={20} weight="bold" color="#FFFFFF" />
       </Pressable>
       <AddWishToTripSheet target={adding ? { save, place: adding } : null} onTripChosen={chooseTrip} onClose={() => setAdding(null)} />
+      <Modal visible={!!fullShot} transparent animationType="fade" onRequestClose={closeFull}>
+        <View style={styles.full}>
+          {fullShot ? <Image source={{ uri: fullShot }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel="Screenshot" /> : null}
+          <Pressable onPress={closeFull} style={[styles.back, { top: insets.top + Spacing['2'], left: undefined, right: Spacing['4'] }]} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close">
+            <X size={20} weight="bold" color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -133,6 +158,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   cover: { width: '100%', aspectRatio: 4 / 5, borderBottomLeftRadius: BorderRadius.xl, borderBottomRightRadius: BorderRadius.xl },
   coverEmpty: { alignItems: 'center', justifyContent: 'center' },
+  full: { flex: 1, backgroundColor: '#000000' },
   back: { position: 'absolute', left: Spacing['4'], width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(11,10,18,0.55)' },
   body: { paddingHorizontal: Spacing['5'], paddingTop: Spacing['5'], gap: Spacing['3'] },
   eyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },

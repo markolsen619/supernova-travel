@@ -1,5 +1,5 @@
 /**
- * "Save to wish list" (spec 2026-11-06-social-wishlist-design.md §1): the post a traveler shared from TikTok, the places
+ * "Save places" (spec 2026-11-06-social-wishlist-design.md §1; screenshots: spec 2026-11-11): the post a traveler shared from TikTok, the places
  * the server found in it (ticked, with "Fits your Tokyo trip" when one is near an upcoming trip), Add a place by name,
  * and one primary action, Save. Opened by a share (hooks/useShareIntentRouting) or Paste a link (Profile → Wish list).
  */
@@ -8,7 +8,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
+import { ImageSquare, MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -20,20 +20,27 @@ import { Button } from '@/components/ui/Button';
 import { KeyboardLift } from '@/components/ui/KeyboardLift';
 import { WishPlaceRow } from '@/components/wishlist/WishPlaceRow';
 import { readSocialPost } from '@/services/socialPost';
+import { deleteShots, pickShots, readScreenshots, uploadShots } from '@/services/wishShots';
+import { takeShotDraft } from '@/services/shotDraft';
+import { requireOnline } from '@/services/offline';
+import { db } from '@/services/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { newShotSaveId, screenshotSaveDoc } from '@/utils/wishShots';
 import { happyMoment } from '@/services/reviewPrompt';
 import { searchPlaceInBounds } from '@/services/places/mapboxSearch';
 import { toCalendarDate } from '@/utils/calendarDate';
-import { afterLimitPaywall, fitsTrip, toTripForMatch, wishlistDoc, type WishPlace, type WishSave } from '@/utils/wishlist';
+import { afterLimitPaywall, fitsTrip, postHasDetails, tiktokEyebrow, toTripForMatch, wishlistDoc, type WishPlace, type WishSave } from '@/utils/wishlist';
 import { FontSize, FontWeight } from '@/constants/typography';
 import { BorderRadius, Spacing } from '@/constants/spacing';
 
 type Preview = WishSave & { coverUrl: string | null };
 
 /** Close, top right, in every state (device test 2026-11-08: there was no way out). */
-function CloseButton({ color, background }: { color: string; background: string }) {
+function CloseButton({ color, background, disabled = false }: { color: string; background: string; disabled?: boolean }) {
   return (
     <Pressable
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+      disabled={disabled}
       style={[closeStyles.btn, { backgroundColor: background }]}
       hitSlop={8}
       accessibilityRole="button"
@@ -56,7 +63,7 @@ function errorCopy(code: string, reason: unknown): string {
 }
 
 export default function SaveFromSocialScreen() {
-  const { url } = useLocalSearchParams<{ url?: string }>();
+  const { url, mode } = useLocalSearchParams<{ url?: string; mode?: string }>();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const uid = useAuthStore((s) => s.user?.uid ?? null);
@@ -74,6 +81,14 @@ export default function SaveFromSocialScreen() {
   const [notFound, setNotFound] = useState(false);
   const started = useRef(false);
   const consentAsked = useRef(false);
+  // Screenshot mode (spec 2026-11-11): from a share, Add screenshots, or an empty link read switching over.
+  const [usingShots, setUsingShots] = useState(mode === 'shots');
+  const [shotUris, setShotUris] = useState<string[]>(() => (mode === 'shots' ? takeShotDraft() : []));
+  const [saveId] = useState(() => newShotSaveId(doc(collection(db, '_')).id));
+  const uploaded = useRef<string[]>([]);
+  const saved = useRef(false);
+  // Set when the sheet closes (fresh review I-3): uploads still in flight stop and delete what they wrote.
+  const closed = useRef(false);
 
   const today = toCalendarDate(new Date());
   const tripsForMatch = useMemo(() => trips.map((t) => toTripForMatch(t)), [trips]);
@@ -101,20 +116,65 @@ export default function SaveFromSocialScreen() {
     // openPaywall is stable for the screen's life; declared below to share `run` as its return.
   }, [url, requireConsent]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const runShots = useCallback(async (uris: string[]) => {
+    if (!uid || !uris.length) { setError("Couldn't read these screenshots. Try again"); setLoading(false); return; }
+    if (!requireOnline()) { setError('Connect to read these screenshots, then try again.'); setLoading(false); return; }
+    setLoading(true); setError(null);
+    try {
+      // Each image is recorded as it lands, so a retry uploads only what's missing and cleanup sees every file.
+      await uploadShots(uid, saveId, uris, uploaded.current, (path) => { uploaded.current = [...uploaded.current, path]; }, () => closed.current);
+      if (closed.current) return;
+      const r = await readScreenshots(saveId, uploaded.current.length);
+      setPreview({ videoId: saveId, platform: 'screenshot', postUrl: '', author: '', authorHandle: '', caption: '', coverUrl: null, savedAtMs: 0, shots: uploaded.current, ...r });
+      setKept(new Set(r.places.map((x) => x.id)));
+    } catch (e) {
+      if (closed.current) return;
+      const err = e as { code?: string; details?: { reason?: unknown } };
+      if (err.code?.endsWith('resource-exhausted') && err.details?.reason === 'monthly') { openPaywall(); return; }
+      if (err.code?.endsWith('failed-precondition')) {
+        if (!consentAsked.current) { consentAsked.current = true; requireConsent('screenshots', () => runShots(uris), () => router.back()); return; }
+        setError('Allow AI data sharing in Settings → Privacy to read screenshots.');
+        return;
+      }
+      setError(err.code?.endsWith('resource-exhausted') ? "That's a lot of saving. Try again in a few minutes." : "Couldn't read these screenshots. Try again");
+    } finally {
+      setLoading(false);
+    }
+    // openPaywall is stable for the screen's life; declared below.
+  }, [uid, saveId, requireConsent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const retry = useCallback(() => { if (usingShots) runShots(shotUris); else run(); }, [usingShots, runShots, shotUris, run]);
+  // The paywall callback was captured when the sheet opened; read the current reader through a ref, so a purchase after
+  // "Add a screenshot" re-reads the screenshots, not the link (fresh review I-2).
+  const retryRef = useRef(retry);
+  retryRef.current = retry;
+
   // Retry only once the account is paid; a cancel shows why it stopped (it reopened the paywall forever before).
   const onPaywallClosed = useCallback(() => {
     const { serverTier, tier } = useAuthStore.getState();
-    if (afterLimitPaywall(serverTier ?? tier) === 'retry') { run(); return; }
+    if (afterLimitPaywall(serverTier ?? tier) === 'retry') { retryRef.current(); return; }
     setError('Free accounts save 20 videos a month. Pro saves as many as you like.');
     setLoading(false);
-  }, [run]);
+  }, []);
   const openPaywall = useLimitPaywall(onPaywallClosed);
 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    requireConsent('agent', run, () => router.back());
-  }, [requireConsent, run]);
+    if (usingShots) requireConsent('screenshots', () => runShots(shotUris), () => router.back());
+    else requireConsent('agent', run, () => router.back());
+  }, [requireConsent, run, runShots, usingShots, shotUris]);
+
+  // Nothing uploaded outlives an unsaved sheet (spec 2026-11-11).
+  useEffect(() => () => { closed.current = true; if (!saved.current && uploaded.current.length) deleteShots(uploaded.current); }, []);
+
+  // An empty link read (TikTok shared nothing): read screenshots of the post instead.
+  const addScreenshotsInstead = useCallback(async () => {
+    const uris = await pickShots();
+    if (!uris.length) return;
+    setUsingShots(true); setShotUris(uris); setPreview(null); setLoading(true);
+    requireConsent('screenshots', () => runShots(uris), () => setLoading(false));
+  }, [requireConsent, runShots]);
 
   const toggle = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -142,7 +202,10 @@ export default function SaveFromSocialScreen() {
     if (!preview) return;
     setSaving(true);
     try {
-      await save(wishlistDoc(preview, [...kept], extra));
+      await save(preview.platform === 'screenshot' && uid
+        ? screenshotSaveDoc(uid, saveId, preview, [...kept], extra, uploaded.current)
+        : wishlistDoc(preview, [...kept], extra));
+      saved.current = true;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
       happyMoment('wishlist');
@@ -151,7 +214,7 @@ export default function SaveFromSocialScreen() {
     } finally {
       setSaving(false);
     }
-  }, [preview, kept, extra, save]);
+  }, [preview, kept, extra, save, uid, saveId]);
 
   const fitLabel = useCallback((p: Pick<WishPlace, 'lat' | 'lng' | 'city'>) => {
     const t = fitsTrip(p, tripsForMatch, today);
@@ -162,7 +225,7 @@ export default function SaveFromSocialScreen() {
     return (
       <View style={[styles.center, { backgroundColor: colors.background.primary }]}>
         <ActivityIndicator color={colors.text.secondary} />
-        <Text style={[styles.body, { color: colors.text.secondary }]}>Reading the post</Text>
+        <Text style={[styles.body, { color: colors.text.secondary }]}>{usingShots ? 'Reading your screenshots' : 'Reading the post'}</Text>
         <CloseButton color={colors.text.primary} background={colors.background.sunken} />
         {consentSheet}
       </View>
@@ -175,7 +238,7 @@ export default function SaveFromSocialScreen() {
         <MapPin size={36} weight="duotone" color={colors.text.disabled} />
         <Text style={[styles.title, { color: colors.text.primary }]}>{"Couldn't save this one"}</Text>
         <Text style={[styles.body, { color: colors.text.secondary }]}>{error}</Text>
-        <Button label="Try again" onPress={run} />
+        <Button label="Try again" onPress={retry} />
         <Pressable onPress={() => router.back()} style={styles.link} accessibilityRole="button" accessibilityLabel="Close">
           <Text style={[styles.linkText, { color: colors.text.secondary }]}>Close</Text>
         </Pressable>
@@ -190,21 +253,42 @@ export default function SaveFromSocialScreen() {
     <View style={[styles.fill, { backgroundColor: colors.background.primary }]}>
       <KeyboardLift>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+          {preview.platform === 'screenshot' ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip} style={styles.stripWrap}>
+              {shotUris.map((u, i) => (
+                <Image key={u} source={{ uri: u }} contentFit="cover" accessibilityLabel={`Screenshot ${i + 1}${i === 0 ? ', the cover' : ''}`}
+                  style={[styles.shot, { backgroundColor: colors.background.sunken }, i === 0 ? { borderWidth: 2, borderColor: colors.brand.purple } : null]} />
+              ))}
+            </ScrollView>
+          ) : (
           <View style={styles.postRow}>
             {preview.coverUrl
               ? <Image source={{ uri: preview.coverUrl }} style={[styles.cover, { backgroundColor: colors.background.sunken }]} contentFit="cover" accessibilityLabel="The post's cover" />
-              : <View style={[styles.cover, { backgroundColor: colors.background.sunken }]} />}
+              : (
+                <View style={[styles.cover, styles.coverEmpty, { backgroundColor: colors.background.sunken }]}>
+                  <ImageSquare size={24} weight="duotone" color={colors.text.disabled} />
+                </View>
+              )}
             <View style={styles.postText}>
-              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{`TIKTOK · @${preview.authorHandle || preview.author}`.toUpperCase()}</Text>
-              <Text style={[styles.caption, { color: colors.text.secondary }]} numberOfLines={4}>{preview.caption || 'No caption'}</Text>
+              <Text style={[styles.eyebrow, { color: colors.text.tertiary }]}>{tiktokEyebrow(preview)}</Text>
+              {preview.caption ? <Text style={[styles.caption, { color: colors.text.secondary }]} numberOfLines={4}>{preview.caption}</Text> : null}
             </View>
           </View>
+          )}
 
-          <Text style={[styles.title, { color: colors.text.primary }]}>Save to wish list</Text>
+          <Text style={[styles.title, { color: colors.text.primary }]}>Save places</Text>
           {preview.places.length === 0 ? (
             <Text style={[styles.body, { color: colors.text.secondary }]}>
-              {'No places named in this post. Add the place by name and it\'s saved with the video.'}
+              {preview.platform === 'screenshot'
+                ? "No places in these screenshots. Add the places you saw and they're saved with them."
+                : postHasDetails(preview)
+                ? 'No places named in this post. Add the place by name and it\'s saved with the video.'
+                // TikTok stopped sharing post details for some posts (device test 2026-11-10): say so, don't blame the post.
+                : "TikTok didn't share this post's details. Add the places you saw and they're saved with the video."}
             </Text>
+          ) : null}
+          {preview.platform !== 'screenshot' && !postHasDetails(preview) ? (
+            <Button label="Add a screenshot" variant="secondary" onPress={addScreenshotsInstead} />
           ) : null}
 
           {preview.places.map((p) => (
@@ -230,6 +314,7 @@ export default function SaveFromSocialScreen() {
               placeholder={preview.city ? `A place in ${preview.city}` : 'A place and its city'}
               placeholderTextColor={colors.text.tertiary}
               returnKeyType="search"
+              autoFocus={preview.places.length === 0 && (preview.platform === 'screenshot' || !postHasDetails(preview))}
               style={[styles.input, { color: colors.text.primary }]}
               accessibilityLabel="Add a place by name"
             />
@@ -240,9 +325,9 @@ export default function SaveFromSocialScreen() {
         </ScrollView>
       </KeyboardLift>
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing['3'], backgroundColor: colors.background.primary, borderTopColor: colors.background.cardBorder }]}>
-        <Button label={count ? `Save ${count} ${count === 1 ? 'place' : 'places'}` : 'Save the video'} onPress={onSave} loading={saving} fullWidth />
+        <Button label={count ? `Save ${count} ${count === 1 ? 'place' : 'places'}` : (preview.platform === 'screenshot' ? 'Save the screenshots' : 'Save the video')} onPress={onSave} loading={saving} fullWidth />
       </View>
-      <CloseButton color={colors.text.primary} background={colors.background.sunken} />
+      <CloseButton color={colors.text.primary} background={colors.background.sunken} disabled={saving} />
       {consentSheet}
     </View>
   );
@@ -254,6 +339,10 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing['5'], paddingTop: Spacing['6'], gap: Spacing['2'] },
   postRow: { flexDirection: 'row', gap: Spacing['3'], marginBottom: Spacing['4'], paddingRight: 44 },
   cover: { width: 84, height: 120, borderRadius: BorderRadius.md },
+  coverEmpty: { alignItems: 'center', justifyContent: 'center' },
+  stripWrap: { marginBottom: Spacing['4'], marginRight: 44 },
+  strip: { gap: Spacing['2'] },
+  shot: { width: 56, height: 80, borderRadius: BorderRadius.sm },
   postText: { flex: 1, gap: Spacing['1'] },
   eyebrow: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.9 },
   caption: { fontSize: FontSize.sm, lineHeight: 19 },

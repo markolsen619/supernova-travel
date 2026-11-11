@@ -18,9 +18,9 @@
  *
  * 2 (2026-10-14): Ask Nova sends the trip, your messages and booking names/dates.
  */
-export const AI_CONSENT_VERSION = 3;
+export const AI_CONSENT_VERSION = 4;
 
-export type AiPurpose = 'trip' | 'import' | 'agent' | 'agentWallet';
+export type AiPurpose = 'trip' | 'import' | 'agent' | 'agentWallet' | 'screenshots';
 
 /**
  * The oldest consent each feature accepts. Never raise one for a feature older apps
@@ -28,7 +28,7 @@ export type AiPurpose = 'trip' | 'import' | 'agent' | 'agentWallet';
  * global bump refused AI trips, import and forwarded emails for every 1.0.5 user
  * (caught in review, 2026-10-15). A feature that shares more starts at the new version.
  */
-export const AI_CONSENT_MIN: Record<AiPurpose, number> = { trip: 1, import: 1, agent: 2, agentWallet: 3 };
+export const AI_CONSENT_MIN: Record<AiPurpose, number> = { trip: 1, import: 1, agent: 2, agentWallet: 3, screenshots: 4 };
 
 /**
  * Ask Nova's consent depends on what the calling app can do: only an app that declares wallet.v1 is

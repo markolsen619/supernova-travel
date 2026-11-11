@@ -5,6 +5,8 @@
  */
 export const PHOTO_MAX_PX = 2048;
 export const PHOTO_QUALITY = 0.8;
+/** Wish-list screenshots (spec 2026-11-11): long side ≤ 1600 px — enough to read, a fraction of the upload. */
+export const SHOT_MAX_PX = 1600;
 
 /** The resize to apply (by the long side), or null when the photo already fits or its size is unknown. */
 export function uploadResize(width: number, height: number, max = PHOTO_MAX_PX): { width: number } | { height: number } | null {

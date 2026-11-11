@@ -28,6 +28,10 @@ const LEAD: Record<AiPurpose, { title: string; sends: string }> = {
     sends:
       'The confirmation text or screenshot you add. It can include your name, confirmation numbers, flight details, and hotel addresses.',
   },
+  screenshots: {
+    title: 'Read screenshots with AI',
+    sends: "The screenshots you add, to find the places in them. They're kept privately in your account and deleted with the save.",
+  },
   agent: {
     title: 'Ask Nova',
     sends: "Your trip's cities, days and stops, what you ask, and the bookings in your wallet that fall on this trip (name, date and time; never barcodes or booking codes).",

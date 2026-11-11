@@ -245,3 +245,40 @@ describe('coverQuery (final review I1: covers went to the 30 lowest ids, not the
     expect(coverQuery(['2', '1', '2']).ids).toEqual(['2', '1']);
   });
 });
+
+import { creatorLabel, postHasDetails } from '@/utils/wishlist';
+describe('when TikTok shares nothing about a post (device test 2026-11-10: a blank "@" and "No caption")', () => {
+  const base = { caption: '', author: '', authorHandle: '', coverUrl: null as string | null };
+  it('postHasDetails is false only when caption, creator and cover are all missing', () => {
+    expect(postHasDetails(base)).toBe(false);
+    expect(postHasDetails({ ...base, caption: 'Tokyo eats' })).toBe(true);
+    expect(postHasDetails({ ...base, authorHandle: 'japanguide' })).toBe(true);
+    expect(postHasDetails({ ...base, coverUrl: 'https://x/c.jpg' })).toBe(true);
+    expect(postHasDetails({ ...base, caption: '   ' })).toBe(false);
+  });
+  it('creatorLabel never shows a bare "@"', () => {
+    expect(creatorLabel({ author: 'Lauren', authorHandle: 'gigsntravel' })).toBe('@gigsntravel');
+    expect(creatorLabel({ author: 'Lauren', authorHandle: '' })).toBe('Lauren');
+    expect(creatorLabel({ author: '', authorHandle: '' })).toBe('TikTok post');
+  });
+});
+
+import { fromCreator, tiktokEyebrow } from '@/utils/wishlist';
+describe('creator lines without a bare "@"', () => {
+  it('fromCreator and tiktokEyebrow', () => {
+    expect(fromCreator({ author: '', authorHandle: 'japanguide' })).toBe('from @japanguide');
+    expect(fromCreator({ author: '', authorHandle: '' })).toBe('from TikTok');
+    expect(tiktokEyebrow({ author: '', authorHandle: 'japanguide' })).toBe('TIKTOK · @JAPANGUIDE');
+    expect(tiktokEyebrow({ author: '', authorHandle: '' })).toBe('TIKTOK');
+  });
+});
+
+import { creatorLabel as creatorLabelS, fromCreator as fromCreatorS, tiktokEyebrow as tiktokEyebrowS } from '@/utils/wishlist';
+describe('labels for screenshot saves', () => {
+  it('read Screenshots', () => {
+    expect(creatorLabelS({ author: '', authorHandle: '', platform: 'screenshot' })).toBe('Screenshots');
+    expect(creatorLabelS({ author: '', authorHandle: 'a', platform: 'tiktok' })).toBe('@a');
+    expect(fromCreatorS({ author: '', authorHandle: '', platform: 'screenshot' })).toBe('from your screenshots');
+    expect(tiktokEyebrowS({ author: '', authorHandle: '', platform: 'screenshot' })).toBe('SCREENSHOTS');
+  });
+});
