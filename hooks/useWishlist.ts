@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { requireOnline } from '@/services/offline';
+import { deleteShots } from '@/services/wishShots';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { mergeReshare, type WishPlace, type WishSave } from '@/utils/wishlist';
 
@@ -32,19 +33,22 @@ export function useWishlist() {
     // Exactly the keys the rules allow (the server's answer also carries coverUrl, which is never stored).
     // A video saved again keeps its places' "on a trip" marks (final review).
     const merged = mergeReshare(saves.find((s) => s.videoId === w.videoId) ?? null, w);
-    const { platform, videoId, postUrl, author, authorHandle, caption, city, country, cityLat, cityLng, places } = merged;
+    const { platform, videoId, postUrl, author, authorHandle, caption, city, country, cityLat, cityLng, places, shots } = merged;
     await setDoc(doc(db, 'users', uid, 'wishlist', videoId), {
       platform, videoId, postUrl, author, authorHandle, caption: caption.slice(0, 300), city, country, cityLat, cityLng,
-      places: places.slice(0, 10), savedAt: serverTimestamp(),
+      places: places.slice(0, 10), savedAt: serverTimestamp(), ...(shots?.length ? { shots } : {}),
     });
     await refresh();
   }, [uid, saves, refresh]);
 
   const remove = useCallback(async (videoId: string) => {
     if (!uid || !requireOnline()) return;
+    // A screenshot save's images go first (spec 2026-11-11): private copies never outlive their save.
+    const s = saves.find((x) => x.videoId === videoId);
+    if (s?.shots?.length) await deleteShots(s.shots);
     await deleteDoc(doc(db, 'users', uid, 'wishlist', videoId));
     await refresh();
-  }, [uid, refresh]);
+  }, [uid, saves, refresh]);
 
   const setPlaces = useCallback(async (videoId: string, change: (places: WishPlace[]) => WishPlace[]) => {
     if (!uid || !requireOnline()) return;
