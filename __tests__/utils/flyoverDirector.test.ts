@@ -136,7 +136,7 @@ describe('directFlyover — playback', () => {
 describe('transfers (review focus 2)', () => {
   const teo = [stop('t', 'Teotihuacán', 19.6925, -98.8438), stop('u', 'Pyramid of the Moon', 19.6997, -98.8441)];
   it('a > 25 km jump between days becomes one arc with a travel label', () => {
-    const plan = directFlyover([dayFrom(1, cdmx), dayFrom(2, teo)], { long: false, film: false });
+    const plan = directFlyover([dayFrom(1, cdmx), { ...dayFrom(2, teo), city: 'Teotihuacán' }], { long: false, film: false });
     expect(plan.days[0].transfer).toBeNull();
     expect(plan.days[1].transfer?.label).toMatch(/Teotihuacán/);
     expect(plan.days[1].transfer!.ms).toBeGreaterThanOrEqual(3000);
@@ -172,5 +172,85 @@ describe('film (review focus 5)', () => {
     const r = directFlyover([...days, ...days.map((d, i) => ({ ...d, dayId: `x${i}`, dayNumber: i + 8 }))], { long: true, film: true });
     expect(Number.isFinite(r.totalMs)).toBe(true);
     expect(r.totalMs).toBeGreaterThan(0);
+  });
+});
+
+describe('performance (final review C1: a 14-day routed trip took ~4 s to plan — the app froze)', () => {
+  it('plans 14 days of 2,000-point routes quickly, playback and film', () => {
+    const mkDay = (n: number): DirectorDay => {
+      const coords: [number, number][] = Array.from({ length: 2000 }, (_, i) => [-99.2 + i * 0.0001 + n * 0.01, 19.4 + Math.sin(i / 40) * 0.002]);
+      const stops = [0, 400, 800, 1200, 1600, 1999].map((k, j) => stop(`s${n}-${j}`, `S${j}`, coords[k][1], coords[k][0], j % 2 ? 'restaurant' : 'activity', j === 2 ? 2 : 0));
+      return { dayId: `d${n}`, dayNumber: n + 1, label: null, city: 'X', stops,
+        path: { coordinates: coords, stopFractions: [0, 0.2, 0.4, 0.6, 0.8, 1], meters: 21_000, legs: [0, 1, 2, 3, 4].map((k) => ({ travel: 'walk', startFraction: k * 0.2, endFraction: (k + 1) * 0.2, meters: 4200 })) } };
+    };
+    const days = Array.from({ length: 14 }, (_, i) => mkDay(i));
+    const t0 = Date.now();
+    directFlyover(days, { long: true, film: false });
+    directFlyover(days, { long: true, film: true });
+    expect(Date.now() - t0).toBeLessThan(600);
+  });
+});
+
+describe('first glide faces the route (final review M1: every day started facing north and spent seconds turning)', () => {
+  it('a route heading east starts its glide facing roughly east', () => {
+    const east = [stop('w', 'West', 19.43, -99.15), stop('m', 'Mid', 19.43, -99.14, 'restaurant'), stop('e', 'East', 19.43, -99.13)];
+    const p = directFlyover([dayFrom(1, east)], { long: true, film: false }).days[0];
+    expect(Math.abs(angleDelta(90, p.segments[0].camera.bearing))).toBeLessThan(15);
+    expect(Math.abs(angleDelta(90, p.establish.camera.bearing))).toBeLessThan(15);
+  });
+});
+
+describe('whole-trip and actual paths (final review I3: every stop read "DAY 1", and a long trip paused at only 3 stops)', () => {
+  const tagged = (n: number, s: ReturnType<typeof stop>) => ({ ...s, id: `${s.id}${n}`, dayNumber: n, dayLabel: `Day ${n}: Part ${n}`, dayCity: 'Mexico City' });
+  const whole = { ...dayFrom(1, [tagged(1, cdmx[0]), tagged(1, cdmx[1]), tagged(2, cdmx[2]), tagged(2, cdmx[3]), tagged(3, cdmx[0]), tagged(3, cdmx[2])]), dayId: 'trip' };
+  it('each stop\'s eyebrow comes from its own day', () => {
+    const p = directFlyover([whole], { long: true, film: false }).days[0];
+    expect(p.cards.eyebrows).toEqual(['DAY 1 · PART 1', 'DAY 1 · PART 1', 'DAY 2 · PART 2', 'DAY 2 · PART 2', 'DAY 3 · PART 3', 'DAY 3 · PART 3']);
+  });
+  it('long trips cap features per source day, not per path', () => {
+    const p = directFlyover([whole], { long: true, film: false }).days[0];
+    expect(p.features.length).toBeGreaterThan(3);
+  });
+});
+
+describe('transfer card names the city (final review I5: "BY PLANE TO HOTEL RITZ")', () => {
+  it('uses the day\'s city when known', () => {
+    const teo = { ...dayFrom(2, [stop('t', 'Hotel Ritz', 19.6925, -98.8438), stop('u', 'Pyramid', 19.6997, -98.8441)]), city: 'Teotihuacán' };
+    const p = directFlyover([dayFrom(1, cdmx), teo], { long: false, film: false });
+    expect(p.days[1].transfer?.label).toMatch(/Teotihuacán$/);
+  });
+});
+
+describe('film fits a multi-city 14-day trip (final review I6: 96 s)', () => {
+  it('stays within the budget with cities ~110 km apart', () => {
+    const days = Array.from({ length: 14 }, (_, i) => dayFrom(i + 1, cdmx.map((s) => ({ ...s, id: `${s.id}${i}`, lat: s.lat + i * 1.0 }))));
+    expect(directFlyover(days, { long: true, film: true }).totalMs).toBeLessThanOrEqual(54_000);
+  });
+});
+
+import { cameraAt, needsResync, resumePhases } from '@/utils/flyoverDirector';
+describe('pause and resume (final review I1, I2, I4)', () => {
+  const phases = [{ id: 'transfer', at: 0, ms: 4000 }, { id: 'overview', at: 4000, ms: 1800 }, { id: 'descend', at: 5800, ms: 1200 }, { id: 'feature', at: 7000, ms: 4000 }];
+  it('resumePhases runs everything from the start when nothing has elapsed', () => {
+    expect(resumePhases(phases, 0)).toEqual([{ id: 'transfer', delay: 0, ms: 4000 }, { id: 'overview', delay: 4000, ms: 1800 }, { id: 'descend', delay: 5800, ms: 1200 }, { id: 'feature', delay: 7000, ms: 4000 }]);
+  });
+  it('resuming mid-opening skips what is done and finishes the current phase in its remaining time', () => {
+    expect(resumePhases(phases, 6400)).toEqual([{ id: 'descend', delay: 0, ms: 600 }, { id: 'feature', delay: 600, ms: 4000 }]);
+  });
+  it('nothing left when the hold is over', () => {
+    expect(resumePhases(phases, 11_000)).toEqual([]);
+  });
+  const start = { center: [0, 0] as [number, number], zoom: 15, pitch: 50, bearing: 0 };
+  const segs = [
+    { from: 0, to: 0.5, ms: 3000, move: 'linearTo' as const, camera: { center: [1, 1] as [number, number], zoom: 15, pitch: 50, bearing: 20 } },
+    { from: 0.5, to: 1, ms: 3000, move: 'linearTo' as const, camera: { center: [3, 1] as [number, number], zoom: 14, pitch: 48, bearing: 40 } },
+  ];
+  it('cameraAt is where a paused glide should hold', () => {
+    expect(cameraAt(segs, 0.25, start)).toEqual({ center: [0.5, 0.5], zoom: 15, pitch: 50, bearing: 10 });
+    expect(cameraAt(segs, 0.75, start)).toEqual({ center: [2, 1], zoom: 14.5, pitch: 49, bearing: 30 });
+  });
+  it('needsResync only beyond 300 ms of drift', () => {
+    expect(needsResync(2000, 2250)).toBe(false);
+    expect(needsResync(2000, 2400)).toBe(true);
   });
 });

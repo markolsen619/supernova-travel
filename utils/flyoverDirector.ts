@@ -63,7 +63,37 @@ export function smoothLine(s: Sample[], windowM: number): Sample[] {
   });
 }
 
-const nearest = (s: Sample[], f: number) => s.reduce((best, p) => (Math.abs(p.f - f) < Math.abs(best.f - f) ? p : best), s[0]);
+/**
+ * Each route's geometry, measured once (final review C1: re-sampling and re-smoothing the whole day for every span and
+ * every lift froze long trips for seconds). Keyed on the coordinates array itself — stable while the route is.
+ */
+type Geometry = { raw: Sample[]; pathM: number; smooth: Map<number, Sample[]> };
+const geometries = new WeakMap<[number, number][], Geometry>();
+function geometryOf(coords: [number, number][]): Geometry {
+  let g = geometries.get(coords);
+  if (!g) {
+    let pathM = 0;
+    for (let k = 1; k < coords.length; k++) pathM += haversineMeters({ lat: coords[k - 1][1], lng: coords[k - 1][0] }, { lat: coords[k][1], lng: coords[k][0] });
+    g = { raw: samplePath(coords), pathM, smooth: new Map() };
+    geometries.set(coords, g);
+  }
+  return g;
+}
+const smoothOf = (g: Geometry, windowM: number) => {
+  let s = g.smooth.get(windowM);
+  if (!s) { s = smoothLine(g.raw, windowM); g.smooth.set(windowM, s); }
+  return s;
+};
+/** The first sample at or after fraction f (samples are sorted by f). */
+function lowerBound(s: Sample[], f: number): number {
+  let lo = 0, hi = s.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (s[mid].f < f) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+const nearest = (s: Sample[], f: number) => {
+  const i = Math.min(s.length - 1, lowerBound(s, f));
+  return i > 0 && Math.abs(s[i - 1].f - f) <= Math.abs(s[i].f - f) ? s[i - 1] : s[i];
+};
 
 /**
  * Glides over path fractions [from, to]: 2–4 s `linearTo` segments, each covering an equal share of the real route at
@@ -71,17 +101,14 @@ const nearest = (s: Sample[], f: number) => s.reduce((best, p) => (Math.abs(p.f 
  * aimed along the smoothed line with the heading eased ≤ 12°/s. `slowIn` lengthens the last two (×1.4, ×1.8).
  */
 export function glideSegments(i: { coords: [number, number][]; zoom: number; windowM: number; from: number; to: number; slowIn: boolean; startBearing: number }): Segment[] {
-  if (!(i.to > i.from)) return [];
-  const raw = samplePath(i.coords);
-  const smooth = smoothLine(raw, i.windowM);
-  const span = raw.filter((p) => p.f >= i.from - 1e-9 && p.f <= i.to + 1e-9);
-  const smoothSpan = smooth.filter((p) => p.f >= i.from - 1e-9 && p.f <= i.to + 1e-9);
-  if (span.length < 2) return [];
-  // The exact route length (samples every 50 m cut corners and read short — the head would outrun the cap).
-  let pathM = 0;
-  for (let k = 1; k < i.coords.length; k++) pathM += haversineMeters({ lat: i.coords[k - 1][1], lng: i.coords[k - 1][0] }, { lat: i.coords[k][1], lng: i.coords[k][0] });
-  const meters = (i.to - i.from) * pathM;
-  const mps = SCREEN_SPEED_PTS * metersPerPoint(span[0].lat, i.zoom);
+  if (!(i.to > i.from) || i.coords.length < 2) return [];
+  const geo = geometryOf(i.coords);
+  const smooth = smoothOf(geo, i.windowM);
+  const lo = lowerBound(geo.raw, i.from - 1e-9), hi = lowerBound(geo.raw, i.to + 1e-9);
+  if (hi - lo < 2 && !(geo.pathM > 0)) return [];
+  const lat = geo.raw[Math.min(lo, geo.raw.length - 1)].lat;
+  const meters = (i.to - i.from) * geo.pathM;
+  const mps = SCREEN_SPEED_PTS * metersPerPoint(lat, i.zoom);
   const totalMs = Math.max(SEG_MIN_MS, (meters / mps) * 1000);
   const n = Math.max(1, Math.ceil(totalMs / SEG_MAX_MS));
   const ms = totalMs / n;
@@ -89,7 +116,7 @@ export function glideSegments(i: { coords: [number, number][]; zoom: number; win
   let bearing = i.startBearing;
   for (let s = 0; s < n; s++) {
     const f0 = i.from + ((i.to - i.from) * s) / n, f1 = s === n - 1 ? i.to : i.from + ((i.to - i.from) * (s + 1)) / n;
-    const start = nearest(smoothSpan, f0), end = nearest(smoothSpan, f1);
+    const start = nearest(smooth, f0), end = nearest(smooth, f1);
     const want = start === end ? bearing : bearingOf(start, end);
     const limit = MAX_TURN_DEG_S * (ms / 1000);
     bearing = norm(bearing + Math.max(-limit, Math.min(limit, angleDelta(bearing, want))));
@@ -103,6 +130,14 @@ export function glideSegments(i: { coords: [number, number][]; zoom: number; win
   return segs;
 }
 
+/** The direction a span heads (along the smoothed line), to start a day's glide facing the route (final review M1). */
+export function spanBearing(coords: [number, number][], windowM: number, from: number, to: number): number | null {
+  if (!(to > from) || coords.length < 2) return null;
+  const smooth = smoothOf(geometryOf(coords), windowM);
+  const a = nearest(smooth, from), b = nearest(smooth, Math.min(to, from + Math.max((to - from) / 3, 1e-6)));
+  return a === b ? null : bearingOf(a, b);
+}
+
 /** The segment holding `progress` (the last one at or past the end) — where a resumed glide picks up. */
 export function segmentAt(segments: { from: number; to: number }[], progress: number): number {
   for (let k = 0; k < segments.length; k++) if (progress < segments[k].to) return k;
@@ -111,7 +146,11 @@ export function segmentAt(segments: { from: number; to: number }[], progress: nu
 
 // ── Day plans ─────────────────────────────────────────────────────────────────
 
-export type DirectorStop = { id: string; name: string; type: string; lat: number; lng: number; photoCount: number };
+export type DirectorStop = {
+  id: string; name: string; type: string; lat: number; lng: number; photoCount: number;
+  /** The stop's own day, for paths spanning several days (whole trip, actual route — final review I3). */
+  dayNumber?: number; dayLabel?: string | null; dayCity?: string | null;
+};
 export type DirectorDay = {
   dayId: string; dayNumber: number; label: string | null; city: string | null; stops: DirectorStop[];
   path: { coordinates: [number, number][]; stopFractions: number[]; meters: number; legs: { travel: string; startFraction: number; endFraction: number; meters: number }[] };
@@ -122,9 +161,9 @@ export type DayPlan = {
   transfer: { camera: Camera; ms: number; label: string } | null;
   introMs: number; features: number[]; featureMs: Record<number, number>; dwells: number[];
   segments: Segment[]; profile: { to: number; ms: number }[]; glideMs: number;
-  cards: { eyebrow: string; titles: string[] };
+  cards: { eyebrow: string; titles: string[]; eyebrows: string[] };
 };
-type PlanOpts = { long: boolean; film: boolean; overview?: boolean; features?: 'all' | 'photos' | 'none' };
+type PlanOpts = { long: boolean; film: boolean; overview?: boolean; features?: 'all' | 'photos' | 'none'; quickTransfers?: boolean };
 
 const TRANSFER_M = 25_000;
 const GLIDE_ZOOM_MIN = 11;
@@ -141,6 +180,12 @@ export function dayEyebrow(dayNumber: number, label: string | null, city: string
 /** Key places: every stop on short trips; on long trips ≤ 3 — photos first, then sights, then the most central. */
 export function pickFeatures(stops: DirectorStop[], long: boolean): number[] {
   if (!long) return stops.map((_, i) => i);
+  // A path spanning several days (whole trip, actual route) caps features per source day (final review I3).
+  const groups = new Map<number | undefined, number[]>();
+  stops.forEach((st, i) => { const k = st.dayNumber; groups.set(k, [...(groups.get(k) ?? []), i]); });
+  if (groups.size > 1) {
+    return [...groups.values()].flatMap((idx) => pickFeatures(idx.map((i) => stops[i]), true).map((k) => idx[k])).sort((a, b) => a - b);
+  }
   const centre = stops.length ? (momentStop(stops as never) as unknown as DirectorStop | null) : null;
   const rank = (s: DirectorStop) => (s.photoCount > 0 ? 0 : s.type === 'activity' ? 1 : s === centre ? 2 : 3);
   return stops.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).slice(0, 3).map((x) => x.i).sort((a, b) => a - b);
@@ -170,9 +215,12 @@ function planDay(day: DirectorDay, prev: DirectorDay | null, o: PlanOpts): DayPl
   const marks = [...new Set([0, ...featureFs, ...legEnds, 1].map((f) => Math.min(1, Math.max(0, f))))].sort((a, b) => a - b);
   const legAt = (f: number) => p.legs.find((l) => f >= l.startFraction - 1e-9 && f < l.endFraction - 1e-9) ?? p.legs[p.legs.length - 1];
   const glideCap = o.long ? 6000 : Infinity;
+  // Start facing where the day's route first heads, not north (final review M1).
+  const firstLeg = p.legs[0];
+  const seedBearing = spanBearing(p.coordinates, windowFor(firstLeg?.travel ?? 'walk'), 0, marks[1] ?? 1) ?? 0;
   const build = (lift: number): Segment[] => {
     const out: Segment[] = [];
-    let bearing = 0;
+    let bearing = seedBearing;
     for (let k = 1; k < marks.length; k++) {
       const from = marks[k - 1], to = marks[k];
       if (!(to > from)) continue;
@@ -205,28 +253,35 @@ function planDay(day: DirectorDay, prev: DirectorDay | null, o: PlanOpts): DayPl
     }
   }
   const glideMs = segments.reduce((a, x) => a + x.ms, 0);
-  const establishMs = o.film ? 2000 : 3000;
+  let establishMs = o.film ? 2000 : 3000;
   const centre: [number, number] = first ? [first.lng, first.lat] : p.coordinates[0] ?? [0, 0];
   const start = segments[0]?.camera;
-  const establish = {
-    camera: { center: centre, zoom: start?.zoom ?? 15, pitch: start?.pitch ?? 50, bearing: start?.bearing ?? 0 },
-    overviewMs: Math.round(establishMs * 0.6), descendMs: Math.round(establishMs * 0.4), bounds: boundsOf(p.coordinates),
-  };
   let transfer: DayPlan['transfer'] = null;
   const prevLast = prev?.stops[prev.stops.length - 1];
   if (prevLast && first) {
     const m = haversineMeters(prevLast, first);
     if (m > TRANSFER_M) {
       const travel: Travel = m > 400_000 ? 'flight' : 'drive';
-      transfer = { camera: { center: centre, zoom: GLIDE_ZOOM_MIN, pitch: 40, bearing: 0 }, ms: transferMs(m), label: travelLabel(travel, first.name) };
+      // The card names where the arc lands — the city when known (final review I5: not "By plane to Hotel Ritz").
+      transfer = { camera: { center: centre, zoom: GLIDE_ZOOM_MIN, pitch: 40, bearing: 0 }, ms: o.quickTransfers ? 1800 : transferMs(m), label: travelLabel(travel, day.city ?? first.name) };
+      // A squeezed video lands from the arc straight into the day (final review I6).
+      if (o.quickTransfers) establishMs = 0;
     }
   }
+  const establish = {
+    camera: { center: centre, zoom: start?.zoom ?? 15, pitch: start?.pitch ?? 50, bearing: start?.bearing ?? 0 },
+    overviewMs: Math.round(establishMs * 0.6), descendMs: Math.round(establishMs * 0.4), bounds: boundsOf(p.coordinates),
+  };
   const introMs = (transfer?.ms ?? 0) + establishMs + (featureMs[0] ?? 0);
   const dwells = day.stops.map((_, i) => (i > 0 && features.includes(i) ? featureMs[i] : 0));
   return {
     dayId: day.dayId, establish, transfer, introMs, features, featureMs, dwells, segments,
     profile: segments.map((x) => ({ to: x.to, ms: x.ms })), glideMs,
-    cards: { eyebrow: dayEyebrow(day.dayNumber, day.label, day.city), titles: day.stops.map((st) => st.name) },
+    cards: {
+      eyebrow: dayEyebrow(day.dayNumber, day.label, day.city),
+      titles: day.stops.map((st) => st.name),
+      eyebrows: day.stops.map((st) => (st.dayNumber != null ? dayEyebrow(st.dayNumber, st.dayLabel ?? null, st.dayCity ?? null) : dayEyebrow(day.dayNumber, day.label, day.city))),
+    },
   };
 }
 
@@ -241,7 +296,11 @@ export function directFlyover(days: DirectorDay[], o: { long: boolean; film: boo
   const run = (extra: Partial<PlanOpts>) => days.map((d, i) => planDay(d, days[i - 1] ?? null, { long: o.long, film: o.film, ...extra }));
   if (!o.film) { const plans = run({}); return { days: plans, totalMs: planTotal(plans) }; }
   const budget = o.budgetMs ?? FILM_BUDGET_MS;
-  const steps: Partial<PlanOpts>[] = [{ features: 'all' }, { features: 'photos' }, { features: 'photos', overview: true }, { features: 'none', overview: true }];
+  const steps: Partial<PlanOpts>[] = [
+    { features: 'all' }, { features: 'photos' }, { features: 'photos', overview: true },
+    // Multi-city trips: shorter arcs, and no establish right after one (final review I6: a 14-day trip ran 96 s).
+    { features: 'photos', overview: true, quickTransfers: true }, { features: 'none', overview: true, quickTransfers: true },
+  ];
   let plans: DayPlan[] = [];
   for (const step of steps) {
     plans = run(step);
@@ -249,3 +308,34 @@ export function directFlyover(days: DirectorDay[], o: { long: boolean; film: boo
   }
   return { days: plans, totalMs: planTotal(plans) };
 }
+
+// ── Running the plan: pause, resume and drift (final review I1, I2, I4) ─────────────────────────────────────────────
+
+/**
+ * A hold's camera phases (opening: transfer → overview → descend → feature; or a feature's in → orbit) resumed after
+ * `elapsedMs` of the hold: finished phases are dropped and the current one finishes in its remaining time — resuming
+ * used to replay the whole opening on top of the glide.
+ */
+export function resumePhases<T extends string>(phases: { id: T; at: number; ms: number }[], elapsedMs: number): { id: T; delay: number; ms: number }[] {
+  return phases
+    .filter((p) => p.at + p.ms > elapsedMs)
+    .map((p) => (p.at >= elapsedMs ? { id: p.id, delay: p.at - elapsedMs, ms: p.ms } : { id: p.id, delay: 0, ms: p.at + p.ms - elapsedMs }));
+}
+
+/** Where the camera should be at `progress` within a day's glides (pausing holds it there instead of flying on). */
+export function cameraAt(segments: Segment[], progress: number, start: Camera): Camera {
+  if (!segments.length) return start;
+  const k = segmentAt(segments, progress);
+  const seg = segments[k];
+  const from = k > 0 ? segments[k - 1].camera : start;
+  const t = Math.min(1, Math.max(0, (progress - seg.from) / (seg.to - seg.from || 1)));
+  const lerp = (a: number, b: number) => a + (b - a) * t;
+  return {
+    center: [lerp(from.center[0], seg.camera.center[0]), lerp(from.center[1], seg.camera.center[1])],
+    zoom: lerp(from.zoom, seg.camera.zoom), pitch: lerp(from.pitch, seg.camera.pitch),
+    bearing: norm(from.bearing + angleDelta(from.bearing, seg.camera.bearing) * t),
+  };
+}
+
+/** The camera's scheduled arrival and the drawing head's have drifted apart enough to resend the segment. */
+export const needsResync = (scheduledLeftMs: number, expectedLeftMs: number) => Math.abs(scheduledLeftMs - expectedLeftMs) > 300;
