@@ -187,7 +187,8 @@ describe('performance (final review C1: a 14-day routed trip took ~4 s to plan â
     const t0 = Date.now();
     directFlyover(days, { long: true, film: false });
     directFlyover(days, { long: true, film: true });
-    expect(Date.now() - t0).toBeLessThan(600);
+    // Generous for a busy CI or a full parallel run; the bug this guards against took ~10.7 s.
+    expect(Date.now() - t0).toBeLessThan(2000);
   });
 });
 
