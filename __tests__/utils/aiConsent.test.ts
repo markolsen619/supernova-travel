@@ -31,7 +31,7 @@ describe('AI consent', () => {
   });
 
   it('asks again before Ask Nova, which sends more (version 2, now 3)', () => {
-    expect(SERVER_VERSION).toBe(3);
+    expect(SERVER_VERSION).toBe(4);
     expect(serverHas({ aiConsentVersion: 1 }, 'agent')).toBe(false);
     expect(clientHas(1, 'agent')).toBe(false);
   });
@@ -49,8 +49,8 @@ describe('consent v3 (Ask Nova sees wallet bookings, 2026-10-17)', () => {
     expect(clientHas(2, 'agent')).toBe(false);
     expect(clientHas(3, 'agent')).toBe(true);
     expect(clientHas(1, 'trip')).toBe(true);
-    expect(CLIENT_VERSION).toBe(3);
-    expect(SERVER_VERSION).toBe(3);
+    expect(CLIENT_VERSION).toBe(4);
+    expect(SERVER_VERSION).toBe(4);
   });
 });
 
@@ -62,6 +62,19 @@ describe('review fix: 1.0.6 keeps Ask Nova on consent v2', () => {
     expect(agentConsentPurpose(['trip.v1', 'trip.v2', 'wallet.v1'])).toBe('agentWallet');
     expect(serverHas({ aiConsentVersion: 2 }, 'agent')).toBe(true);
     expect(serverHas({ aiConsentVersion: 2 }, 'agentWallet')).toBe(false);
+    expect(serverHas({ aiConsentVersion: 3 }, 'agentWallet')).toBe(true);
+  });
+});
+
+describe('screenshots consent (spec 2026-11-11; review focus 5: nobody is asked again for other features)', () => {
+  it('needs version 4 for screenshots, and leaves the other purposes at their old minimums', () => {
+    expect(CLIENT_VERSION).toBe(4);
+    expect(serverHas({ aiConsentVersion: 3 }, 'screenshots')).toBe(false);
+    expect(serverHas({ aiConsentVersion: 4 }, 'screenshots')).toBe(true);
+    expect(clientHas(3, 'screenshots')).toBe(false);
+    expect(clientHas(4, 'screenshots')).toBe(true);
+    expect(clientHas(3, 'agent')).toBe(true);
+    expect(clientHas(1, 'trip')).toBe(true);
     expect(serverHas({ aiConsentVersion: 3 }, 'agentWallet')).toBe(true);
   });
 });
