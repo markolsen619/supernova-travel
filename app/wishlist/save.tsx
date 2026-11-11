@@ -118,7 +118,8 @@ export default function SaveFromSocialScreen() {
     if (!requireOnline()) { setError('Connect to read these screenshots, then try again.'); setLoading(false); return; }
     setLoading(true); setError(null);
     try {
-      if (!uploaded.current.length) uploaded.current = await uploadShots(uid, saveId, uris);
+      // Each image is recorded as it lands, so a retry uploads only what's missing and cleanup sees every file.
+      await uploadShots(uid, saveId, uris, uploaded.current, (path) => { uploaded.current = [...uploaded.current, path]; });
       const r = await readScreenshots(saveId, uploaded.current.length);
       setPreview({ videoId: saveId, platform: 'screenshot', postUrl: '', author: '', authorHandle: '', caption: '', coverUrl: null, savedAtMs: 0, shots: uploaded.current, ...r });
       setKept(new Set(r.places.map((x) => x.id)));

@@ -58,3 +58,25 @@ describe('pending shares (review focus 2: a share survives sign-in; old parked l
     expect(parsePendingShare('{"kind":"shots","uris":[]}')).toBeNull();
   });
 });
+
+import { shotUploadPlan } from '@/utils/wishShots';
+describe('shotUploadPlan (self-review: a dropped upload left 0.jpg behind, and the retry re-uploaded it — refused, since storage rules allow no update)', () => {
+  const uris = ['file:///a.png', 'file:///b.png', 'file:///c.png'];
+  it('uploads everything the first time, at 0.jpg…', () => {
+    expect(shotUploadPlan('u1', SID, uris, [])).toEqual([
+      { uri: 'file:///a.png', path: `wish_shots/u1/${SID}/0.jpg` },
+      { uri: 'file:///b.png', path: `wish_shots/u1/${SID}/1.jpg` },
+      { uri: 'file:///c.png', path: `wish_shots/u1/${SID}/2.jpg` },
+    ]);
+  });
+  it('on a retry, only what is missing', () => {
+    expect(shotUploadPlan('u1', SID, uris, [`wish_shots/u1/${SID}/0.jpg`])).toEqual([
+      { uri: 'file:///b.png', path: `wish_shots/u1/${SID}/1.jpg` },
+      { uri: 'file:///c.png', path: `wish_shots/u1/${SID}/2.jpg` },
+    ]);
+    expect(shotUploadPlan('u1', SID, uris, uris.map((_, i) => `wish_shots/u1/${SID}/${i}.jpg`))).toEqual([]);
+  });
+  it('never more than 5', () => {
+    expect(shotUploadPlan('u1', SID, Array.from({ length: 7 }, (_, i) => `file:///${i}.png`), [])).toHaveLength(5);
+  });
+});

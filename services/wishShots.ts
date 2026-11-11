@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { functions, storage } from '@/services/firebase';
 import { PHOTO_QUALITY, SHOT_MAX_PX, uploadResize } from '@/utils/photoUpload';
 import type { WishPlace } from '@/utils/wishlist';
+import { shotUploadPlan } from '@/utils/wishShots';
 
 async function shotJpeg(uri: string): Promise<string> {
   const original = await ImageManipulator.manipulate(uri).renderAsync();
@@ -17,16 +18,18 @@ async function shotJpeg(uri: string): Promise<string> {
   return (await image.saveAsync({ compress: PHOTO_QUALITY, format: SaveFormat.JPEG })).uri;
 }
 
-export async function uploadShots(uid: string, saveId: string, uris: string[]): Promise<string[]> {
-  const paths: string[] = [];
-  for (const [i, uri] of uris.slice(0, 5).entries()) {
+/**
+ * Uploads what isn't up yet (`shotUploadPlan`), reporting each image as it lands so a dropped connection never leaves an
+ * unrecorded file (it would be orphaned, and its re-upload refused). Returns every uploaded path, in order.
+ */
+export async function uploadShots(uid: string, saveId: string, uris: string[], done: string[], onUploaded: (path: string) => void): Promise<string[]> {
+  for (const { uri, path } of shotUploadPlan(uid, saveId, uris, done)) {
     const jpeg = await shotJpeg(uri); // throws rather than uploading the original (it may carry a location)
     const blob = await fetch(jpeg).then((r) => r.blob());
-    const path = `wish_shots/${uid}/${saveId}/${i}.jpg`;
     await uploadBytes(ref(storage, path), blob, { contentType: 'image/jpeg' });
-    paths.push(path);
+    onUploaded(path);
   }
-  return paths;
+  return shotUploadPlan(uid, saveId, uris, []).map((x) => x.path);
 }
 
 export async function readScreenshots(saveId: string, count: number) {

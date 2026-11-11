@@ -46,3 +46,13 @@ export function parsePendingShare(s: string | null): ShareKind | null {
   } catch { /* garbage */ }
   return null;
 }
+
+/**
+ * What still needs uploading (self-review 2026-11-11): each image is recorded as it lands, and a retry uploads only the
+ * missing ones — storage rules allow no update, so re-uploading 0.jpg after a dropped connection was refused forever.
+ */
+export function shotUploadPlan(uid: string, saveId: string, uris: string[], uploaded: string[]): { uri: string; path: string }[] {
+  return uris.slice(0, 5)
+    .map((uri, i) => ({ uri, path: `wish_shots/${uid}/${saveId}/${i}.jpg` }))
+    .filter((x) => !uploaded.includes(x.path));
+}
