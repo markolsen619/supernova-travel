@@ -1,4 +1,4 @@
-import { isCurrentEntry, spreadCluster } from '@/utils/friendsTraveling';
+import { friendStacks, isCurrentEntry, spreadCluster } from '@/utils/friendsTraveling';
 
 describe('isCurrentEntry', () => {
   const now = new Date('2026-11-22T10:00:00Z');
@@ -25,5 +25,35 @@ describe('spreadCluster', () => {
     const far = spreadCluster([a, b], 3).find((o) => o.uid === 'a')!;
     const near = spreadCluster([a, b], 10).find((o) => o.uid === 'a')!;
     expect(Math.abs(near.lng - 14)).toBeLessThan(Math.abs(far.lng - 14));
+  });
+});
+
+describe('friendStacks (spec 2026-11-11; review focus 2)', () => {
+  const f = (uid: string, lat: number, lng: number) => ({ uid, lat, lng });
+  it('one friend stays a single marker', () => {
+    expect(friendStacks([f('a', 48.85, 2.35)], 1)).toEqual({ stacks: [], singles: [f('a', 48.85, 2.35)] });
+  });
+  it('friends close together at world view become one stack of ≤ 3 faces + extra', () => {
+    const r = friendStacks([f('d', 48.85, 2.35), f('a', 50.85, 4.35), f('c', 52.37, 4.9), f('b', 51.5, -0.12)], 1);
+    expect(r.singles).toEqual([]);
+    expect(r.stacks).toHaveLength(1);
+    expect(r.stacks[0].faces.map((x) => x.uid)).toEqual(['a', 'b', 'c']);
+    expect(r.stacks[0].extra).toBe(1);
+  });
+  it('friends at the exact same spot become one stack', () => {
+    const r = friendStacks([f('a', 35.68, 139.69), f('b', 35.68, 139.69)], 2);
+    expect(r.stacks).toHaveLength(1);
+    expect(r.stacks[0].extra).toBe(0);
+  });
+  it('friends far apart stay separate', () => {
+    const r = friendStacks([f('a', 48.85, 2.35), f('b', 35.68, 139.69)], 1);
+    expect(r.stacks).toEqual([]);
+    expect(r.singles).toHaveLength(2);
+  });
+  it('from zoom 4 it defers to spreadCluster (no stacks)', () => {
+    const r = friendStacks([f('a', 48.85, 2.35), f('b', 48.85, 2.35)], 5);
+    expect(r.stacks).toEqual([]);
+    expect(r.singles).toHaveLength(2);
+    expect(r.singles[0].lng).not.toBe(r.singles[1].lng);
   });
 });
