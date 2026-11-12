@@ -33,8 +33,10 @@ export const ticketsReminder = onSchedule({ schedule: 'every day 15:00', timeZon
       const count = stopsNeedingTickets(stops);
       if (!reminderDue({ startDay: span.start, count, alreadySent: !!already }, today)) continue;
       await markRef.set({ ticketsAtMs: now }, { merge: true });
-      const city = String(d.destination?.name ?? d.title ?? 'Your trip');
-      const copy = ticketsReminderCopy(city, count);
+      const cities = [d.destination, ...((d.additionalDestinations ?? []) as unknown[])]
+        .map((x) => (x && typeof x === 'object' ? String((x as { name?: unknown }).name ?? '') : ''))
+        .filter(Boolean);
+      const copy = ticketsReminderCopy(cities, count);
       const members: string[] = [String(d.authorUid), ...((d.collaborators ?? []) as string[])];
       await Promise.allSettled([...new Set(members)].map((uid) => notifyUser(uid, {
         notification: { type: 'tickets_reminder', tripId: t.id, count },

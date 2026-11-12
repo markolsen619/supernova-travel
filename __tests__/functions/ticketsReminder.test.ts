@@ -15,7 +15,17 @@ describe('"Still need tickets" reminder (owner, 2026-11-08)', () => {
     expect(reminderDue({ startDay: null, count: 3, alreadySent: false }, '2026-11-08')).toBe(false);
   });
   it('copy names the city and the count', () => {
-    expect(ticketsReminderCopy('Lisbon', 3)).toEqual({ title: 'Lisbon in 7 days', body: '3 stops still need tickets. Book them before they sell out.' });
+    expect(ticketsReminderCopy(['Lisbon'], 3)).toEqual({ title: 'Lisbon in 7 days', body: '3 stops may still need tickets. Book them before they sell out.' });
+  });
+  it('a multi-city trip names the whole trip, not just its first city (owner, 2026-11-11)', () => {
+    expect(ticketsReminderCopy(['Prague', 'Budapest', 'Vienna'], 6)).toEqual({
+      title: 'Prague + 2 more cities in 7 days',
+      body: '6 stops across your trip may still need tickets. Book them before they sell out.',
+    });
+    expect(ticketsReminderCopy(['Prague', 'Vienna'], 2).title).toBe('Prague + 1 more city in 7 days');
+  });
+  it('falls back to "Your trip" without a city', () => {
+    expect(ticketsReminderCopy([], 2).title).toBe('Your trip in 7 days');
   });
 });
 

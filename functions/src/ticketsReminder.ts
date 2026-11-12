@@ -16,7 +16,17 @@ function addDays(day: string, n: number): string {
 export const reminderDue = (t: { startDay: string | null; count: number; alreadySent: boolean }, today: string) =>
   !!t.startDay && !t.alreadySent && t.count >= 2 && t.startDay === addDays(today, 7);
 
-export const ticketsReminderCopy = (city: string, count: number) => ({
-  title: `${city} in 7 days`,
-  body: `${count} stops still need tickets. Book them before they sell out.`,
-});
+/**
+ * "May" still need tickets: the count is every sightseeing stop without a booking, and many (a market, a bridge) are
+ * free. A multi-city trip is named by its first city + how many more, since the count covers the whole trip (owner,
+ * 2026-11-11 — "Prague in 7 days · 6 stops" read as six in Prague).
+ */
+export const ticketsReminderCopy = (cities: string[], count: number) => {
+  const names = cities.map((c) => c.trim()).filter(Boolean);
+  const more = names.length - 1;
+  const where = names.length === 0 ? 'Your trip' : more > 0 ? `${names[0]} + ${more} more ${more === 1 ? 'city' : 'cities'}` : names[0];
+  return {
+    title: `${where} in 7 days`,
+    body: `${count} stops ${more > 0 ? 'across your trip ' : ''}may still need tickets. Book them before they sell out.`,
+  };
+};

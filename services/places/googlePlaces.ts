@@ -1,4 +1,5 @@
 import { selectionName } from '@/utils/placeName';
+import { activityTypeForPlace } from '@/utils/placeActivityType';
 import { Timestamp } from 'firebase/firestore';
 import type { EnrichedPlace } from '@/stores/usePlacesStore';
 import type { PlaceSelection } from '@/hooks/usePlaceAutocomplete';
@@ -456,7 +457,8 @@ export async function enrichPlaceById(placeId: string): Promise<Partial<Enriched
 /** Maps a resolved place into a TripActivity ready for `addActivity()`. */
 export function placeToTripActivity(place: EnrichedPlace): Omit<TripActivity, 'id' | 'order'> {
   return {
-    type: 'activity',
+    // Google's type decides: a hotel added by name is a hotel stop, not a sight (utils/placeActivityType).
+    type: activityTypeForPlace(place),
     title: place.name,
     placeId: place.placeId,
     address: place.address || null,
