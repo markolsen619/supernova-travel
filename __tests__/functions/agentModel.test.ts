@@ -1,16 +1,16 @@
 // __tests__/functions/agentModel.test.ts
-import { generate, geminiRequestBody, parseModelText, AGENT_MODEL, AGENT_THINKING_BUDGET } from '../../functions/src/agentModel';
+import { generate, geminiRequestBody, parseModelText, thinkingFor, AGENT_MODEL, GEMINI_MODEL, GEMINI_THINKING } from '../../functions/src/agentModel';
 import { AGENT_RESPONSE_SCHEMA, TRIP_SYSTEM_PROMPT } from '../../functions/src/agentPrompt';
 
 describe('geminiRequestBody', () => {
   it('sends images as inline parts before the turn text', () => {
-    const body = geminiRequestBody({ system: 'S', schema: {}, thinkingBudget: 0,
+    const body = geminiRequestBody({ system: 'S', schema: {},
       turns: [{ role: 'user', text: 'find places', images: [{ mimeType: 'image/jpeg', data: 'QUJD' }] }] }) as any;
     expect(body.contents[0].parts).toEqual([{ inlineData: { mimeType: 'image/jpeg', data: 'QUJD' } }, { text: 'find places' }]);
   });
-  it('asks for JSON in our schema, thinking off, with the system prompt and turns', () => {
+  it('asks for JSON in our schema, minimal thinking, with the system prompt and turns', () => {
     const body = geminiRequestBody({
-      system: 'SYS', schema: AGENT_RESPONSE_SCHEMA, thinkingBudget: AGENT_THINKING_BUDGET,
+      system: 'SYS', schema: AGENT_RESPONSE_SCHEMA,
       turns: [{ role: 'user', text: 'hi' }, { role: 'model', text: '{"reply":"hey","operations":[]}' }, { role: 'user', text: 'again' }],
     }) as any;
     expect(body.systemInstruction).toEqual({ parts: [{ text: 'SYS' }] });
@@ -19,12 +19,28 @@ describe('geminiRequestBody', () => {
     expect(body.generationConfig).toMatchObject({
       responseMimeType: 'application/json',
       responseSchema: AGENT_RESPONSE_SCHEMA,
-      thinkingConfig: { thinkingBudget: 0 },
+      thinkingConfig: { thinkingLevel: 'minimal' },
     });
+    // Gemini 3.5 refuses thinkingBudget (HTTP 400 "invalid argument", probed 2026-11-12).
+    expect(JSON.stringify(body)).not.toContain('thinkingBudget');
   });
-  it('uses the cheap, fast defaults', () => {
-    expect(AGENT_MODEL).toBe('gemini-2.5-flash');
-    expect(AGENT_THINKING_BUDGET).toBe(0);
+  it('uses the cheap, fast defaults: 3.5 Flash-Lite (2.5 Flash shuts down 2026-12-01), thinking minimal', () => {
+    expect(GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
+    expect(AGENT_MODEL).toBe(GEMINI_MODEL);
+    expect(GEMINI_THINKING).toEqual({ thinkingLevel: 'minimal' });
+  });
+});
+
+describe('thinkingFor (2.5 takes a budget, 3.x a level)', () => {
+  it('2.5 models switch thinking off with a budget of 0; 3.x models get minimal', () => {
+    expect(thinkingFor('gemini-2.5-flash')).toEqual({ thinkingBudget: 0 });
+    expect(thinkingFor('gemini-2.5-flash-lite')).toEqual({ thinkingBudget: 0 });
+    expect(thinkingFor('gemini-3.5-flash-lite')).toEqual({ thinkingLevel: 'minimal' });
+    expect(thinkingFor('gemini-3.5-flash')).toEqual({ thinkingLevel: 'minimal' });
+  });
+  it('the request carries the setting for the model asked for', () => {
+    const body = geminiRequestBody({ system: 'S', schema: {}, turns: [{ role: 'user', text: 'x' }], model: 'gemini-2.5-flash' }) as any;
+    expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
   });
 });
 

@@ -232,7 +232,13 @@ async function regroundDestination(entry) {
 const uid = await editorialUid();
 // runAggregation (below) only trusts isEditorial on this account's trips.
 process.env.EDITORIAL_UID = uid;
-const gemini = new GoogleGenerativeAI(GEMINI).getGenerativeModel({ model: 'gemini-2.5-flash' });
+// The same model, schema and thinking as generateTrip (functions/src/agentModel.ts, tripSchema.ts).
+const { GEMINI_MODEL, thinkingFor } = lib('agentModel.js');
+const { generatedTripSchema } = lib('tripSchema.js');
+const gemini = new GoogleGenerativeAI(GEMINI).getGenerativeModel({
+  model: GEMINI_MODEL,
+  generationConfig: { responseMimeType: 'application/json', responseSchema: generatedTripSchema(false), thinkingConfig: thinkingFor(GEMINI_MODEL) },
+});
 const targets = catalog.filter((e) => !only || only.has(e.slug)).slice(0, limit);
 if (only) {
   const unknown = [...only].filter((slug) => !catalog.some((e) => e.slug === slug));

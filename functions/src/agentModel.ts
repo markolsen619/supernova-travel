@@ -1,16 +1,27 @@
 /**
  * The only provider-aware file in the agent (spec "Built to grow"): one call to
- * Gemini's REST API with a JSON schema and thinking off — thinking tokens bill
- * as output and add latency, and trip edits don't need them. Switch the model
- * here, by evidence from scripts/agent-eval.mjs. No firebase-admin.
+ * Gemini's REST API with a JSON schema and as little thinking as the model allows —
+ * thinking tokens bill as output and add latency, and trip edits don't need them.
+ * Switch the model here, by evidence from scripts/agent-eval.mjs. No firebase-admin.
+ *
+ * GEMINI_MODEL is every Gemini call in the app (generateTrip, email import and
+ * confirmation parsing use it through the SDK). 2026-11-12: gemini-2.5-flash shuts
+ * down 2026-12-01; 3.5 Flash-Lite costs the same ($0.30 / $2.50 per M tokens). Gemini 3.5
+ * can't switch thinking off: it refuses thinkingBudget (HTTP 400), and its lowest
+ * thinkingLevel is 'minimal'.
  */
-export const AGENT_MODEL = 'gemini-2.5-flash';
-export const AGENT_THINKING_BUDGET = 0;
+export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+export const GEMINI_THINKING = { thinkingLevel: 'minimal' } as const;
+export const AGENT_MODEL = GEMINI_MODEL;
+/** 2.5 models switch thinking off with a budget of 0 and refuse a level; 3.x refuse a budget and go down to 'minimal'. */
+export function thinkingFor(model: string): { thinkingBudget: number } | { thinkingLevel: string } {
+  return /^gemini-2\./.test(model) ? { thinkingBudget: 0 } : GEMINI_THINKING;
+}
 
 export interface ModelTurn { role: 'user' | 'model'; text: string; images?: { mimeType: string; data: string }[] }
 export interface ModelResult { json: { reply: string; operations: unknown[] }; inputTokens: number; outputTokens: number; latencyMs: number }
 
-export function geminiRequestBody(a: { system: string; turns: ModelTurn[]; schema: object; thinkingBudget: number }): object {
+export function geminiRequestBody(a: { system: string; turns: ModelTurn[]; schema: object; model?: string }): object {
   return {
     systemInstruction: { parts: [{ text: a.system }] },
     // Screenshots (spec 2026-11-11) go as inline parts before the turn's text.
@@ -20,7 +31,7 @@ export function geminiRequestBody(a: { system: string; turns: ModelTurn[]; schem
       responseSchema: a.schema,
       temperature: 0.3,
       maxOutputTokens: 1500,
-      thinkingConfig: { thinkingBudget: a.thinkingBudget },
+      thinkingConfig: thinkingFor(a.model ?? GEMINI_MODEL),
     },
   };
 }
@@ -38,7 +49,7 @@ export function parseModelText(text: unknown): { reply: string; operations: unkn
 
 type GenerateArgs = {
   system: string; turns: ModelTurn[]; schema: object; apiKey: string;
-  model?: string; thinkingBudget?: number; timeoutMs?: number;
+  model?: string; timeoutMs?: number;
 };
 
 /** One call, retried once when the answer can't be read (~1 in 33 in the 2026-10-17 eval); HTTP errors aren't retried. */
@@ -68,7 +79,7 @@ async function generateOnce<T>(a: GenerateArgs & { parse: (text: unknown) => T |
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': a.apiKey },
-        body: JSON.stringify(geminiRequestBody({ system: a.system, turns: a.turns, schema: a.schema, thinkingBudget: a.thinkingBudget ?? AGENT_THINKING_BUDGET })),
+        body: JSON.stringify(geminiRequestBody({ system: a.system, turns: a.turns, schema: a.schema, model: a.model ?? AGENT_MODEL })),
         signal: controller.signal,
       },
     );

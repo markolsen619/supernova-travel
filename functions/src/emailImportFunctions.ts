@@ -2,7 +2,8 @@ import * as admin from 'firebase-admin';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { simpleParser } from 'mailparser';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
+import { GEMINI_MODEL, thinkingFor } from './agentModel';
 import {
   IMPORT_DOMAIN, IMPORT_LOG_KEEP, MAX_BOOKINGS_PER_EMAIL, bookingsFromParse, importIdFor, dailyKey, emailPushCopy, gmailConfirmation, gmailConfirmationLink,
   importGate, looksLikeBooking, newToken, signatureValid, tokenFromAddress, trimImportLog, type ImportStatus, existingPassFor, emailPassUpdate } from './emailImport';
@@ -128,8 +129,9 @@ export const inboundEmail = onRequest({ region: 'us-central1', maxInstances: 5, 
     if (gate !== 'parse') { await log(uid, importId, gate, subject); res.status(200).send(''); return; }
 
     const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '').getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { responseMimeType: 'application/json' },
+      model: GEMINI_MODEL,
+      // The SDK (0.21) predates thinkingConfig; it passes generationConfig through as is.
+      generationConfig: { responseMimeType: 'application/json', thinkingConfig: thinkingFor(GEMINI_MODEL) } as GenerationConfig,
     });
     const parts: ({ text: string } | { inlineData: { mimeType: string; data: string } })[] = [
       { text: emailPrompt() },

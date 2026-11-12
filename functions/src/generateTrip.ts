@@ -1,6 +1,8 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
+import { GEMINI_MODEL, thinkingFor } from './agentModel';
+import { generatedTripSchema } from './tripSchema';
 import { GenerateTripRequest } from './types';
 import { parseGeneratedTrip, tripDocuments } from './tripDocs';
 import { ADULT_VENUE_RULE, withoutUnasked } from './adultVenues';
@@ -105,7 +107,15 @@ export const generateTrip = functions.https.onCall(
     }
 
     const genAI = new GoogleGenerativeAI(geminiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // A response schema (functions/src/tripSchema): 3.5 Flash-Lite sometimes dropped a key mid-answer without one.
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_MODEL,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: generatedTripSchema(data.additionalDestinations.length > 0),
+        thinkingConfig: thinkingFor(GEMINI_MODEL),
+      } as unknown as GenerationConfig,
+    });
 
     const prompt = buildPrompt(data);
     const result = await model.generateContent(prompt);

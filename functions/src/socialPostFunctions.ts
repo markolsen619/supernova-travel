@@ -148,7 +148,7 @@ export const readSocialPost = onCall({ region: 'us-central1', timeoutSeconds: 60
   if (apiKey && caption) {
     try {
       const result = await generateJson({
-        system: PLACES_SYSTEM, turns: [{ role: 'user', text: placesPrompt(caption, authorHandle) }], schema: PLACES_SCHEMA, apiKey, thinkingBudget: 0,
+        system: PLACES_SYSTEM, turns: [{ role: 'user', text: placesPrompt(caption, authorHandle) }], schema: PLACES_SCHEMA, apiKey,
         parse: parsePlacesAnswer,
       });
       answer = cleanPlaces(result.json);

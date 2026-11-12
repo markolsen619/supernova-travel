@@ -16,7 +16,7 @@ export const FREE_TIER_MONTHLY_AI_TRIP_LIMIT = 1;
 /**
  * Pro is unlimited, with a fair-use ceiling — not a ration.
  *
- * gemini-2.5-flash costs on the order of a cent or two per itinerary, and AI
+ * gemini-3.5-flash-lite costs well under a cent per itinerary (2026-11-12 comparison), and AI
  * activities are written with lat: null and grounded lazily by the client, so
  * a generation makes NO Places calls. A subscriber would need well over a
  * hundred generations a month to cost more than they pay.
@@ -181,8 +181,8 @@ export function aiTripLengthAllowed(days: number): boolean {
 
 // ── Agent ("Ask Nova") policy ─────────────────────────────────────────
 // docs/superpowers/specs/2026-10-14-trip-agent-design.md. One allowance shared
-// by every agent surface. A message costs about a third of a cent on
-// gemini-2.5-flash with thinking off, so 300/month is < $1 of worst case for a
+// by every agent surface. A message costs under a tenth of a cent (~$0.0008) on
+// gemini-3.5-flash-lite with minimal thinking, so 300/month is < $1 of worst case for a
 // subscriber and the free 10 are a taste that sells Pro.
 
 export const AGENT_FREE_MONTHLY = 10;

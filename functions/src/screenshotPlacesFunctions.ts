@@ -65,7 +65,7 @@ export const readScreenshots = onCall({ region: 'us-central1', timeoutSeconds: 6
   if (!apiKey) { await giveBack(); throw new HttpsError('unavailable', "Couldn't read these screenshots. Try again"); }
   try {
     const result = await generateJson({
-      system: SHOTS_SYSTEM, turns: [{ role: 'user', text: SHOTS_PROMPT, images }], schema: PLACES_SCHEMA, apiKey, thinkingBudget: 0,
+      system: SHOTS_SYSTEM, turns: [{ role: 'user', text: SHOTS_PROMPT, images }], schema: PLACES_SCHEMA, apiKey,
       parse: parsePlacesAnswer, timeoutMs: 45_000,
     });
     const answer = cleanPlaces(result.json);

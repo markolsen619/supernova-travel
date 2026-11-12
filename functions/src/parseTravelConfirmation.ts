@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
+import { GEMINI_MODEL, thinkingFor } from './agentModel';
 import { ParseTravelConfirmationRequest, ParseTravelConfirmationResult } from './types';
 import { FREE_TIER_YEARLY_IMPORT_LIMIT, getYearlyQuotaKey } from './quotaUtils';
 import { forOlderApps } from './emailImport';
@@ -131,7 +132,7 @@ export const parseTravelConfirmation = functions.https.onCall(
     }
 
     const genAI = new GoogleGenerativeAI(geminiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL, generationConfig: { thinkingConfig: thinkingFor(GEMINI_MODEL) } as GenerationConfig });
 
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
       { text: buildExtractionPrompt() },

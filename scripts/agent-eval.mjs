@@ -1,5 +1,5 @@
 // scripts/agent-eval.mjs
-// Usage: cd functions && npm run build && cd .. && node scripts/agent-eval.mjs [--trip TRIP_ID] [--models gemini-2.5-flash,gemini-2.5-flash-lite]
+// Usage: cd functions && npm run build && cd .. && node scripts/agent-eval.mjs [--trip TRIP_ID] [--models gemini-3.5-flash-lite,gemini-2.5-flash]
 // Reads one editorial trip (default: the first editorial trip with 2+ cities), sends REQUESTS through the
 // real context + prompt + validator, and prints quality, tokens, latency and cost. Read-only.
 import fs from 'node:fs';
@@ -21,6 +21,8 @@ const { adultCategory, allowedCategories } = require('../functions/lib/adultVenu
 const PRICES = { // USD per 1M tokens (input, output) — check current Gemini pricing before trusting totals
   'gemini-2.5-flash': [0.30, 2.50],
   'gemini-2.5-flash-lite': [0.10, 0.40],
+  'gemini-3.5-flash-lite': [0.30, 2.50],
+  'gemini-3.5-flash': [0.75, 3.75], // until 2026-12-31; $1.50 / $7.50 from 2027-01-01
 };
 const REQUESTS = [
   'Make day 2 less rushed', 'Find a great dinner near our hotel on the first night', 'Add a night in the last city',
@@ -58,7 +60,7 @@ admin.initializeApp({ credential: admin.credential.cert(JSON.parse(fs.readFileSy
 const db = admin.firestore();
 
 const arg = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : null; };
-const models = (arg('--models') ?? 'gemini-2.5-flash').split(',');
+const models = (arg('--models') ?? 'gemini-3.5-flash-lite').split(',');
 
 async function loadTrip() {
   let doc;
