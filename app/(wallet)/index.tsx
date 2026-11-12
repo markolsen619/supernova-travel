@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, BackHandler } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Animated, { FadeIn, FadeOutUp, LinearTransition } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Plus, Wallet as WalletIcon } from 'phosphor-react-native';
@@ -8,7 +9,7 @@ import { useMyTrips } from '@/hooks/useMyTrips';
 import { useSharedTripBookings } from '@/hooks/useTripBookings';
 import { useProGate } from '@/hooks/useProGate';
 import { WalletByTripList } from '@/components/wallet/WalletByTripList';
-import { defaultSegment } from '@/utils/walletByTrip';
+import { defaultSegment, toggleFocus } from '@/utils/walletByTrip';
 import { EmailImportRow } from '@/components/wallet/EmailImportRow';
 import { WalletHeader } from '@/components/wallet/WalletHeader';
 import { useBoardingPasses } from '@/hooks/useBoardingPasses';
@@ -53,10 +54,15 @@ export default function WalletHubScreen() {
 
   const isLoading = passesLoading || reservationsLoading || loyaltyLoading;
 
+  // By trip: the open trip fills the screen and the chrome above steps aside; Back folds it first.
+  const [focusedTripId, setFocusedTripId] = useState<string | null>(null);
+  const handleToggleTrip = useCallback((tripId: string) => setFocusedTripId((f) => toggleFocus(f, tripId)), []);
+
   const handleBack = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.back();
-  }, []);
+    if (focusedTripId) setFocusedTripId(null);
+    else router.back();
+  }, [focusedTripId]);
 
   const handleSelectSegment = useCallback((s: Segment) => {
     // Bookings are linked to trips on Pro, so "By trip" is Pro too.
@@ -107,6 +113,17 @@ export default function WalletHubScreen() {
     (segment === 'reservations' && reservations.length === 0) ||
     (segment === 'loyalty' && loyaltyPrograms.length === 0);
 
+  // Only while the open trip still exists (deleted or left elsewhere → back to the list with its chrome).
+  const focusActive = segment === 'trips' && !!focusedTripId && myTrips.some((t) => t.tripId === focusedTripId);
+  useEffect(() => {
+    if (!focusActive) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setFocusedTripId(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [focusActive]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
       <WalletHeader
@@ -115,6 +132,8 @@ export default function WalletHubScreen() {
         rightAction={{ icon: Plus, onPress: handleAdd, label: 'Add to wallet' }}
       />
 
+      {!focusActive && (
+      <Animated.View entering={FadeIn} exiting={FadeOutUp}>
       {/* Free plan: say where the allowance stands before it's hit, not after. */}
       {!allowance.isPro && !isLoading ? (
         <TouchableOpacity
@@ -168,8 +187,11 @@ export default function WalletHubScreen() {
           );
         })}
       </ScrollView>
+      </Animated.View>
+      )}
 
       {/* Content */}
+      <Animated.View style={styles.content} layout={LinearTransition.springify().damping(11).stiffness(65)}>
       {isLoading || (segment === 'trips' && tripsLoading) ? (
         <View style={{ paddingHorizontal: Spacing['5'], paddingTop: Spacing['2'], gap: Spacing['4'] }}>
           {[0, 1, 2].map((i) => (
@@ -178,7 +200,14 @@ export default function WalletHubScreen() {
         </View>
       ) : segment === 'trips' ? (
         // Before the empty wallet: your trips, and what others share with them, show even when you've booked nothing.
-        <WalletByTripList trips={myTrips} boardingPasses={boardingPasses} reservations={reservations} shared={sharedBookings} />
+        <WalletByTripList
+          trips={myTrips}
+          boardingPasses={boardingPasses}
+          reservations={reservations}
+          shared={sharedBookings}
+          focusedTripId={focusActive ? focusedTripId : null}
+          onToggleTrip={handleToggleTrip}
+        />
       ) : walletIsEmpty ? (
         <EmptyState
           icon={WalletIcon}
@@ -265,6 +294,7 @@ export default function WalletHubScreen() {
           )}
         </ScrollView>
       )}
+      </Animated.View>
     </View>
   );
 }
@@ -281,6 +311,7 @@ const styles = StyleSheet.create({
   planText: { fontSize: FontSize.xs, fontWeight: FontWeight.medium, letterSpacing: 0.08 * FontSize.xs },
   planLink: { fontSize: FontSize.sm, fontWeight: FontWeight.semiBold },
   container: { flex: 1 },
+  content: { flex: 1 },
   scroll: { flex: 1 },
   segments: {
     flexDirection: 'row',
@@ -292,7 +323,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing['5'],
     paddingBottom: Spacing['4'],
   },
-  segmentsScroll: { flexGrow: 0 },
+  // flexShrink 0: the content below is flex 1 and was squeezing the pill row, cutting the pills off at the bottom.
+  segmentsScroll: { flexGrow: 0, flexShrink: 0 },
   segmentPill: {
     paddingHorizontal: Spacing['4'],
     minHeight: 44,

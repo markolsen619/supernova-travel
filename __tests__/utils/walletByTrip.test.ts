@@ -1,4 +1,4 @@
-import { walletByTrip, bookingDay, isSectionOpen, bookingCountLabel, defaultSegment } from '@/utils/walletByTrip';
+import { walletByTrip, bookingDay, isSectionOpen, isTripFocused, toggleFocus, bookingCountLabel, defaultSegment } from '@/utils/walletByTrip';
 import type { BoardingPass, Reservation } from '@/types';
 import type { TripSummary } from '@/utils/walletLink';
 
@@ -56,11 +56,21 @@ describe("walletByTrip with members' shared bookings", () => {
 });
 
 describe('By trip sections', () => {
-  it('opens the soonest trip and folds the rest until you choose', () => {
-    expect(isSectionOpen('europe', 0, {})).toBe(true);
-    expect(isSectionOpen('japan', 1, {})).toBe(false);
-    expect(isSectionOpen('europe', 0, { europe: false })).toBe(false);
-    expect(isSectionOpen('japan', 1, { japan: true })).toBe(true);
+  it('every trip starts folded; only the one you open is open (owner 2026-11-11: open = full screen)', () => {
+    expect(isTripFocused('europe', null)).toBe(false);
+    expect(isTripFocused('europe', 'europe')).toBe(true);
+    expect(isTripFocused('japan', 'europe')).toBe(false);
+  });
+  it('folding city sections: the first starts open, then your choice wins', () => {
+    expect(isSectionOpen('t:0', 0, {})).toBe(true);
+    expect(isSectionOpen('t:1', 1, {})).toBe(false);
+    expect(isSectionOpen('t:0', 0, { 't:0': false })).toBe(false);
+    expect(isSectionOpen('t:1', 1, { 't:1': true })).toBe(true);
+  });
+  it('tapping a trip opens it (closing any other); tapping it again folds it', () => {
+    expect(toggleFocus(null, 'europe')).toBe('europe');
+    expect(toggleFocus('japan', 'europe')).toBe('europe');
+    expect(toggleFocus('europe', 'europe')).toBeNull();
   });
   it('counts what a folded trip holds', () => {
     expect(bookingCountLabel(0)).toBe('Nothing booked yet');

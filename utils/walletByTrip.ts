@@ -68,9 +68,22 @@ export function walletByTrip(
   };
 }
 
-/** A trip's section is open if you opened it; untouched, only the soonest (index 0) starts open. */
-export function isSectionOpen(tripId: string, index: number, saved: Record<string, boolean>): boolean {
-  return saved[tripId] ?? index === 0;
+/**
+ * One trip open at a time, and an open trip fills the screen (owner, 2026-11-11), so every trip starts folded and
+ * only the one you opened is open.
+ */
+export function isTripFocused(tripId: string, focusedTripId: string | null): boolean {
+  return focusedTripId === tripId;
+}
+
+/** A folding section (the trip page's cities) is open if you opened it; untouched, only the first (index 0) starts open. */
+export function isSectionOpen(key: string, index: number, saved: Record<string, boolean>): boolean {
+  return saved[key] ?? index === 0;
+}
+
+/** Tapping a folded trip opens it (folding any other); tapping the open one folds it. */
+export function toggleFocus(focusedTripId: string | null, tripId: string): string | null {
+  return focusedTripId === tripId ? null : tripId;
 }
 
 export function bookingCountLabel(n: number): string {
