@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/services/firebase';
 import { addPackingItem, deletePackingItem, setPackingChecked } from '@/services/packing';
 import { generatePackingList } from '@/services/packingTemplates';
+import { packingCovered } from '@/utils/packingSuggestions';
 import type { PackingItem, Trip } from '@/types';
 import { onlineOnly } from '@/services/offline';
 
@@ -51,8 +52,7 @@ export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: st
     (async () => {
       // Templates plus the smart suggestions (spec 2026-11-12) — a new list starts with both, never duplicated.
       const base = generatePackingList(trip);
-      const have = new Set(base.map((t) => t.label.toLowerCase()));
-      const template = [...base, ...extra.filter((e) => !have.has(e.label.toLowerCase()))];
+      const template = [...base, ...extra.filter((e) => !packingCovered(e.label, base.map((t) => t.label)))];
       const batch = writeBatch(db);
       template.forEach((item) => {
         const ref = doc(collection(db, 'trips', trip.id, 'packingItems'));

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { clearWidget } from '@/services/widgetData';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
@@ -163,6 +164,7 @@ export default function RootLayout() {
           // the next person on this phone never sees the previous account's trips or passes.
           await stopPersistence(queryClient, { wipe: true });
           await clearSessionSnapshots();
+          await clearWidget();
           useUserStore.getState().setProfile(null);
           useModerationStore.getState().reset();
           useAiConsentStore.getState().setVersion(null);

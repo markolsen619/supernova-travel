@@ -30,3 +30,21 @@ export async function writeWidget(input: WidgetInput, coverUrl: string | null): 
     /* the widget keeps its last entries */
   }
 }
+
+/**
+ * Empties the widget on sign-out and account deletion (final review): it falls back to "Plan your next trip", so the
+ * next person on the phone never sees the previous account's stops, flight or gate. Never throws.
+ */
+export async function clearWidget(): Promise<void> {
+  try {
+    if (Platform.OS === 'ios') { WidgetBridge.setEntries('[]'); WidgetBridge.reload(); return; }
+    await AsyncStorage.removeItem(WIDGET_ENTRIES_KEY);
+    if (Platform.OS === 'android') {
+      const { requestWidgetUpdate } = await import('react-native-android-widget');
+      const { NextUpWidget } = await import('@/widgets/NextUpWidget');
+      await requestWidgetUpdate({ widgetName: 'NextUp', renderWidget: () => NextUpWidget({ entries: [] }) });
+    }
+  } catch {
+    /* nothing to clear */
+  }
+}

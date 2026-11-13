@@ -27,3 +27,14 @@ describe('resolveLinkRoute — posts', () => {
     expect(resolveLinkRoute('https://supernova-a2125.web.app/post/a.b')).toBeNull();
   });
 });
+
+describe('Home Screen widget taps (final review I1: a cold start dropped them on Home)', () => {
+  it('opens a boarding pass and Create from the app scheme', () => {
+    expect(resolveLinkRoute('supernova://boarding-pass/AbC123')).toBe('/boarding-pass/AbC123');
+    expect(resolveLinkRoute('supernova://create')).toBe('/create');
+  });
+  it('not from the website, and not with a bad id', () => {
+    expect(resolveLinkRoute('https://supernova-a2125.web.app/boarding-pass/AbC123')).toBeNull();
+    expect(resolveLinkRoute('supernova://boarding-pass/../x')).toBeNull();
+  });
+});

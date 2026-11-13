@@ -43,7 +43,7 @@ describe('widgetTimeline', () => {
     expect(entries[0].at).toBe(at('2026-11-20T08:00:00Z'));
     expect(entries.map((e) => e.at)).toEqual(expect.arrayContaining([at('2026-11-20T10:01:00Z'), at('2026-11-21T00:00:00Z')]));
     expect(entries.every((e, i) => i === 0 || e.at > entries[i - 1].at)).toBe(true);
-    expect(entries[entries.length - 1].at).toBeLessThanOrEqual(at('2026-11-22T08:00:00Z'));
+    expect(entries[entries.length - 1].at).toBeLessThanOrEqual(at('2026-12-04T08:00:00Z'));
   });
   it('merges consecutive identical views', () => {
     const entries = widgetTimeline({ trip: null, flight: null, wishCity: null }, at('2026-11-12T12:00:00Z'));
@@ -77,5 +77,23 @@ describe('entryAt', () => {
   it('before the first: the first; none saved: null', () => {
     expect(entryAt(entries, 50)?.title).toBe('a');
     expect(entryAt([], 50)).toBeNull();
+  });
+});
+
+describe('final review fixes', () => {
+  it('I4: the countdown keeps counting for two weeks without the app being opened', () => {
+    const entries = widgetTimeline(base, at('2026-11-12T12:00:00Z'));
+    expect(entryAt(entries, at('2026-11-15T09:00:00Z'))?.eyebrow).toBe('3 DAYS');
+    expect(entryAt(entries, at('2026-11-17T09:00:00Z'))?.eyebrow).toBe('TOMORROW');
+    expect(entryAt(entries, at('2026-11-19T09:00:00Z'))?.eyebrow).toMatch(/^DAY 2/);
+  });
+  it('M1: a stop ticked off is never "next"', () => {
+    const ticked = { ...base, trip: { ...trip, days: [{ ...trip.days[0], stops: [{ title: 'Prague Castle', time: '10:00', visited: true }, { title: 'Lunch at Lokál', time: null, visited: false }] }, trip.days[1]] } };
+    expect(widgetView(ticked, at('2026-11-20T08:00:00Z')).title).toBe('Lunch at Lokál');
+  });
+  it("M3: tomorrow's flight says tomorrow", () => {
+    const flight = { id: 'p1', flightNumber: 'KL1', route: 'AMS → PRG', departMs: at('2026-11-21T01:00:00Z'), departLocal: '01:00', gate: null, status: null };
+    expect(widgetView({ ...base, flight }, at('2026-11-20T20:00:00Z')).eyebrow).toBe('FLIGHT TOMORROW · AMS → PRG');
+    expect(widgetView({ ...base, flight }, at('2026-11-21T00:30:00Z')).eyebrow).toBe('FLIGHT TODAY · AMS → PRG');
   });
 });

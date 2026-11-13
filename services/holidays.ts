@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { HOLIDAY_TTL_MS, parseHolidays, type Holiday } from '@/utils/holidays';
+import { HOLIDAY_TTL_MS, isHolidayList, parseHolidays, type Holiday } from '@/utils/holidays';
 
 /**
  * A country's public holidays for a year (spec 2026-11-12), from Nager.Date's free API — only the country code and
@@ -17,8 +17,9 @@ export async function getHolidays(countryCode: string, year: number): Promise<Ho
   try {
     const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`);
     if (!r.ok) return [];
-    const list = parseHolidays(await r.json());
-    AsyncStorage.setItem(key, JSON.stringify({ at: Date.now(), list })).catch(() => {});
+    const json: unknown = await r.json();
+    const list = parseHolidays(json);
+    if (isHolidayList(json)) AsyncStorage.setItem(key, JSON.stringify({ at: Date.now(), list })).catch(() => {});
     return list;
   } catch {
     return [];

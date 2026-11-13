@@ -12,6 +12,8 @@ export type WidgetInput = {
 export type WidgetView = { kind: 'flight' | 'trip' | 'countdown' | 'empty'; eyebrow: string; title: string; detail: string | null; second: string | null; url: string; imageKey: string | null };
 
 const H = 3_600_000;
+/** How far ahead the widget's entries run. */
+export const TIMELINE_DAYS = 14;
 const pad = (n: number) => String(n).padStart(2, '0');
 const localDay = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const localHM = (ms: number) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -26,13 +28,14 @@ function nextStops(stops: WidgetStop[], nowHM: string): WidgetStop[] {
   if (!anyTime) return stops.filter((s) => !s.visited);
   let lastPassed = -1;
   stops.forEach((s, i) => { if (s.time && s.time <= nowHM) lastPassed = i; });
-  return stops.slice(lastPassed + 1);
+  // A stop already ticked off is never "next" (final review).
+  return stops.slice(lastPassed + 1).filter((s) => !s.visited);
 }
 
 export function widgetView(input: WidgetInput, nowMs: number): WidgetView {
   const f = input.flight;
   if (f && nowMs >= f.departMs - 6 * H && nowMs < f.departMs + H) {
-    return { kind: 'flight', eyebrow: `FLIGHT TODAY · ${f.route}`, title: f.flightNumber, detail: `Departs ${f.departLocal}${f.gate ? ` · Gate ${f.gate}` : ''}`, second: f.status, url: `supernova://boarding-pass/${f.id}`, imageKey: null };
+    return { kind: 'flight', eyebrow: `FLIGHT ${localDay(f.departMs) === localDay(nowMs) ? 'TODAY' : 'TOMORROW'} · ${f.route}`, title: f.flightNumber, detail: `Departs ${f.departLocal}${f.gate ? ` · Gate ${f.gate}` : ''}`, second: f.status, url: `supernova://boarding-pass/${f.id}`, imageKey: null };
   }
   const t = input.trip;
   const today = localDay(nowMs);
@@ -60,10 +63,12 @@ export function widgetView(input: WidgetInput, nowMs: number): WidgetView {
 const same = (a: WidgetView, b: WidgetView) => JSON.stringify(a) === JSON.stringify(b);
 
 export function widgetTimeline(input: WidgetInput, nowMs: number): { at: number; view: WidgetView }[] {
-  const end = nowMs + 48 * H;
+  // Stops and flights are known for the next 48 h; midnights run two weeks ahead, so a countdown keeps counting and a
+  // trip's day number moves on even when the app isn't opened (final review: after 48 h the widget froze).
+  const end = nowMs + TIMELINE_DAYS * 24 * H;
   const points = new Set<number>([nowMs]);
   let day = localDay(nowMs);
-  for (let k = 0; k < 3; k++) { points.add(midnightAfter(day)); day = localDay(midnightAfter(day)); }
+  for (let k = 0; k <= TIMELINE_DAYS; k++) { points.add(midnightAfter(day)); day = localDay(midnightAfter(day)); }
   for (const d of input.trip?.days ?? []) for (const s of d.stops) if (s.time) points.add(at(d.date, s.time) + 60_000);
   if (input.flight) { points.add(input.flight.departMs - 6 * H); points.add(input.flight.departMs + H); }
   const out: { at: number; view: WidgetView }[] = [];

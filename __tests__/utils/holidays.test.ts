@@ -1,4 +1,4 @@
-import { parseHolidays, holidayOn, holidayLine, dayCountry } from '@/utils/holidays';
+import { parseHolidays, holidayOn, holidayLine, dayCountry, isHolidayList } from '@/utils/holidays';
 
 const nager = [
   { date: '2026-11-17', localName: 'Den boje', name: 'Struggle for Freedom and Democracy Day', global: true, types: ['Public'] },
@@ -30,5 +30,14 @@ describe('holidays', () => {
     expect(dayCountry(trip, 1)).toBe('HU');
     expect(dayCountry(trip, 2)).toBe('CZ');
     expect(dayCountry(trip, undefined)).toBe('CZ');
+  });
+});
+
+describe('isHolidayList (final review M5: a junk 200 was cached as no holidays for 90 days)', () => {
+  it('only a real list is worth caching', () => {
+    expect(isHolidayList([])).toBe(true);
+    expect(isHolidayList([{ date: '2026-12-25' }])).toBe(true);
+    expect(isHolidayList({ error: 'x' })).toBe(false);
+    expect(isHolidayList(null)).toBe(false);
   });
 });

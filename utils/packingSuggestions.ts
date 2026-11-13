@@ -12,6 +12,26 @@ const BEACH = /\b(beach|playa|praia|plage|snorkel\w*)\b/i;
 const FINE = /michelin|tasting menu|fine dining/i;
 const MAX = 8;
 
+/**
+ * Labels that mean the same thing to pack (final review: "Passport" was suggested next to the template's "Passport /
+ * ID"). A suggestion counts as packed when any label in its group is on the list.
+ */
+const SAME = [
+  ['passport', 'passport / id'],
+  ['plug adapter', 'power adapter'],
+  ['warm coat', 'winter coat'],
+  ['warm layers', 'thermal layers', 'layered clothing'],
+  ['walking shoes', 'hiking boots', 'comfortable shoes'],
+];
+const canonical = (label: string) => {
+  const l = label.trim().toLowerCase().replace(/\s*\(.*\)$/, '');
+  return SAME.find((g) => g.includes(l))?.[0] ?? l;
+};
+export const packingCovered = (label: string, labels: string[]) => {
+  const c = canonical(label);
+  return labels.some((x) => canonical(x) === c);
+};
+
 export function packingSuggestions(a: { days: PackDay[]; trip: CountryTrip; home: string | null; existing: string[]; dismissed: string[]; month: number | null }): Suggestion[] {
   const out: Suggestion[] = [];
   const add = (label: string, category: string, reason: string) => out.push({ label, category, reason });
@@ -48,12 +68,11 @@ export function packingSuggestions(a: { days: PackDay[]; trip: CountryTrip; home
   }
   if (a.days.length >= 7) add('Laundry bag', 'Essentials', `${a.days.length}-day trip`);
 
-  const hidden = new Set([...a.existing, ...a.dismissed].map((l) => l.trim().toLowerCase()));
-  const seen = new Set<string>();
+  const hidden = [...a.existing, ...a.dismissed];
+  const seen: string[] = [];
   return out.filter((s) => {
-    const k = s.label.toLowerCase();
-    if (hidden.has(k) || seen.has(k)) return false;
-    seen.add(k);
+    if (packingCovered(s.label, hidden) || packingCovered(s.label, seen)) return false;
+    seen.push(s.label);
     return true;
   }).slice(0, MAX);
 }

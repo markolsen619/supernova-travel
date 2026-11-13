@@ -21,6 +21,12 @@ export function resolveLinkRoute(url: string | null | undefined): string | null 
     path = u.pathname;
   }
   const [, first, id, ...rest] = path.split(/[?#]/)[0].split('/');
+  // The Home Screen widget's taps (spec 2026-11-12): the app scheme only, never the website. Held through the
+  // auth listener's replace on a cold start like trips (final review: they used to land on Home).
+  if (url.startsWith('supernova://')) {
+    if (first === 'create' && !id) return '/create';
+    if (first === 'boarding-pass' && id && TRIP_ID.test(id) && !rest.some(Boolean)) return `/boarding-pass/${id}`;
+  }
   if ((first !== 'trip' && first !== 'post') || !id || !TRIP_ID.test(id) || rest.some(Boolean)) return null;
   return `/${first}/${id}`;
 }

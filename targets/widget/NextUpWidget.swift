@@ -27,7 +27,8 @@ struct Provider: TimelineProvider {
   func placeholder(in context: Context) -> NextUpEntry { NextUpEntry(date: Date(), view: placeholderView) }
   func getSnapshot(in context: Context, completion: @escaping (NextUpEntry) -> Void) { completion(loadEntries()[0]) }
   func getTimeline(in context: Context, completion: @escaping (Timeline<NextUpEntry>) -> Void) {
-    completion(Timeline(entries: loadEntries(), policy: .atEnd))
+    // Re-read every 6 h rather than .atEnd: once the saved entries run out, .atEnd would reload in a loop (final review).
+    completion(Timeline(entries: loadEntries(), policy: .after(Date().addingTimeInterval(6 * 3600))))
   }
 }
 

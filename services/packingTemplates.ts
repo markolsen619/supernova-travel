@@ -97,12 +97,18 @@ function matchesAny(haystack: string, keywords: string[]): boolean {
   return keywords.some((kw) => haystack.includes(kw));
 }
 
-/** Dec–Feb → winter, Jun–Aug → summer, shoulder months → null (generic). */
+/**
+ * Dec–Feb → winter, Jun–Aug → summer, shoulder months → null (generic) — flipped south of the equator by the
+ * destination's latitude (final review 2026-11-13: July in Buenos Aires got shorts).
+ */
 function seasonFromStartDate(trip: Trip): 'winter' | 'summer' | null {
   if (!trip.startDate) return null;
   const month = trip.startDate.toDate().getMonth(); // 0-indexed
-  if (month === 11 || month === 0 || month === 1) return 'winter';
-  if (month >= 5 && month <= 7) return 'summer';
+  const south = typeof trip.destination.lat === 'number' && trip.destination.lat < 0;
+  const northWinter = month === 11 || month === 0 || month === 1;
+  const northSummer = month >= 5 && month <= 7;
+  if (northWinter) return south ? 'summer' : 'winter';
+  if (northSummer) return south ? 'winter' : 'summer';
   return null;
 }
 

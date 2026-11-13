@@ -2,6 +2,9 @@
 export type Holiday = { date: string; name: string };
 export const HOLIDAY_TTL_MS = 90 * 86_400_000;
 
+/** Whether an answer is a holiday list at all — only a real list is cached, so one bad answer can't hide holidays for 90 days. */
+export const isHolidayList = (json: unknown): boolean => Array.isArray(json);
+
 export function parseHolidays(json: unknown): Holiday[] {
   if (!Array.isArray(json)) return [];
   return json.flatMap((h) => {
