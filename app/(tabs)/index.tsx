@@ -15,6 +15,7 @@ import { ScreenEntrance } from '@/components/ui/ScreenEntrance';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { TodayCard } from '@/components/home/TodayCard';
 import { NextTripCard } from '@/components/home/NextTripCard';
+import { EsimLine } from '@/components/home/EsimLine';
 import { TripRow } from '@/components/home/TripRow';
 import { InspiredStrip } from '@/components/home/InspiredStrip';
 import { PlanCard } from '@/components/home/PlanCard';
@@ -106,6 +107,7 @@ export default function HomeScreen() {
           {h.next && leadStart ? (
             <NextTripCard trip={h.next} label={countdownLabel(leadStart, today)} eyebrow={homeEyebrow(tripSpan(h.next), today)} booking={booking} />
           ) : null}
+          {lead ? <EsimLine trip={lead} /> : null}
           {nudge ? <WishlistNudge top={nudge} countryCode={nudgeCountry} onDismiss={dismissNudge} /> : null}
           {h.isEmpty && !nudge ? <PlanCard /> : null}
           {h.comingUp.length > 0 ? (
