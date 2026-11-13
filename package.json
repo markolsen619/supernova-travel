@@ -1,7 +1,7 @@
 {
   "name": "supernova-travel",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -60,6 +60,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-android-widget": "^0.26.0",
     "react-native-compressor": "~1.19.4",
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-gesture-handler": "^2.31.1",

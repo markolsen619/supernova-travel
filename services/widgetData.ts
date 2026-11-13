@@ -21,6 +21,11 @@ export async function writeWidget(input: WidgetInput, coverUrl: string | null): 
       return;
     }
     await AsyncStorage.setItem(WIDGET_ENTRIES_KEY, json);
+    if (Platform.OS === 'android') {
+      const { requestWidgetUpdate } = await import('react-native-android-widget');
+      const { NextUpWidget } = await import('@/widgets/NextUpWidget');
+      await requestWidgetUpdate({ widgetName: 'NextUp', renderWidget: () => NextUpWidget({ entries }) });
+    }
   } catch {
     /* the widget keeps its last entries */
   }

@@ -82,3 +82,11 @@ export function widgetFlightPass<P extends { departureTime: string; status: stri
     .filter(({ ms }) => Number.isFinite(ms) && ms > nowMs - H && ms <= nowMs + 48 * H)
     .sort((a, b) => a.ms - b.ms)[0]?.p ?? null;
 }
+
+/** The view in effect at a moment: the last entry that has started, else the first; null when nothing is saved. */
+export function entryAt(entries: { at: number; view: WidgetView }[], nowMs: number): WidgetView | null {
+  if (entries.length === 0) return null;
+  let current = entries[0];
+  for (const e of entries) if (e.at <= nowMs) current = e;
+  return current.view;
+}

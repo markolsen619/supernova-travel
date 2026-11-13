@@ -1,4 +1,4 @@
-import { widgetView, widgetTimeline, widgetFlightPass, type WidgetInput } from '@/utils/widgetTimeline';
+import { widgetView, widgetTimeline, widgetFlightPass, entryAt, type WidgetInput } from '@/utils/widgetTimeline';
 
 // Local wall-clock times (the widget runs on the phone's clock). Setting process.env.TZ inside a Jest test file has no
 // effect, so build local instants instead: '2026-11-20T08:00:00Z' here means 08:00 on the machine's clock.
@@ -64,5 +64,18 @@ describe('widgetFlightPass', () => {
   });
   it('a delay moves the departure', () => {
     expect(widgetFlightPass([p('late', '2026-11-20T06:30:00Z', 'upcoming', 120)], now)?.id).toBe('late');
+  });
+});
+
+describe('entryAt', () => {
+  const v = (title: string) => ({ kind: 'trip' as const, eyebrow: '', title, detail: null, second: null, url: '', imageKey: null });
+  const entries = [{ at: 100, view: v('a') }, { at: 200, view: v('b') }, { at: 300, view: v('c') }];
+  it('the last entry that has started', () => {
+    expect(entryAt(entries, 250)?.title).toBe('b');
+    expect(entryAt(entries, 300)?.title).toBe('c');
+  });
+  it('before the first: the first; none saved: null', () => {
+    expect(entryAt(entries, 50)?.title).toBe('a');
+    expect(entryAt([], 50)).toBeNull();
   });
 });
