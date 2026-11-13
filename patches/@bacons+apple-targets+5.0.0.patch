@@ -1,0 +1,15 @@
+diff --git a/node_modules/@bacons/apple-targets/build/with-xcode-changes.js b/node_modules/@bacons/apple-targets/build/with-xcode-changes.js
+index 96ded68..0244d02 100644
+--- a/node_modules/@bacons/apple-targets/build/with-xcode-changes.js
++++ b/node_modules/@bacons/apple-targets/build/with-xcode-changes.js
+@@ -62,7 +62,9 @@ async function applyXcodeChanges(config, project, props) {
+     }
+     const targets = getExtensionTargets();
+     const productName = props.productName;
+-    let targetToUpdate = (_a = targets.find((target) => target.props.productName === productName)) !== null && _a !== void 0 ? _a : targets[0];
++    // Supernova patch: only update a target with this target's own name. Falling back to the first target of the same
++    // type took over expo-live-activity's LiveActivity widget extension and crashed prebuild (2026-11-13).
++    let targetToUpdate = targets.find((target) => target.props.productName === productName);
+     if (targetToUpdate) {
+         (0, util_1.warnOnce)(`Target "${targetToUpdate.props.productName}" already exists, updating instead of creating a new one`);
+     }

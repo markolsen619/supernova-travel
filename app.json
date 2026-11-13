@@ -54,7 +54,13 @@
       },
       "associatedDomains": [
         "applinks:supernova-a2125.web.app"
-      ]
+      ],
+      "appleTeamId": "R47484PAGA",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.supernovatravel.app"
+        ]
+      }
     },
     "android": {
       "package": "com.supernovatravel.app",
@@ -169,7 +175,8 @@
           ],
           "iosShareExtensionName": "Supernova Share"
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true
