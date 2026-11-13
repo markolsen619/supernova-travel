@@ -1,7 +1,7 @@
 import { applyTemplate, linkTemplatesFromEnv } from '@/utils/partnerLinks';
 import { airaloUrl, esimHomeLine } from '@/utils/esim';
 
-const none = { omio: null, airalo: null };
+const none = { airalo: null, trainline: null, twelveGo: null };
 const trip = (codes: string[], startDay: string | null) => ({
   id: 't1', destination: { countryCode: codes[0] }, additionalDestinations: codes.slice(1).map((c) => ({ countryCode: c })), startDay, startDate: null, endDate: null,
 }) as never;
@@ -15,7 +15,7 @@ describe('partner link templates', () => {
     expect(applyTemplate('https://www.airalo.com/japan-esim', '{raw}?ref=abc')).toBe('https://www.airalo.com/japan-esim?ref=abc');
   });
   it('reads the templates from build settings, blank = none', () => {
-    expect(linkTemplatesFromEnv({ EXPO_PUBLIC_AIRALO_LINK_TEMPLATE: ' x{url} ', EXPO_PUBLIC_OMIO_LINK_TEMPLATE: '' })).toEqual({ airalo: 'x{url}', omio: null });
+    expect(linkTemplatesFromEnv({ EXPO_PUBLIC_AIRALO_LINK_TEMPLATE: ' x{url} ', EXPO_PUBLIC_TRAINLINE_LINK_TEMPLATE: '' })).toEqual({ airalo: 'x{url}', trainline: null, twelveGo: null });
   });
 });
 

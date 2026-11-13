@@ -1,25 +1,38 @@
-import { OMIO_CITY_IDS } from '@/constants/omioCities';
 import { applyTemplate, type LinkTemplates } from '@/utils/partnerLinks';
 import { haversineMeters } from '@/utils/tripRoutes';
 
-/** Trains & buses between a trip's cities (spec 2026-11-12): Omio, only for short legs with nothing booked. Pure. */
+/**
+ * Trains & buses between a trip's cities (spec 2026-11-12): only for short legs with nothing booked. Trainline in
+ * Europe, 12Go in Asia, chosen by the arriving city's country like tours' GetYourGuide/Viator; no link elsewhere.
+ * (Omio was the first choice; it isn't on Travelpayouts for this account and impact.com declined us — owner, 2026-11-12.)
+ * The links open the partner's search page; only our affiliate tag goes with them. Pure.
+ */
 export const TRAIN_MAX_KM = 800;
-export type LegCity = { name: string; lat: number | null; lng: number | null };
+export type TrainPartner = 'trainline' | 'twelveGo';
+export type LegCity = { name: string; countryCode: string | null; lat: number | null; lng: number | null };
 
-export const foldCity = (name: string) =>
-  name.split(',')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+const TRAINLINE = new Set([
+  'AD', 'AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR', 'HU', 'IE', 'IS', 'IT',
+  'LI', 'LT', 'LU', 'LV', 'MC', 'ME', 'MK', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK', 'SM', 'VA', 'XK',
+]);
+const TWELVE_GO = new Set(['BD', 'CN', 'HK', 'ID', 'IN', 'JP', 'KH', 'KR', 'LA', 'LK', 'MM', 'MO', 'MY', 'NP', 'PH', 'SG', 'TH', 'TW', 'VN']);
+const PARTNER_URL: Record<TrainPartner, string> = { trainline: 'https://www.thetrainline.com/', twelveGo: 'https://12go.asia/en' };
+const PARTNER_NAME: Record<TrainPartner, string> = { trainline: 'Trainline', twelveGo: '12Go' };
 
-export function omioUrl(from: string, to: string, templates: LinkTemplates, ids: Record<string, number> = OMIO_CITY_IDS): string {
-  const a = ids[foldCity(from)], b = ids[foldCity(to)];
-  const url = a && b ? `https://www.omio.com/?departure_fk=${a}&arrival_fk=${b}` : 'https://www.omio.com/';
-  return applyTemplate(url, templates.omio);
+export function trainPartner(countryCode: string | null | undefined): TrainPartner | null {
+  const c = (countryCode ?? '').toUpperCase();
+  return TRAINLINE.has(c) ? 'trainline' : TWELVE_GO.has(c) ? 'twelveGo' : null;
 }
 
-export function trainLink(prev: LegCity, city: LegCity, gettingHereCount: number, templates: LinkTemplates, ids?: Record<string, number>) {
+export const trainUrl = (partner: TrainPartner, templates: LinkTemplates) => applyTemplate(PARTNER_URL[partner], templates[partner]);
+
+export function trainLink(prev: LegCity, city: LegCity, gettingHereCount: number, templates: LinkTemplates): { label: string; url: string } | null {
   if (gettingHereCount > 0) return null;
+  const partner = trainPartner(city.countryCode);
+  if (!partner) return null;
   if (prev.lat == null || prev.lng == null || city.lat == null || city.lng == null) return null;
   const km = haversineMeters({ lat: prev.lat, lng: prev.lng }, { lat: city.lat, lng: city.lng }) / 1000;
   if (km > TRAIN_MAX_KM) return null;
   const short = (n: string) => n.split(',')[0].trim();
-  return { label: `Find trains & buses ${short(prev.name)} → ${short(city.name)} · Omio`, url: omioUrl(prev.name, city.name, templates, ids) };
+  return { label: `Find trains & buses ${short(prev.name)} → ${short(city.name)} · ${PARTNER_NAME[partner]}`, url: trainUrl(partner, templates) };
 }
