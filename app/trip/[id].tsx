@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Timestamp } from 'firebase/firestore';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, CalendarBlank, DotsThree, EyeSlash, Export, Ticket, Heart } from 'phosphor-react-native';
+import { ArrowLeft, MapTrifold, Signpost, PencilSimple, MapPin, Plus, Compass, Camera, UsersThree, Wallet, Backpack, CalendarBlank, DotsThree, EyeSlash, Export, Ticket, Heart, GlobeHemisphereWest } from 'phosphor-react-native';
 import { VISIBILITY_ICONS } from '@/constants/icons';
 import { DarkColors, LightColors } from '@/constants/colors';
 
@@ -71,6 +71,9 @@ import { cityBookings } from '@/utils/cityBookings';
 import { buildBookingAction } from '@/utils/bookingLinks';
 import { isSectionOpen } from '@/utils/walletByTrip';
 import { toCalendarDate } from '@/utils/calendarDate';
+import { BeforeYouGoSheet } from '@/components/trip/BeforeYouGoSheet';
+import { internationalCountries, showBeforeYouGo, tripCountries } from '@/utils/beforeYouGo';
+import { homeRegion } from '@/utils/homeRegion';
 import { manualSearchQuery, selectStopsToGround, typedStopMatches } from '@/utils/groundingQueue';
 import { tidyPlan } from '@/utils/tidyDays';
 import { venueTitle } from '@/utils/venueTitle';
@@ -185,7 +188,7 @@ function AnimatedDaySection({
 const HEADER_ICON = LightColors.text.primary;
 
 export default function TripDetailScreen() {
-  const { id, video, wishVideo, wishPlace } = useLocalSearchParams<{ id: string; video?: string; wishVideo?: string; wishPlace?: string }>();
+  const { id, video, wishVideo, wishPlace, beforeYouGo } = useLocalSearchParams<{ id: string; video?: string; wishVideo?: string; wishPlace?: string; beforeYouGo?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -432,6 +435,14 @@ export default function TripDetailScreen() {
   const tourToday = toCalendarDate(new Date());
   const tripStartDay = trip ? tripSpan(trip as never).start : null;
   const tripTourCities = useMemo(() => (trip ? tourCities(trip as never, tourToday, canEditItinerary) : []), [trip, tourToday, canEditItinerary]);
+  // Before you go (spec 2026-11-12): country basics for each international country, from a chip; Home's eSIM line
+  // opens the trip with ?beforeYouGo=1.
+  const bygHome = useMemo(() => homeRegion(Intl.DateTimeFormat().resolvedOptions().locale), []);
+  const bygCountries = useMemo(() => (trip ? internationalCountries(tripCountries(trip), bygHome) : []), [trip, bygHome]);
+  const showByg = !!trip && showBeforeYouGo(trip as never, tourToday, canEditItinerary, bygHome);
+  const [bygVisible, setBygVisible] = useState(beforeYouGo === '1');
+  const openByg = useCallback(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBygVisible(true); }, []);
+  const closeByg = useCallback(() => setBygVisible(false), []);
   const handleToursReturn = useCallback((city: { index: number; name: string; countryCode: string | null }, partner: string) => {
     if (!trip) return;
     const days = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
@@ -1608,6 +1619,18 @@ export default function TripDetailScreen() {
           </TouchableOpacity>
           )}
 
+          {showByg && (
+          <TouchableOpacity
+            onPress={openByg}
+            style={[styles.chip, { backgroundColor: colors.background.sunken }]}
+            hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            accessibilityLabel="Before you go: plugs, money, tipping and emergency numbers"
+          >
+            <GlobeHemisphereWest size={13} color={colors.text.secondary} weight="duotone" />
+            <Text style={[styles.chipText, { color: colors.text.primary }]}>Before you go</Text>
+          </TouchableOpacity>
+          )}
+
           {tripWishMatches.length > 0 && (
           <TouchableOpacity
             onPress={() => {
@@ -1895,6 +1918,7 @@ export default function TripDetailScreen() {
       <BookedSomethingSheet target={bookedTarget} tripId={trip.id} days={sortedDays} startDay={tripStartDay} onClose={() => setBookedTarget(null)} />
       {canEditItinerary && <AgentSheet visible={agentOpen} trip={trip} onClose={() => setAgentOpen(false)} />}
       <CalendarSheet visible={calendarVisible} onClose={() => setCalendarVisible(false)} />
+      <BeforeYouGoSheet visible={bygVisible && showByg} countries={bygCountries} home={bygHome} onClose={closeByg} />
       <TripMembersSheet
         visible={membersOpen}
         onClose={() => setMembersOpen(false)}
