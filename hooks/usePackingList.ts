@@ -29,7 +29,7 @@ export async function fetchPackingItems(tripId: string): Promise<PackingItem[]> 
  * separate "share" step, being a collaborator is what grants access at all
  * (firestore.rules).
  */
-export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: string) {
+export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: string, extra: { label: string; category: string }[] = []) {
   const queryClient = useQueryClient();
   const tripId = trip?.id ?? null;
   const queryKey = ['packingItems', tripId];
@@ -49,7 +49,10 @@ export function usePackingList(trip: Trip | undefined, isOwner: boolean, uid: st
     if (itemsQuery.data.length > 0) return;
     seeded.current = true;
     (async () => {
-      const template = generatePackingList(trip);
+      // Templates plus the smart suggestions (spec 2026-11-12) — a new list starts with both, never duplicated.
+      const base = generatePackingList(trip);
+      const have = new Set(base.map((t) => t.label.toLowerCase()));
+      const template = [...base, ...extra.filter((e) => !have.has(e.label.toLowerCase()))];
       const batch = writeBatch(db);
       template.forEach((item) => {
         const ref = doc(collection(db, 'trips', trip.id, 'packingItems'));

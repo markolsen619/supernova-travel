@@ -6,7 +6,8 @@
  * after that. Flat modal route + `id` param, same convention as trip/budget.tsx.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +24,12 @@ import { FontSize, FontWeight } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/spacing';
 import type { PackingItem } from '@/types';
 import { KeyboardLift } from '@/components/ui/KeyboardLift';
+import { PackingSuggestions } from '@/components/packing/PackingSuggestions';
+import { useTripForecasts } from '@/hooks/useTripForecasts';
+import { packingSuggestions, type PackDay, type Suggestion } from '@/utils/packingSuggestions';
+import { homeRegion } from '@/utils/homeRegion';
+import { dayDateFor } from '@/utils/tripTours';
+import { tripSpan } from '@/utils/homeState';
 
 export default function PackingListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,7 +39,48 @@ export default function PackingListScreen() {
 
   const { data: trip, isLoading: tripLoading } = useTrip(id ?? null);
   const isOwner = !!trip && trip.authorUid === uid;
-  const { items, isLoading: itemsLoading, addItem, toggleItem, deleteItem } = usePackingList(trip ?? undefined, isOwner, uid);
+  // Smart suggestions (spec 2026-11-12): forecast, season, stops, plugs, length.
+  const forecasts = useTripForecasts(trip ?? undefined);
+  const packDays = useMemo<PackDay[]>(() => {
+    if (!trip) return [];
+    const start = tripSpan(trip as never).start;
+    const cities = [trip.destination, ...(trip.additionalDestinations ?? [])];
+    return [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber).map((d) => {
+      const c = cities[d.destinationIndex ?? 0] ?? trip.destination;
+      const date = dayDateFor(start, d.dayNumber);
+      const key = typeof c.lat === 'number' && typeof c.lng === 'number' ? `${c.lat.toFixed(2)},${c.lng.toFixed(2)}` : '';
+      return { date, lat: c.lat ?? null, countryCode: c.countryCode ?? null, weather: (date && forecasts[key]?.[date]) || null, stops: d.activities.map((x) => ({ title: x.title, type: x.type })) };
+    });
+  }, [trip, forecasts]);
+  const home = useMemo(() => homeRegion(Intl.DateTimeFormat().resolvedOptions().locale), []);
+  const startMonth = useMemo(() => {
+    const start = trip ? tripSpan(trip as never).start : null;
+    return start ? Number(start.slice(5, 7)) : null;
+  }, [trip]);
+  const seedSuggestions = useMemo(
+    () => (trip ? packingSuggestions({ days: packDays, trip, home, existing: [], dismissed: [], month: startMonth }) : []),
+    [trip, packDays, home, startMonth],
+  );
+  const { items, isLoading: itemsLoading, addItem, toggleItem, deleteItem } = usePackingList(trip ?? undefined, isOwner, uid, seedSuggestions);
+  const dismissKey = `packingDismissed:${id}`;
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  useEffect(() => {
+    AsyncStorage.getItem(dismissKey).then((v) => setDismissed(v ? (JSON.parse(v) as string[]) : [])).catch(() => setDismissed([]));
+  }, [dismissKey]);
+  const suggestions = useMemo(
+    () => (trip ? packingSuggestions({ days: packDays, trip, home, existing: items.map((i) => i.label), dismissed, month: startMonth }) : []),
+    [trip, packDays, home, items, dismissed, startMonth],
+  );
+  const handleAddSuggestion = useCallback((sg: Suggestion) => {
+    addItem.mutate({ label: sg.label, category: sg.category, addedByUid: uid });
+  }, [addItem, uid]);
+  const handleDismissSuggestion = useCallback((sg: Suggestion) => {
+    setDismissed((prev) => {
+      const next = [...prev, sg.label];
+      AsyncStorage.setItem(dismissKey, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, [dismissKey]);
 
   const [addingCategory, setAddingCategory] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
@@ -142,6 +190,7 @@ export default function PackingListScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {!itemsLoading ? <PackingSuggestions suggestions={suggestions} onAdd={handleAddSuggestion} onDismiss={handleDismissSuggestion} /> : null}
         {itemsLoading && items.length === 0 ? (
           <View style={{ gap: Spacing['3'] }}>
             <SkeletonBlock height={22} width={120} radius={4} />
