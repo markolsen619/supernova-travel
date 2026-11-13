@@ -35,6 +35,8 @@ describe('COUNTRY_INFO', () => {
     expect(COUNTRY_INFO.AU).toMatchObject({ plugs: ['I'], voltage: 230, drive: 'left', currency: { code: 'AUD' }, emergency: '000' });
     expect(COUNTRY_INFO.IN).toMatchObject({ voltage: 230, drive: 'left', currency: { code: 'INR' }, emergency: '112' });
     expect(COUNTRY_INFO.CN.plugs).toEqual(expect.arrayContaining(['A', 'C', 'I']));
+    // Final review I2: Bulgaria adopted the euro on 2026-01-01.
+    expect(COUNTRY_INFO.BG.currency).toEqual({ code: 'EUR', name: 'Euro' });
     expect(COUNTRY_INFO.IE).toMatchObject({ plugs: ['G'], drive: 'left', currency: { code: 'EUR' } });
   });
 });

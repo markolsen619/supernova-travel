@@ -9,6 +9,7 @@ import {
   Animated,
   Alert,
   Platform,
+  InteractionManager,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -445,7 +446,16 @@ export default function TripDetailScreen() {
   const bygHome = useMemo(() => homeRegion(Intl.DateTimeFormat().resolvedOptions().locale), []);
   const bygCountries = useMemo(() => (trip ? internationalCountries(tripCountries(trip), bygHome) : []), [trip, bygHome]);
   const showByg = !!trip && showBeforeYouGo(trip as never, tourToday, canEditItinerary, bygHome);
-  const [bygVisible, setBygVisible] = useState(beforeYouGo === '1');
+  const [bygVisible, setBygVisible] = useState(false);
+  // From Home's eSIM line (?beforeYouGo=1): open once the screen has finished animating in — a Modal presented while
+  // this modal is still presenting can fail silently on iOS (final review I4).
+  const bygAutoOpened = useRef(false);
+  useEffect(() => {
+    if (beforeYouGo !== '1' || !showByg || bygAutoOpened.current) return;
+    bygAutoOpened.current = true;
+    const task = InteractionManager.runAfterInteractions(() => setBygVisible(true));
+    return () => task.cancel();
+  }, [beforeYouGo, showByg]);
   const openByg = useCallback(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBygVisible(true); }, []);
   const closeByg = useCallback(() => setBygVisible(false), []);
   // Trains between cities (spec 2026-11-12): Omio on a short leg with nothing booked; members, upcoming/current

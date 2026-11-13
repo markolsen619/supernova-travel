@@ -12,6 +12,12 @@ describe('homeRegion', () => {
     expect(homeRegion('en')).toBeNull();
     expect(homeRegion(undefined)).toBeNull();
   });
+  it('skips a script subtag and extensions (final review I3: zh-Hans-CN read as no region)', () => {
+    expect(homeRegion('zh-Hans-CN')).toBe('CN');
+    expect(homeRegion('sr-Latn-RS')).toBe('RS');
+    expect(homeRegion('en-US-u-ca-gregory')).toBe('US');
+    expect(homeRegion('es-419')).toBeNull();
+  });
 });
 
 describe('tripCountries (review focus 1)', () => {
@@ -54,6 +60,9 @@ describe('countryRows', () => {
   });
   it('with several numbers, a tap calls the first (Japan: 110 police)', () => {
     expect(countryRows('JP', 'US').rows.find((r) => r.kind === 'emergency')).toMatchObject({ value: '110 police · 119 ambulance', tel: '110' });
+  });
+  it('a hyphenated number dials in full (final review I1: Marshall Islands 625-8666 dialled 625)', () => {
+    expect(countryRows('MH', 'US').rows.find((r) => r.kind === 'emergency')?.tel).toBe('6258666');
   });
   it('an unknown country shows its code as the name and no rows', () => {
     expect(countryRows('ZZ', 'US')).toEqual({ code: 'ZZ', name: 'ZZ', rows: [] });

@@ -35,7 +35,7 @@ export const COUNTRY_INFO: Record<string, CountryInfo> = {
   BD: { name: 'Bangladesh', plugs: ['C', 'D', 'G', 'K'], voltage: 220, currency: { code: 'BDT', name: 'Bangladeshi taka' }, emergency: '999', drive: 'left' },
   BE: { name: 'Belgium', plugs: ['C', 'E'], voltage: 230, currency: { code: 'EUR', name: 'Euro' }, emergency: '112', drive: 'right', airaloSlug: 'belgium-esim' },
   BF: { name: 'Burkina Faso', plugs: ['C', 'E'], voltage: 220, currency: { code: 'XOF', name: 'West African CFA franc' }, emergency: '17 police · 18 ambulance', drive: 'right' },
-  BG: { name: 'Bulgaria', plugs: ['C', 'F'], voltage: 230, currency: { code: 'BGN', name: 'Bulgarian lev' }, emergency: '112', drive: 'right', airaloSlug: 'bulgaria-esim' },
+  BG: { name: 'Bulgaria', plugs: ['C', 'F'], voltage: 230, currency: { code: 'EUR', name: 'Euro' }, emergency: '112', drive: 'right', airaloSlug: 'bulgaria-esim' },
   BH: { name: 'Bahrain', plugs: ['G'], voltage: 230, currency: { code: 'BHD', name: 'Bahraini dinar' }, emergency: '999', drive: 'right' },
   BI: { name: 'Burundi', plugs: ['C', 'E'], voltage: 220, currency: { code: 'BIF', name: 'Burundian franc' }, emergency: '112', drive: 'right' },
   BJ: { name: 'Benin', plugs: ['C', 'E'], voltage: 220, currency: { code: 'XOF', name: 'West African CFA franc' }, emergency: '117 police · 112 ambulance', drive: 'right' },

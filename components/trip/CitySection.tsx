@@ -74,7 +74,7 @@ export function CitySection(p: CitySectionProps) {
                   {p.train && (
                     <TouchableOpacity onPress={light(() => { Linking.openURL(p.train!.url).catch(() => {}); })} style={styles.link} accessibilityRole="link">
                       <Train size={16} color={colors.text.secondary} weight="duotone" />
-                      <Text style={[styles.linkText, { color: colors.text.secondary }]}>{p.train.label}</Text>
+                      <Text style={[styles.linkText, styles.shrink, { color: colors.text.secondary }]}>{p.train.label}</Text>
                     </TouchableOpacity>
                   )}
                   {p.onAddBooking && (
@@ -125,6 +125,8 @@ export function CitySection(p: CitySectionProps) {
 }
 
 const styles = StyleSheet.create({
+  // A long route label wraps instead of running past the card on narrow phones (final review M1).
+  shrink: { flexShrink: 1 },
   section: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing['4'], paddingBottom: Spacing['2'] },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing['2'], marginBottom: Spacing['2'] },
   headerMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing['2'], minHeight: 44 },

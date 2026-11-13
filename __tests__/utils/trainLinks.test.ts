@@ -29,6 +29,9 @@ describe('trainLink', () => {
   it('a short leg with nothing booked gets a link', () => {
     expect(trainLink(prague, budapest, 0, none)).toEqual({ label: 'Find trains & buses Prague → Budapest · Omio', url: 'https://www.omio.com/' });
   });
+  it('names cities without their country (final review M2)', () => {
+    expect(trainLink({ ...prague, name: 'Prague, Czechia' }, { ...budapest, name: 'Budapest, Hungary' }, 0, none)?.label).toBe('Find trains & buses Prague → Budapest · Omio');
+  });
   it('nothing when the leg is booked or too far', () => {
     expect(trainLink(prague, budapest, 1, none)).toBeNull();
     expect(trainLink(prague, tokyo, 0, none)).toBeNull();

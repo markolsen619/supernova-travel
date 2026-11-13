@@ -15,7 +15,7 @@ BB|Barbados|A,B|115|BBD|Barbadian dollar|211 police · 511 ambulance|L
 BD|Bangladesh|C,D,G,K|220|BDT|Bangladeshi taka|999|L
 BE|Belgium|C,E|230|EUR|Euro|112|R
 BF|Burkina Faso|C,E|220|XOF|West African CFA franc|17 police · 18 ambulance|R
-BG|Bulgaria|C,F|230|BGN|Bulgarian lev|112|R
+BG|Bulgaria|C,F|230|EUR|Euro|112|R
 BH|Bahrain|G|230|BHD|Bahraini dinar|999|R
 BI|Burundi|C,E|220|BIF|Burundian franc|112|R
 BJ|Benin|C,E|220|XOF|West African CFA franc|117 police · 112 ambulance|R

@@ -20,5 +20,6 @@ export function trainLink(prev: LegCity, city: LegCity, gettingHereCount: number
   if (prev.lat == null || prev.lng == null || city.lat == null || city.lng == null) return null;
   const km = haversineMeters({ lat: prev.lat, lng: prev.lng }, { lat: city.lat, lng: city.lng }) / 1000;
   if (km > TRAIN_MAX_KM) return null;
-  return { label: `Find trains & buses ${prev.name} → ${city.name} · Omio`, url: omioUrl(prev.name, city.name, templates, ids) };
+  const short = (n: string) => n.split(',')[0].trim();
+  return { label: `Find trains & buses ${short(prev.name)} → ${short(city.name)} · Omio`, url: omioUrl(prev.name, city.name, templates, ids) };
 }

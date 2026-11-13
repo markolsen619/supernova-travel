@@ -16,6 +16,12 @@ export function tripCountries(trip: CountryTrip): string[] {
 
 export const internationalCountries = (countries: string[], home: string | null) => countries.filter((c) => c !== home);
 
+/** The first number in an emergency line, digits only ("625-8666 police · …" → "6258666"; final review I1). */
+export function firstDialNumber(line: string): string | undefined {
+  const m = line.match(/\+?\d[\d\s-]*\d|\d/);
+  return m ? m[0].replace(/[^\d+]/g, '') : undefined;
+}
+
 const lowVoltage = (v: number) => v <= 127;
 
 export function plugAdvice(home: string | null, dest: string): string | null {
@@ -39,7 +45,7 @@ export function countryRows(code: string, home: string | null): { code: string; 
   if (plugs) rows.push({ kind: 'plugs', label: 'Plugs', value: plugs });
   rows.push({ kind: 'money', label: 'Money', value: `${c.currency.name} (${c.currency.code})` });
   if (c.tipping) rows.push({ kind: 'tipping', label: 'Tipping', value: c.tipping });
-  rows.push({ kind: 'emergency', label: 'Emergency', value: c.emergency, tel: c.emergency.match(/[\d+]+/)?.[0] });
+  rows.push({ kind: 'emergency', label: 'Emergency', value: c.emergency, tel: firstDialNumber(c.emergency) });
   rows.push({ kind: 'driving', label: 'Driving', value: c.drive === 'left' ? 'On the left' : 'On the right' });
   if (c.tapWater) rows.push({ kind: 'water', label: 'Tap water', value: c.tapWater === 'safe' ? 'Safe to drink' : 'Drink bottled' });
   return { code, name: c.name, rows };
