@@ -23,7 +23,7 @@ The other nine ideas from the same brainstorm are saved for later (they're not p
    - the driving side;
    - tap water;
    - an eSIM link.
-2. **eSIMs:** an "Get an eSIM for {country} · Airalo" row in each country's section. In the 7 days before an international trip, Home's next-trip card also shows one line: "Staying connected? eSIMs for Czechia and 4 more".
+2. **eSIMs:** a "Get an eSIM for {country} · Airalo" row in each country's section. In the 7 days before an international trip, Home's next-trip card also shows one line: "Staying connected? eSIMs for Czechia and 4 more".
 3. **Trains between cities:** on multi-city trips, each city section's **Getting here** block from the 2nd city on shows "Find trains & buses Prague → Budapest · Omio" when nothing is booked for that leg.
 
 ## Rules
