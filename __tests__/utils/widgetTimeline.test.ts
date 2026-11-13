@@ -1,4 +1,4 @@
-import { widgetView, widgetTimeline, type WidgetInput } from '@/utils/widgetTimeline';
+import { widgetView, widgetTimeline, widgetFlightPass, type WidgetInput } from '@/utils/widgetTimeline';
 
 // Local wall-clock times (the widget runs on the phone's clock). Setting process.env.TZ inside a Jest test file has no
 // effect, so build local instants instead: '2026-11-20T08:00:00Z' here means 08:00 on the machine's clock.
@@ -48,5 +48,21 @@ describe('widgetTimeline', () => {
   it('merges consecutive identical views', () => {
     const entries = widgetTimeline({ trip: null, flight: null, wishCity: null }, at('2026-11-12T12:00:00Z'));
     expect(entries).toHaveLength(1);
+  });
+});
+
+describe('widgetFlightPass', () => {
+  const now = at('2026-11-20T08:00:00Z');
+  const p = (id: string, iso: string, status = 'upcoming', delayMinutes = 0) => ({ id, departureTime: new Date(at(iso)).toISOString(), status, delayMinutes });
+  it('the soonest flight still ahead (or just departed) within 48 h', () => {
+    expect(widgetFlightPass([p('b', '2026-11-21T09:00:00Z'), p('a', '2026-11-20T15:00:00Z')], now)?.id).toBe('a');
+  });
+  it('skips cancelled and completed flights, and ones more than 48 h out or over an hour gone', () => {
+    expect(widgetFlightPass([p('a', '2026-11-20T15:00:00Z', 'cancelled'), p('c', '2026-11-20T10:00:00Z', 'completed')], now)).toBeNull();
+    expect(widgetFlightPass([p('far', '2026-11-23T09:00:00Z')], now)).toBeNull();
+    expect(widgetFlightPass([p('gone', '2026-11-20T06:30:00Z')], now)).toBeNull();
+  });
+  it('a delay moves the departure', () => {
+    expect(widgetFlightPass([p('late', '2026-11-20T06:30:00Z', 'upcoming', 120)], now)?.id).toBe('late');
   });
 });

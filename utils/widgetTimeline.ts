@@ -73,3 +73,12 @@ export function widgetTimeline(input: WidgetInput, nowMs: number): { at: number;
   }
   return out;
 }
+
+/** The flight the widget should know about: the soonest not cancelled/completed, departing (with any delay) between an hour ago and 48 h ahead. */
+export function widgetFlightPass<P extends { departureTime: string; status: string; delayMinutes?: number | null }>(passes: P[], nowMs: number): P | null {
+  return passes
+    .filter((p) => p.status !== 'cancelled' && p.status !== 'completed')
+    .map((p) => ({ p, ms: Date.parse(p.departureTime) + Math.max(0, p.delayMinutes ?? 0) * 60_000 }))
+    .filter(({ ms }) => Number.isFinite(ms) && ms > nowMs - H && ms <= nowMs + 48 * H)
+    .sort((a, b) => a.ms - b.ms)[0]?.p ?? null;
+}

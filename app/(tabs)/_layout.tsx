@@ -20,6 +20,7 @@ import { usesReadingColumn } from '@/utils/layout';
 import { useOfflinePrefetch } from '@/hooks/useOfflinePrefetch';
 import { usePendingInviteClaim } from '@/hooks/usePendingInviteClaim';
 import { useFlightLiveActivity } from '@/hooks/useFlightLiveActivity';
+import { useWidgetSync } from '@/hooks/useWidgetSync';
 import { usePendingShareOpener } from '@/hooks/useShareIntentRouting';
 
 const TABS = [
@@ -137,6 +138,8 @@ export default function TabLayout() {
   usePendingInviteClaim();
   usePendingShareOpener();
   useFlightLiveActivity();
+  // The Home Screen widget's next 48 hours (spec 2026-11-12).
+  useWidgetSync();
   return (
     <Tabs
       tabBar={(props) => <FullWidthTabBar {...(props as unknown as TabBarProps)} />}
