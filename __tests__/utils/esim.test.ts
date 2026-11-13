@@ -33,7 +33,7 @@ describe('esimHomeLine (review focus 5)', () => {
     expect(esimHomeLine(trip(['JP'], '2026-11-19'), today, true, 'US', false)?.label).toBe('Staying connected? eSIMs for Japan');
   });
   it('also while the trip is under way', () => {
-    expect(esimHomeLine({ ...trip(['JP'], '2026-11-10'), endDate: { toDate: () => new Date('2026-11-20T12:00:00Z') } } as never, today, true, 'US', false)).not.toBeNull();
+    expect(esimHomeLine({ ...(trip(['JP'], '2026-11-10') as object), endDate: { toDate: () => new Date('2026-11-20T12:00:00Z') } } as never, today, true, 'US', false)).not.toBeNull();
   });
   it('nothing 8+ days out, undated, dismissed, domestic, or for non-members', () => {
     expect(esimHomeLine(trip(['JP'], '2026-11-20'), today, true, 'US', false)).toBeNull();
