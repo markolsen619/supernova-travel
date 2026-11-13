@@ -75,6 +75,8 @@ import { toCalendarDate } from '@/utils/calendarDate';
 import { BeforeYouGoSheet } from '@/components/trip/BeforeYouGoSheet';
 import { internationalCountries, showBeforeYouGo, tripCountries } from '@/utils/beforeYouGo';
 import { homeRegion } from '@/utils/homeRegion';
+import { HolidayLine } from '@/components/ui/HolidayLine';
+import { dayCountry } from '@/utils/holidays';
 import { trainLink, type LegCity } from '@/utils/trainLinks';
 import { linkTemplatesFromEnv } from '@/utils/partnerLinks';
 import { manualSearchQuery, selectStopsToGround, typedStopMatches } from '@/utils/groundingQueue';
@@ -1265,6 +1267,7 @@ export default function TripDetailScreen() {
                       const c = [trip.destination, ...(trip.additionalDestinations ?? [])][day.destinationIndex ?? 0] ?? trip.destination;
                       return <DayWeatherBadge lat={c.lat} lng={c.lng} date={dayDateFor(tripStartDay, day.dayNumber)} />;
                     })()}
+                    notice={<HolidayLine countryCode={dayCountry(trip, day.destinationIndex)} date={dayDateFor(tripStartDay, day.dayNumber)} />}
                     onReorderActivities={canEditItinerary ? handleReorderActivities : undefined}
                     onDeleteDay={canEditItinerary ? () => (ci !== undefined && routeSaved ? deleteDayInCity(day, ci) : handleDeleteDay(day)) : undefined}
                     resolvingActivityId={resolvingActivityId}

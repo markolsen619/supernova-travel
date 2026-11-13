@@ -33,6 +33,8 @@ interface DayTimelineProps {
   onTickets?: (activity: TripActivity, dayId: string) => void;
   /** The day's forecast badge (components/ui/DayWeatherBadge), when the trip page has one. */
   weather?: React.ReactNode;
+  /** A line under the day heading, e.g. a public holiday (components/ui/HolidayLine; spec 2026-11-12). */
+  notice?: React.ReactNode;
   /** Fired once, on drop, with the full new order — never during the drag itself. */
   onReorderActivities?: (dayId: string, orderedActivities: TripActivity[]) => void;
   /** Owner-only: delete this whole day. */
@@ -69,6 +71,7 @@ export function DayTimeline({
   onToggleVisited,
   onTickets,
   weather,
+  notice,
   onReorderActivities,
   onDeleteDay,
   resolvingActivityId = null,
@@ -221,6 +224,7 @@ export function DayTimeline({
               </Text>
             ) : null}
             {weather}
+            {notice}
           </View>
         </View>
         {hasNotes && (
