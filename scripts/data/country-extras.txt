@@ -1,0 +1,76 @@
+# CODE|Tipping (≤ 50 chars, blank = unknown)|Tap water (safe/bottled, blank = unknown)|Airalo page (blank = none)
+AE|~10–15% if service isn't included|bottled|united-arab-emirates-esim
+AR|~10% at restaurants|safe|argentina-esim
+AT|Round up or ~5–10% at restaurants|safe|austria-esim
+AU|Not expected; ~10% for great service|safe|australia-esim
+BE|||belgium-esim
+BG|||bulgaria-esim
+BR|10% service usually added|bottled|brazil-esim
+BW|~10% at restaurants|bottled|botswana-esim
+CA|15–20% at restaurants|safe|canada-esim
+CH|Service included; round up if you like|safe|switzerland-esim
+CL|||chile-esim
+CN|Not expected|bottled|china-esim
+CO|10% service usually suggested on the bill|bottled|colombia-esim
+CR|||costa-rica-esim
+CY|||cyprus-esim
+CZ|Round up or ~10% at restaurants|safe|czech-republic-esim
+DE|Round up or ~5–10% at restaurants|safe|germany-esim
+DK|Service included; tipping isn't expected|safe|denmark-esim
+DO|||dominican-republic-esim
+EE|||estonia-esim
+EG|~10% at restaurants; small tips expected|bottled|egypt-esim
+ES|Round up or ~5–10% for good service|safe|spain-esim
+FI|||finland-esim
+FJ|Not expected|bottled|fiji-esim
+FR|Service included; round up for good service|safe|france-esim
+GB|~10–12.5% if service isn't included|safe|united-kingdom-esim
+GR|Round up or ~5–10% at restaurants|safe|greece-esim
+HK|10% service charge usually added|safe|hong-kong-esim
+HR|~10% at restaurants|safe|croatia-esim
+HU|~10–15% unless service is included|safe|hungary-esim
+ID|~5–10% if no service charge|bottled|indonesia-esim
+IE|~10% at restaurants|safe|ireland-esim
+IL|~12–15% at restaurants|safe|israel-esim
+IN|~10% at restaurants|bottled|india-esim
+IS|Not expected; service is included|safe|iceland-esim
+IT|Coperto often charged; tip optional|safe|italy-esim
+JO|~10% at restaurants|bottled|jordan-esim
+JP|No tipping — it can cause confusion|safe|japan-esim
+KE|~10% at restaurants|bottled|kenya-esim
+KH|||cambodia-esim
+KR|Not expected|safe|south-korea-esim
+LK|~10% if no service charge|bottled|sri-lanka-esim
+LT|||lithuania-esim
+LU|||luxembourg-esim
+LV|||latvia-esim
+MA|~10% at restaurants|bottled|morocco-esim
+MT|||malta-esim
+MU|~10% if no service charge|bottled|mauritius-esim
+MV|Service charge added; extra optional|bottled|maldives-esim
+MX|10–15% at restaurants|bottled|mexico-esim
+MY|||malaysia-esim
+NL|Round up or ~5–10% at restaurants|safe|netherlands-esim
+NO|||norway-esim
+NP|~10% at restaurants|bottled|nepal-esim
+NZ|Not expected; ~10% for great service|safe|new-zealand-esim
+OM|~10% at restaurants|bottled|oman-esim
+PE|~10% at restaurants|bottled|peru-esim
+PH|||philippines-esim
+PL|||poland-esim
+PT|Round up or ~5–10% at restaurants|safe|portugal-esim
+QA|~10% if service isn't included|bottled|qatar-esim
+RO|||romania-esim
+SC|Service usually included|bottled|seychelles-esim
+SE|||sweden-esim
+SG|Not expected; service charge added|safe|singapore-esim
+SI|||slovenia-esim
+SK|||slovakia-esim
+TH|Round up or ~10% at sit-down restaurants|bottled|thailand-esim
+TR|~10% at restaurants|bottled|turkey-esim
+TW|Not expected; 10% service often added|bottled|taiwan-esim
+TZ|~10% at restaurants; guides tipped apart|bottled|tanzania-esim
+US|18–20% at restaurants, $1–2 a drink|safe|united-states-esim
+VN|Not expected; ~5–10% appreciated|bottled|vietnam-esim
+ZA|10–15% at restaurants|safe|south-africa-esim
+ZW|~10% at restaurants|bottled|zimbabwe-esim

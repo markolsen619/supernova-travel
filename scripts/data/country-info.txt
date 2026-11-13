@@ -1,0 +1,200 @@
+# CODE|Name|Plugs|Volts|Currency|Currency name|Emergency|Drive (L/R)
+AD|Andorra|C,F|230|EUR|Euro|112|R
+AE|United Arab Emirates|C,D,G|230|AED|UAE dirham|999 police · 998 ambulance|R
+AF|Afghanistan|C,F|220|AFN|Afghan afghani|119 police · 102 ambulance|R
+AG|Antigua and Barbuda|A,B|230|XCD|East Caribbean dollar|911|L
+AL|Albania|C,F|230|ALL|Albanian lek|112|R
+AM|Armenia|C,F|230|AMD|Armenian dram|112|R
+AO|Angola|C|220|AOA|Angolan kwanza|113 police · 112 ambulance|R
+AR|Argentina|C,I|220|ARS|Argentine peso|911|R
+AT|Austria|C,F|230|EUR|Euro|112|R
+AU|Australia|I|230|AUD|Australian dollar|000|L
+AZ|Azerbaijan|C,F|220|AZN|Azerbaijani manat|112|R
+BA|Bosnia and Herzegovina|C,F|230|BAM|Convertible mark|112|R
+BB|Barbados|A,B|115|BBD|Barbadian dollar|211 police · 511 ambulance|L
+BD|Bangladesh|C,D,G,K|220|BDT|Bangladeshi taka|999|L
+BE|Belgium|C,E|230|EUR|Euro|112|R
+BF|Burkina Faso|C,E|220|XOF|West African CFA franc|17 police · 18 ambulance|R
+BG|Bulgaria|C,F|230|BGN|Bulgarian lev|112|R
+BH|Bahrain|G|230|BHD|Bahraini dinar|999|R
+BI|Burundi|C,E|220|BIF|Burundian franc|112|R
+BJ|Benin|C,E|220|XOF|West African CFA franc|117 police · 112 ambulance|R
+BN|Brunei|G|240|BND|Brunei dollar|993 police · 991 ambulance|L
+BO|Bolivia|A,C|230|BOB|Boliviano|110 police · 118 ambulance|R
+BR|Brazil|C,N|220|BRL|Brazilian real|190 police · 192 ambulance|R
+BS|Bahamas|A,B|120|BSD|Bahamian dollar|911|L
+BT|Bhutan|C,D,G|230|BTN|Bhutanese ngultrum|113 police · 112 ambulance|L
+BW|Botswana|D,G|230|BWP|Botswana pula|999 police · 997 ambulance|L
+BY|Belarus|C,F|220|BYN|Belarusian ruble|102 police · 103 ambulance|R
+BZ|Belize|A,B,G|110|BZD|Belize dollar|911|R
+CA|Canada|A,B|120|CAD|Canadian dollar|911|R
+CD|DR Congo|C,D,E|220|CDF|Congolese franc|112|R
+CF|Central African Republic|C,E|220|XAF|Central African CFA franc|117 police · 1220 ambulance|R
+CG|Republic of the Congo|C,E|230|XAF|Central African CFA franc|117 police · 112 ambulance|R
+CH|Switzerland|C,J|230|CHF|Swiss franc|112|R
+CI|Côte d'Ivoire|C,E|220|XOF|West African CFA franc|110 police · 185 ambulance|R
+CL|Chile|C,L|220|CLP|Chilean peso|133 police · 131 ambulance|R
+CM|Cameroon|C,E|220|XAF|Central African CFA franc|117 police · 112 ambulance|R
+CN|China|A,C,I|220|CNY|Chinese yuan|110 police · 120 ambulance|R
+CO|Colombia|A,B|110|COP|Colombian peso|123|R
+CR|Costa Rica|A,B|120|CRC|Costa Rican colón|911|R
+CU|Cuba|A,B,C|110|CUP|Cuban peso|106 police · 104 ambulance|R
+CV|Cape Verde|C,F|230|CVE|Cape Verdean escudo|132 police · 130 ambulance|R
+CY|Cyprus|G|230|EUR|Euro|112|L
+CZ|Czechia|C,E|230|CZK|Czech koruna|112|R
+DE|Germany|C,F|230|EUR|Euro|112|R
+DJ|Djibouti|C,E|220|DJF|Djiboutian franc|17 police · 351351 ambulance|R
+DK|Denmark|C,E,F,K|230|DKK|Danish krone|112|R
+DM|Dominica|D,G|230|XCD|East Caribbean dollar|999|L
+DO|Dominican Republic|A,B|120|DOP|Dominican peso|911|R
+DZ|Algeria|C,F|230|DZD|Algerian dinar|17 police · 14 ambulance|R
+EC|Ecuador|A,B|120|USD|US dollar|911|R
+EE|Estonia|C,F|230|EUR|Euro|112|R
+EG|Egypt|C,F|220|EGP|Egyptian pound|122 police · 123 ambulance|R
+ER|Eritrea|C,L|230|ERN|Eritrean nakfa|113 police · 114 ambulance|R
+ES|Spain|C,F|230|EUR|Euro|112|R
+ET|Ethiopia|C,E,F,L|220|ETB|Ethiopian birr|991 police · 907 ambulance|R
+FI|Finland|C,F|230|EUR|Euro|112|R
+FJ|Fiji|I|240|FJD|Fijian dollar|917 police · 911 ambulance|L
+FM|Micronesia|A,B|120|USD|US dollar|911|R
+FR|France|C,E|230|EUR|Euro|112|R
+GA|Gabon|C|220|XAF|Central African CFA franc|1730 police · 1300 ambulance|R
+GB|United Kingdom|G|230|GBP|Pound sterling|999|L
+GD|Grenada|G|230|XCD|East Caribbean dollar|911|L
+GE|Georgia|C,F|220|GEL|Georgian lari|112|R
+GH|Ghana|D,G|230|GHS|Ghanaian cedi|191 police · 193 ambulance|R
+GM|Gambia|G|230|GMD|Gambian dalasi|117 police · 116 ambulance|R
+GN|Guinea|C,F,K|220|GNF|Guinean franc|117 police · 442020 ambulance|R
+GQ|Equatorial Guinea|C,E|220|XAF|Central African CFA franc|114 police · 112 ambulance|R
+GR|Greece|C,F|230|EUR|Euro|112|R
+GT|Guatemala|A,B|120|GTQ|Guatemalan quetzal|110 police · 128 ambulance|R
+GW|Guinea-Bissau|C|220|XOF|West African CFA franc|117 police · 119 ambulance|R
+GY|Guyana|A,B,D,G|240|GYD|Guyanese dollar|911 police · 913 ambulance|L
+HK|Hong Kong|G|220|HKD|Hong Kong dollar|999|L
+HN|Honduras|A,B|120|HNL|Honduran lempira|911|R
+HR|Croatia|C,F|230|EUR|Euro|112|R
+HT|Haiti|A,B|110|HTG|Haitian gourde|114 police · 116 ambulance|R
+HU|Hungary|C,F|230|HUF|Hungarian forint|112|R
+ID|Indonesia|C,F|230|IDR|Indonesian rupiah|112|L
+IE|Ireland|G|230|EUR|Euro|112|L
+IL|Israel|C,H|230|ILS|Israeli new shekel|100 police · 101 ambulance|R
+IN|India|C,D,M|230|INR|Indian rupee|112|L
+IQ|Iraq|C,D,G|230|IQD|Iraqi dinar|104 police · 122 ambulance|R
+IR|Iran|C,F|220|IRR|Iranian rial|110 police · 115 ambulance|R
+IS|Iceland|C,F|230|ISK|Icelandic króna|112|R
+IT|Italy|C,F,L|230|EUR|Euro|112|R
+JM|Jamaica|A,B|110|JMD|Jamaican dollar|119 police · 110 ambulance|L
+JO|Jordan|B,C,D,F,G,J|230|JOD|Jordanian dinar|911|R
+JP|Japan|A,B|100|JPY|Japanese yen|110 police · 119 ambulance|L
+KE|Kenya|G|240|KES|Kenyan shilling|999|L
+KG|Kyrgyzstan|C,F|220|KGS|Kyrgyzstani som|102 police · 103 ambulance|R
+KH|Cambodia|A,C,G|230|KHR|Cambodian riel|117 police · 119 ambulance|R
+KI|Kiribati|I|240|AUD|Australian dollar|192 police · 194 ambulance|L
+KM|Comoros|C,E|220|KMF|Comorian franc|17 police · 772 ambulance|R
+KN|Saint Kitts and Nevis|D,G|230|XCD|East Caribbean dollar|911|L
+KP|North Korea|A,C|220|KPW|North Korean won|119|R
+KR|South Korea|C,F|220|KRW|South Korean won|112 police · 119 ambulance|R
+KW|Kuwait|C,G|240|KWD|Kuwaiti dinar|112|R
+KZ|Kazakhstan|C,F|220|KZT|Kazakhstani tenge|112|R
+LA|Laos|A,B,C,E,F|230|LAK|Lao kip|191 police · 195 ambulance|R
+LB|Lebanon|A,B,C,D,G|230|LBP|Lebanese pound|112 police · 140 ambulance|R
+LC|Saint Lucia|G|240|XCD|East Caribbean dollar|911|L
+LI|Liechtenstein|C,J|230|CHF|Swiss franc|112|R
+LK|Sri Lanka|D,G,M|230|LKR|Sri Lankan rupee|119 police · 1990 ambulance|L
+LR|Liberia|A,B|120|LRD|Liberian dollar|911|R
+LS|Lesotho|M|220|LSL|Lesotho loti|112|L
+LT|Lithuania|C,F|230|EUR|Euro|112|R
+LU|Luxembourg|C,F|230|EUR|Euro|112|R
+LV|Latvia|C,F|230|EUR|Euro|112|R
+LY|Libya|C,L|230|LYD|Libyan dinar|1515|R
+MA|Morocco|C,E|220|MAD|Moroccan dirham|19 police · 15 ambulance|R
+MC|Monaco|C,E,F|230|EUR|Euro|112|R
+MD|Moldova|C,F|230|MDL|Moldovan leu|112|R
+ME|Montenegro|C,F|230|EUR|Euro|112|R
+MG|Madagascar|C,D,E,J,K|220|MGA|Malagasy ariary|117 police · 124 ambulance|R
+MH|Marshall Islands|A,B|120|USD|US dollar|625-8666 police · 625-4111 ambulance|R
+MK|North Macedonia|C,F|230|MKD|Macedonian denar|112|R
+ML|Mali|C,E|220|XOF|West African CFA franc|17 police · 15 ambulance|R
+MM|Myanmar|C,D,F,G|230|MMK|Myanmar kyat|199 police · 192 ambulance|R
+MN|Mongolia|C,E|230|MNT|Mongolian tögrög|102 police · 103 ambulance|R
+MO|Macau|D,G|220|MOP|Macanese pataca|999|L
+MR|Mauritania|C|220|MRU|Mauritanian ouguiya|17 police · 101 ambulance|R
+MT|Malta|G|230|EUR|Euro|112|L
+MU|Mauritius|C,G|230|MUR|Mauritian rupee|999 police · 114 ambulance|L
+MV|Maldives|C,D,G,J,K,L|230|MVR|Maldivian rufiyaa|119 police · 102 ambulance|L
+MW|Malawi|G|230|MWK|Malawian kwacha|997 police · 998 ambulance|L
+MX|Mexico|A,B|127|MXN|Mexican peso|911|R
+MY|Malaysia|G|240|MYR|Malaysian ringgit|999|L
+MZ|Mozambique|C,F,M|220|MZN|Mozambican metical|119 police · 117 ambulance|L
+NA|Namibia|D,M|220|NAD|Namibian dollar|10111|L
+NE|Niger|A,B,C,D,E,F|220|XOF|West African CFA franc|17 police · 15 ambulance|R
+NG|Nigeria|D,G|230|NGN|Nigerian naira|112|R
+NI|Nicaragua|A,B|120|NIO|Nicaraguan córdoba|118 police · 128 ambulance|R
+NL|Netherlands|C,F|230|EUR|Euro|112|R
+NO|Norway|C,F|230|NOK|Norwegian krone|112|R
+NP|Nepal|C,D,M|230|NPR|Nepalese rupee|100 police · 102 ambulance|L
+NR|Nauru|I|240|AUD|Australian dollar|110 police · 111 ambulance|L
+NZ|New Zealand|I|230|NZD|New Zealand dollar|111|L
+OM|Oman|C,G|240|OMR|Omani rial|9999|R
+PA|Panama|A,B|120|PAB|Panamanian balboa|911|R
+PE|Peru|A,B,C|220|PEN|Peruvian sol|105 police · 106 ambulance|R
+PG|Papua New Guinea|I|240|PGK|Papua New Guinean kina|112|L
+PH|Philippines|A,B,C|220|PHP|Philippine peso|911|R
+PK|Pakistan|C,D|230|PKR|Pakistani rupee|15 police · 1122 ambulance|L
+PL|Poland|C,E|230|PLN|Polish złoty|112|R
+PR|Puerto Rico|A,B|120|USD|US dollar|911|R
+PS|Palestine|C,H|230|ILS|Israeli new shekel|100 police · 101 ambulance|R
+PT|Portugal|C,F|230|EUR|Euro|112|R
+PW|Palau|A,B|120|USD|US dollar|911|R
+PY|Paraguay|C|220|PYG|Paraguayan guaraní|911|R
+QA|Qatar|D,G|240|QAR|Qatari riyal|999|R
+RO|Romania|C,F|230|RON|Romanian leu|112|R
+RS|Serbia|C,F|230|RSD|Serbian dinar|192 police · 194 ambulance|R
+RU|Russia|C,F|220|RUB|Russian ruble|112|R
+RW|Rwanda|C,J|230|RWF|Rwandan franc|112|R
+SA|Saudi Arabia|A,B,G|230|SAR|Saudi riyal|911|R
+SB|Solomon Islands|G,I|220|SBD|Solomon Islands dollar|999|L
+SC|Seychelles|G|240|SCR|Seychellois rupee|999|L
+SD|Sudan|C,D|230|SDG|Sudanese pound|999|R
+SE|Sweden|C,F|230|SEK|Swedish krona|112|R
+SG|Singapore|G|230|SGD|Singapore dollar|999 police · 995 ambulance|L
+SI|Slovenia|C,F|230|EUR|Euro|112|R
+SK|Slovakia|C,E|230|EUR|Euro|112|R
+SL|Sierra Leone|D,G|230|SLE|Sierra Leonean leone|019 police · 999 ambulance|R
+SM|San Marino|C,F,L|230|EUR|Euro|112|R
+SN|Senegal|C,D,E,K|230|XOF|West African CFA franc|17 police · 15 ambulance|R
+SO|Somalia|C|220|SOS|Somali shilling|888 police · 999 ambulance|R
+SR|Suriname|C,F|127|SRD|Surinamese dollar|115|L
+SS|South Sudan|C,D|230|SSP|South Sudanese pound|777|R
+ST|São Tomé and Príncipe|C,F|220|STN|São Tomé dobra|222-2222 police · 112 ambulance|R
+SV|El Salvador|A,B|115|USD|US dollar|911|R
+SY|Syria|C,E,L|220|SYP|Syrian pound|112 police · 110 ambulance|R
+SZ|Eswatini|M|230|SZL|Swazi lilangeni|999 police · 977 ambulance|L
+TD|Chad|C,D,E,F|220|XAF|Central African CFA franc|17 police · 2251-4242 ambulance|R
+TG|Togo|C|220|XOF|West African CFA franc|117 police · 8200 ambulance|R
+TH|Thailand|A,B,C,O|230|THB|Thai baht|191 police · 1669 ambulance|L
+TJ|Tajikistan|C,F|220|TJS|Tajikistani somoni|102 police · 103 ambulance|R
+TL|Timor-Leste|C,E,F,I|220|USD|US dollar|112|L
+TM|Turkmenistan|B,C,F|220|TMT|Turkmenistan manat|02 police · 03 ambulance|R
+TN|Tunisia|C,E|230|TND|Tunisian dinar|197 police · 190 ambulance|R
+TO|Tonga|I|240|TOP|Tongan paʻanga|922 police · 933 ambulance|L
+TR|Türkiye|C,F|230|TRY|Turkish lira|112|R
+TT|Trinidad and Tobago|A,B|115|TTD|Trinidad and Tobago dollar|999 police · 811 ambulance|L
+TV|Tuvalu|I|220|AUD|Australian dollar|911|L
+TW|Taiwan|A,B|110|TWD|New Taiwan dollar|110 police · 119 ambulance|R
+TZ|Tanzania|D,G|230|TZS|Tanzanian shilling|112|L
+UA|Ukraine|C,F|230|UAH|Ukrainian hryvnia|112|R
+UG|Uganda|G|240|UGX|Ugandan shilling|999|L
+US|United States|A,B|120|USD|US dollar|911|R
+UY|Uruguay|C,F,I,L|220|UYU|Uruguayan peso|911|R
+UZ|Uzbekistan|C,F|220|UZS|Uzbekistani som|102 police · 103 ambulance|R
+VA|Vatican City|C,F,L|230|EUR|Euro|112|R
+VC|Saint Vincent and the Grenadines|A,C,E,G,I,K|230|XCD|East Caribbean dollar|911|L
+VE|Venezuela|A,B|120|VES|Venezuelan bolívar|911|R
+VN|Vietnam|A,C,F|220|VND|Vietnamese đồng|113 police · 115 ambulance|R
+VU|Vanuatu|C,G,I|220|VUV|Vanuatu vatu|111 police · 112 ambulance|R
+WS|Samoa|I|230|WST|Samoan tālā|995 police · 996 ambulance|L
+YE|Yemen|A,D,G|230|YER|Yemeni rial|194 police · 191 ambulance|R
+ZA|South Africa|C,D,M,N|230|ZAR|South African rand|10111 police · 10177 ambulance|L
+ZM|Zambia|C,D,G|230|ZMW|Zambian kwacha|999 police · 991 ambulance|L
+ZW|Zimbabwe|D,G|240|ZWG|Zimbabwe gold|995 police · 994 ambulance|L
