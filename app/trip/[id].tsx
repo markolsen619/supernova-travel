@@ -74,6 +74,8 @@ import { toCalendarDate } from '@/utils/calendarDate';
 import { BeforeYouGoSheet } from '@/components/trip/BeforeYouGoSheet';
 import { internationalCountries, showBeforeYouGo, tripCountries } from '@/utils/beforeYouGo';
 import { homeRegion } from '@/utils/homeRegion';
+import { trainLink, type LegCity } from '@/utils/trainLinks';
+import { linkTemplatesFromEnv } from '@/utils/partnerLinks';
 import { manualSearchQuery, selectStopsToGround, typedStopMatches } from '@/utils/groundingQueue';
 import { tidyPlan } from '@/utils/tidyDays';
 import { venueTitle } from '@/utils/venueTitle';
@@ -187,6 +189,9 @@ function AnimatedDaySection({
  */
 const HEADER_ICON = LightColors.text.primary;
 
+
+// Affiliate link templates (spec 2026-11-12) — build settings; unset = plain links.
+const PARTNER_TEMPLATES = linkTemplatesFromEnv(process.env);
 export default function TripDetailScreen() {
   const { id, video, wishVideo, wishPlace, beforeYouGo } = useLocalSearchParams<{ id: string; video?: string; wishVideo?: string; wishPlace?: string; beforeYouGo?: string }>();
   const router = useRouter();
@@ -443,6 +448,12 @@ export default function TripDetailScreen() {
   const [bygVisible, setBygVisible] = useState(beforeYouGo === '1');
   const openByg = useCallback(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBygVisible(true); }, []);
   const closeByg = useCallback(() => setBygVisible(false), []);
+  // Trains between cities (spec 2026-11-12): Omio on a short leg with nothing booked; members, upcoming/current
+  // trips only — the same rule as tours, so tripTourCities being non-empty says both.
+  const cityPoint = useCallback((i: number): LegCity => {
+    const c = i === 0 ? trip?.destination : trip?.additionalDestinations?.[i - 1];
+    return { name: c?.name ?? '', lat: c?.lat ?? null, lng: c?.lng ?? null };
+  }, [trip]);
   const handleToursReturn = useCallback((city: { index: number; name: string; countryCode: string | null }, partner: string) => {
     if (!trip) return;
     const days = [...trip.days].sort((a, b) => a.dayNumber - b.dayNumber);
@@ -1771,6 +1782,7 @@ export default function TripDetailScreen() {
                     onToggle={activeCity === null ? () => setSectionOpen(key, !open) : undefined}
                     onMenu={canEditItinerary ? () => openCityMenu(ci) : undefined}
                     arriving={perCity[ci]?.arriving ?? []}
+                    train={ci > 0 && tripTourCities.length > 0 ? trainLink(cityPoint(ci - 1), cityPoint(ci), perCity[ci]?.arriving.length ?? 0, PARTNER_TEMPLATES) : null}
                     staying={perCity[ci]?.staying ?? []}
                     onBookingPress={openBooking}
                     onAddBooking={isOwner || isCollaborator ? addBooking : undefined}

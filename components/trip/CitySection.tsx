@@ -1,8 +1,8 @@
 import React, { type ReactNode } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { AirplaneTilt, Bed, CaretDown, CaretRight, DotsThree, Plus } from 'phosphor-react-native';
+import { AirplaneTilt, Bed, CaretDown, CaretRight, DotsThree, Plus, Train } from 'phosphor-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { BookedRow } from '@/components/trip/BookedRow';
 import type { TripBooking } from '@/utils/bookingDays';
@@ -20,6 +20,8 @@ interface CitySectionProps {
   onToggle?: () => void;
   onMenu?: () => void;
   arriving: TripBooking[];
+  /** Omio "Find trains & buses" for this leg when nothing is booked (utils/trainLinks; spec 2026-11-12). */
+  train?: { label: string; url: string } | null;
   staying: TripBooking[];
   onBookingPress: (b: TripBooking) => void;
   onAddBooking?: () => void;
@@ -67,11 +69,21 @@ export function CitySection(p: CitySectionProps) {
             <Text style={[styles.blockLabel, { color: colors.text.tertiary }]}>GETTING HERE</Text>
             {p.arriving.length > 0
               ? p.arriving.map((b) => <BookedRow key={`${b.kind}_${b.item.id}`} entry={asEntry(b)} onPress={p.onBookingPress} />)
-              : p.onAddBooking && (
-                <TouchableOpacity onPress={light(p.onAddBooking)} style={styles.link} accessibilityRole="button">
-                  <AirplaneTilt size={16} color={colors.text.secondary} weight="duotone" />
-                  <Text style={[styles.linkText, { color: colors.text.secondary }]}>Add how you&apos;re getting here</Text>
-                </TouchableOpacity>
+              : (
+                <View style={styles.links}>
+                  {p.train && (
+                    <TouchableOpacity onPress={light(() => { Linking.openURL(p.train!.url).catch(() => {}); })} style={styles.link} accessibilityRole="link">
+                      <Train size={16} color={colors.text.secondary} weight="duotone" />
+                      <Text style={[styles.linkText, { color: colors.text.secondary }]}>{p.train.label}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {p.onAddBooking && (
+                    <TouchableOpacity onPress={light(p.onAddBooking)} style={styles.link} accessibilityRole="button">
+                      <AirplaneTilt size={16} color={colors.text.secondary} weight="duotone" />
+                      <Text style={[styles.linkText, { color: colors.text.secondary }]}>Add how you&apos;re getting here</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
           </View>
           <View style={styles.block}>
