@@ -98,7 +98,7 @@ describe('packingSuggestions', () => {
     expect(s[0]).toEqual({ label: 'Umbrella or rain jacket', category: 'Weather', reason: 'Rain on 3 days' });
   });
   it('heat and cold from the forecast', () => {
-    const s = packingSuggestions({ ...base, days: [day({ weather: { kind: 'clear', max: 31, min: 20 } as never }), day({ weather: { kind: 'clear', max: 8, min: 2 } as never })] });
+    const s = packingSuggestions({ ...base, days: [day({ weather: { kind: 'sun', max: 31, min: 20 } as never }), day({ weather: { kind: 'sun', max: 8, min: 2 } as never })] });
     expect(labels(s)).toEqual(expect.arrayContaining(['Sunscreen', 'Sun hat', 'Warm coat', 'Gloves']));
     expect(s.find((x) => x.label === 'Sun hat')?.reason).toBe('Highs of 31°');
     expect(s.find((x) => x.label === 'Gloves')?.reason).toBe('Lows of 2°');
@@ -198,7 +198,7 @@ export function packingSuggestions(a: { days: PackDay[]; trip: CountryTrip; home
 }
 ```
 
-  Check `WeatherKind`'s members in `utils/weather.ts` (`symbolKind`). If the wet kinds are named differently (e.g. `'showers'`, `'thunder'`), use those names in `WET` and the tests, and ledger it as a ruling. The "Passport" rule needs a known home: with an unknown home every country counts as international, which would wrongly suggest a passport for a domestic trip.
+  `WeatherKind` is `'sun' | 'partly' | 'cloud' | 'fog' | 'rain' | 'snow' | 'storm'`, and the wet kinds are `rain`, `snow` and `storm`. The "Passport" rule needs a known home: with an unknown home every country counts as international, which would wrongly suggest a passport for a domestic trip.
 
 - [ ] **Step 4: Run the tests to verify they pass.**
   - Run: `npx jest __tests__/utils/packingSuggestions.test.ts`
@@ -749,7 +749,7 @@ export async function writeWidget(input: WidgetInput, coverUrl: string | null): 
 
 - [ ] **Step 3: Write `hooks/useWidgetSync.ts`.** Mount it once in `app/(tabs)/_layout.tsx` next to `useFlightLiveActivity`. It builds a `WidgetInput` from data the app already loads:
   - **Trips:** use the same trip list Home uses (`homeTrips(trips, today)`). The lead is `h.today ?? h.next`.
-  - **Days and stops:** for the lead trip, `useTrip(lead?.id)` gives days with activities. Map today and tomorrow (`dayDateFor(tripSpan(lead).start, dayNumber)`) to `{ date, city, stops: activities.map((a) => ({ title: a.title, time: stopTime(a) ?? null, visited: !!a.visited })), weather: null }`. Use the app's existing stop-time helper `utils/stopTime`, and the city name by `destinationIndex`.
+  - **Days and stops:** for the lead trip, `useTrip(lead?.id)` gives days with activities. Map today and tomorrow (`dayDateFor(tripSpan(lead).start, dayNumber)`) to `{ date, city, stops: activities.map((a) => ({ title: a.title, time: stopTime(a, null).time, visited: !!a.visited })), weather: null }`. Use the app's existing stop-time helper `utils/stopTime` (`stopTime(activity, bookedTime)` returns `{ time, fromBooking }`), and the city name by `destinationIndex`.
   - **Flight:** from `useBoardingPasses()`, the soonest pass with `departureTime` in the next 24 h and status not `cancelled`/`completed`. `departLocal` uses the airport-clock helper `BoardingPassCard` uses (`utils/airportTime`). `route = "${origin} → ${destination}"`. `status = statusLine` if present.
   - **Wish city:** `topSavedCity(saves)?.city ?? null`, as Home's nudge.
   - **Cover:** `coverKey = "cover-${trip.id}"`, `coverUrl = trip.coverImageUrl` (key-less `photoUri` only; skip any URL containing `key=`).
