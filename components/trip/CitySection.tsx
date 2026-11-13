@@ -20,7 +20,7 @@ interface CitySectionProps {
   onToggle?: () => void;
   onMenu?: () => void;
   arriving: TripBooking[];
-  /** "Find trains & buses" (Trainline / 12Go) for this leg when nothing is booked (utils/trainLinks; spec 2026-11-12). */
+  /** "Find trains & buses" (Trip.com / 12Go) for this leg when nothing is booked (utils/trainLinks; spec 2026-11-12). */
   train?: { label: string; url: string } | null;
   staying: TripBooking[];
   onBookingPress: (b: TripBooking) => void;

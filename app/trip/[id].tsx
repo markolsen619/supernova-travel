@@ -458,7 +458,7 @@ export default function TripDetailScreen() {
   }, [beforeYouGo, showByg]);
   const openByg = useCallback(() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBygVisible(true); }, []);
   const closeByg = useCallback(() => setBygVisible(false), []);
-  // Trains between cities (spec 2026-11-12): Trainline (Europe) / 12Go (Asia) on a short leg with nothing booked; members, upcoming/current
+  // Trains between cities (spec 2026-11-12): Trip.com (Europe) / 12Go (Asia) on a short leg with nothing booked; members, upcoming/current
   // trips only — the same rule as tours, so tripTourCities being non-empty says both.
   const cityPoint = useCallback((i: number): LegCity => {
     const c = i === 0 ? trip?.destination : trip?.additionalDestinations?.[i - 1];

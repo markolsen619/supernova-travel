@@ -1,6 +1,6 @@
 # Trip extras: Before you go, eSIMs and trains between cities
 
-**Status:** built 2026-11-12. **Change (owner, same day):** train links go to **Trainline** (Europe) and **12Go** (Asia) instead of Omio — Omio isn't on Travelpayouts for this account and impact.com declined us. No city-ID table; links open the partner's search page; no link outside those regions. The Omio sections below are history.
+**Status:** built 2026-11-12. **Change (owner, same day):** train links go to **Trip.com** (Europe) and **12Go** (Asia) instead of Omio — Omio isn't on Travelpayouts for this account, impact.com declined us, and Trainline isn't listed. No city-ID table; links open the partner's search page; no link outside those regions. The Omio sections below are history.
 
 ## Why
 
